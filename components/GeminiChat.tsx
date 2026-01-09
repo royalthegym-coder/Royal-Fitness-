@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { getGeminiChatResponse } from '../lib/gemini';
 import { ChatMessage } from '../types';
@@ -89,3 +90,4 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose }) => {
 };
 
 export default GeminiChat;
+    

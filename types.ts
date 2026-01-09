@@ -221,3 +221,24 @@ export interface Task {
   dueDate: string; // YYYY-MM-DD
   completed: boolean;
 }
+
+// Gamification Types
+export interface Badge {
+    id: string;
+    name: string;
+    description: string;
+    icon: string; // Emoji or Icon Name
+    category: 'Consistency' | 'Strength' | 'Cardio' | 'Milestone';
+    isEarned: boolean;
+    earnedDate?: string;
+}
+
+export interface Challenge {
+    id: string;
+    title: string;
+    description: string;
+    xpReward: number;
+    difficulty: 'Easy' | 'Medium' | 'Hard';
+    isCompleted: boolean;
+    expiresAt?: string;
+}

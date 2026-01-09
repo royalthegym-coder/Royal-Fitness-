@@ -1,11 +1,12 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Invoice } from '../types';
-import { INITIAL_INVOICES, INITIAL_MEMBERS, INITIAL_PACKAGES } from '../constants';
+import { INITIAL_INVOICES, INITIAL_MEMBERS, INITIAL_PACKAGES, GYM_INFO } from '../constants';
 import Card from './common/Card';
 import Modal from './common/Modal';
 import { View } from '../App';
 import { QrCodeIcon } from './icons/QrCodeIcon';
+import { toDataURL } from 'qrcode';
 
 interface BillingProps {
     setCurrentView: (view: View) => void;
@@ -15,6 +16,9 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
     const [invoices, setInvoices] = useState<Invoice[]>(INITIAL_INVOICES);
     const [filter, setFilter] = useState<'All' | 'Paid' | 'Pending' | 'Overdue'>('All');
     const [isModalOpen, setModalOpen] = useState(false);
+    const [isPaymentModalOpen, setPaymentModalOpen] = useState(false);
+    const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+    const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
     
     const filteredInvoices = useMemo(() => {
         if (filter === 'All') return invoices;
@@ -25,6 +29,27 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
         const newId = Math.max(...invoices.map(i => i.id)) + 1;
         setInvoices([...invoices, { ...newInvoiceData, id: newId }]);
         setModalOpen(false);
+    };
+
+    const handlePayInvoice = async (invoice: Invoice) => {
+        setSelectedInvoice(invoice);
+        const upiUri = `upi://pay?pa=${GYM_INFO.upiIds.gpay1}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${invoice.amount.toFixed(2)}&cu=INR&tn=Invoice #${invoice.id} for ${encodeURIComponent(invoice.memberName)}`;
+        try {
+            const url = await toDataURL(upiUri, { width: 250, margin: 2 });
+            setQrCodeUrl(url);
+            setPaymentModalOpen(true);
+        } catch (err) {
+            console.error("Error generating QR:", err);
+            alert("Could not generate QR code.");
+        }
+    };
+
+    const handleMarkAsPaid = () => {
+        if (selectedInvoice) {
+            setInvoices(invoices.map(i => i.id === selectedInvoice.id ? { ...i, status: 'Paid' } : i));
+            setPaymentModalOpen(false);
+            setSelectedInvoice(null);
+        }
     };
 
     const getStatusColor = (status: Invoice['status']) => {
@@ -75,6 +100,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                                 <th className="p-3">Amount</th>
                                 <th className="p-3">Status</th>
                                 <th className="p-3">Date</th>
+                                <th className="p-3">Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -90,13 +116,54 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                                         </span>
                                     </td>
                                     <td className="p-3 text-gray-400">{invoice.date}</td>
+                                    <td className="p-3">
+                                        {invoice.status !== 'Paid' && (
+                                            <button 
+                                                onClick={() => handlePayInvoice(invoice)}
+                                                className="text-blue-400 hover:text-blue-300 font-semibold text-xs flex items-center bg-blue-400/10 px-2 py-1 rounded"
+                                            >
+                                                <QrCodeIcon className="w-3 h-3 mr-1" /> Pay
+                                            </button>
+                                        )}
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
             </Card>
+            
             <NewInvoiceModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} onSave={handleGenerateInvoice} />
+            
+            {/* Payment Modal */}
+            <Modal isOpen={isPaymentModalOpen} onClose={() => setPaymentModalOpen(false)} title="Pay via UPI">
+                {selectedInvoice && (
+                    <div className="flex flex-col items-center p-4">
+                        <p className="text-gray-300 mb-4 text-center">
+                            Scan to pay <strong>₹{selectedInvoice.amount}</strong> for Invoice #{selectedInvoice.id}
+                        </p>
+                        <div className="bg-white p-4 rounded-lg mb-4">
+                            <img src={qrCodeUrl} alt="UPI QR Code" className="w-48 h-48" />
+                        </div>
+                        <p className="text-xs text-gray-500 mb-6 break-all text-center">{GYM_INFO.upiIds.gpay1}</p>
+                        
+                        <div className="flex w-full gap-4">
+                            <button 
+                                onClick={() => setPaymentModalOpen(false)} 
+                                className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 rounded-lg"
+                            >
+                                Close
+                            </button>
+                            <button 
+                                onClick={handleMarkAsPaid} 
+                                className="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-2 rounded-lg"
+                            >
+                                Mark Paid
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
         </div>
     );
 };

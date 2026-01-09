@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import Modal from './Modal';
 import { generateAIWorkoutTemplate } from '../../lib/gemini';
@@ -121,3 +122,4 @@ const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpe
 };
 
 export default AIWorkoutGeneratorModal;
+    

@@ -9,10 +9,16 @@ import { FacebookIcon, InstagramIcon, TwitterIcon } from './icons/SocialIcons';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import Modal from './common/Modal';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { BluetoothIcon } from './icons/BluetoothIcon';
+import { WifiIcon } from './icons/WifiIcon';
 
 interface SettingsProps {
     setCurrentView: (view: View) => void;
 }
+
+// UUIDs matching the device firmware (Hypothetical defaults based on common ESP32 provisioning)
+const PROVISIONING_SERVICE_UUID = '000000ff-0000-1000-8000-00805f9b34fb'; 
+const WIFI_CREDENTIALS_CHAR_UUID = '0000ff01-0000-1000-8000-00805f9b34fb'; 
 
 const IntegrationCard: React.FC<{ name: string; category: string; description: string; status: 'Active' | 'Inactive' }> = ({ name, category, description, status }) => (
     <div className="flex items-start justify-between p-4 bg-gray-700/50 rounded-lg border border-gray-600">
@@ -39,24 +45,95 @@ const IntegrationCard: React.FC<{ name: string; category: string; description: s
 const Settings: React.FC<SettingsProps> = ({ setCurrentView }) => {
     // Simplified state, assuming connection is managed elsewhere.
     const [isConnected] = useState(true);
-    const [activeTab, setActiveTab] = useState<'general' | 'integrations'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'integrations' | 'iot'>('general');
+
+    // IoT Provisioning State
+    const [ssid, setSsid] = useState('');
+    const [password, setPassword] = useState('');
+    const [provisionStatus, setProvisionStatus] = useState<'idle' | 'scanning' | 'connecting' | 'provisioning' | 'success' | 'error'>('idle');
+    const [statusMessage, setStatusMessage] = useState('');
+
+    const handleProvisionDevice = async () => {
+        if (!ssid || !password) {
+            alert("Please enter both SSID and Password.");
+            return;
+        }
+
+        setProvisionStatus('scanning');
+        setStatusMessage("Scanning for Royal Smart Devices...");
+
+        try {
+            const nav = navigator as any;
+            if (!nav.bluetooth) {
+                throw new Error("Web Bluetooth not supported in this browser.");
+            }
+
+            const device = await nav.bluetooth.requestDevice({
+                // In a real app, use filters: [{ services: [PROVISIONING_SERVICE_UUID] }],
+                acceptAllDevices: true,
+                optionalServices: [PROVISIONING_SERVICE_UUID]
+            });
+
+            if (!device) throw new Error("No device selected.");
+
+            setProvisionStatus('connecting');
+            setStatusMessage("Connecting to device...");
+            
+            const server = await device.gatt.connect();
+            
+            setStatusMessage("Discovering services...");
+            const service = await server.getPrimaryService(PROVISIONING_SERVICE_UUID);
+            
+            setStatusMessage("Locating WiFi characteristic...");
+            const characteristic = await service.getCharacteristic(WIFI_CREDENTIALS_CHAR_UUID);
+
+            setProvisionStatus('provisioning');
+            setStatusMessage("Sending WiFi credentials...");
+
+            const payload = JSON.stringify({ ssid, password });
+            const encoder = new TextEncoder();
+            await characteristic.writeValue(encoder.encode(payload));
+
+            setProvisionStatus('success');
+            setStatusMessage("Device Provisioned Successfully! It should now connect to WiFi.");
+            
+            setTimeout(() => {
+                if (device.gatt.connected) device.gatt.disconnect();
+            }, 2000);
+
+        } catch (error: any) {
+            console.error(error);
+            setProvisionStatus('error');
+            if (error.name === 'NotFoundError' || error.message.includes('cancelled')) {
+                setStatusMessage("Pairing cancelled.");
+            } else {
+                setStatusMessage(`Error: ${error.message || "Failed to provision"}`);
+            }
+        }
+    };
 
     return (
         <div>
             <h1 className="text-3xl font-bold text-amber-400 mb-6">Settings</h1>
             
-            <div className="flex space-x-4 mb-6 border-b border-gray-700">
+            <div className="flex space-x-4 mb-6 border-b border-gray-700 overflow-x-auto">
                 <button 
                     onClick={() => setActiveTab('general')}
-                    className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'general' ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-400 hover:text-white'}`}
+                    className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'general' ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-400 hover:text-white'}`}
                 >
                     General
                 </button>
                 <button 
                     onClick={() => setActiveTab('integrations')}
-                    className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'integrations' ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-400 hover:text-white'}`}
+                    className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'integrations' ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-400 hover:text-white'}`}
                 >
                     Open Source Integrations
+                </button>
+                <button 
+                    onClick={() => setActiveTab('iot')}
+                    className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'iot' ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-400 hover:text-white'}`}
+                >
+                    IoT Device Setup
                 </button>
             </div>
 
@@ -234,6 +311,89 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView }) => {
                                 status="Active"
                             />
                         </div>
+                    </Card>
+                </div>
+            )}
+
+            {activeTab === 'iot' && (
+                <div className="max-w-2xl mx-auto space-y-6">
+                    <Card title="Provision Smart Device" className="border-2 border-blue-500/30">
+                        <p className="text-gray-400 mb-6">
+                            Connect your Royal Gym Smart Displays, Treadmills, or Access Control scanners to the Wi-Fi network using Bluetooth Low Energy (BLE).
+                        </p>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300">Wi-Fi SSID (Network Name)</label>
+                                <div className="mt-1 relative rounded-md shadow-sm">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <WifiIcon className="h-5 w-5 text-gray-400" />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={ssid}
+                                        onChange={(e) => setSsid(e.target.value)}
+                                        className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-600 bg-gray-700 rounded-md py-3 text-white"
+                                        placeholder="Gym_Guest_WiFi"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300">Wi-Fi Password</label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-600 bg-gray-700 rounded-md py-3 px-4 text-white mt-1"
+                                    placeholder="Enter network password"
+                                />
+                            </div>
+
+                            <button
+                                onClick={handleProvisionDevice}
+                                disabled={provisionStatus !== 'idle' && provisionStatus !== 'error' && provisionStatus !== 'success'}
+                                className={`w-full flex items-center justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white transition-all ${
+                                    provisionStatus === 'success' ? 'bg-green-600' :
+                                    provisionStatus === 'error' ? 'bg-red-600 hover:bg-red-700' :
+                                    'bg-blue-600 hover:bg-blue-700'
+                                } disabled:opacity-50`}
+                            >
+                                {provisionStatus === 'scanning' || provisionStatus === 'connecting' || provisionStatus === 'provisioning' ? (
+                                    <>
+                                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                        {provisionStatus === 'scanning' ? 'Scanning...' : provisionStatus === 'connecting' ? 'Connecting...' : 'Provisioning...'}
+                                    </>
+                                ) : provisionStatus === 'success' ? (
+                                    <>
+                                        <CheckCircleIcon className="w-5 h-5 mr-2" /> Provisioned!
+                                    </>
+                                ) : (
+                                    <>
+                                        <BluetoothIcon className="w-5 h-5 mr-2" /> Scan & Provision Device
+                                    </>
+                                )}
+                            </button>
+
+                            {statusMessage && (
+                                <div className={`p-3 rounded-lg text-sm font-mono text-center ${
+                                    provisionStatus === 'error' ? 'bg-red-900/30 text-red-300' : 
+                                    provisionStatus === 'success' ? 'bg-green-900/30 text-green-300' : 'bg-gray-800 text-gray-300'
+                                }`}>
+                                    {statusMessage}
+                                </div>
+                            )}
+                        </div>
+                    </Card>
+
+                    <Card title="How it Works">
+                        <ol className="list-decimal list-inside space-y-2 text-gray-400 text-sm">
+                            <li>Power on your Royal Smart Device. It should be in pairing mode (blinking blue LED).</li>
+                            <li>Enter the Wi-Fi credentials for the network you want the device to join.</li>
+                            <li>Click "Scan & Provision".</li>
+                            <li>Select your device from the browser's Bluetooth picker (look for "Royal_Device_...").</li>
+                            <li>The app will securely send the credentials to the device.</li>
+                        </ol>
                     </Card>
                 </div>
             )}

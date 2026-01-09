@@ -74,7 +74,7 @@ const Reports: React.FC = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card title="Monthly Revenue">
-                    <div className="h-[400px] w-full min-w-0">
+                    <div className="h-[400px] w-full min-w-0" style={{ height: 400 }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={monthlyRevenueData}>
                                 <XAxis dataKey="name" stroke="currentColor" className="text-xs" />
@@ -87,7 +87,7 @@ const Reports: React.FC = () => {
                     </div>
                 </Card>
                 <Card title="Package Popularity">
-                    <div className="h-[400px] w-full min-w-0">
+                    <div className="h-[400px] w-full min-w-0" style={{ height: 400 }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie data={packagePopularityData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>

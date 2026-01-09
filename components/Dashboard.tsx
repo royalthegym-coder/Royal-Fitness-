@@ -154,13 +154,21 @@ const Dashboard: React.FC<DashboardProps> = ({ setCurrentView }) => {
 
     const upcomingRenewals = useMemo(() => {
         const today = new Date();
-        const sevenDaysFromNow = new Date();
-        sevenDaysFromNow.setDate(today.getDate() + 7);
+        const thirtyDaysFromNow = new Date();
+        thirtyDaysFromNow.setDate(today.getDate() + 30); // Extended window for demo purposes
 
         return INITIAL_MEMBERS.filter(member => {
             if (member.status !== 'Active') return false;
             const expiryDate = getExpiryDate(member.joinDate, member.packageId);
-            return expiryDate && expiryDate > today && expiryDate <= sevenDaysFromNow;
+            // Include expired within last 7 days or expiring in future 30 days
+            const recentPast = new Date();
+            recentPast.setDate(today.getDate() - 7);
+            
+            return expiryDate && expiryDate >= recentPast && expiryDate <= thirtyDaysFromNow;
+        }).sort((a, b) => {
+            const dateA = getExpiryDate(a.joinDate, a.packageId)!.getTime();
+            const dateB = getExpiryDate(b.joinDate, b.packageId)!.getTime();
+            return dateA - dateB;
         });
     }, []);
     
@@ -249,7 +257,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setCurrentView }) => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
                     <Card title="Revenue Growth (6 Months)" className="h-full">
-                        <div className="h-[400px] w-full mt-4 min-w-0">
+                        <div className="h-[400px] w-full mt-4 min-w-0" style={{ height: 400 }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={revenueData}>
                                     <defs>
@@ -270,7 +278,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setCurrentView }) => {
                 </div>
                 <div className="lg:col-span-1">
                     <Card title="Weekly Footfall" className="h-full">
-                        <div className="h-[400px] w-full mt-4 min-w-0">
+                        <div className="h-[400px] w-full mt-4 min-w-0" style={{ height: 400 }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={footfallData}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
@@ -301,22 +309,29 @@ const Dashboard: React.FC<DashboardProps> = ({ setCurrentView }) => {
                 </Card>
 
                 {/* Upcoming Renewals */}
-                <Card title="Upcoming Renewals (7 Days)" className="lg:col-span-1">
+                <Card title="Upcoming Renewals" className="lg:col-span-1">
                     <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
                         {upcomingRenewals.length > 0 ? (
                             upcomingRenewals.map(member => {
-                                const expiryDateString = getExpiryDate(member.joinDate, member.packageId)?.toLocaleDateString() ?? 'N/A';
+                                const expiryDate = getExpiryDate(member.joinDate, member.packageId);
+                                const expiryDateString = expiryDate?.toLocaleDateString() ?? 'N/A';
+                                const daysLeft = expiryDate ? Math.ceil((expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                                const isExpired = daysLeft < 0;
+
                                 return (
                                 <div key={member.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-700">
-                                    <div className="flex items-center">
-                                        <img src={member.avatar} alt={member.name} className="w-10 h-10 rounded-full mr-3 object-cover" />
-                                        <div>
-                                            <p className="font-semibold text-sm text-gray-800 dark:text-gray-200">{member.name}</p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400">{INITIAL_PACKAGES.find(p => p.id === member.packageId)?.name}</p>
+                                    <div className="flex items-center overflow-hidden">
+                                        <img src={member.avatar} alt={member.name} className="w-10 h-10 rounded-full mr-3 object-cover flex-shrink-0" />
+                                        <div className="min-w-0">
+                                            <p className="font-semibold text-sm text-gray-800 dark:text-gray-200 truncate">{member.name}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{INITIAL_PACKAGES.find(p => p.id === member.packageId)?.name}</p>
                                         </div>
                                     </div>
-                                    <div className="text-right flex flex-col items-end gap-1">
-                                        <p className="text-xs font-bold text-red-500 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">Exp: {expiryDateString}</p>
+                                    <div className="text-right flex flex-col items-end gap-1 flex-shrink-0 ml-2">
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${isExpired ? 'bg-red-900/50 text-red-300' : 'bg-yellow-900/50 text-yellow-300'}`}>
+                                            {isExpired ? `Expired ${Math.abs(daysLeft)} days ago` : `${daysLeft} days left`}
+                                        </span>
+                                        <p className="text-[10px] text-gray-500">{expiryDateString}</p>
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); handleRemind(member); }}
                                             className="text-green-500 hover:text-green-400 p-1 flex items-center text-xs font-bold"
@@ -330,7 +345,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setCurrentView }) => {
                         ) : (
                             <div className="flex flex-col items-center justify-center h-40 text-center">
                                 <CalendarIcon className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-2" />
-                                <p className="text-gray-500">No renewals due this week.</p>
+                                <p className="text-gray-500">No renewals due soon.</p>
                             </div>
                         )}
                     </div>

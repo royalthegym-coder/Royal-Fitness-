@@ -1,3 +1,4 @@
+
 import { Package, Member, Invoice, Staff, Expense, DietPlan, Lead, GoogleReview, GoogleBusinessPost, GoogleBusinessInsights, BroadcastMessage, Transaction, ActivityEvent, HealthData, WorkoutTemplate, MemberSchedules, MemberFitnessData, Task } from './types';
 
 export const GYM_INFO = {
@@ -91,7 +92,7 @@ export const INITIAL_PACKAGES: Package[] = [
 
 export const INITIAL_MEMBERS: Member[] = [
   { id: 1, name: 'Aarav Sharma', email: 'aarav.s@example.com', phone: '9876543210', joinDate: '2023-05-15', packageId: 3, status: 'Active', avatar: 'https://picsum.photos/seed/aarav/200', whatsappConsent: true },
-  { id: 2, name: 'Priya Patel', email: 'priya.p@example.com', phone: '9876543211', joinDate: '2023-06-01', packageId: 2, status: 'Active', avatar: 'https://picsum.photos/seed/priya/200', whatsappConsent: false },
+  { id: 2, name: 'Priya Patel', email: 'priya.p@example.com', phone: '9876543211', joinDate: '2023-06-01', packageId: 2, status: 'Active', avatar: 'https://picsum.photos/seed/priya/200', whatsappConsent: true },
   { id: 3, name: 'Rohan Kumar', email: 'rohan.k@example.com', phone: '9876543212', joinDate: '2022-12-20', packageId: 1, status: 'Expired', avatar: 'https://picsum.photos/seed/rohan/200', whatsappConsent: true },
   { id: 4, name: 'Anika Singh', email: 'anika.s@example.com', phone: '9876543213', joinDate: '2024-07-05', packageId: 4, status: 'Active', avatar: 'https://picsum.photos/seed/anika/200', whatsappConsent: true },
   { id: 5, name: 'Vikram Mehta', email: 'vikram.m@example.com', phone: '9876543214', joinDate: '2023-02-11', packageId: 5, status: 'Inactive', avatar: 'https://picsum.photos/seed/vikram/200', whatsappConsent: false },
@@ -117,107 +118,154 @@ export const INITIAL_EXPENSES: Expense[] = [
     { id: 4, item: 'Treadmill Repair', category: 'Maintenance', amount: 5000, date: '2024-06-22' },
 ];
 
+// 6-Day Full Body Splits with Warm-up & Activation Theme
 export const INITIAL_WORKOUT_TEMPLATES: WorkoutTemplate[] = [
-    { id: 6, name: 'Intro to Lifting', level: 'Beginner', exercises: [
-        { name: 'Goblet Squats', sets: '3', reps: '10-12' },
-        { name: 'Dumbbell Bench Press', sets: '3', reps: '10-12' },
-        { name: 'Seated Cable Row', sets: '3', reps: '10-12' },
-        { name: 'Plank', sets: '3', reps: '30s hold' },
-    ]},
-    { id: 4, name: 'Full Body A', level: 'Beginner', exercises: [
-        { name: 'Squats', sets: '3', reps: '8-12' },
-        { name: 'Bench Press', sets: '3', reps: '8-12' },
-        { name: 'Barbell Rows', sets: '3', reps: '8-12' },
-        { name: 'Overhead Press', sets: '3', reps: '10-15' },
-        { name: 'Bicep Curls', sets: '2', reps: '12-15' },
-    ]},
-    { id: 5, name: 'Full Body B', level: 'Beginner', exercises: [
-        { name: 'Deadlifts', sets: '3', reps: '5-8' },
-        { name: 'Pull Ups', sets: '3', reps: 'AMRAP' },
-        { name: 'Incline Dumbbell Press', sets: '3', reps: '10-15' },
-        { name: 'Lateral Raises', sets: '3', reps: '15-20' },
-        { name: 'Tricep Pushdowns', sets: '2', reps: '12-15' },
-    ]},
-    { id: 1, name: 'Push Day', level: 'Intermediate', exercises: [
-        { name: 'Bench Press', sets: '4', reps: '8-12' },
-        { name: 'Overhead Press', sets: '3', reps: '10-15' },
-        { name: 'Incline Dumbbell Press', sets: '3', reps: '10-15' },
-        { name: 'Tricep Pushdowns', sets: '3', reps: '12-15' },
-        { name: 'Lateral Raises', sets: '4', reps: '15-20' },
-    ]},
-    { id: 2, name: 'Pull Day', level: 'Intermediate', exercises: [
-        { name: 'Deadlifts', sets: '3', reps: '5-8' },
-        { name: 'Pull Ups', sets: '4', reps: 'AMRAP' },
-        { name: 'Barbell Rows', sets: '3', reps: '8-12' },
-        { name: 'Face Pulls', sets: '3', reps: '15-20' },
-        { name: 'Bicep Curls', sets: '3', reps: '12-15' },
-    ]},
-    { id: 3, name: 'Leg Day', level: 'Intermediate', exercises: [
-        { name: 'Squats', sets: '4', reps: '8-12' },
-        { name: 'Romanian Deadlifts', sets: '3', reps: '10-15' },
-        { name: 'Leg Press', sets: '3', reps: '12-15' },
-        { name: 'Leg Curls', sets: '3', reps: '12-15' },
-        { name: 'Calf Raises', sets: '4', reps: '15-20' },
-    ]},
-    { id: 7, name: 'Advanced Powerlifting', level: 'Advanced', exercises: [
-        { name: 'Competition Squat', sets: '5', reps: '3-5' },
-        { name: 'Competition Bench Press', sets: '5', reps: '3-5' },
-        { name: 'Sumo/Conventional Deadlift', sets: '5', reps: '1-3' },
-        { name: 'Paused Squats', sets: '3', reps: '5-8' },
-        { name: 'Spoto Press', sets: '3', reps: '5-8' },
-    ]},
-    { id: 8, name: 'Advanced Bodybuilding', level: 'Advanced', exercises: [
-        { name: 'Hack Squat', sets: '4', reps: '10-15' },
-        { name: 'Weighted Dips', sets: '4', reps: '8-12' },
-        { name: 'T-Bar Row', sets: '4', reps: '8-12' },
-        { name: 'Arnold Press', sets: '3', reps: '10-15' },
-        { name: 'Preacher Curls', sets: '3', reps: '10-15' },
-    ]},
-    { id: 9, name: 'Daily Full Gym Workout', level: 'Intermediate', sections: [
-        { title: '1. Daily Warm-up Workout', exercises: [
-            { name: 'Jumping Jacks', sets: '1', reps: '3 mins' },
-            { name: 'Dynamic Stretches (Leg Swings, Arm Circles)', sets: '1', reps: '5 mins' },
-            { name: 'Light Cardio (Treadmill/Cycling)', sets: '1', reps: '5-7 mins' },
-        ]},
-        { title: '2. Schedule Gym Workouts', exercises: [
-            { name: 'Barbell Bench Press', sets: '4', reps: '8-12' },
-            { name: 'Lat Pulldowns', sets: '4', reps: '10-15' },
-            { name: 'Dumbbell Shoulder Press', sets: '3', reps: '10-15' },
-            { name: 'Leg Press', sets: '4', reps: '12-15' },
-            { name: 'Barbell Bicep Curls', sets: '3', reps: '10-12' },
-        ]},
-        { title: '3. Schedule ABS Workouts', exercises: [
-            { name: 'Crunches', sets: '3', reps: '20' },
-            { name: 'Leg Raises', sets: '3', reps: '15' },
-            { name: 'Plank', sets: '3', reps: '60s hold' },
-        ]},
-        { title: '4. Finishing Gym Workouts', exercises: [
-            { name: 'Static Stretching (Hold each stretch)', sets: '1', reps: '10 mins' },
-            { name: 'Foam Rolling', sets: '1', reps: '5 mins' },
-        ]},
-    ]},
+    { 
+        id: 101, 
+        name: 'Day 1: Strength & Power', 
+        level: 'Intermediate', 
+        sections: [
+            { title: '🔥 Warm-up & Activation', exercises: [
+                { name: 'Arm Circles & Swings', sets: '1', reps: '1 min' },
+                { name: 'Cat-Cow Stretch', sets: '2', reps: '10' },
+                { name: 'Band Pull-Aparts', sets: '2', reps: '15' },
+                { name: 'Glute Bridges', sets: '2', reps: '12' }
+            ]},
+            { title: '💪 Main Workout', exercises: [
+                { name: 'Barbell Squats', sets: '4', reps: '6-8' },
+                { name: 'Bench Press', sets: '4', reps: '6-8' },
+                { name: 'Bent Over Rows', sets: '3', reps: '8-10' },
+                { name: 'Overhead Press', sets: '3', reps: '8-10' }
+            ]},
+            { title: '🧘 Cool Down', exercises: [
+                { name: 'Static Hamstring Stretch', sets: '1', reps: '30s hold' },
+                { name: 'Chest Opener Stretch', sets: '1', reps: '30s hold' }
+            ]}
+        ]
+    },
+    { 
+        id: 102, 
+        name: 'Day 2: Hypertrophy (Higher Reps)', 
+        level: 'Intermediate', 
+        sections: [
+            { title: '🔥 Warm-up & Activation', exercises: [
+                { name: 'Light Jog/Jump Rope', sets: '1', reps: '5 min' },
+                { name: 'Thoracic Rotations', sets: '2', reps: '10/side' },
+                { name: 'Bodyweight Squats', sets: '2', reps: '15' }
+            ]},
+            { title: '💪 Main Workout', exercises: [
+                { name: 'Romanian Deadlifts', sets: '3', reps: '10-12' },
+                { name: 'Incline Dumbbell Press', sets: '3', reps: '10-12' },
+                { name: 'Lat Pulldowns', sets: '3', reps: '12-15' },
+                { name: 'Leg Press', sets: '3', reps: '12-15' },
+                { name: 'Lateral Raises', sets: '3', reps: '15-20' }
+            ]},
+            { title: '🧘 Cool Down', exercises: [
+                { name: 'Quad Stretch', sets: '1', reps: '30s/side' },
+                { name: 'Child’s Pose', sets: '1', reps: '1 min' }
+            ]}
+        ]
+    },
+    { 
+        id: 103, 
+        name: 'Day 3: Functional & Core', 
+        level: 'Intermediate', 
+        sections: [
+            { title: '🔥 Warm-up & Activation', exercises: [
+                { name: 'High Knees', sets: '2', reps: '30s' },
+                { name: 'Bird-Dogs', sets: '2', reps: '10/side' },
+                { name: 'Dead Bugs', sets: '2', reps: '10/side' }
+            ]},
+            { title: '💪 Main Workout', exercises: [
+                { name: 'Kettlebell Swings', sets: '4', reps: '15' },
+                { name: 'Pull-Ups (or Assisted)', sets: '3', reps: 'AMRAP' },
+                { name: 'Walking Lunges', sets: '3', reps: '12/leg' },
+                { name: 'Push-Ups', sets: '3', reps: 'AMRAP' },
+                { name: 'Plank', sets: '3', reps: '60s' }
+            ]},
+            { title: '🧘 Cool Down', exercises: [
+                { name: 'Hip Flexor Stretch', sets: '1', reps: '30s/side' },
+                { name: 'Cobra Stretch', sets: '1', reps: '30s' }
+            ]}
+        ]
+    },
+    { 
+        id: 104, 
+        name: 'Day 4: Strength Endurance', 
+        level: 'Intermediate', 
+        sections: [
+            { title: '🔥 Warm-up & Activation', exercises: [
+                { name: 'Jumping Jacks', sets: '1', reps: '2 min' },
+                { name: 'World’s Greatest Stretch', sets: '2', reps: '5/side' },
+                { name: 'Scapular Pushups', sets: '2', reps: '12' }
+            ]},
+            { title: '💪 Main Workout', exercises: [
+                { name: 'Front Squats (or Goblet)', sets: '3', reps: '10' },
+                { name: 'Dumbbell Rows', sets: '3', reps: '12/arm' },
+                { name: 'Dumbbell Bench Press', sets: '3', reps: '12' },
+                { name: 'Face Pulls', sets: '3', reps: '15' },
+                { name: 'Bicep Curls', sets: '3', reps: '12-15' }
+            ]},
+            { title: '🧘 Cool Down', exercises: [
+                { name: 'Tricep Stretch', sets: '1', reps: '30s/side' },
+                { name: 'Doorway Pec Stretch', sets: '1', reps: '30s/side' }
+            ]}
+        ]
+    },
+    { 
+        id: 105, 
+        name: 'Day 5: Compound Focus', 
+        level: 'Intermediate', 
+        sections: [
+            { title: '🔥 Warm-up & Activation', exercises: [
+                { name: 'Rower/Bike', sets: '1', reps: '5 min' },
+                { name: 'Y-T-W Raises', sets: '2', reps: '10' },
+                { name: 'Leg Swings', sets: '2', reps: '10/side' }
+            ]},
+            { title: '💪 Main Workout', exercises: [
+                { name: 'Deadlifts', sets: '3', reps: '5' },
+                { name: 'Standing Military Press', sets: '3', reps: '8' },
+                { name: 'Weighted Dips', sets: '3', reps: '8-10' },
+                { name: 'Bulgarian Split Squats', sets: '3', reps: '8/leg' }
+            ]},
+            { title: '🧘 Cool Down', exercises: [
+                { name: 'Pigeon Pose', sets: '1', reps: '1 min/side' },
+                { name: 'Downward Dog', sets: '1', reps: '1 min' }
+            ]}
+        ]
+    },
+    { 
+        id: 106, 
+        name: 'Day 6: Metabolic Conditioning', 
+        level: 'Intermediate', 
+        sections: [
+            { title: '🔥 Warm-up & Activation', exercises: [
+                { name: 'Box Jumps (Low)', sets: '2', reps: '10' },
+                { name: 'Inchworms', sets: '2', reps: '8' },
+                { name: 'Spiderman Lunges', sets: '2', reps: '6/side' }
+            ]},
+            { title: '💪 Main Workout', exercises: [
+                { name: 'Thrusters', sets: '3', reps: '12' },
+                { name: 'Renegade Rows', sets: '3', reps: '10/side' },
+                { name: 'Mountain Climbers', sets: '3', reps: '30s' },
+                { name: 'Burpees', sets: '3', reps: '10' },
+                { name: 'Farmers Walk', sets: '3', reps: '40m' }
+            ]},
+            { title: '🧘 Cool Down', exercises: [
+                { name: 'Full Body Foam Roll', sets: '1', reps: '5 min' },
+                { name: 'Deep Breathing', sets: '1', reps: '2 min' }
+            ]}
+        ]
+    },
 ];
 
 export const INITIAL_MEMBER_SCHEDULES: MemberSchedules = {
     1: { // Aarav Sharma
-        '2024-08-05': { templateId: 1 },
-        '2024-08-06': { templateId: 2 },
-        '2024-08-07': { templateId: 3 },
-        '2024-08-08': { isRestDay: true },
-        '2024-08-09': { templateId: 1 },
-        '2024-08-10': { templateId: 2 },
-        '2024-08-11': { isRestDay: true },
-        [new Date().toISOString().split('T')[0]]: { templateId: 7 }, // Today's workout
+        // Schedules are now dynamically calculated in the component based on Day of Week
+        [new Date().toISOString().split('T')[0]]: { templateId: 101 }, 
     },
     2: { // Priya Patel
-        '2024-08-05': { templateId: 4 },
-        '2024-08-06': { isRestDay: true },
-        '2024-08-07': { templateId: 5 },
-        '2024-08-08': { isRestDay: true },
-        '2024-08-09': { templateId: 4 },
-        '2024-08-10': { isRestDay: true },
-        '2024-08-11': { templateId: 5 },
-        [new Date().toISOString().split('T')[0]]: { templateId: 9 }, // Today's workout
+       [new Date().toISOString().split('T')[0]]: { templateId: 102 },
     }
 };
 
@@ -234,39 +282,12 @@ export const INITIAL_MEMBER_FITNESS_DATA: MemberFitnessData = {
             { 
                 date: '2024-07-01', 
                 templateName: 'Push Day', 
-                completedExercises: INITIAL_WORKOUT_TEMPLATES.find(t=>t.id===1)!.exercises!,
+                completedExercises: INITIAL_WORKOUT_TEMPLATES[0].sections![1].exercises,
                 performance: [
                     { exercise: 'Bench Press', sets: [{ reps: 10, weight: 60 }, { reps: 8, weight: 65 }, { reps: 6, weight: 70 }] },
                     { exercise: 'Squats', sets: [{ reps: 10, weight: 80 }, { reps: 8, weight: 85 }, { reps: 8, weight: 85 }] },
                 ]
-            },
-            { 
-                date: '2024-07-08', 
-                templateName: 'Push Day', 
-                completedExercises: INITIAL_WORKOUT_TEMPLATES.find(t=>t.id===1)!.exercises!,
-                performance: [
-                    { exercise: 'Bench Press', sets: [{ reps: 10, weight: 65 }, { reps: 8, weight: 70 }, { reps: 6, weight: 75 }] },
-                    { exercise: 'Squats', sets: [{ reps: 10, weight: 85 }, { reps: 8, weight: 90 }, { reps: 8, weight: 90 }] },
-                ]
-            },
-             { 
-                date: '2024-07-15', 
-                templateName: 'Push Day', 
-                completedExercises: INITIAL_WORKOUT_TEMPLATES.find(t=>t.id===1)!.exercises!,
-                performance: [
-                    { exercise: 'Bench Press', sets: [{ reps: 12, weight: 65 }, { reps: 10, weight: 70 }, { reps: 8, weight: 75 }] },
-                    { exercise: 'Squats', sets: [{ reps: 12, weight: 85 }, { reps: 10, weight: 90 }, { reps: 8, weight: 95 }] },
-                ]
-            },
-            { 
-                date: '2024-08-01', 
-                templateName: 'Push Day', 
-                completedExercises: INITIAL_WORKOUT_TEMPLATES.find(t=>t.id===1)!.exercises!,
-                performance: [
-                    { exercise: 'Bench Press', sets: [{ reps: 10, weight: 70 }, { reps: 8, weight: 75 }, { reps: 6, weight: 80 }] },
-                    { exercise: 'Squats', sets: [{ reps: 10, weight: 90 }, { reps: 8, weight: 95 }, { reps: 6, weight: 100 }] },
-                ]
-            },
+            }
         ],
         metrics: [
             { date: '2024-07-01', weight: 80, bodyFat: 15.2 },
@@ -275,9 +296,7 @@ export const INITIAL_MEMBER_FITNESS_DATA: MemberFitnessData = {
         ]
     },
     2: { // Priya Patel
-        logs: [
-             { date: '2024-08-05', templateName: 'Full Body A', completedExercises: INITIAL_WORKOUT_TEMPLATES.find(t=>t.id===4)!.exercises! },
-        ],
+        logs: [],
         metrics: [
             { date: '2024-07-01', weight: 65 },
             { date: '2024-08-01', weight: 64 },

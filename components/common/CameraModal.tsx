@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import Modal from './Modal';
 import { CameraIcon } from '../icons/CameraIcon';
@@ -80,3 +81,4 @@ const CameraModal: React.FC<CameraModalProps> = ({ isOpen, onClose, onCapture })
 };
 
 export default CameraModal;
+    

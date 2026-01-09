@@ -4,6 +4,7 @@ import Card from './common/Card';
 import { GYM_INFO, INITIAL_TRANSACTIONS } from '../constants';
 import { Transaction } from '../types';
 import { CopyIcon } from './icons/CopyIcon';
+import { toDataURL } from 'qrcode';
 
 const Payment: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'qr' | 'cash'>('qr');
@@ -14,7 +15,7 @@ const Payment: React.FC = () => {
     const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
     const [copied, setCopied] = useState(false);
 
-    const handleGenerateQr = () => {
+    const handleGenerateQr = async () => {
         if (!memberName.trim() || !amount || parseFloat(amount) <= 0) {
             alert('Please enter a valid member name and amount.');
             return;
@@ -22,28 +23,33 @@ const Payment: React.FC = () => {
 
         const numericAmount = parseFloat(amount);
         const upiUri = `upi://pay?pa=${GYM_INFO.upiIds.gpay1}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${numericAmount.toFixed(2)}&cu=INR&tn=Payment for ${encodeURIComponent(memberName)}`;
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiUri)}`;
+        
+        try {
+            const qrCodeUrl = await toDataURL(upiUri, { width: 250, margin: 2 });
+            setGeneratedQr({
+                url: qrCodeUrl,
+                upi: GYM_INFO.upiIds.gpay1,
+                name: memberName,
+                amt: numericAmount.toFixed(2),
+            });
+            setIsProcessing(true);
 
-        setGeneratedQr({
-            url: qrCodeUrl,
-            upi: GYM_INFO.upiIds.gpay1,
-            name: memberName,
-            amt: numericAmount.toFixed(2),
-        });
-        setIsProcessing(true);
-
-        // Simulate payment confirmation
-        setTimeout(() => {
-            const newTransaction: Transaction = {
-                id: `TXN${Math.floor(Math.random() * 90000) + 10000}`,
-                memberName: memberName,
-                amount: numericAmount,
-                date: new Date().toISOString().split('T')[0],
-                method: 'QR Code',
-            };
-            setTransactions(prev => [newTransaction, ...prev]);
-            handleClear();
-        }, 5000);
+            // Simulate payment confirmation
+            setTimeout(() => {
+                const newTransaction: Transaction = {
+                    id: `TXN${Math.floor(Math.random() * 90000) + 10000}`,
+                    memberName: memberName,
+                    amount: numericAmount,
+                    date: new Date().toISOString().split('T')[0],
+                    method: 'QR Code',
+                };
+                setTransactions(prev => [newTransaction, ...prev]);
+                handleClear();
+            }, 5000);
+        } catch (err) {
+            console.error("Error generating QR code", err);
+            alert("Failed to generate QR code");
+        }
     };
 
     const handleRecordCashPayment = () => {

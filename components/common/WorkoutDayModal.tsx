@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
 import { Member, DailySchedule, WorkoutExercise } from '../../types';
@@ -14,16 +15,29 @@ interface WorkoutDayModalProps {
 
 const WorkoutDayModal: React.FC<WorkoutDayModalProps> = ({ isOpen, onClose, date, member, schedule, onSave }) => {
     const [templateId, setTemplateId] = useState<number | ''>(schedule?.templateId || '');
-    const [exercises, setExercises] = useState<WorkoutExercise[]>(schedule?.exercises || schedule?.templateId ? INITIAL_WORKOUT_TEMPLATES.find(t=>t.id === schedule.templateId)?.exercises || [] : []);
+    const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
     const [isRestDay, setIsRestDay] = useState(schedule?.isRestDay || false);
+
+    const getExercisesFromTemplate = (tid: number): WorkoutExercise[] => {
+        const t = INITIAL_WORKOUT_TEMPLATES.find(temp => temp.id === tid);
+        if (!t) return [];
+        // If template has explicit exercises list
+        if (t.exercises) return [...t.exercises];
+        // If template has sections, flatten them
+        if (t.sections) return t.sections.flatMap(s => s.exercises);
+        return [];
+    };
 
     useEffect(() => {
         setTemplateId(schedule?.templateId || '');
         setIsRestDay(schedule?.isRestDay || false);
-        if (schedule?.templateId) {
-             setExercises(INITIAL_WORKOUT_TEMPLATES.find(t => t.id === schedule.templateId)?.exercises || []);
+        
+        if (schedule?.exercises && schedule.exercises.length > 0) {
+             setExercises(schedule.exercises);
+        } else if (schedule?.templateId) {
+             setExercises(getExercisesFromTemplate(schedule.templateId));
         } else {
-             setExercises(schedule?.exercises || []);
+             setExercises([]);
         }
     }, [schedule, isOpen]);
 
@@ -32,8 +46,7 @@ const WorkoutDayModal: React.FC<WorkoutDayModalProps> = ({ isOpen, onClose, date
         setTemplateId(newTemplateId);
         setIsRestDay(false);
         if (newTemplateId) {
-            const template = INITIAL_WORKOUT_TEMPLATES.find(t => t.id === newTemplateId);
-            setExercises(template ? [...template.exercises] : []);
+            setExercises(getExercisesFromTemplate(newTemplateId));
         } else {
             setExercises([]);
         }

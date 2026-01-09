@@ -15,30 +15,9 @@ import { SparkleIcon } from './icons/SparkleIcon';
 import { getComplexResponse, getGeminiChatResponse } from '../lib/gemini';
 import { SupportIcon } from './icons/SupportIcon';
 import Modal from './common/Modal';
+import { calculateExpiryDate, sendWhatsAppMessage } from '../lib/whatsapp';
 
 type Tab = 'broadcast' | 'automations' | 'ai_care' | 'analytics' | 'account' | 'welcome';
-
-// Helper function to calculate expiry date
-const getExpiryDate = (joinDateStr: string, packageId: number): Date | null => {
-    const pkg = INITIAL_PACKAGES.find(p => p.id === packageId);
-    if (!pkg) return null;
-
-    const joinDate = new Date(joinDateStr);
-    let monthsToAdd = 0;
-    const durationParts = pkg.duration.split(' ');
-    
-    if (durationParts[0].toLowerCase() === 'first') {
-        monthsToAdd = 1;
-    } else {
-        monthsToAdd = parseInt(durationParts[0], 10);
-    }
-
-    if (isNaN(monthsToAdd)) return null;
-
-    joinDate.setMonth(joinDate.getMonth() + monthsToAdd);
-    return joinDate;
-};
-
 
 // Sub-component for Broadcast Tab
 const Broadcast: React.FC = () => {
@@ -48,6 +27,7 @@ const Broadcast: React.FC = () => {
     const [showSuccess, setShowSuccess] = useState(false);
     const [aiTopic, setAiTopic] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isSending, setIsSending] = useState(false);
 
     const consentedMembers = useMemo(() => INITIAL_MEMBERS.filter(m => m.whatsappConsent), []);
 
@@ -87,8 +67,22 @@ const Broadcast: React.FC = () => {
         }
     };
 
-    const handleSendBroadcast = () => {
+    const handleSendBroadcast = async () => {
         if (!message.trim()) return;
+        setIsSending(true);
+        
+        // Simulate sending to multiple recipients
+        // In a real app, this would be a backend queue.
+        for (const member of targetMembers) {
+             const mobileNumber = `91${member.phone.replace(/\D/g, '')}`;
+             await sendWhatsAppMessage({
+                 mobileNumber,
+                 templateName: "broadcast_generic", // Assuming a generic template exists
+                 languageCode: "en",
+                 parameters: [{ type: "text", text: message }]
+             });
+        }
+
         const newBroadcast: BroadcastMessage = {
             id: Math.max(0, ...broadcasts.map(b => b.id)) + 1,
             message, audience, recipientCount: targetMembers.length,
@@ -98,6 +92,7 @@ const Broadcast: React.FC = () => {
         setShowSuccess(true);
         setMessage('');
         setAiTopic('');
+        setIsSending(false);
     };
 
     return (
@@ -141,8 +136,8 @@ const Broadcast: React.FC = () => {
                         </select>
                          <div className="flex justify-end items-center">
                             {showSuccess && <span className="text-green-400 text-sm mr-4">Broadcast sent!</span>}
-                            <button onClick={handleSendBroadcast} disabled={!message.trim()} className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-400 flex items-center disabled:bg-gray-600">
-                                <WhatsAppIcon className="w-5 h-5 mr-2" /> Send via WhatsApp Business
+                            <button onClick={handleSendBroadcast} disabled={!message.trim() || isSending} className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-400 flex items-center disabled:bg-gray-600">
+                                {isSending ? 'Sending...' : <><WhatsAppIcon className="w-5 h-5 mr-2" /> Send via WhatsApp Business</>}
                             </button>
                         </div>
                     </div>
@@ -261,7 +256,7 @@ const PaymentReminderAutomation: React.FC = () => {
         const membersDue = INITIAL_MEMBERS.filter(member => {
             if (member.status !== 'Active' || !member.whatsappConsent) return false;
             
-            const expiryDate = getExpiryDate(member.joinDate, member.packageId);
+            const expiryDate = calculateExpiryDate(member.joinDate, member.packageId);
             if (!expiryDate) return false;
 
             expiryDate.setHours(0, 0, 0, 0);
@@ -273,9 +268,24 @@ const PaymentReminderAutomation: React.FC = () => {
         setIsChecking(false);
     };
     
-    const handleSendReminders = () => {
-        // In a real app, this would trigger an API call.
-        console.log("Sending reminders to:", eligibleMembers.map(m => m.name));
+    const handleSendReminders = async () => {
+        // Send logic using the library
+        for (const member of eligibleMembers) {
+            const expiryDate = calculateExpiryDate(member.joinDate, member.packageId);
+            const expiryDateStr = expiryDate ? expiryDate.toLocaleDateString() : 'soon';
+            const mobileNumber = `91${member.phone.replace(/\D/g, '')}`;
+            
+            await sendWhatsAppMessage({
+                mobileNumber,
+                templateName: "payment_reminder",
+                languageCode: "en",
+                parameters: [
+                    { type: "text", text: member.name },
+                    { type: "text", text: expiryDateStr }
+                ]
+            });
+        }
+        
         setIsModalOpen(false);
         setShowSuccess(true);
         setTimeout(() => setShowSuccess(false), 3000);
@@ -463,7 +473,7 @@ const Analytics: React.FC = () => {
                 <Card title="Read Rate (Est.)"><p className="text-4xl font-bold text-blue-400">85.6%</p></Card>
             </div>
             <Card title="Weekly Message Volume">
-                <div className="h-[300px] w-full min-w-0">
+                <div className="h-[300px] w-full min-w-0" style={{ height: 300 }}>
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={data}>
                             <XAxis dataKey="name" stroke="#A0AEC0" />

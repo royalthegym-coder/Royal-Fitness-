@@ -11,6 +11,8 @@ import { SparkleIcon } from '../icons/SparkleIcon';
 import Modal from '../common/Modal';
 import SmartReadinessModal from './SmartReadinessModal';
 import { CameraIcon } from '../icons/CameraIcon';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 // --- ICONS ---
 const PlayIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>;
@@ -19,6 +21,7 @@ const SwapIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-
 const AdjustIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>;
 const InfoIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
 const TrashIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>;
+const DownloadIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>;
 
 interface TodaysWorkoutProps {
     memberId: number;
@@ -59,6 +62,9 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
     const [smartWarmup, setSmartWarmup] = useState<string | null>(null);
     const [isGeneratingWarmup, setIsGeneratingWarmup] = useState(false);
 
+    // PDF State
+    const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+
     // --- EFFECT: TIMER ---
     useEffect(() => {
         let interval: any;
@@ -75,58 +81,39 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // --- DATA PREP ---
+    // --- DATA PREP (DYNAMIC DAILY SCHEDULE) ---
     const todaysWorkoutSchedule = useMemo(() => {
         if (generatedWorkout) return generatedWorkout;
-        const todayString = new Date().toISOString().split('T')[0];
-        const schedule = INITIAL_MEMBER_SCHEDULES[memberId]?.[todayString];
-        if (schedule && !schedule.isRestDay) {
-            if (schedule.templateId) {
-                return INITIAL_WORKOUT_TEMPLATES.find(t => t.id === schedule.templateId);
-            }
-            if (schedule.exercises) {
-                return { id: Date.now(), name: "Custom Workout", level: "Intermediate", exercises: schedule.exercises };
-            }
-        }
-        return null;
-    }, [memberId, generatedWorkout]);
+        
+        const today = new Date().getDay(); // 0 (Sun) - 6 (Sat)
+        
+        // Sunday is rest day
+        if (today === 0) return null;
+
+        // Map Monday (1) to Day 1 (101), ..., Saturday (6) to Day 6 (106)
+        // IDs in INITIAL_WORKOUT_TEMPLATES are 101 to 106
+        const templateId = 100 + today;
+        
+        return INITIAL_WORKOUT_TEMPLATES.find(t => t.id === templateId) || null;
+    }, [generatedWorkout]);
 
     // Flatten exercises for logic, keep structured for display
     const workoutStructure: WorkoutSection[] = useMemo(() => {
         if (!todaysWorkoutSchedule) return [];
         let sections: WorkoutSection[] = [];
         
-        // 1. Structure Definitions
+        // 1. Structure Definitions (Prioritize Pre-defined Sections)
         if ('sections' in todaysWorkoutSchedule && todaysWorkoutSchedule.sections) {
             sections = todaysWorkoutSchedule.sections.map((sec: any) => ({
                 ...sec,
                 exercises: sec.exercises.map((ex: any) => modifiedExercises[ex.name] || ex)
             }));
         } else if (todaysWorkoutSchedule.exercises) {
+            // Fallback for simple lists
             sections = [{
                 title: 'Main Workout',
                 exercises: todaysWorkoutSchedule.exercises.map((ex: any) => modifiedExercises[ex.name] || ex)
             }];
-        }
-
-        // 2. Intelligent Auto-Phasing (If flat list)
-        // If data is just a list, we intelligently group it into phases for a better UI experience.
-        if (sections.length === 1 && sections[0].title === 'Main Workout') {
-            const all = sections[0].exercises;
-            if (all.length >= 3) {
-               // Heuristic: First 1/4 is Warmup, Last 1/4 is Cooldown
-               const warmupCount = Math.ceil(all.length * 0.2); 
-               const cooldownCount = Math.ceil(all.length * 0.2);
-               const mainCount = all.length - warmupCount - cooldownCount;
-
-               if (mainCount > 0) {
-                   return [
-                       { title: '🔥 Warm Up & Activation', exercises: all.slice(0, warmupCount) },
-                       { title: '💪 Primary Power & Strength', exercises: all.slice(warmupCount, warmupCount + mainCount) },
-                       { title: '🧘 Finisher & Core', exercises: all.slice(warmupCount + mainCount) }
-                   ];
-               }
-            }
         }
         return sections;
     }, [todaysWorkoutSchedule, modifiedExercises]);
@@ -138,7 +125,7 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
             workoutStructure.forEach(sec => {
                 sec.exercises.forEach(ex => {
                     if (!performanceLog[ex.name]) {
-                        const setCount = parseInt(ex.sets.split('-')[0], 10) || 3;
+                        const setCount = typeof ex.sets === 'string' ? parseInt(ex.sets.split('-')[0], 10) || 3 : 3;
                         initialLog[ex.name] = Array(setCount).fill({ reps: '', weight: '', completed: false });
                     }
                 });
@@ -359,6 +346,28 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
         }
     };
 
+    const handleDownloadPDF = async () => {
+        setIsDownloadingPdf(true);
+        const element = document.getElementById('workout-content');
+        if (!element) return;
+
+        try {
+            const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`${todaysWorkoutSchedule?.name || 'Workout'}_Plan.pdf`);
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            alert('Could not download PDF.');
+        } finally {
+            setIsDownloadingPdf(false);
+        }
+    };
+
     // --- VIEWS ---
 
     if (isCompleted) {
@@ -409,8 +418,8 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                 <div className="bg-gray-800 p-8 rounded-full border-4 border-amber-500/20">
                     <BotIcon />
                 </div>
-                <h2 className="text-3xl font-bold text-white">No Workout Scheduled</h2>
-                <p className="text-gray-400 max-w-md text-center">It's a rest day! Recovery is where growth happens. Want to train anyway?</p>
+                <h2 className="text-3xl font-bold text-white">Sunday: Active Recovery</h2>
+                <p className="text-gray-400 max-w-md text-center">Take a break or do some light stretching. Recovery is where growth happens. Want to train anyway?</p>
                 <div className="flex gap-4">
                     <button onClick={() => setShowGeneratorModal(true)} className="bg-amber-500 text-gray-900 font-bold py-3 px-8 rounded-full hover:bg-amber-400 shadow-lg shadow-amber-500/20 transition-all flex items-center">
                         <SparkleIcon className="w-5 h-5 mr-2"/> Generate Smart Session
@@ -451,6 +460,15 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
+                        <button
+                            onClick={handleDownloadPDF}
+                            disabled={isDownloadingPdf}
+                            className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white flex items-center transition-colors text-xs font-bold disabled:opacity-50"
+                            title="Download PDF"
+                        >
+                            {isDownloadingPdf ? <SparkleIcon className="w-4 h-4 animate-spin"/> : <DownloadIcon />}
+                            <span className="ml-1 hidden sm:inline">PDF</span>
+                        </button>
                         <div className="text-right hidden sm:block">
                             <p className="text-xs text-gray-500">Duration</p>
                             <p className="font-mono text-xl font-bold text-white tracking-widest">{formatTime(sessionDuration)}</p>
@@ -504,120 +522,126 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                 </div>
             )}
 
-            {/* --- WORKOUT SECTIONS --- */}
-            <div className="space-y-8">
-                {workoutStructure.map((section, secIndex) => (
-                    <div key={secIndex} className="relative">
-                        <div className="flex items-center mb-4">
-                            <div className={`w-1 h-6 mr-3 rounded-full ${
-                                section.title.includes('Warm') ? 'bg-yellow-500' : 
-                                section.title.includes('Cool') ? 'bg-blue-500' : 'bg-green-500'
-                            }`}></div>
-                            <h3 className="text-lg font-bold text-white uppercase tracking-wider">{section.title}</h3>
-                        </div>
+            {/* --- WORKOUT SECTIONS (Wrapped for PDF) --- */}
+            <div id="workout-content" className="bg-gray-900 p-2 rounded-lg">
+                <div className="space-y-8">
+                    {workoutStructure.map((section, secIndex) => (
+                        <div key={secIndex} className="relative">
+                            <div className={`flex items-center mb-4 p-2 rounded ${
+                                section.title.includes('Warm') ? 'bg-amber-900/30 border-l-4 border-amber-500' : 
+                                section.title.includes('Cool') ? 'bg-blue-900/30 border-l-4 border-blue-500' : 'bg-green-900/30 border-l-4 border-green-500'
+                            }`}>
+                                <h3 className={`text-lg font-bold uppercase tracking-wider ${
+                                    section.title.includes('Warm') ? 'text-amber-400' : 
+                                    section.title.includes('Cool') ? 'text-blue-400' : 'text-white'
+                                }`}>
+                                    {section.title}
+                                </h3>
+                            </div>
 
-                        <div className="space-y-4">
-                            {section.exercises.map((exercise, exIndex) => (
-                                <div key={exIndex} className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700 shadow-md">
-                                    {/* Exercise Header */}
-                                    <div className="p-4 bg-gray-800 border-b border-gray-700 flex justify-between items-start">
-                                        <div>
-                                            <h4 className="text-lg font-bold text-white flex items-center">
-                                                {exercise.name}
-                                                <button className="ml-2 text-gray-500 hover:text-amber-400"><InfoIcon /></button>
-                                            </h4>
-                                            <p className="text-xs text-gray-400 mt-1">Target: <span className="text-amber-400 font-mono">{exercise.sets} x {exercise.reps}</span></p>
-                                        </div>
-                                        <div className="relative">
-                                            <button 
-                                                onClick={() => setActiveSmartMenu(activeSmartMenu === exercise.name ? null : exercise.name)}
-                                                className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-2 rounded-lg shadow-lg hover:from-indigo-500 hover:to-purple-500 transition-all flex items-center gap-1"
-                                            >
-                                                <SparkleIcon className="w-4 h-4" /> <span className="text-xs font-bold">AI Spotter</span>
-                                            </button>
-                                            
-                                            {/* Smart Action Menu */}
-                                            {activeSmartMenu === exercise.name && (
-                                                <div className="absolute right-0 top-12 w-56 bg-gray-800 border border-gray-600 rounded-xl shadow-2xl z-10 overflow-hidden animate-fade-in">
-                                                    <div className="p-2 border-b border-gray-600 bg-gray-900/50">
-                                                        <p className="text-[10px] text-gray-400 uppercase font-bold text-center">Smart Modifications</p>
-                                                    </div>
-                                                    <button onClick={() => getSmartAdjustment(exercise.name, 'Too Easy')} className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center border-b border-gray-700">
-                                                        <AdjustIcon /> <span className="ml-2">Smart Adjust Load</span>
-                                                    </button>
-                                                    <button onClick={() => handleAIModifyExercise(exercise.name, 'swap')} className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center border-b border-gray-700">
-                                                        <SwapIcon /> <span className="ml-2">Swap Machine (Busy)</span>
-                                                    </button>
-                                                    <button onClick={() => alert("Opening AI Camera...")} className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center">
-                                                        <CameraIcon className="w-4 h-4" /> <span className="ml-2">AI Form Check</span>
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Set Logger */}
-                                    <div className="p-4 bg-gray-900/50">
-                                        <div className="grid grid-cols-10 gap-2 mb-2 text-xs text-gray-500 font-bold uppercase text-center">
-                                            <div className="col-span-1">Set</div>
-                                            <div className="col-span-3">kg</div>
-                                            <div className="col-span-3">Reps</div>
-                                            <div className="col-span-2">Done</div>
-                                            <div className="col-span-1"></div>
-                                        </div>
-                                        {Array.isArray(performanceLog[exercise.name]) && performanceLog[exercise.name].map((set, setIndex) => (
-                                            <div key={setIndex} className={`grid grid-cols-10 gap-2 mb-2 items-center transition-all ${set.completed ? 'opacity-50' : 'opacity-100'}`}>
-                                                <div className="col-span-1 flex justify-center">
-                                                    <span className="w-6 h-6 flex items-center justify-center bg-gray-700 rounded-full text-xs font-bold text-gray-300">{setIndex + 1}</span>
-                                                </div>
-                                                <div className="col-span-3">
-                                                    <input 
-                                                        type="number" 
-                                                        placeholder="0" 
-                                                        value={set.weight}
-                                                        onChange={(e) => handleSetChange(exercise.name, setIndex, 'weight', e.target.value)}
-                                                        className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-center text-white focus:border-amber-500 outline-none text-sm font-mono"
-                                                    />
-                                                </div>
-                                                <div className="col-span-3">
-                                                    <input 
-                                                        type="number" 
-                                                        placeholder="0" 
-                                                        value={set.reps}
-                                                        onChange={(e) => handleSetChange(exercise.name, setIndex, 'reps', e.target.value)}
-                                                        className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-center text-white focus:border-amber-500 outline-none text-sm font-mono"
-                                                    />
-                                                </div>
-                                                <div className="col-span-2 flex justify-center">
-                                                    <button 
-                                                        onClick={() => toggleSetComplete(exercise.name, setIndex)}
-                                                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${set.completed ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-500 hover:bg-gray-600'}`}
-                                                    >
-                                                        <CheckCircleIcon className="w-5 h-5" />
-                                                    </button>
-                                                </div>
-                                                <div className="col-span-1 flex justify-center">
-                                                    <button 
-                                                        onClick={() => handleRemoveSet(exercise.name, setIndex)} 
-                                                        className="text-gray-600 hover:text-red-500 transition-colors"
-                                                    >
-                                                        <TrashIcon />
-                                                    </button>
-                                                </div>
+                            <div className="space-y-4">
+                                {section.exercises.map((exercise, exIndex) => (
+                                    <div key={exIndex} className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700 shadow-md">
+                                        {/* Exercise Header */}
+                                        <div className="p-4 bg-gray-800 border-b border-gray-700 flex justify-between items-start">
+                                            <div>
+                                                <h4 className="text-lg font-bold text-white flex items-center">
+                                                    {exercise.name}
+                                                    <button className="ml-2 text-gray-500 hover:text-amber-400" onClick={() => alert("Exercise Info")}><InfoIcon /></button>
+                                                </h4>
+                                                <p className="text-xs text-gray-400 mt-1">Target: <span className="text-amber-400 font-mono">{exercise.sets} x {exercise.reps}</span></p>
                                             </div>
-                                        ))}
-                                        <button 
-                                            onClick={() => handleAddSet(exercise.name)}
-                                            className="w-full mt-2 py-2 border border-dashed border-gray-600 text-gray-400 text-xs rounded hover:border-amber-500 hover:text-amber-500 transition-colors"
-                                        >
-                                            + Add Set
-                                        </button>
+                                            <div className="relative">
+                                                <button 
+                                                    onClick={() => setActiveSmartMenu(activeSmartMenu === exercise.name ? null : exercise.name)}
+                                                    className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-2 rounded-lg shadow-lg hover:from-indigo-500 hover:to-purple-500 transition-all flex items-center gap-1"
+                                                >
+                                                    <SparkleIcon className="w-4 h-4" /> <span className="text-xs font-bold">AI Spotter</span>
+                                                </button>
+                                                
+                                                {/* Smart Action Menu */}
+                                                {activeSmartMenu === exercise.name && (
+                                                    <div className="absolute right-0 top-12 w-56 bg-gray-800 border border-gray-600 rounded-xl shadow-2xl z-10 overflow-hidden animate-fade-in">
+                                                        <div className="p-2 border-b border-gray-600 bg-gray-900/50">
+                                                            <p className="text-[10px] text-gray-400 uppercase font-bold text-center">Smart Modifications</p>
+                                                        </div>
+                                                        <button onClick={() => getSmartAdjustment(exercise.name, 'Too Easy')} className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center border-b border-gray-700">
+                                                            <AdjustIcon /> <span className="ml-2">Smart Adjust Load</span>
+                                                        </button>
+                                                        <button onClick={() => handleAIModifyExercise(exercise.name, 'swap')} className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center border-b border-gray-700">
+                                                            <SwapIcon /> <span className="ml-2">Swap Machine (Busy)</span>
+                                                        </button>
+                                                        <button onClick={() => alert("Opening AI Camera...")} className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center">
+                                                            <CameraIcon className="w-4 h-4" /> <span className="ml-2">AI Form Check</span>
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Set Logger */}
+                                        <div className="p-4 bg-gray-900/50">
+                                            <div className="grid grid-cols-10 gap-2 mb-2 text-xs text-gray-500 font-bold uppercase text-center">
+                                                <div className="col-span-1">Set</div>
+                                                <div className="col-span-3">kg</div>
+                                                <div className="col-span-3">Reps</div>
+                                                <div className="col-span-2">Done</div>
+                                                <div className="col-span-1"></div>
+                                            </div>
+                                            {Array.isArray(performanceLog[exercise.name]) && performanceLog[exercise.name].map((set, setIndex) => (
+                                                <div key={setIndex} className={`grid grid-cols-10 gap-2 mb-2 items-center transition-all ${set.completed ? 'opacity-50' : 'opacity-100'}`}>
+                                                    <div className="col-span-1 flex justify-center">
+                                                        <span className="w-6 h-6 flex items-center justify-center bg-gray-700 rounded-full text-xs font-bold text-gray-300">{setIndex + 1}</span>
+                                                    </div>
+                                                    <div className="col-span-3">
+                                                        <input 
+                                                            type="number" 
+                                                            placeholder="0" 
+                                                            value={set.weight}
+                                                            onChange={(e) => handleSetChange(exercise.name, setIndex, 'weight', e.target.value)}
+                                                            className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-center text-white focus:border-amber-500 outline-none text-sm font-mono"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-3">
+                                                        <input 
+                                                            type="number" 
+                                                            placeholder="0" 
+                                                            value={set.reps}
+                                                            onChange={(e) => handleSetChange(exercise.name, setIndex, 'reps', e.target.value)}
+                                                            className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-center text-white focus:border-amber-500 outline-none text-sm font-mono"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-2 flex justify-center">
+                                                        <button 
+                                                            onClick={() => toggleSetComplete(exercise.name, setIndex)}
+                                                            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${set.completed ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-500 hover:bg-gray-600'}`}
+                                                        >
+                                                            <CheckCircleIcon className="w-5 h-5" />
+                                                        </button>
+                                                    </div>
+                                                    <div className="col-span-1 flex justify-center">
+                                                        <button 
+                                                            onClick={() => handleRemoveSet(exercise.name, setIndex)} 
+                                                            className="text-gray-600 hover:text-red-500 transition-colors"
+                                                        >
+                                                            <TrashIcon />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            <button 
+                                                onClick={() => handleAddSet(exercise.name)}
+                                                className="w-full mt-2 py-2 border border-dashed border-gray-600 text-gray-400 text-xs rounded hover:border-amber-500 hover:text-amber-500 transition-colors"
+                                            >
+                                                + Add Set
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    ))}
+                </div>
             </div>
 
             {/* --- FINISH BUTTON --- */}

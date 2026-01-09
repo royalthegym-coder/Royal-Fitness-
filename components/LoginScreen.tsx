@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { GYM_INFO } from '../constants';
 
@@ -6,15 +7,15 @@ interface LoginScreenProps {
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
-    const [email, setEmail] = useState('');
+    const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
 
     const handleSubmit = (role: 'admin' | 'member') => {
         setError('');
-        const success = onLogin(email, password, role);
+        const success = onLogin(identifier, password, role);
         if (!success) {
-            setError('Invalid email or password. Please try again.');
+            setError('Invalid credentials. Please try again.');
         }
     };
 
@@ -27,20 +28,19 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-8 border border-gray-200 dark:border-gray-700">
                 <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
                     <div>
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Email Address
+                        <label htmlFor="identifier" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Email or Phone Number
                         </label>
                         <div className="mt-1">
                             <input
-                                id="email"
-                                name="email"
-                                type="email"
-                                autoComplete="email"
+                                id="identifier"
+                                name="identifier"
+                                type="text"
                                 required
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                value={identifier}
+                                onChange={(e) => setIdentifier(e.target.value)}
                                 className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-500 dark:placeholder-gray-500 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white"
-                                placeholder="you@example.com"
+                                placeholder="admin@royal.com or 9785300123"
                             />
                         </div>
                     </div>
@@ -83,7 +83,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                         </button>
                     </div>
                     <div className="text-center text-xs text-gray-400 dark:text-gray-500 mt-4">
-                        <p>Admin: admin@royal.com / admin123</p>
+                        <p>Admin: 9785300123 / admin123</p>
                         <p>Member: aarav.s@example.com / aarav123</p>
                     </div>
                 </form>

@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, LiveSession, LiveServerMessage, Modality, FunctionDeclaration, Type } from '@google/genai';
 import { encode, decode, decodeAudioData } from '../utils/audio';
@@ -192,3 +193,4 @@ const VoiceAssistant: React.FC<VoiceAssistantProps> = ({ setCurrentView }) => {
 };
 
 export default VoiceAssistant;
+    

@@ -132,7 +132,14 @@ const Members: React.FC = () => {
                                     </td>
                                     <td className="p-3 hidden md:table-cell">
                                         <p>{member.email}</p>
-                                        <p className="text-gray-400">{member.phone}</p>
+                                        <div className="flex items-center">
+                                            <p className="text-gray-400 mr-2">{member.phone}</p>
+                                            {member.whatsappConsent && (
+                                                <span className="text-green-500" title="WhatsApp Business Enabled">
+                                                    <WhatsAppIcon className="w-4 h-4" />
+                                                </span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="p-3 hidden lg:table-cell">{member.joinDate}</td>
                                     <td className="p-3">
@@ -141,7 +148,20 @@ const Members: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="p-3">
-                                        <button onClick={() => handleEditMember(member)} className="text-amber-400 hover:text-amber-300">Edit</button>
+                                        <div className="flex items-center gap-3">
+                                            <button onClick={() => handleEditMember(member)} className="text-amber-400 hover:text-amber-300 font-medium">Edit</button>
+                                            {member.whatsappConsent && (
+                                                <a 
+                                                    href={`https://wa.me/91${member.phone.replace(/\D/g, '')}`} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="text-green-500 hover:text-green-400"
+                                                    title="Chat on WhatsApp"
+                                                >
+                                                    <WhatsAppIcon className="w-5 h-5" />
+                                                </a>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -186,7 +206,7 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
         packageId: member?.packageId || 1,
         status: member?.status || 'Active',
         avatar: member?.avatar || '',
-        whatsappConsent: member?.whatsappConsent || true, // Default to true for business automation
+        whatsappConsent: member?.whatsappConsent || false, // Default to false for privacy compliance
     });
     
     const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -315,7 +335,7 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
                                         WhatsApp Business Auto-Message
                                     </label>
                                     <p className="text-gray-400 text-xs mt-1">
-                                        Enable to instantly trigger the <strong>Official WhatsApp Business API</strong>. A professional welcome template will be sent immediately upon saving.
+                                        Member gives consent to receive automated updates, payment reminders, and welcome messages via WhatsApp.
                                     </p>
                                 </div>
                             </div>

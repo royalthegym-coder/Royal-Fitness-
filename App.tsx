@@ -29,9 +29,10 @@ import GeniusMode from './components/GeniusMode';
 import Tasks from './components/Tasks';
 import FuturisticFeatures from './components/FuturisticFeatures';
 import HealthIntelligence from './components/HealthIntelligence';
+import BodySimulator from './components/BodySimulator';
 import { checkMembershipExpiryAndNotify } from './lib/whatsapp';
 
-export type View = 'dashboard' | 'packages' | 'members' | 'billing' | 'payment' | 'memberships' | 'leads' | 'workouts' | 'diet' | 'staff' | 'expenses' | 'settings' | 'whatsapp' | 'geminiHub' | 'voiceAssistant' | 'aiTracker' | 'healthEngine' | 'geniusMode' | 'tasks' | 'futureOps' | 'healthIntelligence';
+export type View = 'dashboard' | 'packages' | 'members' | 'billing' | 'payment' | 'memberships' | 'leads' | 'workouts' | 'diet' | 'staff' | 'expenses' | 'settings' | 'whatsapp' | 'geminiHub' | 'voiceAssistant' | 'aiTracker' | 'healthEngine' | 'geniusMode' | 'tasks' | 'futureOps' | 'healthIntelligence' | 'simulator';
 
 export type Theme = 'light' | 'dark';
 
@@ -74,13 +75,19 @@ const App: React.FC = () => {
         setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
     };
 
-    const handleLogin = (email: string, pass: string, role: 'admin' | 'member'): boolean => {
-        if (role === 'admin' && email === 'admin@royal.com' && pass === 'admin123') {
-            setCurrentUser({ type: 'admin', name: 'Admin', avatar: 'https://i.pravatar.cc/150?u=admin' });
-            return true;
+    const handleLogin = (identifier: string, pass: string, role: 'admin' | 'member'): boolean => {
+        if (role === 'admin') {
+            // Allow login via email OR specific business phone number
+            const isValidAdmin = (identifier === 'admin@royal.com' || identifier === '9785300123' || identifier === '+919785300123');
+            
+            if (isValidAdmin && pass === 'admin123') {
+                setCurrentUser({ type: 'admin', name: 'Admin', avatar: 'https://i.pravatar.cc/150?u=admin' });
+                return true;
+            }
         }
         if (role === 'member') {
-            const member = INITIAL_MEMBERS.find(m => m.email === email);
+            // Member login remains by email for demo purposes, or could be extended to phone
+            const member = INITIAL_MEMBERS.find(m => m.email === identifier || m.phone === identifier);
             // In a real app, you'd check a hashed password. This is just for the demo.
             if (member && pass === `${member.name.split(' ')[0].toLowerCase()}123`) {
                 setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
@@ -118,6 +125,7 @@ const App: React.FC = () => {
             case 'healthEngine': return <HealthEngine />;
             case 'geniusMode': return <GeniusMode />;
             case 'futureOps': return <FuturisticFeatures />;
+            case 'simulator': return <BodySimulator />;
             default: return <Dashboard setCurrentView={setCurrentView} />;
         }
     };

@@ -264,3 +264,4 @@ const Workouts: React.FC = () => {
 };
 
 export default Workouts;
+    
