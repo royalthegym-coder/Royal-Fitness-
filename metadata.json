@@ -1,0 +1,10 @@
+{
+  "name": "Royal The Gym Management",
+  "description": "A comprehensive gym management application for 'Royal The Gym' to manage members, packages, billing, workouts, and more. It features a modern dashboard, detailed reporting, and an intuitive user interface.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation",
+    "bluetooth"
+  ]
+}
