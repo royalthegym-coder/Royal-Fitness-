@@ -45,11 +45,12 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId,
     };
     
     const handleHealthConnect = () => {
-        setIsConnectingHealth(true);
-        setTimeout(() => {
-            setIsHealthConnected(true);
-            setIsConnectingHealth(false);
-        }, 1500);
+        // Just set the state, the child component handles the actual connection process/delay
+        setIsHealthConnected(true);
+    };
+
+    const handleHealthDisconnect = () => {
+        setIsHealthConnected(false);
     };
 
 
@@ -65,7 +66,12 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId,
             case 'tracker':
                 return <FitnessTracker memberId={loggedInMemberId} fitnessData={fitnessData} setFitnessData={setFitnessData} />;
             case 'health':
-                return <MemberHealthDashboard isConnected={isHealthConnected} isConnecting={isConnectingHealth} onConnect={handleHealthConnect} />;
+                return <MemberHealthDashboard 
+                    isConnected={isHealthConnected} 
+                    isConnecting={isConnectingHealth} 
+                    onConnect={handleHealthConnect}
+                    onDisconnect={handleHealthDisconnect}
+                />;
             default:
                 return <TodaysWorkout memberId={loggedInMemberId} onWorkoutComplete={handleWorkoutComplete} setActiveView={setActiveView} fitnessData={fitnessData} />;
         }

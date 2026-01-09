@@ -47,7 +47,6 @@ const WhatsAppBroadcast: React.FC = () => {
 
         setBroadcasts([newBroadcast, ...broadcasts]);
         
-        // alert(`Broadcast sent successfully!\n\nMessage: "${message}"\n\nSent to ${targetMembers.length} members.`);
         setShowSuccess(true);
         setMessage('');
     };
@@ -62,7 +61,7 @@ const WhatsAppBroadcast: React.FC = () => {
                         <WhatsAppIcon className="h-6 w-6 text-white"/>
                     </div>
                     <div>
-                        <h3 className="text-lg font-semibold text-green-400">Engage Members with WhatsApp</h3>
+                        <h3 className="text-lg font-semibold text-green-400">Engage Members with WhatsApp Business</h3>
                         <p className="text-gray-400 text-sm">
                             Use this tool to send bulk messages (broadcasts) about new offers, fee changes, or important news directly to your members. This feature simulates the WhatsApp Business API and respects member privacy by only messaging users who have provided consent.
                         </p>
@@ -106,7 +105,7 @@ const WhatsAppBroadcast: React.FC = () => {
                                     className="inline-flex items-center justify-center bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-400 transition-colors"
                                 >
                                     <WhatsAppIcon className="w-5 h-5 mr-2" />
-                                    Send to {targetMembers.length} Members
+                                    Send via WhatsApp Business
                                 </button>
                             </div>
                         </div>
@@ -118,7 +117,7 @@ const WhatsAppBroadcast: React.FC = () => {
                     <Card title="Consent Status">
                         <div className="text-center">
                             <p className="text-6xl font-bold text-amber-400">{consentedMembers.length}</p>
-                            <p className="text-gray-400">members have consented to receive WhatsApp updates.</p>
+                            <p className="text-gray-400">members have consented to receive WhatsApp Business updates.</p>
                         </div>
                         <div className="mt-4 text-xs text-gray-500">
                              <p>Consent can be managed from the "Edit Member" screen. This feature ensures compliance with privacy policies by only targeting members who opted-in.</p>

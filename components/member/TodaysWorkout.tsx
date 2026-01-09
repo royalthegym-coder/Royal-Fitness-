@@ -98,14 +98,14 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
         
         // 1. Structure Definitions
         if ('sections' in todaysWorkoutSchedule && todaysWorkoutSchedule.sections) {
-            sections = todaysWorkoutSchedule.sections.map(sec => ({
+            sections = todaysWorkoutSchedule.sections.map((sec: any) => ({
                 ...sec,
-                exercises: sec.exercises.map(ex => modifiedExercises[ex.name] || ex)
+                exercises: sec.exercises.map((ex: any) => modifiedExercises[ex.name] || ex)
             }));
         } else if (todaysWorkoutSchedule.exercises) {
             sections = [{
                 title: 'Main Workout',
-                exercises: todaysWorkoutSchedule.exercises.map(ex => modifiedExercises[ex.name] || ex)
+                exercises: todaysWorkoutSchedule.exercises.map((ex: any) => modifiedExercises[ex.name] || ex)
             }];
         }
 
@@ -195,7 +195,7 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
         
         const performance: WorkoutPerformance[] = Object.entries(performanceLog).map(([exerciseName, sets]) => ({
             exercise: exerciseName,
-            sets: sets.map(set => ({
+            sets: (sets as { reps: string; weight: string; completed: boolean }[]).map(set => ({
                 reps: parseInt(set.reps) || 0,
                 weight: parseFloat(set.weight) || 0
             })).filter(s => s.reps > 0 || s.weight > 0)
@@ -299,8 +299,9 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
     // --- RENDER HELPERS ---
 
     const calculateProgress = () => {
-        const totalSets = Object.values(performanceLog).reduce((acc, sets) => acc + sets.length, 0);
-        const completedSets = Object.values(performanceLog).reduce((acc, sets) => acc + sets.filter(s => s.completed).length, 0);
+        const values = Object.values(performanceLog) as { reps: string; weight: string; completed: boolean }[][];
+        const totalSets = values.reduce((acc, sets) => acc + sets.length, 0);
+        const completedSets = values.reduce((acc, sets) => acc + sets.filter(s => s.completed).length, 0);
         return totalSets === 0 ? 0 : Math.round((completedSets / totalSets) * 100);
     };
 
@@ -376,7 +377,7 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                             <div className="text-center">
                                 <p className="text-xs text-gray-400 uppercase">Volume</p>
                                 <p className="text-xl font-bold text-white">
-                                    {Object.values(performanceLog).reduce((acc, sets) => acc + sets.reduce((sAcc, s) => sAcc + (parseFloat(s.weight)||0) * (parseInt(s.reps)||0), 0), 0).toLocaleString()} kg
+                                    {(Object.values(performanceLog) as { reps: string; weight: string }[][]).reduce((acc, sets) => acc + sets.reduce((sAcc, s) => sAcc + (parseFloat(s.weight)||0) * (parseInt(s.reps)||0), 0), 0).toLocaleString()} kg
                                 </p>
                             </div>
                         </div>

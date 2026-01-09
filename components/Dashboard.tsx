@@ -13,6 +13,7 @@ import CustomTooltip from './common/CustomTooltip';
 import { UserGroupIcon } from './icons/UserGroupIcon';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { Member } from '../types';
+import { sendWhatsAppMessage } from '../lib/whatsapp';
 
 interface DashboardProps {
     setCurrentView: (view: View) => void;
@@ -179,12 +180,25 @@ const Dashboard: React.FC<DashboardProps> = ({ setCurrentView }) => {
             .slice(0, 3);
     }, []);
 
-    const handleRemind = (member: Member) => {
+    const handleRemind = async (member: Member) => {
         const expiryDate = getExpiryDate(member.joinDate, member.packageId);
         const dateStr = expiryDate ? expiryDate.toLocaleDateString() : 'soon';
-        const message = `Hi ${member.name}, your membership at Royal The Gym expires on ${dateStr}. Please renew to continue your training!`;
-        const phone = `91${member.phone.replace(/\D/g, '')}`;
-        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+        
+        // Use Business API instead of opening app
+        const success = await sendWhatsAppMessage({
+            mobileNumber: member.phone,
+            templateName: "payment_reminder",
+            parameters: [
+                { type: "text", text: member.name },
+                { type: "text", text: dateStr }
+            ]
+        });
+        
+        if (success) {
+            alert(`Reminder sent to ${member.name} via WhatsApp Business.`);
+        } else {
+            alert("Failed to send reminder via API.");
+        }
     };
 
     return (
@@ -306,7 +320,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setCurrentView }) => {
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); handleRemind(member); }}
                                             className="text-green-500 hover:text-green-400 p-1 flex items-center text-xs font-bold"
-                                            title="Send WhatsApp Reminder"
+                                            title="Send WhatsApp Business Reminder"
                                         >
                                             <WhatsAppIcon className="w-3 h-3 mr-1" /> Remind
                                         </button>

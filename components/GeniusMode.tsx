@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import Card from './common/Card';
 import { INITIAL_MEMBERS, INITIAL_MEMBER_FITNESS_DATA, INITIAL_WORKOUT_TEMPLATES, INITIAL_DIETS } from '../constants';
@@ -6,6 +7,7 @@ import { getGeniusModeAnalysis, getGeniusModePlan } from '../lib/gemini';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { GeniusIcon } from './icons/GeniusIcon';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
+import { sendWhatsAppMessage } from '../lib/whatsapp';
 
 interface AIPlan {
     workoutPlan: string;
@@ -91,12 +93,23 @@ const GeniusMode: React.FC = () => {
         }, 1000);
     };
     
-    const handleSendToMember = () => {
+    const handleSendToMember = async () => {
         if (!planResult || !member) return;
         
-        const summary = `Hello ${member.name}! Your new 4-week AI-powered plan is ready. Here's a quick look:\n\n*Workout Focus:*\n- We're introducing new techniques to help you break through your recent plateau.\n\n*Nutrition Focus:*\n- We've adjusted your macros to better support muscle growth.\n\nCheck your member portal for the full details. Let's crush it!`;
-        const whatsappUrl = `https://wa.me/91${member.phone.replace(/\D/g, '')}?text=${encodeURIComponent(summary)}`;
-        window.open(whatsappUrl, '_blank');
+        const success = await sendWhatsAppMessage({
+            mobileNumber: member.phone,
+            templateName: "genius_plan_update",
+            parameters: [
+                { type: "text", text: member.name },
+                { type: "text", text: "Your new 4-week AI-powered plan is ready in the portal." }
+            ]
+        });
+
+        if (success) {
+            alert("Plan notification sent via WhatsApp Business!");
+        } else {
+            alert("Failed to send notification.");
+        }
     };
 
     return (
@@ -171,7 +184,7 @@ const GeniusMode: React.FC = () => {
                             </button>
                              <button onClick={handleSendToMember} className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-400 flex items-center">
                                  <WhatsAppIcon className="w-5 h-5 mr-2"/>
-                                Send to Member
+                                Send via WhatsApp Business
                             </button>
                         </div>
                     </StepCard>
