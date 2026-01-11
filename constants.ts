@@ -3,12 +3,12 @@ import { Package, Member, Invoice, Staff, Expense, DietPlan, Lead, GoogleReview,
 
 export const GYM_INFO = {
   name: 'Royal The Gym',
-  contact: '+91 9785300123',
-  email: 'royalthegym@gmail.com',
+  contact: '+91 9785300123', // Updated
+  email: 'royalthegym@gmail.com', // Updated
   address: '2nd floor, Vishwakarma Complex, Gandhi Chowk, Khemi Sati Road, Jhunjhunu, Rajasthan- 333001',
   website: 'https://royal-the-gym.grexa.site',
   upiIds: {
-    gpay1: '9785300123@okbizaxis',
+    gpay1: '9785300123@okbizaxis', // Updated based on phone
     gpay2: 'royalthegym@oksbi',
   },
   gpay: {
@@ -16,7 +16,7 @@ export const GYM_INFO = {
     mobile: '+91 9785300123'
   },
   whatsappNumber: '+919785300123',
-  googleBusinessEmail: 'royalthegym@gmail.com',
+  googleBusinessEmail: 'royalthegym@gmail.com', // Updated
   socials: {
     instagram: 'https://www.instagram.com/royalthegym/',
     facebook: 'https://www.facebook.com/royalthegym/',
@@ -91,10 +91,10 @@ export const INITIAL_PACKAGES: Package[] = [
 ];
 
 export const INITIAL_MEMBERS: Member[] = [
-  { id: 1, name: 'Aarav Sharma', email: 'aarav.s@example.com', phone: '9876543210', joinDate: '2023-05-15', packageId: 3, status: 'Active', avatar: 'https://picsum.photos/seed/aarav/200', whatsappConsent: true },
+  { id: 1, name: 'Aarav Sharma', email: 'aarav.s@example.com', phone: '9876543210', joinDate: '2023-05-15', packageId: 3, trainerId: 2, status: 'Active', avatar: 'https://picsum.photos/seed/aarav/200', whatsappConsent: true },
   { id: 2, name: 'Priya Patel', email: 'priya.p@example.com', phone: '9876543211', joinDate: '2023-06-01', packageId: 2, status: 'Active', avatar: 'https://picsum.photos/seed/priya/200', whatsappConsent: true },
   { id: 3, name: 'Rohan Kumar', email: 'rohan.k@example.com', phone: '9876543212', joinDate: '2022-12-20', packageId: 1, status: 'Expired', avatar: 'https://picsum.photos/seed/rohan/200', whatsappConsent: true },
-  { id: 4, name: 'Anika Singh', email: 'anika.s@example.com', phone: '9876543213', joinDate: '2024-07-05', packageId: 4, status: 'Active', avatar: 'https://picsum.photos/seed/anika/200', whatsappConsent: true },
+  { id: 4, name: 'Anika Singh', email: 'anika.s@example.com', phone: '9876543213', joinDate: '2024-07-05', packageId: 4, trainerId: 3, status: 'Active', avatar: 'https://picsum.photos/seed/anika/200', whatsappConsent: true },
   { id: 5, name: 'Vikram Mehta', email: 'vikram.m@example.com', phone: '9876543214', joinDate: '2023-02-11', packageId: 5, status: 'Inactive', avatar: 'https://picsum.photos/seed/vikram/200', whatsappConsent: false },
 ];
 
@@ -307,7 +307,7 @@ export const INITIAL_MEMBER_FITNESS_DATA: MemberFitnessData = {
 
 export const INITIAL_LEADS: Lead[] = [
     { id: 1, name: 'Amit Desai', phone: '9988776655', email: 'amit.d@example.com', inquiryDate: '2024-07-20', status: 'New', source: 'Facebook' },
-    { id: 2, name: 'Sunita Joshi', phone: '9988776654', email: 'sunita.j@example.com', inquiryDate: '2024-07-18', status: 'Follow-up', source: 'Instagram' },
+    { id: 2, name: 'Sunita Joshi', phone: '9988776654', email: 'sunita.j@example.com', inquiryDate: '2024-07-18', status: 'Contacted', source: 'Instagram' },
     { id: 3, name: 'Karan Malhotra', phone: '9988776653', email: 'karan.m@example.com', inquiryDate: '2024-07-22', status: 'New', source: 'Website' },
     { id: 4, name: 'Neha Reddy', phone: '9988776652', email: 'neha.r@example.com', inquiryDate: '2024-07-21', status: 'Converted', source: 'Walk-in' },
     { id: 5, name: 'Raj Singh', phone: '9988776651', email: 'raj.s@example.com', inquiryDate: '2024-07-19', status: 'Lost', source: 'Facebook' },

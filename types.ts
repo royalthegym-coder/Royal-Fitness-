@@ -16,9 +16,12 @@ export interface Member {
   phone: string;
   joinDate: string;
   packageId: number;
+  trainerId?: number; // Added for automation
   status: 'Active' | 'Expired' | 'Inactive';
   avatar: string;
   whatsappConsent: boolean;
+  whatsappMode?: 'Auto' | 'Manual'; // Added for manual override
+  lastWorkoutDate?: string; // New for CRM
 }
 
 export interface Invoice {
@@ -94,6 +97,7 @@ export interface DietPlan {
 }
 
 export type LeadSource = 'Facebook' | 'Instagram' | 'Website' | 'Walk-in' | 'Other';
+export type LeadStage = 'New' | 'Contacted' | 'Trial' | 'Converted' | 'Lost';
 
 export interface Lead {
     id: number;
@@ -101,8 +105,10 @@ export interface Lead {
     phone: string;
     email: string;
     inquiryDate: string;
-    status: 'New' | 'Follow-up' | 'Converted' | 'Lost';
+    status: LeadStage; // Updated type
     source: LeadSource;
+    lastContactDate?: string;
+    notes?: string;
 }
 
 // Google Business Platform Integration Types
@@ -242,3 +248,56 @@ export interface Challenge {
     isCompleted: boolean;
     expiresAt?: string;
 }
+
+// Automation Dashboard Types
+export interface MessageTemplate {
+    id: string;
+    name: string;
+    content: string;
+    variables: string[]; // e.g. ['name', 'date']
+    category: 'Marketing' | 'Transactional' | 'Alert';
+}
+
+export interface Campaign {
+    id: string;
+    name: string;
+    status: 'Scheduled' | 'Running' | 'Completed' | 'Draft';
+    scheduledDate: string;
+    scheduledTime: string;
+    templateId: string;
+    audience: string;
+}
+
+export interface MessageLog {
+    id: string;
+    recipientName: string;
+    recipientPhone: string;
+    templateName: string;
+    sentAt: string;
+    status: 'Sent' | 'Delivered' | 'Read' | 'Failed';
+}
+
+export interface SecurityLog {
+    id: number;
+    event: string;
+    source: string;
+    status: 'Verified' | 'Blocked' | 'Warning';
+    timestamp: string;
+    details: string;
+}
+
+export interface CRMWorkflow {
+    id: string;
+    name: string;
+    trigger: string;
+    action: string;
+    status: 'Active' | 'Paused';
+    stats: {
+        runs: number;
+        successRate: number;
+    };
+}
+
+export type View = 'dashboard' | 'packages' | 'members' | 'billing' | 'payment' | 'memberships' | 'leads' | 'crm' | 'workouts' | 'diet' | 'staff' | 'expenses' | 'settings' | 'whatsapp' | 'automation' | 'geminiHub' | 'voiceAssistant' | 'aiTracker' | 'healthEngine' | 'geniusMode' | 'tasks' | 'futureOps' | 'healthIntelligence' | 'simulator' | 'royalBots' | 'autoUpgrader' | 'selfRepair' | 'neuralCore' | 'debugEngine' | 'performance' | 'security' | 'controlPanel';
+
+export type Theme = 'light' | 'dark';

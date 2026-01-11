@@ -1,40 +1,45 @@
 
-import React, { useState, useEffect } from 'react';
-import Sidebar from './components/Sidebar';
-import Dashboard from './components/Dashboard';
-import Members from './components/Members';
-import Packages from './components/Packages';
-import Billing from './components/Billing';
-import Workouts from './components/Workouts';
-import DietPlans from './components/DietPlans';
-import Staff from './components/Staff';
-import Expenses from './components/Expenses';
-import Settings from './components/Settings';
-import Leads from './components/Leads';
-import Memberships from './components/Memberships';
-import Header from './components/Header';
-import { MenuIcon } from './components/icons/MenuIcon';
-import WhatsAppIntegration from './components/WhatsAppIntegration';
-import Payment from './components/Payment';
-import GeminiHub from './components/GeminiHub';
-import VoiceAssistant from './components/VoiceAssistant';
-import GeminiChat from './components/GeminiChat';
-import { ChatIcon } from './components/icons/ChatIcon';
-import MemberPortal from './components/MemberPortal';
-import LoginScreen from './components/LoginScreen';
+import React, { useState, useEffect, Suspense } from 'react';
+import Sidebar from './utils/components/Sidebar';
+import Header from './utils/components/Header';
+import { MenuIcon } from './utils/components/icons/MenuIcon';
+import LoginScreen from './utils/components/LoginScreen';
 import { INITIAL_MEMBERS } from './constants';
-import AIFitnessTracker from './components/AIFitnessTracker';
-import HealthEngine from './components/HealthEngine';
-import GeniusMode from './components/GeniusMode';
-import Tasks from './components/Tasks';
-import FuturisticFeatures from './components/FuturisticFeatures';
-import HealthIntelligence from './components/HealthIntelligence';
-import BodySimulator from './components/BodySimulator';
 import { checkMembershipExpiryAndNotify } from './lib/whatsapp';
+import { ChatIcon } from './utils/components/icons/ChatIcon';
+import GeminiChat from './utils/components/GeminiChat';
+import { View, Theme } from './types';
 
-export type View = 'dashboard' | 'packages' | 'members' | 'billing' | 'payment' | 'memberships' | 'leads' | 'workouts' | 'diet' | 'staff' | 'expenses' | 'settings' | 'whatsapp' | 'geminiHub' | 'voiceAssistant' | 'aiTracker' | 'healthEngine' | 'geniusMode' | 'tasks' | 'futureOps' | 'healthIntelligence' | 'simulator';
-
-export type Theme = 'light' | 'dark';
+// Lazy load heavy components to improve initial load speed and performance
+const Dashboard = React.lazy(() => import('./utils/components/Dashboard'));
+const Members = React.lazy(() => import('./utils/components/Members'));
+const Packages = React.lazy(() => import('./utils/components/Packages'));
+const Billing = React.lazy(() => import('./utils/components/Billing'));
+const Workouts = React.lazy(() => import('./utils/components/Workouts'));
+const DietPlans = React.lazy(() => import('./utils/components/DietPlans'));
+const Staff = React.lazy(() => import('./utils/components/Staff'));
+const Expenses = React.lazy(() => import('./utils/components/Expenses'));
+const Settings = React.lazy(() => import('./utils/components/Settings'));
+const Leads = React.lazy(() => import('./utils/components/Leads'));
+const Memberships = React.lazy(() => import('./utils/components/Memberships'));
+const WhatsAppIntegration = React.lazy(() => import('./utils/components/WhatsAppIntegration'));
+const AutomationDashboard = React.lazy(() => import('./utils/components/AutomationDashboard'));
+const CRMSystem = React.lazy(() => import('./utils/components/CRMSystem'));
+const Payment = React.lazy(() => import('./utils/components/Payment'));
+const GeminiHub = React.lazy(() => import('./utils/components/GeminiHub'));
+const VoiceAssistant = React.lazy(() => import('./utils/components/VoiceAssistant'));
+const MemberPortal = React.lazy(() => import('./utils/components/MemberPortal'));
+const AIFitnessTracker = React.lazy(() => import('./utils/components/AIFitnessTracker'));
+const HealthEngine = React.lazy(() => import('./utils/components/HealthEngine'));
+const GeniusMode = React.lazy(() => import('./utils/components/GeniusMode'));
+const Tasks = React.lazy(() => import('./utils/components/Tasks'));
+const FuturisticFeatures = React.lazy(() => import('./utils/components/FuturisticFeatures'));
+const HealthIntelligence = React.lazy(() => import('./utils/components/HealthIntelligence'));
+const BodySimulator = React.lazy(() => import('./utils/components/BodySimulator'));
+const RoyalBotIntegrations = React.lazy(() => import('./utils/components/RoyalBotIntegrations'));
+const AutoUpgrader = React.lazy(() => import('./utils/components/AutoUpgrader'));
+const SelfRepair = React.lazy(() => import('./utils/components/SelfRepair'));
+const NeuralSystemCore = React.lazy(() => import('./utils/components/NeuralSystemCore'));
 
 interface CurrentUser {
     type: 'admin' | 'member';
@@ -42,6 +47,12 @@ interface CurrentUser {
     name: string;
     avatar: string;
 }
+
+const LoadingSpinner = () => (
+    <div className="flex items-center justify-center h-full w-full">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500"></div>
+    </div>
+);
 
 const App: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
@@ -105,6 +116,7 @@ const App: React.FC = () => {
     const renderView = () => {
         switch (currentView) {
             case 'dashboard': return <Dashboard setCurrentView={setCurrentView} />;
+            case 'royalBots': return <RoyalBotIntegrations />;
             case 'healthIntelligence': return <HealthIntelligence />;
             case 'tasks': return <Tasks />;
             case 'packages': return <Packages />;
@@ -113,12 +125,14 @@ const App: React.FC = () => {
             case 'payment': return <Payment />;
             case 'memberships': return <Memberships />;
             case 'leads': return <Leads />;
+            case 'crm': return <CRMSystem />;
             case 'workouts': return <Workouts />;
             case 'diet': return <DietPlans />;
             case 'staff': return <Staff />;
             case 'expenses': return <Expenses />;
             case 'settings': return <Settings setCurrentView={setCurrentView} />;
             case 'whatsapp': return <WhatsAppIntegration />;
+            case 'automation': return <AutomationDashboard />;
             case 'geminiHub': return <GeminiHub />;
             case 'voiceAssistant': return <VoiceAssistant setCurrentView={setCurrentView} />;
             case 'aiTracker': return <AIFitnessTracker />;
@@ -126,6 +140,9 @@ const App: React.FC = () => {
             case 'geniusMode': return <GeniusMode />;
             case 'futureOps': return <FuturisticFeatures />;
             case 'simulator': return <BodySimulator />;
+            case 'autoUpgrader': return <AutoUpgrader />;
+            case 'selfRepair': return <SelfRepair />;
+            case 'neuralCore': return <NeuralSystemCore />;
             default: return <Dashboard setCurrentView={setCurrentView} />;
         }
     };
@@ -135,7 +152,11 @@ const App: React.FC = () => {
     }
 
     if (currentUser.type === 'member' && currentUser.id) {
-        return <MemberPortal loggedInMemberId={currentUser.id} onLogout={handleLogout} theme={theme} toggleTheme={toggleTheme} />;
+        return (
+            <Suspense fallback={<LoadingSpinner />}>
+                <MemberPortal loggedInMemberId={currentUser.id} onLogout={handleLogout} theme={theme} toggleTheme={toggleTheme} />
+            </Suspense>
+        );
     }
 
     return (
@@ -148,17 +169,27 @@ const App: React.FC = () => {
                     </button>
                 </Header>
                 <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 dark:bg-gray-900 p-6">
-                    {renderView()}
+                    <Suspense fallback={<LoadingSpinner />}>
+                        {renderView()}
+                    </Suspense>
                 </main>
             </div>
             <button
                 onClick={() => setChatOpen(!isChatOpen)}
-                className="fixed bottom-6 right-6 bg-amber-500 text-gray-900 p-4 rounded-full shadow-lg hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 z-50"
-                aria-label="Toggle AI Assistant"
+                className="fixed bottom-6 right-6 bg-amber-500 text-gray-900 p-4 rounded-full shadow-lg hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 z-50 transform hover:scale-110 transition-transform"
+                aria-label="Toggle AI Agent"
             >
                 <ChatIcon />
             </button>
-            <GeminiChat isOpen={isChatOpen} onClose={() => setChatOpen(false)} />
+            <GeminiChat 
+                isOpen={isChatOpen} 
+                onClose={() => setChatOpen(false)} 
+                context={{ 
+                    role: currentUser.type, 
+                    memberId: currentUser.id, 
+                    memberName: currentUser.name 
+                }} 
+            />
         </div>
     );
 };
