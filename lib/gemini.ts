@@ -18,36 +18,51 @@ const getAI = () => {
 
 export async function getComplexResponse(prompt: string): Promise<string> {
     const ai = getAI();
-    // Using gemini-3-flash-preview for text to ensure high availability and speed
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-    });
-    return response.text || "";
+    try {
+        // Using gemini-3-flash-preview for text to ensure high availability and speed
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+        });
+        return response.text || "No response generated.";
+    } catch (error) {
+        console.error("Gemini Text Generation Error:", error);
+        return "System is currently offline or experiencing high traffic. Please try again later.";
+    }
 }
 
 export async function getGeminiChatResponse(history: any[], message: string): Promise<string> {
     const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: message, 
-    });
-    return response.text || "";
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: message, 
+        });
+        return response.text || "I'm sorry, I couldn't process that.";
+    } catch (error) {
+        console.error("Chat Error:", error);
+        return "Connection error. Please check your network.";
+    }
 }
 
 export async function generateTextToSpeech(text: string): Promise<string> {
     const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-preview-tts',
-        contents: { parts: [{ text }] },
-        config: {
-            responseModalities: ['AUDIO'],
-            speechConfig: {
-                voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-preview-tts',
+            contents: { parts: [{ text }] },
+            config: {
+                responseModalities: ['AUDIO'],
+                speechConfig: {
+                    voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
+                }
             }
-        }
-    });
-    return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || "";
+        });
+        return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || "";
+    } catch (error) {
+        console.error("TTS Error:", error);
+        return "";
+    }
 }
 
 export async function generateMarketingImage(topic: string): Promise<string | null> {
@@ -59,6 +74,7 @@ export async function generateMarketingImage(topic: string): Promise<string | nu
     
     try {
         // Switched to gemini-2.5-flash-image (Gemini Banana) to resolve PERMISSION_DENIED errors
+        // This model is generally available and efficient for this task.
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: {
@@ -67,7 +83,6 @@ export async function generateMarketingImage(topic: string): Promise<string | nu
             config: {
                 imageConfig: {
                     aspectRatio: "4:3",
-                    // imageSize removed as it is not strictly required for Flash and ensures compatibility
                 }
             },
         });
@@ -79,6 +94,7 @@ export async function generateMarketingImage(topic: string): Promise<string | nu
         }
     } catch (e) {
         console.error("Image generation failed", e);
+        // Fallback or just return null to handle gracefully in UI
     }
     return null;
 }
@@ -91,38 +107,50 @@ export async function getGoogleMapsResponse(query: string, lat?: number, lng?: n
         toolConfig.retrievalConfig = { latLng: { latitude: lat, longitude: lng } };
     }
 
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: query,
-        config: { tools, toolConfig: Object.keys(toolConfig).length ? toolConfig : undefined }
-    });
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: query,
+            config: { tools, toolConfig: Object.keys(toolConfig).length ? toolConfig : undefined }
+        });
 
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    // Filter map chunks
-    const places = groundingChunks.filter((c: any) => c.maps);
+        const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+        // Filter map chunks
+        const places = groundingChunks.filter((c: any) => c.maps);
 
-    return {
-        text: response.text || "",
-        places: places
-    };
+        return {
+            text: response.text || "",
+            places: places
+        };
+    } catch (error) {
+        console.error("Maps Error:", error);
+        return { text: "Unable to fetch map data.", places: [] };
+    }
 }
 
 export async function getGoogleSearchResponse(query: string): Promise<{ text: string; sources: any[] }> {
     const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: query,
-        config: { tools: [{ googleSearch: {} }] }
-    });
-    
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const sources = groundingChunks.filter((c: any) => c.web);
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: query,
+            config: { tools: [{ googleSearch: {} }] }
+        });
+        
+        const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+        const sources = groundingChunks.filter((c: any) => c.web);
 
-    return {
-        text: response.text || "",
-        sources: sources
-    };
+        return {
+            text: response.text || "",
+            sources: sources
+        };
+    } catch (error) {
+        console.error("Search Error:", error);
+        return { text: "Unable to perform search.", sources: [] };
+    }
 }
+
+// ... (Rest of the functions remain largely the same, wrapping in try/catch where appropriate)
 
 export async function getPostWorkoutAnalysis(member: Member, log: WorkoutLog, history: any[]): Promise<string> {
     const prompt = `Analyze workout for ${member.name}. Log: ${JSON.stringify(log)}. History count: ${history.length}. Give short feedback.`;
@@ -137,13 +165,13 @@ export async function generateAIWorkoutTemplate(options: any): Promise<string> {
 export async function modifyExerciseWithAI(exerciseName: string, type: 'easier' | 'harder' | 'swap'): Promise<WorkoutExercise> {
     const prompt = `Modify exercise '${exerciseName}' to be ${type}. Return JSON: { "name": "string", "sets": "string", "reps": "string" }`;
     const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: { responseMimeType: 'application/json' }
-    });
-    const text = response.text || "{}";
     try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: { responseMimeType: 'application/json' }
+        });
+        const text = response.text || "{}";
         return JSON.parse(text);
     } catch {
         return { name: exerciseName, sets: "3", reps: "10" };
@@ -153,23 +181,31 @@ export async function modifyExerciseWithAI(exerciseName: string, type: 'easier' 
 export async function getRealTimeSetAdjustment(exercise: string, lastSet: {weight: number, reps: number}, feedback: string): Promise<{ adjustment: string, recommendedWeight: number, recommendedReps: number }> {
     const prompt = `Adjust set for ${exercise}. Last: ${lastSet.weight}kg x ${lastSet.reps}. User says: ${feedback}. Return JSON: { "adjustment": "reason", "recommendedWeight": number, "recommendedReps": number }`;
     const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: { responseMimeType: 'application/json' }
-    });
-    return JSON.parse(response.text || "{}");
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: { responseMimeType: 'application/json' }
+        });
+        return JSON.parse(response.text || "{}");
+    } catch {
+        return { adjustment: "Maintain current", recommendedWeight: lastSet.weight, recommendedReps: lastSet.reps };
+    }
 }
 
 export async function analyzeReadinessAndModify(data: any): Promise<ReadinessOutput> {
     const prompt = `Analyze readiness. Data: ${JSON.stringify(data)}. Return JSON: { "score": number (0-100), "strategy": "string", "reasoning": "string", "modifications": ["string"] }`;
     const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: { responseMimeType: 'application/json' }
-    });
-    return JSON.parse(response.text || "{}");
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: { responseMimeType: 'application/json' }
+        });
+        return JSON.parse(response.text || "{}");
+    } catch {
+        return { score: 80, strategy: "Standard", reasoning: "Default fallback", modifications: [] };
+    }
 }
 
 export async function getSmartWarmup(workoutName: string): Promise<string> {
@@ -183,12 +219,16 @@ export async function getAICoachSuggestion(context: any): Promise<string> {
 export async function generateNextWorkoutChallenge(memberData: any): Promise<{challengeName: string, description: string, difficulty: string, optimizationTips: string[]}> {
     const prompt = `Generate a workout challenge. Data: ${JSON.stringify(memberData)}. Return JSON: { "challengeName": "string", "description": "string", "difficulty": "Easy|Medium|Hard|Extreme", "optimizationTips": ["string"] }`;
     const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: { responseMimeType: 'application/json' }
-    });
-    return JSON.parse(response.text || "{}");
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: { responseMimeType: 'application/json' }
+        });
+        return JSON.parse(response.text || "{}");
+    } catch {
+        return { challengeName: "50 Pushups", description: "Do 50 pushups", difficulty: "Medium", optimizationTips: [] };
+    }
 }
 
 export async function generateNextSessionPlan(memberData: any): Promise<string> {
@@ -209,17 +249,21 @@ export async function getGeniusModePlan(analysis: string, member: Member): Promi
 
 export async function analyzeExerciseForm(base64Image: string): Promise<{ feedback: string; status: 'Good' | 'Correction Needed' | 'Idle' }> {
     const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: {
-            parts: [
-                { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-                { text: 'Analyze exercise form. Return JSON: { "feedback": "string", "status": "Good" | "Correction Needed" | "Idle" }' }
-            ]
-        },
-        config: { responseMimeType: 'application/json' }
-    });
-    return JSON.parse(response.text || '{"feedback": "Error", "status": "Idle"}');
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: {
+                parts: [
+                    { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
+                    { text: 'Analyze exercise form. Return JSON: { "feedback": "string", "status": "Good" | "Correction Needed" | "Idle" }' }
+                ]
+            },
+            config: { responseMimeType: 'application/json' }
+        });
+        return JSON.parse(response.text || '{"feedback": "Error", "status": "Idle"}');
+    } catch {
+        return { feedback: "Analysis failed", status: "Idle" };
+    }
 }
 
 export async function getRecoveryBasedWorkout(mood: string, energy: number, sleep: number): Promise<string> {
@@ -229,12 +273,16 @@ export async function getRecoveryBasedWorkout(mood: string, energy: number, slee
 export async function getAIChefRecipe(ingredients: string): Promise<string> {
     const prompt = `Create recipe with ${ingredients}. Return JSON: { "title": "string", "macros": "string", "instructions": ["string"], "shoppingList": ["string"] }`;
     const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: { responseMimeType: 'application/json' }
-    });
-    return response.text || "{}";
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: { responseMimeType: 'application/json' }
+        });
+        return response.text || "{}";
+    } catch {
+        return "{}";
+    }
 }
 
 export async function generateFutureSelfImage(current: string, goal: string): Promise<string | null> {
@@ -247,7 +295,6 @@ export async function generateFutureSelfImage(current: string, goal: string): Pr
             }
         });
         
-        // Find image part
         for (const part of response.candidates?.[0]?.content?.parts || []) {
             if (part.inlineData) {
                 return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
@@ -261,30 +308,38 @@ export async function generateFutureSelfImage(current: string, goal: string): Pr
 
 export async function analyzeMedicalRecord(base64Image: string): Promise<string> {
     const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: {
-            parts: [
-                { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-                { text: 'Analyze this medical record/lab report. Summarize key findings for a fitness context. Return HTML.' }
-            ]
-        }
-    });
-    return response.text || "";
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: {
+                parts: [
+                    { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
+                    { text: 'Analyze this medical record/lab report. Summarize key findings for a fitness context. Return HTML.' }
+                ]
+            }
+        });
+        return response.text || "";
+    } catch {
+        return "Could not analyze document.";
+    }
 }
 
 export async function getHealthAssistantResponse(history: any[], message: string, context: any): Promise<string> {
     const ai = getAI();
     const systemPrompt = `You are a health assistant. Context: ${JSON.stringify(context)}.`;
     
-    const chat = ai.chats.create({
-        model: 'gemini-3-flash-preview',
-        config: { systemInstruction: systemPrompt },
-        history: history.map(h => ({ role: h.role, parts: [{ text: h.text }] }))
-    });
-    
-    const response = await chat.sendMessage({ message });
-    return response.text || "";
+    try {
+        const chat = ai.chats.create({
+            model: 'gemini-3-flash-preview',
+            config: { systemInstruction: systemPrompt },
+            history: history.map(h => ({ role: h.role, parts: [{ text: h.text }] }))
+        });
+        
+        const response = await chat.sendMessage({ message });
+        return response.text || "";
+    } catch {
+        return "I'm having trouble connecting right now.";
+    }
 }
 
 export async function generateBodyTransformationAnalysis(current: any, target: any, focus: string): Promise<string> {
@@ -294,12 +349,16 @@ export async function generateBodyTransformationAnalysis(current: any, target: a
 export async function generateGamifiedChallenge(logs: any[]): Promise<any> {
     const prompt = `Generate a gamified fitness challenge based on logs. Return JSON: { "id": "string", "title": "string", "description": "string", "xpReward": number, "difficulty": "Easy|Medium|Hard", "isCompleted": boolean }`;
     const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: { responseMimeType: 'application/json' }
-    });
-    return JSON.parse(response.text || "{}");
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: { responseMimeType: 'application/json' }
+        });
+        return JSON.parse(response.text || "{}");
+    } catch {
+        return {};
+    }
 }
 
 export async function getNutritionAnalysisFromImage(base64ImageData: string, mimeType: string, memberGoal?: string): Promise<string> {

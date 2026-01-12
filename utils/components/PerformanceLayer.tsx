@@ -161,6 +161,7 @@ const PerformanceLayer: React.FC = () => {
             setAiInsight(result);
         } catch (e) {
             console.error(e);
+            setAiInsight("Unable to generate analysis. Check AI service connectivity.");
         } finally {
             setIsAnalyzing(false);
         }

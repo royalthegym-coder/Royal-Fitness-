@@ -1,5 +1,5 @@
 
-import React, { memo } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import { DashboardIcon, PackageIcon, MembersIcon, BillingIcon, WorkoutIcon, DietIcon, StaffIcon, ExpensesIcon, SettingsIcon, LeadsIcon, MembershipIcon, SparkleIcon } from './icons/NavIcons';
 import { QrCodeIcon } from './icons/QrCodeIcon';
 import { AIFitnessTrackerIcon } from './icons/AIFitnessTrackerIcon';
@@ -38,7 +38,6 @@ interface SidebarProps {
 const adminNavItems = [
   { category: 'Overview', items: [
       { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
-      { id: 'controlPanel', label: 'Control Panel', icon: <ControlIcon className="text-cyan-400" /> },
       { id: 'tasks', label: 'Tasks', icon: <ClipboardListIcon /> },
   ]},
   { category: 'Smart Business (AI)', items: [
@@ -105,6 +104,23 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
   const navItems = role === 'member' ? memberNavItems : adminNavItems;
   const title = role === 'member' ? 'Royal Member' : 'Royal Admin';
 
+  const [systemIndex, setSystemIndex] = useState(0);
+  const systems = [
+      { name: 'Neural Core', status: 'Processing...', icon: <BrainCircuitIcon className="w-4 h-4 text-cyan-400"/>, color: 'text-cyan-400' },
+      { name: 'Security Shield', status: 'Threat Scan: Idle', icon: <ShieldCheckIcon className="w-4 h-4 text-green-400"/>, color: 'text-green-400' },
+      { name: 'Gemini Agent', status: 'Listening (Live)', icon: <SparkleIcon className="w-4 h-4 text-purple-400"/>, color: 'text-purple-400' },
+      { name: 'Self-Repair', status: 'Integrity: 100%', icon: <BugFixIcon className="w-4 h-4 text-amber-400"/>, color: 'text-amber-400' },
+  ];
+
+  useEffect(() => {
+      const interval = setInterval(() => {
+          setSystemIndex((prev) => (prev + 1) % systems.length);
+      }, 4000);
+      return () => clearInterval(interval);
+  }, []);
+
+  const currentSystem = systems[systemIndex];
+
   return (
     <div className={`bg-gray-900 text-white flex flex-col transition-all duration-300 ${isOpen ? 'w-64' : 'w-0 overflow-hidden'} md:w-64 border-r border-gray-800 h-screen absolute md:relative z-30`}>
         <div className="flex items-center justify-between h-16 px-6 border-b border-gray-800 flex-shrink-0 bg-gray-900">
@@ -160,16 +176,52 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
             </div>
         </div>
 
+        {/* Improved System Status Footer */}
         <div className="p-4 border-t border-gray-800 bg-gray-900">
-            <div className="flex items-center">
-                <div className="flex-shrink-0">
-                    <AutoUpdateIcon className="h-8 w-8 text-green-500" />
+            <button 
+                onClick={() => setCurrentView('controlPanel')}
+                className="w-full bg-gray-800/50 hover:bg-gray-800 border border-gray-700 rounded-xl p-3 transition-all group text-left shadow-inner"
+            >
+                <div className="flex justify-between items-center mb-2">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">System Status</span>
+                    <div className="flex items-center gap-1.5">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                        <span className="text-[10px] text-green-400 font-mono">98.2% UP</span>
+                    </div>
                 </div>
-                <div className="ml-3">
-                    <p className="text-sm font-medium text-white">System Status</p>
-                    <p className="text-xs text-green-400">All Systems Operational</p>
+                
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-gray-900 rounded-lg border border-gray-600 group-hover:border-amber-500/50 transition-colors">
+                        {currentSystem.icon}
+                    </div>
+                    <div>
+                        <p className={`text-xs font-bold ${currentSystem.color} transition-all duration-300`}>
+                            {currentSystem.name}
+                        </p>
+                        <p className="text-[10px] text-gray-400 font-mono mt-0.5">
+                            {currentSystem.status}
+                        </p>
+                    </div>
                 </div>
-            </div>
+
+                <div className="grid grid-cols-3 gap-1 mt-3 pt-3 border-t border-gray-700/50">
+                    <div className="text-center">
+                        <p className="text-[8px] text-gray-500 uppercase">CPU</p>
+                        <p className="text-[10px] font-mono text-gray-300">12%</p>
+                    </div>
+                    <div className="text-center border-l border-gray-700/50">
+                        <p className="text-[8px] text-gray-500 uppercase">MEM</p>
+                        <p className="text-[10px] font-mono text-gray-300">1.4GB</p>
+                    </div>
+                    <div className="text-center border-l border-gray-700/50">
+                        <p className="text-[8px] text-gray-500 uppercase">AI OPS</p>
+                        <p className="text-[10px] font-mono text-amber-400">Active</p>
+                    </div>
+                </div>
+            </button>
         </div>
     </div>
   );

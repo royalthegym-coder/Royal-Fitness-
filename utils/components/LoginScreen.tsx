@@ -4,6 +4,7 @@ import { GYM_INFO } from '../../constants';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { sendWhatsAppOTP } from '../../lib/whatsapp';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
+import { FacebookIcon, InstagramIcon, TwitterIcon } from './icons/SocialIcons';
 
 interface LoginScreenProps {
     onLogin: (email: string, pass: string, role: 'admin' | 'member') => boolean;
@@ -232,9 +233,24 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 </form>
             </div>
             
-            <div className="mt-8 flex items-center justify-center space-x-2 text-gray-600 text-xs">
-                <ShieldCheckIcon className="w-4 h-4" />
-                <span>256-bit End-to-End Encryption</span>
+            {/* Social Links Footer */}
+            <div className="mt-8 flex flex-col items-center space-y-4 z-10">
+                <div className="flex justify-center space-x-6">
+                    <a href={GYM_INFO.socials.instagram} target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-pink-500 transition-colors transform hover:scale-110">
+                        <InstagramIcon className="w-6 h-6" />
+                    </a>
+                    <a href={GYM_INFO.socials.facebook} target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-blue-500 transition-colors transform hover:scale-110">
+                        <FacebookIcon className="w-6 h-6" />
+                    </a>
+                    <a href={GYM_INFO.socials.twitter} target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-blue-400 transition-colors transform hover:scale-110">
+                        <TwitterIcon className="w-6 h-6" />
+                    </a>
+                </div>
+                
+                <div className="flex items-center justify-center space-x-2 text-gray-600 text-xs">
+                    <ShieldCheckIcon className="w-4 h-4" />
+                    <span>256-bit End-to-End Encryption</span>
+                </div>
             </div>
         </div>
     );

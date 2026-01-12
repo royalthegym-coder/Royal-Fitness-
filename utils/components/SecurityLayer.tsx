@@ -49,6 +49,7 @@ const SecurityLayer: React.FC = () => {
     // Active Defense State (Fail2Ban, Wazuh)
     const [bannedIps, setBannedIps] = useState<BannedIP[]>([]);
     const [siemEvents, setSiemEvents] = useState<SiemEvent[]>([]);
+    const [defcon, setDefcon] = useState(5);
     
     // AI Analyst State
     const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
@@ -82,6 +83,10 @@ const SecurityLayer: React.FC = () => {
                     { msg: 'New port open', level: 5, src: 'tcp/8080' }
                 ];
                 const rule = rules[Math.floor(Math.random() * rules.length)];
+                
+                // Adjust DEFCON based on events
+                if (rule.level >= 10) setDefcon(prev => Math.max(1, prev - 1));
+                
                 setSiemEvents(prev => [{
                     id: Date.now(),
                     rule: rule.msg,
@@ -150,6 +155,7 @@ const SecurityLayer: React.FC = () => {
             setAiAnalysis(result);
         } catch (e) {
             console.error(e);
+            setAiAnalysis("AI Analysis service currently unavailable.");
         } finally {
             setIsAnalyzing(false);
         }
@@ -283,8 +289,10 @@ const SecurityLayer: React.FC = () => {
                         <p className="text-3xl font-bold text-white">{bannedIps.length + 142}</p>
                     </div>
                     <div className="text-right">
-                        <p className="text-xs text-gray-500">Total Attacks Blocked</p>
-                        <p className="text-xl font-mono text-red-400">14,205</p>
+                        <div className={`text-xl font-black ${defcon === 1 ? 'text-red-500 animate-pulse' : 'text-green-500'}`}>
+                            DEFCON {defcon}
+                        </div>
+                        <p className="text-xs text-gray-500">Threat Level</p>
                     </div>
                 </div>
                 <div className="bg-black/30 rounded-lg overflow-hidden border border-gray-700">

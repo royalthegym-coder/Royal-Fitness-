@@ -1,12 +1,10 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI } from '@google/genai';
+import React, { useState, useEffect } from 'react';
 import Card from './common/Card';
 import { BrainCircuitIcon } from './icons/BrainCircuitIcon';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { BotIcon } from './icons/BotIcon';
-import { AutoUpdateIcon } from './icons/AutoUpdateIcon';
-import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
+import { getComplexResponse } from '../../lib/gemini';
 
 interface NeuralNode {
     id: string;
@@ -77,12 +75,11 @@ const NeuralSystemCore: React.FC = () => {
 
     // Background idle animation
     useEffect(() => {
-        if (isProcessing) return; // Pause random idle animations during actual processing
+        if (isProcessing) return; 
 
         const interval = setInterval(() => {
             setNodes(prev => prev.map(n => {
-                if (n.id === 'gemini') return n; // Keep core steady unless learning
-                // Randomly toggle idle/active state
+                if (n.id === 'gemini') return n; 
                 return {
                     ...n,
                     status: Math.random() > 0.8 ? 'active' : 'idle'
@@ -112,23 +109,10 @@ const NeuralSystemCore: React.FC = () => {
         addLog(`Gemini Core engaged. Temp: ${temperature}, Tokens: ${maxTokens}`);
 
         try {
-            const apiKey = process.env.API_KEY;
-            if (!apiKey) throw new Error("API Key missing");
-            const ai = new GoogleGenAI({ apiKey });
-            
-            // Use Gemini 3 Flash for speed
-            const result = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-                config: {
-                    temperature: temperature,
-                    maxOutputTokens: maxTokens,
-                }
-            });
-
-            const text = result.text || "No response generated.";
-            setResponse(text);
-            addLog(`Output received. Tokens generated: ${text.length / 4} (approx).`);
+            // Use centralized function to ensure stability and auth
+            const responseText = await getComplexResponse(prompt);
+            setResponse(responseText);
+            addLog(`Output received. Response length: ${responseText.length} chars.`);
 
             // 3. Visualize Output Distribution
             setNodes(prev => prev.map(n => (n.type === 'output' ? { ...n, status: 'processing' } : n)));
@@ -140,7 +124,6 @@ const NeuralSystemCore: React.FC = () => {
             setResponse(`Error: ${error.message}`);
         } finally {
             setIsProcessing(false);
-            // Reset to idle state after a moment
             setTimeout(() => {
                 setNodes(INITIAL_NODES.map(n => ({...n, status: n.id === 'gemini' ? 'learning' : 'idle'})));
             }, 1000);

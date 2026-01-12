@@ -57,6 +57,24 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId,
         setIsHealthConnected(false);
     };
 
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case 'Active': return 'text-green-500';
+            case 'Expired': return 'text-red-500';
+            case 'Inactive': return 'text-yellow-500';
+            default: return 'text-gray-500';
+        }
+    };
+
+    const getStatusDotColor = (status: string) => {
+        switch (status) {
+            case 'Active': return 'bg-green-500';
+            case 'Expired': return 'bg-red-500';
+            case 'Inactive': return 'bg-yellow-500';
+            default: return 'bg-gray-500';
+        }
+    };
+
 
     const renderMemberView = () => {
         if (!selectedMember) return <p className="text-center text-red-400">Error: Could not load member data.</p>;
@@ -121,8 +139,12 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId,
                                 <h1 className="text-3xl font-bold text-amber-500 dark:text-amber-400">Member Portal</h1>
                                 <p className="text-gray-500 dark:text-gray-400">Welcome back, {selectedMember?.name}!</p>
                             </div>
-                            <div className="mt-4 md:mt-0 px-4 py-2 bg-gray-200 dark:bg-gray-800 rounded-lg text-sm text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-700">
-                                Status: <span className="font-bold text-green-500">Active</span>
+                            <div className="mt-4 md:mt-0 px-4 py-2 bg-white dark:bg-gray-800 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 flex items-center shadow-sm">
+                                <span className="mr-2">Membership Status:</span>
+                                <span className={`font-bold flex items-center ${getStatusColor(selectedMember.status)}`}>
+                                    <span className={`w-2.5 h-2.5 rounded-full mr-2 ${getStatusDotColor(selectedMember.status)} ${selectedMember.status === 'Active' ? 'animate-pulse' : ''}`}></span>
+                                    {selectedMember.status}
+                                </span>
                             </div>
                         </div>
                         

@@ -83,6 +83,7 @@ const MemberHealthDashboard: React.FC<MemberHealthDashboardProps> = ({ isConnect
     
     // Hardware Refs (Native Bluetooth)
     const [bluetoothDevice, setBluetoothDevice] = useState<any | null>(null);
+    const bluetoothDeviceRef = useRef<any | null>(null); // Ref to access latest device in intervals
     const [gattServer, setGattServer] = useState<any | null>(null);
     
     // Simulation Refs
@@ -134,7 +135,12 @@ const MemberHealthDashboard: React.FC<MemberHealthDashboardProps> = ({ isConnect
 
             addLog(`DEV: Found ${device.name}`);
             setConnectionStep("Negotiating GATT...");
+            
+            // Listen for unexpected disconnects
+            device.addEventListener('gattserverdisconnected', handleNativeDisconnect);
+            
             setBluetoothDevice(device);
+            bluetoothDeviceRef.current = device;
             
             const server = await device.gatt.connect();
             setGattServer(server);
@@ -158,17 +164,24 @@ const MemberHealthDashboard: React.FC<MemberHealthDashboardProps> = ({ isConnect
         } catch (error: any) {
             addLog(`ERR: ${error.message || 'Connection Failed'}`);
             
-            if (error.message.includes("Heart Rate service")) {
+            if (error.message && error.message.includes("Heart Rate service")) {
                  addLog("TIP: Check if 'Broadcast Heart Rate' is enabled on your watch/band.");
             }
 
-            if (error.name === 'NotFoundError' || error.message.includes('cancelled')) {
+            if (error.name === 'NotFoundError' || (error.message && error.message.includes('cancelled'))) {
                 setConnectionStep("");
                 return;
             }
             // Fallback to simulation if hardware fails (Autofix)
             addLog("AUTO-FIX: Hardware link failed. Engaging Simulation Core.");
             simulateVirtualConnection("Virtual Fallback");
+        }
+    };
+
+    const handleNativeDisconnect = () => {
+        if (bluetoothDeviceRef.current) {
+            addLog("NET: Device Link Lost unexpectedly.");
+            handleTerminate();
         }
     };
 
@@ -233,8 +246,9 @@ const MemberHealthDashboard: React.FC<MemberHealthDashboardProps> = ({ isConnect
             const noise = Math.random() * 5 - 2.5;
             const hr = Math.floor(baseHr + Math.abs(variability) + noise);
             
-            // Only update if no native device is driving it, OR if we want to augment native data
-            if (!bluetoothDevice || !bluetoothDevice.gatt.connected) {
+            // Check Ref to see if a real device is connected
+            // Only update via simulation if no native device is driving it
+            if (!bluetoothDeviceRef.current || !bluetoothDeviceRef.current.gatt.connected) {
                 processTelemetry(hr);
             }
 
@@ -272,23 +286,38 @@ const MemberHealthDashboard: React.FC<MemberHealthDashboardProps> = ({ isConnect
 
     // --- DISCONNECT & CLEANUP ---
     const handleTerminate = () => {
-        if (bluetoothDevice && bluetoothDevice.gatt?.connected) {
-            bluetoothDevice.gatt.disconnect();
+        const device = bluetoothDeviceRef.current;
+        if (device) {
+            if (device.gatt?.connected) {
+                device.gatt.disconnect();
+            }
         }
         if (simulationIntervalRef.current) clearInterval(simulationIntervalRef.current);
         
         setBluetoothDevice(null);
+        bluetoothDeviceRef.current = null;
         setPacketLogs([]);
         setConnectedModelName('Unknown Device');
         setConnectionStep("");
         if (onDisconnect) onDisconnect();
     };
 
+    // Cleanup on unmount
     useEffect(() => {
         return () => {
             if (simulationIntervalRef.current) clearInterval(simulationIntervalRef.current);
         };
     }, []);
+
+    // Session Restore Logic (Handle Tab Switch)
+    useEffect(() => {
+        // If parent says we are connected, but we have no active interval/device logic running
+        if (isConnected && !bluetoothDeviceRef.current && !simulationIntervalRef.current) {
+            // Restore as simulation to prevent empty graphs
+            setConnectedModelName("Resumed Session");
+            startDataStream();
+        }
+    }, [isConnected]);
 
     // --- AI ANALYSIS ---
     const handleNeuralAnalysis = async () => {

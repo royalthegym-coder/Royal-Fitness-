@@ -118,8 +118,8 @@ const Reports: React.FC = () => {
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <Card title="Monthly Revenue">
-                            {/* Fixed height container for Recharts */}
-                            <div className="h-[400px] w-full min-w-0">
+                            {/* Fixed height container for Recharts using inline style to ensure it's picked up */}
+                            <div className="w-full min-w-0" style={{ height: 400 }}>
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={monthlyRevenueData}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
@@ -135,7 +135,7 @@ const Reports: React.FC = () => {
                         
                         <Card title="Membership Growth">
                             {/* Fixed height container for Recharts */}
-                            <div className="h-[400px] w-full min-w-0">
+                            <div className="w-full min-w-0" style={{ height: 400 }}>
                                 <ResponsiveContainer width="100%" height="100%">
                                     <LineChart data={membershipGrowthData}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
@@ -150,7 +150,7 @@ const Reports: React.FC = () => {
                         </Card>
 
                         <Card title="Package Popularity" className="lg:col-span-2">
-                            <div className="h-[400px] w-full min-w-0">
+                            <div className="w-full min-w-0" style={{ height: 400 }}>
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
                                         <Pie data={packagePopularityData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={120} label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}>
@@ -171,7 +171,7 @@ const Reports: React.FC = () => {
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <Card title="Revenue Forecast (Next Quarter)">
                             <p className="text-sm text-gray-400 mb-4">Projected revenue based on active subscriptions and historical growth trends.</p>
-                            <div className="h-[300px] w-full min-w-0">
+                            <div className="w-full min-w-0" style={{ height: 300 }}>
                                 <ResponsiveContainer width="100%" height="100%">
                                     <LineChart data={forecastData}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
