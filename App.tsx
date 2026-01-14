@@ -10,7 +10,7 @@ import { ChatIcon } from './utils/components/icons/ChatIcon';
 import GeminiChat from './utils/components/GeminiChat';
 import { View, Theme } from './types';
 
-// Lazy load heavy components
+// Lazy load heavy components to improve initial load speed and performance
 const Dashboard = React.lazy(() => import('./utils/components/Dashboard'));
 const Members = React.lazy(() => import('./utils/components/Members'));
 const Packages = React.lazy(() => import('./utils/components/Packages'));
@@ -73,7 +73,10 @@ const App: React.FC = () => {
         }
     }, [theme]);
 
+    // Simulate Daily Cron Job (e.g., 5 AM check)
     useEffect(() => {
+        // In a real app, this would be a backend cron job.
+        // Here, we simulate it running once when the admin app loads.
         if (currentUser?.type === 'admin') {
             checkMembershipExpiryAndNotify().then(count => {
                 if (count > 0) {
@@ -89,14 +92,18 @@ const App: React.FC = () => {
 
     const handleLogin = (identifier: string, pass: string, role: 'admin' | 'member'): boolean => {
         if (role === 'admin') {
+            // Allow login via email OR specific business phone number
             const isValidAdmin = (identifier === 'admin@royal.com' || identifier === '9785300123' || identifier === '+919785300123');
+            
             if (isValidAdmin && pass === 'admin123') {
                 setCurrentUser({ type: 'admin', name: 'Admin', avatar: 'https://i.pravatar.cc/150?u=admin' });
                 return true;
             }
         }
         if (role === 'member') {
+            // Member login remains by email for demo purposes, or could be extended to phone
             const member = INITIAL_MEMBERS.find(m => m.email === identifier || m.phone === identifier);
+            // In a real app, you'd check a hashed password. This is just for the demo.
             if (member && pass === `${member.name.split(' ')[0].toLowerCase()}123`) {
                 setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
                 return true;
@@ -164,23 +171,23 @@ const App: React.FC = () => {
         <div 
             className={`flex h-screen text-gray-800 dark:text-gray-100 ${theme}`}
             style={{
-                // Global 3D/Textured Background
+                // Global 3D/Textured Background - Updated for more attractive look
                 backgroundImage: theme === 'dark' 
-                    ? `linear-gradient(to bottom, rgba(17, 24, 39, 0.95), rgba(17, 24, 39, 0.85)), url('https://images.unsplash.com/photo-1599058945522-28d584b6f0ff?q=80&w=2069&auto=format&fit=crop')` 
-                    : `linear-gradient(to bottom, rgba(243, 244, 246, 0.9), rgba(229, 231, 235, 0.8)), url('https://images.unsplash.com/photo-1571902943202-507ec2618e8f?q=80&w=1975&auto=format&fit=crop')`,
+                    ? `linear-gradient(to bottom right, rgba(17, 24, 39, 0.85), rgba(0, 0, 0, 0.9)), url('https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=2070&auto=format&fit=crop')` 
+                    : `linear-gradient(to bottom right, rgba(255, 255, 255, 0.85), rgba(243, 244, 246, 0.85)), url('https://images.unsplash.com/photo-1571902943202-507ec2618e8f?q=80&w=1975&auto=format&fit=crop')`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundAttachment: 'fixed'
             }}
         >
             <Sidebar currentView={currentView} setCurrentView={setCurrentView} isOpen={isSidebarOpen} setIsOpen={setSidebarOpen} />
-            <div className="flex-1 flex flex-col overflow-hidden relative backdrop-blur-[2px]">
+            <div className="flex-1 flex flex-col overflow-hidden relative">
                 <Header onLogout={handleLogout} userName={currentUser.name} avatar={currentUser.avatar} theme={theme} toggleTheme={toggleTheme}>
                     <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 focus:outline-none md:hidden">
                         <MenuIcon />
                     </button>
                 </Header>
-                <main className="flex-1 overflow-x-hidden overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-700">
+                <main className="flex-1 overflow-x-hidden overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-700 bg-transparent">
                     <Suspense fallback={<LoadingSpinner />}>
                         {renderView()}
                     </Suspense>

@@ -116,7 +116,18 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId,
     }
     
     return (
-        <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 ${theme}`}>
+        <div 
+            className={`flex h-screen text-gray-800 dark:text-gray-100 ${theme}`}
+            style={{
+                // Match the main App.tsx wallpaper style for consistency
+                backgroundImage: theme === 'dark' 
+                    ? `linear-gradient(to bottom right, rgba(17, 24, 39, 0.85), rgba(0, 0, 0, 0.9)), url('https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=2070&auto=format&fit=crop')` 
+                    : `linear-gradient(to bottom right, rgba(255, 255, 255, 0.85), rgba(243, 244, 246, 0.85)), url('https://images.unsplash.com/photo-1571902943202-507ec2618e8f?q=80&w=1975&auto=format&fit=crop')`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundAttachment: 'fixed'
+            }}
+        >
             <Sidebar 
                 currentView={activeView} 
                 setCurrentView={(view) => setActiveView(view as MemberView)} 
@@ -125,52 +136,21 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId,
                 role="member"
             />
             
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden relative">
                 <Header onLogout={onLogout} userName={selectedMember.name} avatar={selectedMember.avatar} theme={theme} toggleTheme={toggleTheme}>
                     <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 focus:outline-none md:hidden mr-4">
                         <MenuIcon />
                     </button>
                 </Header>
                 
-                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
+                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-transparent p-4 sm:p-6 lg:p-8">
                     <div className="max-w-6xl mx-auto">
-                        <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
+                        <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between bg-white/10 dark:bg-black/30 p-6 rounded-2xl backdrop-blur-sm border border-white/10">
                             <div>
-                                <h1 className="text-3xl font-bold text-amber-500 dark:text-amber-400">Member Portal</h1>
-                                <p className="text-gray-500 dark:text-gray-400">Welcome back, {selectedMember?.name}!</p>
+                                <h1 className="text-3xl font-bold text-amber-500 dark:text-amber-400 drop-shadow-sm">Member Portal</h1>
+                                <p className="text-gray-600 dark:text-gray-300">Welcome back, {selectedMember?.name}!</p>
                             </div>
-                            <div className="mt-4 md:mt-0 px-4 py-2 bg-white dark:bg-gray-800 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 flex items-center shadow-sm">
-                                <span className="mr-2">Membership Status:</span>
+                            <div className="mt-4 md:mt-0 px-4 py-2 bg-white/50 dark:bg-gray-800/80 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 flex items-center shadow-lg">
+                                <span className="mr-2 opacity-80">Membership Status:</span>
                                 <span className={`font-bold flex items-center ${getStatusColor(selectedMember.status)}`}>
-                                    <span className={`w-2.5 h-2.5 rounded-full mr-2 ${getStatusDotColor(selectedMember.status)} ${selectedMember.status === 'Active' ? 'animate-pulse' : ''}`}></span>
-                                    {selectedMember.status}
-                                </span>
-                            </div>
-                        </div>
-                        
-                        {renderMemberView()}
-                    </div>
-                </main>
-            </div>
-
-            <button
-                onClick={() => setChatOpen(!isChatOpen)}
-                className="fixed bottom-6 right-6 bg-amber-500 text-gray-900 p-4 rounded-full shadow-lg hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 z-50 transform hover:scale-110 transition-transform"
-                aria-label="Toggle AI Agent"
-            >
-                <ChatIcon />
-            </button>
-            <GeminiChat 
-                isOpen={isChatOpen} 
-                onClose={() => setChatOpen(false)} 
-                context={{
-                    role: 'member',
-                    memberId: loggedInMemberId,
-                    memberName: selectedMember.name
-                }}
-            />
-        </div>
-    );
-};
-
-export default MemberPortal;
+                                    <span className={`w-2
