@@ -10,7 +10,7 @@ import { ChatIcon } from './utils/components/icons/ChatIcon';
 import GeminiChat from './utils/components/GeminiChat';
 import { View, Theme } from './types';
 
-// Lazy load heavy components to improve initial load speed and performance
+// Lazy load heavy components
 const Dashboard = React.lazy(() => import('./utils/components/Dashboard'));
 const Members = React.lazy(() => import('./utils/components/Members'));
 const Packages = React.lazy(() => import('./utils/components/Packages'));
@@ -45,16 +45,6 @@ const PerformanceLayer = React.lazy(() => import('./utils/components/Performance
 const SecurityLayer = React.lazy(() => import('./utils/components/SecurityLayer'));
 const ControlPanel = React.lazy(() => import('./utils/components/ControlPanel'));
 
-// Augment window for AI Studio helper
-declare global {
-  interface Window {
-    aistudio?: {
-      hasSelectedApiKey: () => Promise<boolean>;
-      openSelectKey: () => Promise<void>;
-    };
-  }
-}
-
 interface CurrentUser {
     type: 'admin' | 'member';
     id?: number;
@@ -74,26 +64,6 @@ const App: React.FC = () => {
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [theme, setTheme] = useState<Theme>('dark');
     const [isChatOpen, setChatOpen] = useState(false);
-    
-    // API Key State
-    const [hasApiKey, setHasApiKey] = useState(false);
-    const [isCheckingKey, setIsCheckingKey] = useState(true);
-
-    useEffect(() => {
-        const checkKey = async () => {
-            if (window.aistudio && window.aistudio.hasSelectedApiKey) {
-                const has = await window.aistudio.hasSelectedApiKey();
-                setHasApiKey(has);
-            } else {
-                // In standard environments without the wrapper, assume env vars are set manually or check process.env
-                // Since we can't check process.env directly for value in frontend build securely without it being defined,
-                // we default to true to let the app load, and errors will be caught by the API calls if missing.
-                setHasApiKey(true);
-            }
-            setIsCheckingKey(false);
-        };
-        checkKey();
-    }, []);
 
     useEffect(() => {
         if (theme === 'dark') {
@@ -103,7 +73,6 @@ const App: React.FC = () => {
         }
     }, [theme]);
 
-    // Simulate Daily Cron Job (e.g., 5 AM check)
     useEffect(() => {
         if (currentUser?.type === 'admin') {
             checkMembershipExpiryAndNotify().then(count => {
@@ -140,70 +109,6 @@ const App: React.FC = () => {
         setCurrentUser(null);
         setCurrentView('dashboard');
     };
-
-    const handleConnectKey = async () => {
-        if (window.aistudio) {
-            try {
-                await window.aistudio.openSelectKey();
-                setHasApiKey(true); // Optimistic update
-            } catch (error) {
-                console.error("Key selection failed", error);
-                setHasApiKey(false);
-            }
-        }
-    };
-
-    if (isCheckingKey) {
-        return (
-            <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500"></div>
-            </div>
-        );
-    }
-
-    if (!hasApiKey) {
-        return (
-            <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
-                    <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-amber-500/10 rounded-full blur-3xl"></div>
-                    <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
-                </div>
-                
-                <div className="z-10 bg-gray-800 p-8 rounded-2xl border border-gray-700 shadow-2xl max-w-lg w-full">
-                    <h1 className="text-4xl font-extrabold text-amber-500 mb-2">Royal The Gym</h1>
-                    <p className="text-xs text-gray-400 uppercase tracking-widest mb-8">AI Management Suite</p>
-                    
-                    <p className="text-gray-300 mb-8 text-lg leading-relaxed">
-                        To enable the AI Intelligence features (Gemini Models, Vision, Voice), you need to connect your Google API Key.
-                    </p>
-                    
-                    <button
-                        onClick={handleConnectKey}
-                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-6 rounded-xl shadow-xl transition-all hover:scale-105 flex items-center justify-center text-lg mb-6"
-                    >
-                        <span className="mr-3 text-xl">🔑</span> Connect API Key
-                    </button>
-                    
-                    <div className="text-sm text-gray-500 pt-6 border-t border-gray-700">
-                        <p>Don't have a key?</p>
-                        <a 
-                            href="https://aistudio.google.com/app/apikey" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-amber-400 hover:underline font-medium inline-flex items-center mt-1"
-                        >
-                            Generate one at Google AI Studio &rarr;
-                        </a>
-                        <p className="mt-2 text-xs text-gray-600">Please select a key from a paid GCP project for full feature access.</p>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    if (!currentUser) {
-        return <LoginScreen onLogin={handleLogin} />;
-    }
 
     const renderView = () => {
         switch (currentView) {
@@ -243,6 +148,10 @@ const App: React.FC = () => {
         }
     };
 
+    if (!currentUser) {
+        return <LoginScreen onLogin={handleLogin} />;
+    }
+
     if (currentUser.type === 'member' && currentUser.id) {
         return (
             <Suspense fallback={<LoadingSpinner />}>
@@ -252,15 +161,26 @@ const App: React.FC = () => {
     }
 
     return (
-        <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 ${theme}`}>
+        <div 
+            className={`flex h-screen text-gray-800 dark:text-gray-100 ${theme}`}
+            style={{
+                // Global 3D/Textured Background
+                backgroundImage: theme === 'dark' 
+                    ? `linear-gradient(to bottom, rgba(17, 24, 39, 0.95), rgba(17, 24, 39, 0.85)), url('https://images.unsplash.com/photo-1599058945522-28d584b6f0ff?q=80&w=2069&auto=format&fit=crop')` 
+                    : `linear-gradient(to bottom, rgba(243, 244, 246, 0.9), rgba(229, 231, 235, 0.8)), url('https://images.unsplash.com/photo-1571902943202-507ec2618e8f?q=80&w=1975&auto=format&fit=crop')`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundAttachment: 'fixed'
+            }}
+        >
             <Sidebar currentView={currentView} setCurrentView={setCurrentView} isOpen={isSidebarOpen} setIsOpen={setSidebarOpen} />
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden relative backdrop-blur-[2px]">
                 <Header onLogout={handleLogout} userName={currentUser.name} avatar={currentUser.avatar} theme={theme} toggleTheme={toggleTheme}>
                     <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 focus:outline-none md:hidden">
                         <MenuIcon />
                     </button>
                 </Header>
-                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 dark:bg-gray-900 p-6">
+                <main className="flex-1 overflow-x-hidden overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-700">
                     <Suspense fallback={<LoadingSpinner />}>
                         {renderView()}
                     </Suspense>
@@ -268,7 +188,7 @@ const App: React.FC = () => {
             </div>
             <button
                 onClick={() => setChatOpen(!isChatOpen)}
-                className="fixed bottom-6 right-6 bg-amber-500 text-gray-900 p-4 rounded-full shadow-lg hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 z-50 transform hover:scale-110 transition-transform"
+                className="fixed bottom-6 right-6 bg-gradient-to-r from-amber-500 to-amber-600 text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform z-50 border-2 border-white/20"
                 aria-label="Toggle AI Agent"
             >
                 <ChatIcon />

@@ -64,28 +64,6 @@ const App: React.FC = () => {
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [theme, setTheme] = useState<Theme>('dark');
     const [isChatOpen, setChatOpen] = useState(false);
-    
-    // API Key State
-    const [hasApiKey, setHasApiKey] = useState(false);
-    const [isCheckingKey, setIsCheckingKey] = useState(true);
-
-    useEffect(() => {
-        const checkKey = async () => {
-            // Use type assertion to avoid conflicts with global types
-            const aistudio = (window as any).aistudio;
-            if (aistudio && aistudio.hasSelectedApiKey) {
-                const has = await aistudio.hasSelectedApiKey();
-                setHasApiKey(has);
-            } else {
-                // In standard environments without the wrapper, assume env vars are set manually or check process.env
-                // Since we can't check process.env directly for value in frontend build securely without it being defined,
-                // we default to true to let the app load, and errors will be caught by the API calls if missing.
-                setHasApiKey(true);
-            }
-            setIsCheckingKey(false);
-        };
-        checkKey();
-    }, []);
 
     useEffect(() => {
         if (theme === 'dark') {
@@ -97,6 +75,8 @@ const App: React.FC = () => {
 
     // Simulate Daily Cron Job (e.g., 5 AM check)
     useEffect(() => {
+        // In a real app, this would be a backend cron job.
+        // Here, we simulate it running once when the admin app loads.
         if (currentUser?.type === 'admin') {
             checkMembershipExpiryAndNotify().then(count => {
                 if (count > 0) {
@@ -112,14 +92,18 @@ const App: React.FC = () => {
 
     const handleLogin = (identifier: string, pass: string, role: 'admin' | 'member'): boolean => {
         if (role === 'admin') {
+            // Allow login via email OR specific business phone number
             const isValidAdmin = (identifier === 'admin@royal.com' || identifier === '9785300123' || identifier === '+919785300123');
+            
             if (isValidAdmin && pass === 'admin123') {
                 setCurrentUser({ type: 'admin', name: 'Admin', avatar: 'https://i.pravatar.cc/150?u=admin' });
                 return true;
             }
         }
         if (role === 'member') {
+            // Member login remains by email for demo purposes, or could be extended to phone
             const member = INITIAL_MEMBERS.find(m => m.email === identifier || m.phone === identifier);
+            // In a real app, you'd check a hashed password. This is just for the demo.
             if (member && pass === `${member.name.split(' ')[0].toLowerCase()}123`) {
                 setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
                 return true;
@@ -132,71 +116,6 @@ const App: React.FC = () => {
         setCurrentUser(null);
         setCurrentView('dashboard');
     };
-
-    const handleConnectKey = async () => {
-        const aistudio = (window as any).aistudio;
-        if (aistudio) {
-            try {
-                await aistudio.openSelectKey();
-                setHasApiKey(true); // Optimistic update
-            } catch (error) {
-                console.error("Key selection failed", error);
-                setHasApiKey(false);
-            }
-        }
-    };
-
-    if (isCheckingKey) {
-        return (
-            <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500"></div>
-            </div>
-        );
-    }
-
-    if (!hasApiKey) {
-        return (
-            <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
-                    <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-amber-500/10 rounded-full blur-3xl"></div>
-                    <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
-                </div>
-                
-                <div className="z-10 bg-gray-800 p-8 rounded-2xl border border-gray-700 shadow-2xl max-w-lg w-full">
-                    <h1 className="text-4xl font-extrabold text-amber-500 mb-2">Royal The Gym</h1>
-                    <p className="text-xs text-gray-400 uppercase tracking-widest mb-8">AI Management Suite</p>
-                    
-                    <p className="text-gray-300 mb-8 text-lg leading-relaxed">
-                        To enable the AI Intelligence features (Gemini Models, Vision, Voice), you need to connect your Google API Key.
-                    </p>
-                    
-                    <button
-                        onClick={handleConnectKey}
-                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-6 rounded-xl shadow-xl transition-all hover:scale-105 flex items-center justify-center text-lg mb-6"
-                    >
-                        <span className="mr-3 text-xl">🔑</span> Connect API Key
-                    </button>
-                    
-                    <div className="text-sm text-gray-500 pt-6 border-t border-gray-700">
-                        <p>Don't have a key?</p>
-                        <a 
-                            href="https://aistudio.google.com/app/apikey" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-amber-400 hover:underline font-medium inline-flex items-center mt-1"
-                        >
-                            Generate one at Google AI Studio &rarr;
-                        </a>
-                        <p className="mt-2 text-xs text-gray-600">Please select a key from a paid GCP project for full feature access.</p>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    if (!currentUser) {
-        return <LoginScreen onLogin={handleLogin} />;
-    }
 
     const renderView = () => {
         switch (currentView) {
@@ -235,6 +154,10 @@ const App: React.FC = () => {
             default: return <Dashboard setCurrentView={setCurrentView} />;
         }
     };
+
+    if (!currentUser) {
+        return <LoginScreen onLogin={handleLogin} />;
+    }
 
     if (currentUser.type === 'member' && currentUser.id) {
         return (

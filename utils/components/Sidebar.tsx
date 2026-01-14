@@ -98,8 +98,8 @@ const memberNavItems = [
 
 const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isOpen, setIsOpen, role = 'admin' }) => {
   const baseClasses = "flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 mb-1";
-  const activeClasses = "bg-amber-500 text-gray-900";
-  const inactiveClasses = "text-gray-400 hover:bg-gray-800 hover:text-white";
+  const activeClasses = "bg-amber-500/20 text-amber-400 border border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.2)]";
+  const inactiveClasses = "text-gray-400 hover:bg-gray-800/50 hover:text-white";
 
   const navItems = role === 'member' ? memberNavItems : adminNavItems;
   const title = role === 'member' ? 'Royal Member' : 'Royal Admin';
@@ -122,18 +122,18 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
   const currentSystem = systems[systemIndex];
 
   return (
-    <div className={`bg-gray-900 text-white flex flex-col transition-all duration-300 ${isOpen ? 'w-64' : 'w-0 overflow-hidden'} md:w-64 border-r border-gray-800 h-screen absolute md:relative z-30`}>
-        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-800 flex-shrink-0 bg-gray-900">
-          <span className="text-xl font-bold text-amber-500 tracking-wider">{title}</span>
+    <div className={`bg-gray-900/90 backdrop-blur-xl text-white flex flex-col transition-all duration-300 ${isOpen ? 'w-64' : 'w-0 overflow-hidden'} md:w-64 border-r border-white/5 h-screen absolute md:relative z-30 shadow-2xl`}>
+        <div className="flex items-center justify-between h-16 px-6 border-b border-white/5 flex-shrink-0 bg-gray-900/50">
+          <span className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-yellow-300 tracking-wider drop-shadow-md">{title}</span>
           <button onClick={() => setIsOpen(false)} className="md:hidden text-gray-400 hover:text-white">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
         
-        <nav className="flex-1 px-3 py-4 space-y-6 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700">
+        <nav className="flex-1 px-3 py-4 space-y-6 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-800">
           {navItems.map((section, idx) => (
             <div key={idx}>
-              <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+              <h3 className="px-3 text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 shadow-black drop-shadow-sm">
                 {section.category}
               </h3>
               <div className="space-y-1">
@@ -146,10 +146,10 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
                       }}
                     className={`${baseClasses} ${currentView === item.id ? activeClasses : inactiveClasses} w-full group`}
                   >
-                    <span className={`${currentView === item.id ? 'text-gray-900' : 'text-gray-400 group-hover:text-white'}`}>
+                    <span className={`${currentView === item.id ? 'text-amber-400' : 'text-gray-400 group-hover:text-white'} transition-colors`}>
                         {item.icon}
                     </span>
-                    <span className="ml-3">{item.label}</span>
+                    <span className="ml-3 font-semibold">{item.label}</span>
                   </button>
                 ))}
               </div>
@@ -158,7 +158,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
         </nav>
 
         {/* Social Links Footer */}
-        <div className="px-6 py-4 border-t border-gray-800 bg-gray-900">
+        <div className="px-6 py-4 border-t border-white/5 bg-gray-900/50">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Connect With Us</p>
             <div className="flex space-x-4">
                 <a href={GYM_INFO.socials.instagram} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-500 transition-colors" title="Instagram">
@@ -176,53 +176,55 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
             </div>
         </div>
 
-        {/* Improved System Status Footer */}
-        <div className="p-4 border-t border-gray-800 bg-gray-900">
-            <button 
-                onClick={() => setCurrentView('controlPanel')}
-                className="w-full bg-gray-800/50 hover:bg-gray-800 border border-gray-700 rounded-xl p-3 transition-all group text-left shadow-inner"
-            >
-                <div className="flex justify-between items-center mb-2">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">System Status</span>
-                    <div className="flex items-center gap-1.5">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                        </span>
-                        <span className="text-[10px] text-green-400 font-mono">98.2% UP</span>
+        {/* Improved System Status Footer - Admin Only */}
+        {role === 'admin' && (
+            <div className="p-4 border-t border-white/5 bg-gray-900/50">
+                <button 
+                    onClick={() => setCurrentView('controlPanel')}
+                    className="w-full bg-black/40 hover:bg-black/60 border border-white/10 rounded-xl p-3 transition-all group text-left shadow-inner backdrop-blur-sm"
+                >
+                    <div className="flex justify-between items-center mb-2">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">System Status</span>
+                        <div className="flex items-center gap-1.5">
+                            <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                            </span>
+                            <span className="text-[10px] text-green-400 font-mono">98.2% UP</span>
+                        </div>
                     </div>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gray-900 rounded-lg border border-gray-600 group-hover:border-amber-500/50 transition-colors">
-                        {currentSystem.icon}
+                    
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-gray-800 rounded-lg border border-gray-600 group-hover:border-amber-500/50 transition-colors">
+                            {currentSystem.icon}
+                        </div>
+                        <div>
+                            <p className={`text-xs font-bold ${currentSystem.color} transition-all duration-300`}>
+                                {currentSystem.name}
+                            </p>
+                            <p className="text-[10px] text-gray-400 font-mono mt-0.5">
+                                {currentSystem.status}
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <p className={`text-xs font-bold ${currentSystem.color} transition-all duration-300`}>
-                            {currentSystem.name}
-                        </p>
-                        <p className="text-[10px] text-gray-400 font-mono mt-0.5">
-                            {currentSystem.status}
-                        </p>
-                    </div>
-                </div>
 
-                <div className="grid grid-cols-3 gap-1 mt-3 pt-3 border-t border-gray-700/50">
-                    <div className="text-center">
-                        <p className="text-[8px] text-gray-500 uppercase">CPU</p>
-                        <p className="text-[10px] font-mono text-gray-300">12%</p>
+                    <div className="grid grid-cols-3 gap-1 mt-3 pt-3 border-t border-white/10">
+                        <div className="text-center">
+                            <p className="text-[8px] text-gray-500 uppercase">CPU</p>
+                            <p className="text-[10px] font-mono text-gray-300">12%</p>
+                        </div>
+                        <div className="text-center border-l border-white/10">
+                            <p className="text-[8px] text-gray-500 uppercase">MEM</p>
+                            <p className="text-[10px] font-mono text-gray-300">1.4GB</p>
+                        </div>
+                        <div className="text-center border-l border-white/10">
+                            <p className="text-[8px] text-gray-500 uppercase">AI OPS</p>
+                            <p className="text-[10px] font-mono text-amber-400">Active</p>
+                        </div>
                     </div>
-                    <div className="text-center border-l border-gray-700/50">
-                        <p className="text-[8px] text-gray-500 uppercase">MEM</p>
-                        <p className="text-[10px] font-mono text-gray-300">1.4GB</p>
-                    </div>
-                    <div className="text-center border-l border-gray-700/50">
-                        <p className="text-[8px] text-gray-500 uppercase">AI OPS</p>
-                        <p className="text-[10px] font-mono text-amber-400">Active</p>
-                    </div>
-                </div>
-            </button>
-        </div>
+                </button>
+            </div>
+        )}
     </div>
   );
 });

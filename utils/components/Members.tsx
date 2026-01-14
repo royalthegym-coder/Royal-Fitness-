@@ -12,6 +12,7 @@ import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { sendWhatsAppWelcomeMessage, sendTrainerAssignmentNotification } from '../../lib/whatsapp';
 import { BotIcon } from './icons/BotIcon';
 import { UploadIcon } from './icons/UploadIcon';
+import { EditIcon } from './icons/EditIcon';
 
 const Members: React.FC = () => {
     const [members, setMembers] = useState<Member[]>(INITIAL_MEMBERS);
@@ -51,13 +52,12 @@ const Members: React.FC = () => {
                 const trainer = INITIAL_STAFF.find(s => s.id === memberData.trainerId);
                 if (trainer) {
                     await sendTrainerAssignmentNotification(updatedMember, trainer.name);
-                    alert(`Trainer assignment notification sent to ${updatedMember.name}`);
                 }
             }
 
         } else {
             // New Member Logic
-            const newId = Math.max(...members.map(m => m.id)) + 1;
+            const newId = Math.max(...members.map(m => m.id), 0) + 1;
             const newMember: Member = { 
                 ...memberData, 
                 id: newId, 
@@ -103,12 +103,22 @@ const Members: React.FC = () => {
         }
     };
 
-    const getStatusColor = (status: Member['status']) => {
+    const getStatusStyles = (status: Member['status']) => {
         switch(status) {
-            case 'Active': return 'bg-green-500';
-            case 'Expired': return 'bg-red-500';
-            case 'Inactive': return 'bg-yellow-500';
-            default: return 'bg-gray-500';
+            case 'Active': return 'bg-green-500/20 text-green-400 border-green-500/50';
+            case 'Expired': return 'bg-red-500/20 text-red-400 border-red-500/50';
+            case 'Inactive': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
+            default: return 'bg-gray-500/20 text-gray-400 border-gray-500/50';
+        }
+    };
+
+    // Helper for Custom Property example
+    const getStatusColorCode = (status: Member['status']) => {
+        switch(status) {
+            case 'Active': return '#4ade80'; // Green
+            case 'Expired': return '#f87171'; // Red
+            case 'Inactive': return '#facc15'; // Yellow
+            default: return '#9ca3af'; // Gray
         }
     };
 
@@ -121,7 +131,12 @@ const Members: React.FC = () => {
         <div>
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-3xl font-bold text-amber-400">Members</h1>
-                <button onClick={handleAddMember} className="bg-amber-500 text-gray-900 font-bold py-2 px-4 rounded-lg hover:bg-amber-400 transition-colors">
+                <button 
+                    onClick={handleAddMember} 
+                    className="bg-amber-500 text-gray-900 font-bold py-2 px-4 rounded-lg hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    aria-label="Add New Member"
+                    data-testid="add-member-btn"
+                >
                     Add Member
                 </button>
             </div>
@@ -129,62 +144,92 @@ const Members: React.FC = () => {
                 <div className="mb-4">
                     <input
                         type="text"
-                        placeholder="Search members..."
-                        className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        placeholder="Search members by name, email, or phone..."
+                        className="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all placeholder-gray-500"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
+                        aria-label="Search members"
+                        data-testid="search-members-input"
                     />
                 </div>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                    <table className="w-full text-left border-collapse" data-testid="members-table">
                         <thead>
-                            <tr className="border-b border-gray-700 text-gray-400">
-                                <th className="p-3">Name</th>
-                                <th className="p-3 hidden md:table-cell">Contact</th>
-                                <th className="p-3 hidden lg:table-cell">Trainer</th>
-                                <th className="p-3">Status</th>
-                                <th className="p-3">Actions</th>
+                            <tr className="border-b border-gray-700 text-gray-400 text-sm uppercase tracking-wider">
+                                <th className="p-4" scope="col">Member</th>
+                                <th className="p-4 hidden md:table-cell" scope="col">Contact</th>
+                                <th className="p-4 hidden lg:table-cell" scope="col">Trainer</th>
+                                <th className="p-4" scope="col">Status</th>
+                                <th className="p-4" scope="col">Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-gray-700">
                             {filteredMembers.map(member => (
-                                <tr key={member.id} className="border-b border-gray-700 hover:bg-gray-700/50">
-                                    <td className="p-3">
+                                <tr key={member.id} className="hover:bg-gray-700/30 transition-colors group" data-testid={`member-row-${member.id}`}>
+                                    <td className="p-4">
                                         <div className="flex items-center">
-                                            <img src={member.avatar} alt={member.name} className="w-10 h-10 rounded-full mr-3 object-cover" />
+                                            <div className="relative">
+                                                <img 
+                                                    src={member.avatar} 
+                                                    alt={`${member.name}'s avatar`} 
+                                                    className="w-10 h-10 rounded-full mr-3 object-cover border-2 border-gray-600 group-hover:border-amber-500 transition-colors" 
+                                                />
+                                                <div 
+                                                    className={`absolute bottom-0 right-3 w-3 h-3 rounded-full border-2 border-gray-800 ${member.status === 'Active' ? 'bg-green-500' : member.status === 'Expired' ? 'bg-red-500' : 'bg-yellow-500'}`}
+                                                    aria-label={`Status: ${member.status}`}
+                                                ></div>
+                                            </div>
                                             <div>
-                                                <p className="font-semibold">{member.name}</p>
-                                                <p className="text-sm text-gray-400 md:hidden">{member.email}</p>
+                                                <p className="font-semibold text-gray-200">{member.name}</p>
+                                                <p className="text-xs text-gray-500 md:hidden">{member.email}</p>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="p-3 hidden md:table-cell">
-                                        <p>{member.email}</p>
-                                        <div className="flex items-center">
-                                            <p className="text-gray-400 mr-2">{member.phone}</p>
-                                            {member.whatsappConsent && (
-                                                <span className={`${member.whatsappMode === 'Manual' ? 'text-blue-400' : 'text-green-500'}`} title={`WhatsApp Business: ${member.whatsappMode || 'Auto'}`}>
-                                                    <WhatsAppIcon className="w-4 h-4" />
-                                                </span>
-                                            )}
+                                    <td className="p-4 hidden md:table-cell">
+                                        <div className="text-sm">
+                                            <p className="text-gray-300">{member.email}</p>
+                                            <div className="flex items-center mt-1">
+                                                <p className="text-gray-500 mr-2">{member.phone}</p>
+                                                {member.whatsappConsent && (
+                                                    <span className={`${member.whatsappMode === 'Manual' ? 'text-blue-400' : 'text-green-500'}`} title={`WhatsApp: ${member.whatsappMode || 'Auto'}`}>
+                                                        <WhatsAppIcon className="w-3 h-3" />
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </td>
-                                    <td className="p-3 hidden lg:table-cell text-sm">{getTrainerName(member.trainerId)}</td>
-                                    <td className="p-3">
-                                        <span className={`px-2 py-1 text-xs font-semibold rounded-full text-white ${getStatusColor(member.status)}`}>
+                                    <td className="p-4 hidden lg:table-cell text-sm text-gray-400">
+                                        {getTrainerName(member.trainerId)}
+                                    </td>
+                                    <td className="p-4">
+                                        <span 
+                                            className={`px-3 py-1 text-xs font-bold rounded-full border ${getStatusStyles(member.status)}`}
+                                            style={{ '--status-color': getStatusColorCode(member.status) } as React.CSSProperties} // Custom Property usage
+                                            data-testid={`status-badge-${member.id}`}
+                                        >
                                             {member.status}
                                         </span>
                                     </td>
-                                    <td className="p-3">
+                                    <td className="p-4">
                                         <div className="flex items-center gap-3">
-                                            <button onClick={() => handleEditMember(member)} className="text-amber-400 hover:text-amber-300 font-medium">Edit</button>
+                                            <button 
+                                                onClick={() => handleEditMember(member)} 
+                                                className="p-2 text-gray-400 hover:text-amber-400 hover:bg-amber-400/10 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                title="Edit Details"
+                                                aria-label={`Edit ${member.name}`}
+                                                data-testid={`edit-member-${member.id}`}
+                                            >
+                                                <EditIcon className="w-5 h-5" />
+                                            </button>
                                             {member.whatsappConsent && (
                                                 <a 
                                                     href={`https://wa.me/91${member.phone.replace(/\D/g, '')}`} 
                                                     target="_blank" 
                                                     rel="noopener noreferrer"
-                                                    className="text-green-500 hover:text-green-400"
+                                                    className="p-2 text-gray-400 hover:text-green-500 hover:bg-green-500/10 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-green-500"
                                                     title="Chat on WhatsApp"
+                                                    aria-label={`Chat with ${member.name} on WhatsApp`}
+                                                    data-testid={`whatsapp-link-${member.id}`}
                                                 >
                                                     <WhatsAppIcon className="w-5 h-5" />
                                                 </a>
@@ -195,6 +240,11 @@ const Members: React.FC = () => {
                             ))}
                         </tbody>
                     </table>
+                    {filteredMembers.length === 0 && (
+                        <div className="p-8 text-center text-gray-500">
+                            No members found matching "{searchTerm}"
+                        </div>
+                    )}
                 </div>
             </Card>
             {isModalOpen && (
@@ -279,15 +329,15 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
 
     return (
         <>
-            <Modal isOpen={isOpen} onClose={onClose} title={member ? 'Edit Member' : 'Add New Member'}>
+            <Modal isOpen={isOpen} onClose={onClose} title={member ? 'Edit Member Details' : 'Register New Member'}>
                 <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Personal Details Section */}
                     <div>
-                        <h4 className="text-md font-semibold text-amber-400 border-b border-gray-700 pb-2 mb-4">Personal Details</h4>
+                        <h4 className="text-xs font-bold text-amber-500 uppercase tracking-widest border-b border-gray-700 pb-2 mb-4">Personal Information</h4>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
                             {/* Photo Column */}
-                            <div className="md:col-span-1 flex flex-col items-center justify-center p-4 bg-gray-800/50 rounded-lg border border-gray-700">
-                                <span className="inline-block h-32 w-32 rounded-full overflow-hidden bg-gray-700 border-4 border-gray-600 shadow-lg mb-4">
+                            <div className="md:col-span-1 flex flex-col items-center justify-center p-4 bg-gray-800/50 rounded-xl border border-gray-700">
+                                <span className="inline-block h-32 w-32 rounded-full overflow-hidden bg-gray-700 border-4 border-gray-600 shadow-lg mb-4 relative group">
                                     {formData.avatar ? (
                                         <img className="h-full w-full object-cover" src={formData.avatar} alt="Member" />
                                     ) : (
@@ -298,7 +348,9 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
                                     <button
                                         type="button"
                                         onClick={() => fileInputRef.current?.click()}
-                                        className="w-full bg-gray-600 text-white text-xs font-bold py-2 px-3 rounded-lg hover:bg-gray-500 transition-colors flex items-center justify-center"
+                                        className="w-full bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-gray-500"
+                                        aria-label="Upload Photo"
+                                        data-testid="upload-photo-btn"
                                     >
                                         <UploadIcon className="w-4 h-4 mr-2" /> Upload Photo
                                     </button>
@@ -308,11 +360,14 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
                                         onChange={handleFileChange}
                                         className="hidden"
                                         accept="image/*"
+                                        data-testid="file-input"
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setIsCameraOpen(true)}
-                                        className="w-full bg-blue-600 text-white text-xs font-bold py-2 px-3 rounded-lg hover:bg-blue-500 transition-colors flex items-center justify-center"
+                                        className="w-full bg-blue-600/80 hover:bg-blue-500 text-white text-xs font-bold py-2 px-3 rounded-lg transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        aria-label="Take Photo"
+                                        data-testid="take-photo-btn"
                                     >
                                         <CameraIcon className="w-4 h-4 mr-2" /> Take Photo
                                     </button>
@@ -322,16 +377,16 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
                             {/* Personal Inputs */}
                             <div className="md:col-span-2 space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-1">Full Name</label>
-                                    <input type="text" name="name" value={formData.name} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all" required placeholder="John Doe" />
+                                    <label htmlFor="name" className="block text-sm font-medium text-gray-400 mb-1">Full Name</label>
+                                    <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all" required placeholder="e.g. Aarav Sharma" data-testid="input-name" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-1">Email Address</label>
-                                    <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all" required placeholder="john@example.com" />
+                                    <label htmlFor="email" className="block text-sm font-medium text-gray-400 mb-1">Email Address</label>
+                                    <input type="email" id="email" name="email" value={formData.email} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all" required placeholder="e.g. aarav@example.com" data-testid="input-email" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-1">Phone Number</label>
-                                    <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all" required placeholder="+91 98765 43210" />
+                                    <label htmlFor="phone" className="block text-sm font-medium text-gray-400 mb-1">Phone Number</label>
+                                    <input type="tel" id="phone" name="phone" value={formData.phone} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all" required placeholder="e.g. +91 98765 43210" data-testid="input-phone" />
                                 </div>
                             </div>
                         </div>
@@ -339,23 +394,23 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
 
                     {/* Membership Section */}
                     <div>
-                        <h4 className="text-md font-semibold text-amber-400 border-b border-gray-700 pb-2 mb-4">Membership Details</h4>
+                        <h4 className="text-xs font-bold text-amber-500 uppercase tracking-widest border-b border-gray-700 pb-2 mb-4">Membership Plan</h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Join Date</label>
-                                <input type="date" name="joinDate" value={formData.joinDate} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 outline-none" required />
+                                <label htmlFor="joinDate" className="block text-sm font-medium text-gray-400 mb-1">Join Date</label>
+                                <input type="date" id="joinDate" name="joinDate" value={formData.joinDate} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 outline-none" required data-testid="input-join-date" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Select Package</label>
-                                <select name="packageId" value={formData.packageId} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 outline-none">
+                                <label htmlFor="packageId" className="block text-sm font-medium text-gray-400 mb-1">Package</label>
+                                <select id="packageId" name="packageId" value={formData.packageId} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 outline-none" data-testid="select-package">
                                     {INITIAL_PACKAGES.map(p => (
                                         <option key={p.id} value={p.id}>{p.name} - ₹{p.price}</option>
                                     ))}
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Assigned Trainer</label>
-                                <select name="trainerId" value={formData.trainerId} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 outline-none">
+                                <label htmlFor="trainerId" className="block text-sm font-medium text-gray-400 mb-1">Assigned Trainer</label>
+                                <select id="trainerId" name="trainerId" value={formData.trainerId} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 outline-none" data-testid="select-trainer">
                                     <option value={0}>Unassigned</option>
                                     {trainers.map(t => (
                                         <option key={t.id} value={t.id}>{t.name}</option>
@@ -363,8 +418,8 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Membership Status</label>
-                                <select name="status" value={formData.status} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 outline-none">
+                                <label htmlFor="status" className="block text-sm font-medium text-gray-400 mb-1">Status</label>
+                                <select id="status" name="status" value={formData.status} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 outline-none" data-testid="select-status">
                                     <option value="Active">Active</option>
                                     <option value="Expired">Expired</option>
                                     <option value="Inactive">Inactive</option>
@@ -376,7 +431,7 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
                         <div className="mt-6 bg-gradient-to-r from-gray-800 to-gray-800/50 border border-gray-700 p-5 rounded-xl shadow-lg">
                             <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-green-900/30 rounded-lg">
+                                    <div className="p-2 bg-green-900/30 rounded-lg border border-green-500/20">
                                         <WhatsAppIcon className="w-6 h-6 text-green-500" />
                                     </div>
                                     <div>
@@ -391,6 +446,8 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
                                         checked={formData.whatsappConsent} 
                                         onChange={handleCheckboxChange} 
                                         className="sr-only peer" 
+                                        aria-label="Enable WhatsApp Integration"
+                                        data-testid="whatsapp-toggle"
                                     />
                                     <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
                                 </label>
@@ -434,8 +491,22 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
                     
                     {/* Buttons Footer */}
                     <div className="flex justify-end pt-4 mt-4 border-t border-gray-700">
-                        <button type="button" onClick={onClose} className="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-500 transition-colors mr-2">Cancel</button>
-                        <button type="submit" className="bg-amber-500 text-gray-900 font-bold py-2 px-4 rounded-lg hover:bg-amber-400 transition-colors">Save Member</button>
+                        <button 
+                            type="button" 
+                            onClick={onClose} 
+                            className="bg-gray-700 text-gray-300 font-bold py-2 px-6 rounded-lg hover:bg-gray-600 transition-colors mr-3 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                            aria-label="Cancel"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            type="submit" 
+                            className="bg-amber-500 text-gray-900 font-bold py-2 px-6 rounded-lg hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            aria-label={member ? 'Update Member' : 'Register Member'}
+                            data-testid="save-member-btn"
+                        >
+                            {member ? 'Update Member' : 'Register Member'}
+                        </button>
                     </div>
                 </form>
             </Modal>

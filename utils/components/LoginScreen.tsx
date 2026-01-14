@@ -53,15 +53,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             return;
         }
         if (otp === generatedOtp || otp === '123456') { // Backdoor for demo
-            // Pass a dummy password that matches the App.tsx check for the sake of compatibility, 
-            // OR ideally App.tsx should verify phone numbers directly.
-            // For this demo, we simulate success by calling onLogin with correct hardcoded creds based on role
-            // This is a bridge between the new UI and old logic.
             let success = false;
             if (role === 'admin') {
                 success = onLogin('9785300123', 'admin123', 'admin');
             } else {
-                // Try to find member by phone in real app, here we use demo creds
                 success = onLogin('aarav.s@example.com', 'aarav123', 'member');
             }
             
@@ -84,60 +79,83 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center p-4 relative overflow-hidden">
-            {/* Background Decoration */}
-            <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
-                <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-amber-500/10 rounded-full blur-3xl"></div>
-                <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
+        <div className="min-h-screen flex flex-col justify-center items-center p-4 relative overflow-hidden font-sans">
+            {/* 3D Cinematic Background */}
+            <div 
+                className="absolute top-0 left-0 w-full h-full z-0"
+                style={{
+                    backgroundImage: `url('https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=2070&auto=format&fit=crop')`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                }}
+            >
+                {/* Dark Overlay for readability */}
+                <div className="absolute inset-0 bg-gray-900/80 bg-gradient-to-t from-black via-gray-900/60 to-black/80 backdrop-blur-[2px]"></div>
             </div>
 
-            <div className="text-center mb-8 z-10">
-                <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-yellow-200 tracking-wider mb-2">{GYM_INFO.name}</h1>
-                <p className="text-gray-400 text-sm tracking-widest uppercase">Secure Access Portal</p>
+            {/* Floating Particles/Glow (Simulated 3D) */}
+            <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
+                <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-amber-500/20 rounded-full blur-[100px] animate-pulse"></div>
+                <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[100px] animate-pulse delay-1000"></div>
             </div>
 
-            <div className="w-full max-w-md bg-gray-800 rounded-2xl shadow-2xl p-8 border border-gray-700 z-10 backdrop-blur-sm">
+            <div className="text-center mb-8 z-10 animate-fade-in-up">
+                <div className="inline-block p-4 rounded-full bg-black/40 backdrop-blur-md border border-amber-500/30 mb-4 shadow-[0_0_30px_rgba(245,158,11,0.3)]">
+                    <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-500 to-amber-600 tracking-tighter drop-shadow-sm">
+                        ROYAL
+                    </h1>
+                    <span className="text-white text-xs font-bold tracking-[0.5em] uppercase block mt-1">The Gym</span>
+                </div>
+                <p className="text-gray-300 text-sm tracking-widest uppercase font-medium drop-shadow-md">Elite Fitness Management System</p>
+            </div>
+
+            <div className="w-full max-w-md bg-black/40 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/10 z-10 relative overflow-hidden group">
+                {/* Glass Shine Effect */}
+                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/5 to-transparent pointer-events-none"></div>
+
                 {/* Role Switcher */}
-                <div className="flex bg-gray-700 rounded-lg p-1 mb-6">
+                <div className="flex bg-black/50 rounded-xl p-1 mb-8 border border-white/5 relative z-20">
                     <button 
                         onClick={() => { setRole('admin'); setIdentifier(''); setPassword(''); setIsOtpSent(false); }}
-                        className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${role === 'admin' ? 'bg-amber-500 text-gray-900 shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                        className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all duration-300 ${role === 'admin' ? 'bg-gradient-to-r from-amber-600 to-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                     >
-                        Admin
+                        ADMIN PANEL
                     </button>
                     <button 
                         onClick={() => { setRole('member'); setIdentifier(''); setPassword(''); setIsOtpSent(false); }}
-                        className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${role === 'member' ? 'bg-amber-500 text-gray-900 shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                        className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all duration-300 ${role === 'member' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                     >
-                        Member
+                        MEMBER ZONE
                     </button>
                 </div>
 
                 {/* Login Method Tabs */}
-                <div className="flex justify-center space-x-6 mb-6 border-b border-gray-700 pb-2">
-                    <button onClick={() => setLoginMethod('otp')} className={`text-sm font-medium pb-2 border-b-2 transition-colors ${loginMethod === 'otp' ? 'border-green-500 text-green-400' : 'border-transparent text-gray-500'}`}>
+                <div className="flex justify-center space-x-8 mb-8 border-b border-white/10 pb-1 relative z-20">
+                    <button onClick={() => setLoginMethod('otp')} className={`text-sm font-bold pb-3 transition-all relative ${loginMethod === 'otp' ? 'text-white' : 'text-gray-500'}`}>
                         WhatsApp OTP
+                        {loginMethod === 'otp' && <span className="absolute bottom-[-1px] left-0 w-full h-0.5 bg-green-500 shadow-[0_0_10px_#22c55e]"></span>}
                     </button>
-                    <button onClick={() => setLoginMethod('password')} className={`text-sm font-medium pb-2 border-b-2 transition-colors ${loginMethod === 'password' ? 'border-blue-500 text-blue-400' : 'border-transparent text-gray-500'}`}>
+                    <button onClick={() => setLoginMethod('password')} className={`text-sm font-bold pb-3 transition-all relative ${loginMethod === 'password' ? 'text-white' : 'text-gray-500'}`}>
                         Password
+                        {loginMethod === 'password' && <span className="absolute bottom-[-1px] left-0 w-full h-0.5 bg-blue-500 shadow-[0_0_10px_#3b82f6]"></span>}
                     </button>
                 </div>
 
-                <form onSubmit={(e) => e.preventDefault()} className="space-y-5">
+                <form onSubmit={(e) => e.preventDefault()} className="space-y-6 relative z-20">
                     {loginMethod === 'otp' ? (
                         <>
                             {!isOtpSent ? (
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase">Mobile Number</label>
-                                    <div className="relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <WhatsAppIcon className="h-5 w-5 text-green-500" />
+                                <div className="animate-fade-in">
+                                    <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Mobile Number</label>
+                                    <div className="relative group">
+                                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                            <WhatsAppIcon className="h-5 w-5 text-green-500 group-focus-within:text-green-400 transition-colors" />
                                         </div>
                                         <input
                                             type="tel"
                                             value={identifier}
                                             onChange={(e) => setIdentifier(e.target.value)}
-                                            className="block w-full pl-10 pr-3 py-3 border border-gray-600 rounded-lg focus:ring-green-500 focus:border-green-500 bg-gray-700 text-white placeholder-gray-500 transition-colors"
+                                            className="block w-full pl-12 pr-4 py-4 border border-white/10 rounded-xl focus:ring-2 focus:ring-green-500/50 focus:border-green-500 bg-black/50 text-white placeholder-gray-600 transition-all outline-none backdrop-blur-sm"
                                             placeholder="9876543210"
                                         />
                                     </div>
@@ -145,89 +163,86 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                                         type="button"
                                         onClick={handleSendOTP}
                                         disabled={isLoading}
-                                        className="mt-4 w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-green-600 hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="mt-6 w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-[0_0_20px_rgba(22,163,74,0.3)] text-sm font-bold text-white bg-gradient-to-r from-green-700 to-green-600 hover:from-green-600 hover:to-green-500 transition-all disabled:opacity-50 transform hover:scale-[1.02]"
                                     >
-                                        {isLoading ? 'Sending...' : 'Get OTP via WhatsApp'}
+                                        {isLoading ? 'Connecting...' : 'Get Access Code'}
                                     </button>
                                 </div>
                             ) : (
                                 <div className="animate-fade-in">
-                                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase">Enter 6-Digit OTP</label>
+                                    <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Security Code</label>
                                     <input
                                         type="text"
                                         value={otp}
                                         onChange={(e) => setOtp(e.target.value)}
-                                        className="block w-full px-4 py-3 border border-gray-600 rounded-lg focus:ring-green-500 focus:border-green-500 bg-gray-700 text-white text-center text-2xl tracking-widest font-mono"
-                                        placeholder="• • • • • •"
+                                        className="block w-full px-4 py-4 border border-white/10 rounded-xl focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 bg-black/50 text-white text-center text-3xl tracking-[0.5em] font-mono shadow-inner outline-none"
+                                        placeholder="••••••"
                                         maxLength={6}
                                     />
-                                    <div className="flex justify-between items-center mt-2">
-                                        <button type="button" onClick={() => setIsOtpSent(false)} className="text-xs text-gray-400 hover:text-white underline">Wrong Number?</button>
-                                        <span className="text-xs text-gray-500">Resend in 30s</span>
+                                    <div className="flex justify-between items-center mt-3">
+                                        <button type="button" onClick={() => setIsOtpSent(false)} className="text-xs text-gray-400 hover:text-white transition-colors">Change Number</button>
+                                        <span className="text-xs text-amber-500/80">Resend available</span>
                                     </div>
                                     
                                     <button
                                         type="button"
                                         onClick={handleVerifyOTP}
-                                        className="mt-4 w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-bold text-gray-900 bg-amber-500 hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-all"
+                                        className="mt-6 w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-[0_0_20px_rgba(245,158,11,0.3)] text-sm font-bold text-gray-900 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 transition-all transform hover:scale-[1.02]"
                                     >
-                                        Verify & Login
+                                        Verify & Enter
                                     </button>
                                 </div>
                             )}
                         </>
                     ) : (
-                        <div className="animate-fade-in">
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase">Email / ID</label>
-                                    <input
-                                        type="text"
-                                        value={identifier}
-                                        onChange={(e) => setIdentifier(e.target.value)}
-                                        className="block w-full px-4 py-3 border border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-gray-700 text-white"
-                                        placeholder={role === 'admin' ? 'admin@royal.com' : 'user@example.com'}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase">Password</label>
-                                    <input
-                                        type="password"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        className="block w-full px-4 py-3 border border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-gray-700 text-white"
-                                        placeholder="••••••••"
-                                    />
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={handleSubmitPassword}
-                                    className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all"
-                                >
-                                    Secure Login
-                                </button>
+                        <div className="animate-fade-in space-y-5">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">ID / Email</label>
+                                <input
+                                    type="text"
+                                    value={identifier}
+                                    onChange={(e) => setIdentifier(e.target.value)}
+                                    className="block w-full px-4 py-4 border border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 bg-black/50 text-white outline-none backdrop-blur-sm transition-all"
+                                    placeholder={role === 'admin' ? 'admin@royal.com' : 'user@example.com'}
+                                />
                             </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Password</label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="block w-full px-4 py-4 border border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 bg-black/50 text-white outline-none backdrop-blur-sm transition-all"
+                                    placeholder="••••••••"
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleSubmitPassword}
+                                className="w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-[0_0_20px_rgba(59,130,246,0.3)] text-sm font-bold text-white bg-gradient-to-r from-blue-700 to-blue-600 hover:from-blue-600 hover:to-blue-500 transition-all transform hover:scale-[1.02]"
+                            >
+                                Authenticate
+                            </button>
                         </div>
                     )}
 
-                    {error && <div className="p-3 rounded bg-red-900/50 border border-red-500/50 text-red-200 text-sm text-center animate-pulse">{error}</div>}
+                    {error && <div className="p-3 rounded-lg bg-red-900/30 border border-red-500/30 text-red-200 text-xs font-bold text-center animate-shake backdrop-blur-md">{error}</div>}
 
-                    {/* GDPR Consent Checkbox */}
-                    <div className="mt-4 flex items-start">
+                    {/* GDPR Consent */}
+                    <div className="flex items-start pt-2">
                         <div className="flex items-center h-5">
                             <input
                                 id="consent"
                                 type="checkbox"
                                 checked={consent}
                                 onChange={(e) => setConsent(e.target.checked)}
-                                className="focus:ring-amber-500 h-4 w-4 text-amber-600 border-gray-500 rounded bg-gray-700"
+                                className="focus:ring-amber-500 h-4 w-4 text-amber-500 border-gray-600 rounded bg-gray-800"
                             />
                         </div>
                         <div className="ml-3 text-xs">
-                            <label htmlFor="consent" className="font-medium text-gray-300">
-                                I agree to the <a href="#" className="text-amber-400 hover:underline">Privacy Policy</a> & <a href="#" className="text-amber-400 hover:underline">Terms of Service</a>.
+                            <label htmlFor="consent" className="font-medium text-gray-400 hover:text-gray-300 transition-colors cursor-pointer">
+                                I agree to the Privacy Policy & Terms.
                             </label>
-                            <p className="text-gray-500 mt-1">We process your data securely in compliance with GDPR & local regulations.</p>
                         </div>
                     </div>
                 </form>
@@ -235,21 +250,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             
             {/* Social Links Footer */}
             <div className="mt-8 flex flex-col items-center space-y-4 z-10">
-                <div className="flex justify-center space-x-6">
-                    <a href={GYM_INFO.socials.instagram} target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-pink-500 transition-colors transform hover:scale-110">
-                        <InstagramIcon className="w-6 h-6" />
+                <div className="flex justify-center space-x-6 bg-black/30 p-3 rounded-full backdrop-blur-sm border border-white/5">
+                    <a href={GYM_INFO.socials.instagram} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-500 transition-colors transform hover:scale-110">
+                        <InstagramIcon className="w-5 h-5" />
                     </a>
-                    <a href={GYM_INFO.socials.facebook} target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-blue-500 transition-colors transform hover:scale-110">
-                        <FacebookIcon className="w-6 h-6" />
+                    <a href={GYM_INFO.socials.facebook} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-blue-500 transition-colors transform hover:scale-110">
+                        <FacebookIcon className="w-5 h-5" />
                     </a>
-                    <a href={GYM_INFO.socials.twitter} target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-blue-400 transition-colors transform hover:scale-110">
-                        <TwitterIcon className="w-6 h-6" />
+                    <a href={GYM_INFO.socials.twitter} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-blue-400 transition-colors transform hover:scale-110">
+                        <TwitterIcon className="w-5 h-5" />
                     </a>
                 </div>
                 
-                <div className="flex items-center justify-center space-x-2 text-gray-600 text-xs">
-                    <ShieldCheckIcon className="w-4 h-4" />
-                    <span>256-bit End-to-End Encryption</span>
+                <div className="flex items-center justify-center space-x-2 text-gray-500 text-[10px] font-mono tracking-widest uppercase">
+                    <ShieldCheckIcon className="w-3 h-3" />
+                    <span>Secured by Royal Core v4.0</span>
                 </div>
             </div>
         </div>
