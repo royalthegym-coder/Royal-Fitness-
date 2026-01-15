@@ -12,6 +12,11 @@ interface BillingProps {
     setCurrentView: (view: View) => void;
 }
 
+const getLocalToday = () => {
+    const d = new Date();
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+};
+
 const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
     const [invoices, setInvoices] = useState<Invoice[]>(INITIAL_INVOICES);
     const [filter, setFilter] = useState<'All' | 'Paid' | 'Pending' | 'Overdue'>('All');
@@ -26,7 +31,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
     }, [invoices, filter]);
 
     const handleGenerateInvoice = (newInvoiceData: Omit<Invoice, 'id'>) => {
-        const newId = Math.max(...invoices.map(i => i.id)) + 1;
+        const newId = invoices.length > 0 ? Math.max(...invoices.map(i => i.id)) + 1 : 1;
         setInvoices([...invoices, { ...newInvoiceData, id: newId }]);
         setModalOpen(false);
     };
@@ -189,7 +194,7 @@ const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({ isOpen, onClose, onSa
                 packageId: pkg.id,
                 packageName: pkg.name,
                 amount: pkg.price,
-                date: new Date().toISOString().split('T')[0],
+                date: getLocalToday(),
                 status: 'Pending',
             });
         }

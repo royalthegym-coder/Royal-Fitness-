@@ -5,6 +5,7 @@ import { INITIAL_HEALTH_DATA } from '../../constants';
 import { GoogleIcon } from './icons/GoogleIcon';
 import { SamsungHealthIcon } from './icons/SamsungHealthIcon';
 import { SmartWatchIcon } from './icons/SmartWatchIcon'; 
+import { AppleHealthIcon } from './icons/AppleHealthIcon';
 import { HealthData } from '../../types';
 import { CaloriesIcon, HeartRateIcon, SleepIcon, StepsIcon } from './icons/HealthIcons';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -32,7 +33,7 @@ const MetricCard: React.FC<{ title: string; value: string; unit: string; icon: R
 
 const HealthConnect: React.FC = () => {
     const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'scanning' | 'connected'>('disconnected');
-    const [sourceType, setSourceType] = useState<'google_fit' | 'samsung_health' | 'smartwatch' | null>(null);
+    const [sourceType, setSourceType] = useState<'google_fit' | 'samsung_health' | 'apple_health' | 'smartwatch' | null>(null);
     const [healthData, setHealthData] = useState<HealthData>(INITIAL_HEALTH_DATA);
     const [aiSummary, setAiSummary] = useState('');
     const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
@@ -93,7 +94,7 @@ const HealthConnect: React.FC = () => {
         return () => clearInterval(interval);
     }, [connectionStatus]);
 
-    const handleConnect = (type: 'google_fit' | 'samsung_health' | 'smartwatch') => {
+    const handleConnect = (type: 'google_fit' | 'samsung_health' | 'apple_health' | 'smartwatch') => {
         setSourceType(type);
         setConnectionStatus('scanning');
         
@@ -104,6 +105,8 @@ const HealthConnect: React.FC = () => {
                 setDeviceName('Galaxy Watch 6 Classic');
             } else if (type === 'samsung_health') {
                 setDeviceName('Samsung Health (Galaxy S24)');
+            } else if (type === 'apple_health') {
+                setDeviceName('Apple Health (iPhone 15 Pro)');
             } else {
                 setDeviceName('Google Fit (Pixel 8)');
             }
@@ -121,14 +124,14 @@ const HealthConnect: React.FC = () => {
         setAiSummary('');
         const prompt = `
             Analyze the following LIVE health data for a gym member. 
-            Source: ${sourceType}.
+            Source: ${sourceType === 'apple_health' ? 'Apple HealthKit' : sourceType}.
             
             - Current Steps: ${healthData.steps}
             - Current Heart Rate: ${healthData.heartRate.avg} bpm
             - Calories Burned Today: ${healthData.caloriesBurned} kcal
             - Total Sleep: ${healthData.sleep.totalHours} hours
 
-            Provide 3 short, punchy bullet points on their current activity level.
+            Provide 3 short, punchy bullet points on their current activity level and suggestions based on the specific data source accuracy.
         `;
         const summary = await getComplexResponse(prompt);
         setAiSummary(summary);
@@ -139,7 +142,21 @@ const HealthConnect: React.FC = () => {
         return (
             <div>
                 <h1 className="text-3xl font-bold text-amber-500 dark:text-amber-400 mb-6">Health Connect</h1>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <Card className="hover:border-red-500 transition-colors cursor-pointer border-2 border-transparent">
+                        <div className="text-center py-10 px-4">
+                            <AppleHealthIcon className="w-16 h-16 mx-auto mb-4 text-red-500" />
+                            <h2 className="text-xl font-semibold mb-2 text-white">Apple Health</h2>
+                            <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">Sync Activity Rings, Sleep, and Heart data from iOS.</p>
+                            <button
+                                onClick={() => handleConnect('apple_health')}
+                                className="bg-white text-black font-bold py-2 px-6 rounded-full hover:bg-gray-200 transition-colors shadow-md"
+                            >
+                                Connect
+                            </button>
+                        </div>
+                    </Card>
+
                     <Card className="hover:border-blue-500 transition-colors cursor-pointer border-2 border-transparent">
                         <div className="text-center py-10 px-4">
                             <SamsungHealthIcon className="w-16 h-16 mx-auto mb-4" />
@@ -154,7 +171,7 @@ const HealthConnect: React.FC = () => {
                         </div>
                     </Card>
 
-                    <Card className="hover:border-red-500 transition-colors cursor-pointer border-2 border-transparent">
+                    <Card className="hover:border-yellow-500 transition-colors cursor-pointer border-2 border-transparent">
                         <div className="text-center py-10 px-4">
                             <GoogleIcon className="w-16 h-16 mx-auto mb-4" />
                             <h2 className="text-xl font-semibold mb-2 text-white">Google Fit</h2>
@@ -194,10 +211,18 @@ const HealthConnect: React.FC = () => {
                     <div className="relative">
                         <div className="w-20 h-20 bg-amber-500/20 rounded-full animate-ping absolute inset-0"></div>
                         <div className="w-20 h-20 bg-amber-500/40 rounded-full animate-pulse absolute inset-0 delay-75"></div>
-                        <SmartWatchIcon />
+                        {sourceType === 'apple_health' ? (
+                            <AppleHealthIcon className="w-16 h-16 text-red-500 relative z-10" />
+                        ) : sourceType === 'samsung_health' ? (
+                            <SamsungHealthIcon className="w-16 h-16 relative z-10" />
+                        ) : sourceType === 'google_fit' ? (
+                            <GoogleIcon className="w-16 h-16 relative z-10" />
+                        ) : (
+                            <SmartWatchIcon />
+                        )}
                     </div>
                     <h2 className="text-2xl font-bold mt-8 animate-pulse">Establishing Handshake...</h2>
-                    <p className="text-gray-400 mt-2">Authenticating via {sourceType === 'samsung_health' ? 'Samsung Cloud' : 'Secure BLE'}</p>
+                    <p className="text-gray-400 mt-2">Authenticating via {sourceType === 'apple_health' ? 'HealthKit' : sourceType === 'samsung_health' ? 'Samsung Cloud' : 'Secure API'}</p>
                 </div>
             </Card>
         );
@@ -212,9 +237,9 @@ const HealthConnect: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-4">
                     <div className="hidden md:flex items-center px-3 py-1 bg-gray-800 rounded-full border border-gray-700">
-                        {sourceType === 'samsung_health' ? <SamsungHealthIcon className="w-4 h-4 mr-2" /> : sourceType === 'google_fit' ? <GoogleIcon className="w-4 h-4 mr-2" /> : <WatchOSIcon className="w-4 h-4 mr-2 text-amber-400" />}
+                        {sourceType === 'apple_health' ? <AppleHealthIcon className="w-4 h-4 mr-2 text-red-500" /> : sourceType === 'samsung_health' ? <SamsungHealthIcon className="w-4 h-4 mr-2" /> : sourceType === 'google_fit' ? <GoogleIcon className="w-4 h-4 mr-2" /> : <WatchOSIcon className="w-4 h-4 mr-2 text-amber-400" />}
                         <span className="text-sm font-medium text-gray-300">{deviceName}</span>
-                        {(sourceType === 'smartwatch' || sourceType === 'samsung_health') && (
+                        {(sourceType === 'smartwatch' || sourceType === 'samsung_health' || sourceType === 'apple_health') && (
                             <span className={`ml-3 text-xs font-bold ${batteryLevel < 20 ? 'text-red-400' : 'text-green-400'}`}>
                                 {batteryLevel}% 🔋
                             </span>
@@ -231,7 +256,7 @@ const HealthConnect: React.FC = () => {
                     unit="steps" 
                     icon={<StepsIcon />} 
                     isLive 
-                    subtext={sourceType === 'samsung_health' ? "Galaxy Sensor Fusion" : "Standard Pedometer"}
+                    subtext={sourceType === 'apple_health' ? "Core Motion" : sourceType === 'samsung_health' ? "Galaxy Sensor" : "Standard Pedometer"}
                 />
                 <MetricCard 
                     title="Heart Rate" 
@@ -259,7 +284,7 @@ const HealthConnect: React.FC = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
                 <div className="lg:col-span-2">
-                    <Card title="Live Biometric Telemetry">
+                    <Card title="Live Biometric Stream">
                         <div className="h-[300px] w-full min-w-0 relative">
                             <ResponsiveContainer width="100%" height="100%">
                                 <LineChart data={healthData.heartRate.history}>

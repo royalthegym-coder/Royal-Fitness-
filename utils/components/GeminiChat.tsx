@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, Tool, Type } from '@google/genai';
+import { getOpenAIChatResponse } from '../../lib/openai';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { 
     GYM_INFO, 
@@ -203,6 +204,7 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, onNavigate, co
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isListening, setIsListening] = useState(false);
+    const [provider, setProvider] = useState<'gemini' | 'openai'>('gemini');
     
     const chatBodyRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -238,125 +240,113 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, onNavigate, co
         setHistory(prev => [...prev, { role: 'model', text: '' }]);
 
         try {
-            const apiKey = process.env.API_KEY;
-            if (!apiKey) throw new Error("API Key missing");
-
-            const ai = new GoogleGenAI({ apiKey });
-            
             const systemInstruction = `You are "RoyalOS", the central AI assistant for 'Royal The Gym'.
-            You have access to real-time gym data via tools.
+            You have access to real-time gym data.
             Always maintain a helpful, professional, and motivating tone.
-            
-            If the user asks for information you can retrieve via tools (like schedule, status, diet), USE THE TOOL.
-            If the user asks a general fitness question, answer based on your knowledge.
             
             Gym Info: ${JSON.stringify(GYM_INFO)}.
             Current Time: ${new Date().toLocaleString()}.
             ${context?.role === 'member' ? `Member Context: ${context.memberName} (ID: ${context.memberId})` : 'User Context: Admin'}
             `;
 
-            // Exclude the last placeholder message from the API history
-            const apiHistory = history.map(h => ({
-                role: h.role, 
-                parts: [{ text: h.text }]
-            }));
-
-            const chat = ai.chats.create({ 
-                model: 'gemini-3-flash-preview', 
-                config: {
-                    systemInstruction: systemInstruction,
-                    tools: gymTools
-                },
-                history: apiHistory
-            });
-
-            // 3. Send Message Stream
-            const resultStream = await chat.sendMessageStream({ message: textToSend });
-            
-            let accumulatedText = '';
-
-            for await (const chunk of resultStream) {
-                const text = chunk.text;
-                if (text) {
-                    accumulatedText += text;
-                    setHistory(prev => {
-                        const newHistory = [...prev];
-                        const lastMsg = newHistory[newHistory.length - 1];
-                        if (lastMsg.role === 'model') {
-                            lastMsg.text = accumulatedText;
-                        }
-                        return newHistory;
-                    });
-                }
-            }
-
-            const response = await resultStream.response;
-            const functionCalls = response.functionCalls;
-            
-            if (functionCalls && functionCalls.length > 0) {
-                // If there are function calls, the model might not have generated text yet, or it might have.
-                // We execute the function and send the result back.
-
-                const call = functionCalls[0];
-                let functionResponseData = {};
-
-                // Map function calls to local handlers
-                if (call.name === 'get_gym_info') {
-                    functionResponseData = GYM_INFO;
-                } else if (call.name === 'get_class_schedule') {
-                    const day = (call.args as any).day || 'Monday';
-                    functionResponseData = { schedule: getGymSchedule(day) };
-                } else if (call.name === 'book_class') {
-                    const { className, time } = call.args as any;
-                    functionResponseData = bookClass(className, time, context?.memberName || 'Member');
-                } else if (call.name === 'get_my_status') {
-                    functionResponseData = getMemberStatus(context?.memberId || 0);
-                } else if (call.name === 'get_my_diet') {
-                    functionResponseData = getMemberDiet(context?.memberId || 0);
-                } else if (call.name === 'get_my_workout') {
-                    functionResponseData = getMemberWorkout(context?.memberId || 0);
-                } else if (call.name === 'get_workout_tip') {
-                    functionResponseData = { tip_request_received: true, muscle: (call.args as any).muscleGroup };
-                } else if (call.name === 'send_whatsapp_message') {
-                    const { phoneNumber, message } = call.args as any;
-                    functionResponseData = sendWhatsAppMessageTool(phoneNumber, message);
-                } else if (call.name === 'navigate_to') {
-                    const section = (call.args as any).section;
-                    if (onNavigate) {
-                        onNavigate(section);
-                        functionResponseData = { status: 'success', message: `Navigated to ${section}` };
-                    } else {
-                        functionResponseData = { status: 'error', message: 'Navigation unavailable' };
+            if (provider === 'openai') {
+                const response = await getOpenAIChatResponse(
+                    history.concat([userMessage]), 
+                    textToSend, 
+                    systemInstruction
+                );
+                
+                setHistory(prev => {
+                    const newHistory = [...prev];
+                    const lastMsg = newHistory[newHistory.length - 1];
+                    if (lastMsg.role === 'model') {
+                        lastMsg.text = response;
                     }
-                }
-
-                // Send function response (also streaming)
-                const result2Stream = await chat.sendMessageStream({
-                    message: [{
-                        functionResponse: {
-                            name: call.name,
-                            response: functionResponseData
-                        }
-                    }]
+                    return newHistory;
                 });
+                speakText(response);
+            } else {
+                // GEMINI Logic
+                const apiKey = process.env.API_KEY;
+                if (!apiKey) throw new Error("API Key missing");
+
+                const ai = new GoogleGenAI({ apiKey });
                 
-                let accumulatedText2 = '';
-                
-                for await (const chunk of result2Stream) {
-                    const chunkText = chunk.text;
-                    if (chunkText) {
-                        accumulatedText2 += chunkText;
+                // Exclude the last placeholder message from the API history
+                const apiHistory = history.map(h => ({
+                    role: h.role, 
+                    parts: [{ text: h.text }]
+                }));
+
+                const chat = ai.chats.create({ 
+                    model: 'gemini-3-flash-preview', 
+                    config: {
+                        systemInstruction: systemInstruction,
+                        tools: gymTools
+                    },
+                    history: apiHistory
+                });
+
+                const resultStream = await chat.sendMessageStream({ message: textToSend });
+                let accumulatedText = '';
+
+                for await (const chunk of resultStream) {
+                    const text = chunk.text;
+                    if (text) {
+                        accumulatedText += text;
                         setHistory(prev => {
                             const newHistory = [...prev];
                             const lastMsg = newHistory[newHistory.length - 1];
-                            lastMsg.text = accumulatedText2; // Replace or append depending on logic, here we replace the placeholder/partial text with final answer
+                            if (lastMsg.role === 'model') lastMsg.text = accumulatedText;
                             return newHistory;
                         });
                     }
                 }
-                speakText(accumulatedText2);
-            } else {
-                speakText(accumulatedText);
+
+                const response = await resultStream.response;
+                const functionCalls = response.functionCalls;
+                
+                if (functionCalls && functionCalls.length > 0) {
+                    const call = functionCalls[0];
+                    let functionResponseData = {};
+
+                    // Map function calls
+                    if (call.name === 'get_gym_info') functionResponseData = GYM_INFO;
+                    else if (call.name === 'get_class_schedule') functionResponseData = { schedule: getGymSchedule((call.args as any).day || 'Monday') };
+                    else if (call.name === 'book_class') functionResponseData = bookClass((call.args as any).className, (call.args as any).time, context?.memberName || 'Member');
+                    else if (call.name === 'get_my_status') functionResponseData = getMemberStatus(context?.memberId || 0);
+                    else if (call.name === 'get_my_diet') functionResponseData = getMemberDiet(context?.memberId || 0);
+                    else if (call.name === 'get_my_workout') functionResponseData = getMemberWorkout(context?.memberId || 0);
+                    else if (call.name === 'get_workout_tip') functionResponseData = { tip_request_received: true, muscle: (call.args as any).muscleGroup };
+                    else if (call.name === 'send_whatsapp_message') functionResponseData = sendWhatsAppMessageTool((call.args as any).phoneNumber, (call.args as any).message);
+                    else if (call.name === 'navigate_to') {
+                        const section = (call.args as any).section;
+                        if (onNavigate) {
+                            onNavigate(section);
+                            functionResponseData = { status: 'success', message: `Navigated to ${section}` };
+                        } else functionResponseData = { status: 'error', message: 'Navigation unavailable' };
+                    }
+
+                    const result2Stream = await chat.sendMessageStream({
+                        message: [{ functionResponse: { name: call.name, response: functionResponseData } }]
+                    });
+                    
+                    let accumulatedText2 = '';
+                    for await (const chunk of result2Stream) {
+                        if (chunk.text) {
+                            accumulatedText2 += chunk.text;
+                            setHistory(prev => {
+                                const newHistory = [...prev];
+                                const lastMsg = newHistory[newHistory.length - 1];
+                                lastMsg.text = accumulatedText2;
+                                return newHistory;
+                            });
+                        }
+                    }
+                    speakText(accumulatedText2);
+                } else {
+                    speakText(accumulatedText);
+                }
             }
 
         } catch (error) {
@@ -378,11 +368,9 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, onNavigate, co
     const speakText = (text: string) => {
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
-            // Basic cleanup of markdown for speech
             const cleanText = text.replace(/[*#]/g, ''); 
             const utterance = new SpeechSynthesisUtterance(cleanText);
             const voices = window.speechSynthesis.getVoices();
-            // Try to find a good English voice
             const preferredVoice = voices.find(v => v.name.includes('Google US English') || v.lang === 'en-US');
             if (preferredVoice) utterance.voice = preferredVoice;
             utterance.rate = 1.1;
@@ -392,31 +380,23 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, onNavigate, co
 
     const toggleListening = () => {
         if (isListening) return; 
-
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         if (!SpeechRecognition) {
             alert("Voice input is not supported in this browser.");
             return;
         }
-
         const recognition = new SpeechRecognition();
         recognition.lang = 'en-US';
         recognition.interimResults = false;
         recognition.maxAlternatives = 1;
-
         recognition.onstart = () => setIsListening(true);
         recognition.onend = () => setIsListening(false);
-        recognition.onerror = (event: any) => {
-            console.error(event.error);
-            setIsListening(false);
-        };
-
+        recognition.onerror = () => setIsListening(false);
         recognition.onresult = (event: any) => {
             const transcript = event.results[0][0].transcript;
             setInput(transcript);
             handleSend(transcript);
         };
-
         recognition.start();
     };
 
@@ -435,8 +415,8 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, onNavigate, co
             {/* Header */}
             <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-gradient-to-r from-gray-800 to-gray-900">
                 <div className="flex items-center">
-                    <div className="p-2 rounded-full mr-3 border bg-amber-500/20 border-amber-500/50">
-                        <BotIcon className="w-6 h-6 text-amber-400" />
+                    <div className={`p-2 rounded-full mr-3 border ${provider === 'openai' ? 'bg-green-500/20 border-green-500/50' : 'bg-amber-500/20 border-amber-500/50'}`}>
+                        <BotIcon className={`w-6 h-6 ${provider === 'openai' ? 'text-green-400' : 'text-amber-400'}`} />
                     </div>
                     <div>
                         <h3 className="text-white font-bold text-base">Royal Assistant</h3>
@@ -452,6 +432,25 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, onNavigate, co
                 </button>
             </div>
 
+            {/* Model Selector */}
+            <div className="px-4 py-2 bg-gray-800/50 border-b border-gray-700 flex items-center justify-between">
+                <span className="text-[10px] text-gray-400 uppercase font-bold">Model Provider</span>
+                <div className="flex bg-gray-900 rounded p-0.5">
+                    <button 
+                        onClick={() => setProvider('gemini')}
+                        className={`px-2 py-1 text-[10px] rounded font-bold transition-colors ${provider === 'gemini' ? 'bg-amber-500 text-gray-900' : 'text-gray-500 hover:text-white'}`}
+                    >
+                        Gemini (Tools)
+                    </button>
+                    <button 
+                        onClick={() => setProvider('openai')}
+                        className={`px-2 py-1 text-[10px] rounded font-bold transition-colors ${provider === 'openai' ? 'bg-green-500 text-white' : 'text-gray-500 hover:text-white'}`}
+                    >
+                        GPT-4o
+                    </button>
+                </div>
+            </div>
+
             {/* Chat Body */}
             <div ref={chatBodyRef} className="flex-1 p-4 overflow-y-auto bg-gray-900 scrollbar-thin scrollbar-thumb-gray-700">
                 <div className="space-y-4">
@@ -459,8 +458,8 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, onNavigate, co
                         <div key={index} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                             <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
                                 {msg.role === 'model' && (
-                                    <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center mr-2 border border-gray-700 flex-shrink-0">
-                                        <SparkleIcon className="w-4 h-4 text-amber-400" />
+                                    <div className={`w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center mr-2 border border-gray-700 flex-shrink-0`}>
+                                        <SparkleIcon className={`w-4 h-4 ${provider === 'openai' ? 'text-green-400' : 'text-amber-400'}`} />
                                     </div>
                                 )}
                                 <div className={`max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
@@ -493,19 +492,21 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, onNavigate, co
                 </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="px-4 py-2 bg-gray-900 border-t border-gray-800 flex gap-2 overflow-x-auto no-scrollbar">
-                {quickActions.map((action, idx) => (
-                    <button 
-                        key={idx}
-                        onClick={() => handleSend(action.text)}
-                        disabled={isLoading}
-                        className="whitespace-nowrap px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-full text-xs text-gray-300 transition-colors flex-shrink-0 disabled:opacity-50"
-                    >
-                        {action.label}
-                    </button>
-                ))}
-            </div>
+            {/* Quick Actions (Only valid for Gemini currently due to Tools) */}
+            {provider === 'gemini' && (
+                <div className="px-4 py-2 bg-gray-900 border-t border-gray-800 flex gap-2 overflow-x-auto no-scrollbar">
+                    {quickActions.map((action, idx) => (
+                        <button 
+                            key={idx}
+                            onClick={() => handleSend(action.text)}
+                            disabled={isLoading}
+                            className="whitespace-nowrap px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-full text-xs text-gray-300 transition-colors flex-shrink-0 disabled:opacity-50"
+                        >
+                            {action.label}
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {/* Input Area */}
             <div className="p-4 bg-gray-800 border-t border-gray-700">
@@ -539,7 +540,7 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, onNavigate, co
                     </div>
                 </div>
                 <div className="text-[10px] text-center text-gray-600 mt-2 flex items-center justify-center gap-1">
-                    Powered by <SparkleIcon className="w-3 h-3 text-amber-500"/> Gemini 3.0 Flash
+                    Powered by <SparkleIcon className={`w-3 h-3 ${provider === 'openai' ? 'text-green-500' : 'text-amber-500'}`}/> {provider === 'openai' ? 'OpenAI GPT-4o' : 'Gemini 3.0 Flash'}
                 </div>
             </div>
         </div>

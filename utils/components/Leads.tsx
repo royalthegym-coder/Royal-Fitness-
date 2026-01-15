@@ -82,7 +82,7 @@ const Leads: React.FC = () => {
         if (selectedLead) {
             setLeads(leads.map(l => l.id === selectedLead.id ? { ...selectedLead, ...leadData } : l));
         } else {
-            const newId = Math.max(...leads.map(l => l.id)) + 1;
+            const newId = leads.length > 0 ? Math.max(...leads.map(l => l.id)) + 1 : 1;
             setLeads([...leads, { ...leadData, id: newId }]);
         }
         setModalOpen(false);

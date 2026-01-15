@@ -11,6 +11,7 @@
 {
   "imports": {
     "@google/genai": "https://esm.sh/@google/genai",
+    "openai": "https://esm.sh/openai@4.52.0",
     "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
     "react-dom": "https://esm.sh/react-dom@18.3.1",
     "recharts": "https://esm.sh/recharts@2.12.7?external=react,react-dom",
@@ -33,10 +34,11 @@
         document.documentElement.classList.remove('dark');
       }
 
-      // Inject API Key for Royal The Gym AI Features
+      // Inject API Keys for Royal The Gym AI Features
       window.process = {
         env: {
-          API_KEY: 'AIzaSyDEFXd4jSoKsSsZlnwRQhES8EvFL6kjuAE'
+          API_KEY: 'AIzaSyDEFXd4jSoKsSsZlnwRQhES8EvFL6kjuAE',
+          OPENAI_API_KEY: '' // Configurable via Settings
         }
       };
     </script>

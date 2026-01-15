@@ -35,6 +35,11 @@ const getPriorityBadgeStyles = (priority: Task['priority']) => {
     }
 };
 
+const getLocalToday = () => {
+    const d = new Date();
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+};
+
 const Tasks: React.FC = () => {
     const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
     const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -116,7 +121,7 @@ const Tasks: React.FC = () => {
         setTasks(tasks.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t));
     };
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalToday();
 
     const getDueDateStatus = (dateStr: string, completed: boolean) => {
         if (completed) return { text: 'Completed', color: 'text-gray-500' };
@@ -146,7 +151,10 @@ const Tasks: React.FC = () => {
         }
 
         for (let day = 1; day <= daysInMonth; day++) {
-            const dateStr = new Date(year, month, day).toISOString().split('T')[0];
+            // Construct local date string carefully
+            const dateObj = new Date(year, month, day);
+            const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+            
             // Use filtered tasks here to respect the filter controls
             const dayTasks = filteredAndSortedTasks.filter(t => t.dueDate === dateStr);
 

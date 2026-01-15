@@ -10,6 +10,11 @@ interface TaskFormModalProps {
     task: Task | null;
 }
 
+const getLocalToday = () => {
+    const d = new Date();
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+};
+
 const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, task }) => {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
@@ -26,7 +31,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
             setTitle('');
             setDescription('');
             setPriority('Medium');
-            setDueDate(new Date().toISOString().split('T')[0]);
+            setDueDate(getLocalToday());
         }
     }, [task, isOpen]);
 

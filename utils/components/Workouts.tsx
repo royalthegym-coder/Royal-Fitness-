@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Member, MemberSchedules, DailySchedule, WorkoutTemplate } from '../../types';
+import { Member, MemberSchedules, DailySchedule, WorkoutTemplate, WorkoutExercise } from '../../types';
 import { INITIAL_MEMBERS, INITIAL_MEMBER_SCHEDULES, INITIAL_WORKOUT_TEMPLATES } from '../../constants';
 import Card from './common/Card';
 import WorkoutDayModal from './common/WorkoutDayModal';
@@ -8,6 +8,8 @@ import { DumbbellIcon } from './icons/DumbbellIcon';
 import AIWorkoutGeneratorModal from './common/AIWorkoutGeneratorModal';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { sendWorkoutPlanNotification } from '../../lib/whatsapp';
+import { VideoCameraIcon } from './icons/VideoCameraIcon';
+import ExerciseDemoModal from './common/ExerciseDemoModal';
 
 const MemberScheduler: React.FC = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -137,7 +139,7 @@ const MemberScheduler: React.FC = () => {
     );
 };
 
-const WorkoutTemplateCard: React.FC<{ template: WorkoutTemplate }> = ({ template }) => (
+const WorkoutTemplateCard: React.FC<{ template: WorkoutTemplate, onViewDemo: (name: string) => void }> = ({ template, onViewDemo }) => (
     <Card className="flex flex-col h-full relative">
         {template.isNew && (
             <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center shadow-lg">
@@ -158,8 +160,17 @@ const WorkoutTemplateCard: React.FC<{ template: WorkoutTemplate }> = ({ template
                 ) : (
                     <>
                         {template.exercises && template.exercises.map((ex, index) => (
-                            <div key={`ex-${index}`} className="flex justify-between">
-                                <span>{ex.name}</span>
+                            <div key={`ex-${index}`} className="flex justify-between items-center">
+                                <span className="flex items-center">
+                                    {ex.name}
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); onViewDemo(ex.name); }}
+                                        className="ml-2 text-gray-500 hover:text-amber-400 transition-colors"
+                                        title="View Demo"
+                                    >
+                                        <VideoCameraIcon className="w-4 h-4" />
+                                    </button>
+                                </span>
                                 <span className="font-mono text-gray-400">{ex.sets} x {ex.reps}</span>
                             </div>
                         ))}
@@ -168,8 +179,17 @@ const WorkoutTemplateCard: React.FC<{ template: WorkoutTemplate }> = ({ template
                                 <p className="font-semibold text-amber-300">{section.title}</p>
                                 <ul className="pl-4 space-y-1">
                                     {section.exercises.map((ex, exIndex) => (
-                                        <li key={`sec-${sIndex}-ex-${exIndex}`} className="flex justify-between">
-                                            <span>{ex.name}</span>
+                                        <li key={`sec-${sIndex}-ex-${exIndex}`} className="flex justify-between items-center">
+                                            <span className="flex items-center">
+                                                {ex.name}
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); onViewDemo(ex.name); }}
+                                                    className="ml-2 text-gray-500 hover:text-amber-400 transition-colors"
+                                                    title="View Demo"
+                                                >
+                                                    <VideoCameraIcon className="w-4 h-4" />
+                                                </button>
+                                            </span>
                                             <span className="font-mono text-gray-400">{ex.sets} x {ex.reps}</span>
                                         </li>
                                     ))}
@@ -188,7 +208,7 @@ const WorkoutTemplateCard: React.FC<{ template: WorkoutTemplate }> = ({ template
     </Card>
 );
 
-const WorkoutLibrary: React.FC<{ templates: WorkoutTemplate[] }> = ({ templates }) => {
+const WorkoutLibrary: React.FC<{ templates: WorkoutTemplate[], onViewDemo: (name: string) => void }> = ({ templates, onViewDemo }) => {
     const beginnerPlans = templates.filter(t => t.level === 'Beginner');
     const intermediatePlans = templates.filter(t => t.level === 'Intermediate');
     const advancedPlans = templates.filter(t => t.level === 'Advanced');
@@ -198,19 +218,19 @@ const WorkoutLibrary: React.FC<{ templates: WorkoutTemplate[] }> = ({ templates 
             <section>
                 <h2 className="text-2xl font-semibold text-gray-200 mb-6 pb-2 border-b-2 border-green-500">Beginner Workouts</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {beginnerPlans.map(template => <WorkoutTemplateCard key={template.id} template={template} />)}
+                    {beginnerPlans.map(template => <WorkoutTemplateCard key={template.id} template={template} onViewDemo={onViewDemo} />)}
                 </div>
             </section>
              <section>
                 <h2 className="text-2xl font-semibold text-gray-200 mb-6 pb-2 border-b-2 border-yellow-500">Intermediate Workouts</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {intermediatePlans.map(template => <WorkoutTemplateCard key={template.id} template={template} />)}
+                    {intermediatePlans.map(template => <WorkoutTemplateCard key={template.id} template={template} onViewDemo={onViewDemo} />)}
                 </div>
             </section>
              <section>
                 <h2 className="text-2xl font-semibold text-gray-200 mb-6 pb-2 border-b-2 border-red-500">Advanced Workouts</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {advancedPlans.map(template => <WorkoutTemplateCard key={template.id} template={template} />)}
+                    {advancedPlans.map(template => <WorkoutTemplateCard key={template.id} template={template} onViewDemo={onViewDemo} />)}
                 </div>
             </section>
         </div>
@@ -222,6 +242,9 @@ const Workouts: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'library' | 'scheduler'>('library');
     const [templates, setTemplates] = useState<WorkoutTemplate[]>(INITIAL_WORKOUT_TEMPLATES);
     const [isGeneratorModalOpen, setIsGeneratorModalOpen] = useState(false);
+    
+    // Demo Modal State
+    const [demoExercise, setDemoExercise] = useState<string | null>(null);
 
     const handleSaveTemplate = (newTemplateData: { name: string; level: 'Beginner' | 'Intermediate' | 'Advanced'; content: string }) => {
         const newTemplate: WorkoutTemplate = {
@@ -265,7 +288,7 @@ const Workouts: React.FC = () => {
                 </nav>
             </div>
             
-            {activeTab === 'library' ? <WorkoutLibrary templates={templates} /> : <MemberScheduler />}
+            {activeTab === 'library' ? <WorkoutLibrary templates={templates} onViewDemo={(name) => setDemoExercise(name)} /> : <MemberScheduler />}
 
             {isGeneratorModalOpen && (
                 <AIWorkoutGeneratorModal
@@ -274,6 +297,13 @@ const Workouts: React.FC = () => {
                     onSave={handleSaveTemplate}
                 />
             )}
+
+            {/* Exercise Demo Modal */}
+            <ExerciseDemoModal 
+                isOpen={!!demoExercise} 
+                onClose={() => setDemoExercise(null)} 
+                exerciseName={demoExercise || ''} 
+            />
         </div>
     );
 };

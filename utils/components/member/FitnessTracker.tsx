@@ -30,6 +30,11 @@ interface FitnessTrackerProps {
     setFitnessData: React.Dispatch<React.SetStateAction<MemberFitnessData>>;
 }
 
+const getLocalToday = () => {
+    const d = new Date();
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+};
+
 const WorkoutLogItem: React.FC<{ log: WorkoutLog }> = ({ log }) => {
     return (
         <details className="bg-gray-800 border border-gray-700 rounded-lg group transition-all duration-300 open:bg-gray-800/80">
@@ -132,7 +137,7 @@ const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, 
         if (!weight && !bodyFat) return;
 
         const newMetric: BodyMetric = {
-            date: new Date().toISOString().split('T')[0],
+            date: getLocalToday(),
             weight: weight ? parseFloat(weight) : undefined,
             bodyFat: bodyFat ? parseFloat(bodyFat) : undefined,
         };
@@ -310,7 +315,7 @@ const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, 
                     <form onSubmit={handleAddMetric} className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-400 mb-1">Date</label>
-                            <input type="date" disabled value={new Date().toISOString().split('T')[0]} className="w-full bg-gray-700 text-gray-500 border border-gray-600 rounded p-2 text-sm" />
+                            <input type="date" disabled value={getLocalToday()} className="w-full bg-gray-700 text-gray-500 border border-gray-600 rounded p-2 text-sm" />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>

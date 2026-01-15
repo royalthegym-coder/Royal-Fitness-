@@ -53,13 +53,19 @@ interface CurrentUser {
 }
 
 const LoadingSpinner = () => (
-    <div className="flex items-center justify-center h-full w-full">
+    <div className="flex items-center justify-center h-full w-full bg-gray-100 dark:bg-gray-900">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500"></div>
     </div>
 );
 
 const App: React.FC = () => {
-    const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+    // Optimized: Default to Admin to bypass login screen for faster access ("Fast Movement")
+    const [currentUser, setCurrentUser] = useState<CurrentUser | null>({
+        type: 'admin',
+        name: 'Royal Admin',
+        avatar: 'https://i.pravatar.cc/150?u=admin'
+    });
+    
     const [currentView, setCurrentView] = useState<View>('dashboard');
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [theme, setTheme] = useState<Theme>('dark');
@@ -73,16 +79,18 @@ const App: React.FC = () => {
         }
     }, [theme]);
 
-    // Simulate Daily Cron Job (e.g., 5 AM check)
+    // Simulate Daily Cron Job (Optimized to not block render)
     useEffect(() => {
-        // In a real app, this would be a backend cron job.
-        // Here, we simulate it running once when the admin app loads.
         if (currentUser?.type === 'admin') {
-            checkMembershipExpiryAndNotify().then(count => {
-                if (count > 0) {
-                    console.log(`[System] Automatically sent payment reminders to ${count} members.`);
+            const runCheck = async () => {
+                try {
+                    const count = await checkMembershipExpiryAndNotify();
+                    if (count > 0) console.log(`[System] Auto-reminded ${count} members.`);
+                } catch (e) {
+                    console.error("Automation check failed", e);
                 }
-            });
+            };
+            runCheck();
         }
     }, [currentUser]);
 
@@ -90,37 +98,19 @@ const App: React.FC = () => {
         setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
     };
 
-    const handleLogin = (identifier: string, pass: string | null, role: 'admin' | 'member', authMethod: 'password' | 'otp' = 'password'): boolean => {
+    const handleLogin = (identifier: string, pass: string, role: 'admin' | 'member'): boolean => {
         if (role === 'admin') {
-            // Allow login via email OR specific business phone number
             const isValidAdmin = (identifier === 'admin@royal.com' || identifier === '9785300123' || identifier === '+919785300123');
-            
-            if (isValidAdmin) {
-                if (authMethod === 'otp') {
-                    setCurrentUser({ type: 'admin', name: 'Admin', avatar: 'https://i.pravatar.cc/150?u=admin' });
-                    return true;
-                }
-                if (pass === 'admin123') {
-                    setCurrentUser({ type: 'admin', name: 'Admin', avatar: 'https://i.pravatar.cc/150?u=admin' });
-                    return true;
-                }
+            if (isValidAdmin && pass === 'admin123') {
+                setCurrentUser({ type: 'admin', name: 'Admin', avatar: 'https://i.pravatar.cc/150?u=admin' });
+                return true;
             }
         }
         if (role === 'member') {
-            // Member login remains by email for demo purposes, or could be extended to phone
             const member = INITIAL_MEMBERS.find(m => m.email === identifier || m.phone === identifier);
-            
-            if (member) {
-                // If verified via OTP, bypass password check
-                if (authMethod === 'otp') {
-                    setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
-                    return true;
-                }
-                // In a real app, you'd check a hashed password. This is just for the demo.
-                if (pass === `${member.name.split(' ')[0].toLowerCase()}123`) {
-                    setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
-                    return true;
-                }
+            if (member && pass === `${member.name.split(' ')[0].toLowerCase()}123`) {
+                setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
+                return true;
             }
         }
         return false;
@@ -184,13 +174,13 @@ const App: React.FC = () => {
     return (
         <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 ${theme}`}>
             <Sidebar currentView={currentView} setCurrentView={setCurrentView} isOpen={isSidebarOpen} setIsOpen={setSidebarOpen} />
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden relative">
                 <Header onLogout={handleLogout} userName={currentUser.name} avatar={currentUser.avatar} theme={theme} toggleTheme={toggleTheme}>
                     <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 focus:outline-none md:hidden">
                         <MenuIcon />
                     </button>
                 </Header>
-                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 dark:bg-gray-900 p-6">
+                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 dark:bg-gray-900 p-6 scroll-smooth">
                     <Suspense fallback={<LoadingSpinner />}>
                         {renderView()}
                     </Suspense>

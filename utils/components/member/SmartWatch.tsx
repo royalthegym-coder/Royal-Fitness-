@@ -14,6 +14,7 @@ import { BioActiveIcon } from '../icons/BioActiveIcon';
 import { HeartRateIcon, SleepIcon } from '../icons/HealthIcons';
 import { CameraIcon } from '../icons/CameraIcon';
 import { BotIcon } from '../icons/BotIcon';
+import { AppleHealthIcon } from '../icons/AppleHealthIcon';
 
 type DeviceType = 'platform' | 'watch' | 'band' | 'ring';
 
@@ -283,6 +284,16 @@ const SmartWatch: React.FC = () => {
             hasDashboard: true
         },
         { 
+            id: 'apple_health', 
+            name: 'Apple Health', 
+            type: 'platform', 
+            icon: <AppleHealthIcon className="w-6 h-6 text-red-500"/>, 
+            connected: false, 
+            syncing: false,
+            features: ['Activity Rings', 'Heart Health', 'Sleep'],
+            color: 'bg-red-500'
+        },
+        { 
             id: 'samsung_health', 
             name: 'Samsung Health', 
             type: 'platform', 
@@ -446,8 +457,10 @@ const SmartWatch: React.FC = () => {
                                     <span className="text-gray-600">Offline</span>
                                 </div>
                                 <div className="flex justify-between text-xs text-gray-400">
-                                    <span>Oura Cloud</span>
-                                    <span className="text-gray-600">Offline</span>
+                                    <span>Apple Health</span>
+                                    <span className={devices.find(d => d.id === 'apple_health')?.connected ? "text-green-400" : "text-gray-600"}>
+                                        {devices.find(d => d.id === 'apple_health')?.connected ? "Connected" : "Offline"}
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -456,7 +469,7 @@ const SmartWatch: React.FC = () => {
                     <Card title="Data Privacy">
                         <p className="text-xs text-gray-400 leading-relaxed">
                             Your health data is encrypted locally (AES-256) and used solely to tailor your AI recommendations. 
-                            We strictly adhere to <span className="text-amber-400">Samsung Health</span> and <span className="text-amber-400">Google Health Connect</span> privacy policies.
+                            We strictly adhere to <span className="text-amber-400">Samsung Health</span>, <span className="text-amber-400">Google Health Connect</span>, and <span className="text-amber-400">Apple HealthKit</span> privacy policies.
                         </p>
                         <button className="text-xs text-blue-400 mt-4 hover:underline flex items-center">
                             <CheckCircleIcon className="w-3 h-3 mr-1" /> View Data Agreement
