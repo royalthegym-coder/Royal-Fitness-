@@ -59,6 +59,7 @@ const adminNavItems = [
       { id: 'diet', label: 'Diet Plans', icon: <DietIcon /> },
   ]},
   { category: 'AI Intelligence Suite', items: [
+      { id: 'healthEngine', label: 'Health Dashboard', icon: <div className="text-green-400"><HealthEngineIcon /></div> },
       { id: 'healthIntelligence', label: 'Health Intelligence', icon: <div className="text-teal-400"><HealthEngineIcon /></div> }, 
       { id: 'geminiHub', label: 'Gemini Hub', icon: <SparkleIcon /> },
       { id: 'geniusMode', label: 'Genius Mode', icon: <GeniusIcon /> },

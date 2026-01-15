@@ -20,14 +20,27 @@ const CameraModal: React.FC<CameraModalProps> = ({ isOpen, onClose, onCapture })
       if (isOpen) {
         try {
           setError(null);
-          const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          // Use facingMode: "environment" to prefer the back camera
+          const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: "environment" } 
+          });
           setStream(mediaStream);
           if (videoRef.current) {
             videoRef.current.srcObject = mediaStream;
           }
         } catch (err) {
-          console.error("Error accessing camera:", err);
-          setError("Could not access the camera. Please check permissions.");
+          console.error("Error accessing camera (environment):", err);
+          // Fallback to any available video source if environment camera fails
+          try {
+             const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+             setStream(fallbackStream);
+             if (videoRef.current) {
+                videoRef.current.srcObject = fallbackStream;
+             }
+          } catch (fallbackErr) {
+             console.error("Error accessing camera (fallback):", fallbackErr);
+             setError("Could not access the camera. Please check permissions.");
+          }
         }
       }
     };
@@ -81,4 +94,3 @@ const CameraModal: React.FC<CameraModalProps> = ({ isOpen, onClose, onCapture })
 };
 
 export default CameraModal;
-    

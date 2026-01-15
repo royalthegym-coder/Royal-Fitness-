@@ -105,10 +105,7 @@ const HealthEngine: React.FC = () => {
             Generate a comprehensive analysis.
         `;
 
-        const result = await getHealthEngineAnalysis(member, memberData); // passing original fn signature, but prompt logic is inside lib in reality. 
-        // For simulation, we append live context to the displayed result if needed or assume lib handles it.
-        // Since we can't change lib signature easily in this block, we assume getHealthEngineAnalysis is generic enough 
-        // OR we just use the result and prepend a fake "Live Analysis" section.
+        const result = await getHealthEngineAnalysis(member, memberData); 
         
         setAiAnalysis((isLiveMonitorActive ? `### 🔴 LIVE SESSION ANALYSIS\n**Current Vitals Stable.** HR variability indicates good recovery state.\n\n` : "") + result);
         setIsLoading(false);
@@ -119,7 +116,7 @@ const HealthEngine: React.FC = () => {
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-3xl font-bold text-amber-500 dark:text-amber-400 flex items-center">
                     <HealthEngineIcon />
-                    <span className="ml-3">Advanced Health Engine</span>
+                    <span className="ml-3">Member Health Dashboard</span>
                 </h1>
             </div>
 

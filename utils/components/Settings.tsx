@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Card from './common/Card';
 import { GYM_INFO } from '../../constants';
-import { View } from '../../types';
+import { View, Theme } from '../../types';
 import { GoogleIcon } from './icons/GoogleIcon';
 import { FacebookIcon, InstagramIcon, TwitterIcon } from './icons/SocialIcons';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
@@ -13,9 +13,17 @@ import { WifiIcon } from './icons/WifiIcon';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { SecurityLog } from '../../types';
 import { KeyIcon } from './icons/KeyIcon';
+import { BellIcon } from './icons/BellIcon';
+import { UserIcon } from './icons/UserIcon';
+import { SunIcon } from './icons/SunIcon';
+import { MoonIcon } from './icons/MoonIcon';
+import { UploadIcon } from './icons/UploadIcon';
 
 interface SettingsProps {
     setCurrentView: (view: View) => void;
+    theme?: Theme;
+    toggleTheme?: () => void;
+    currentUser?: any;
 }
 
 // UUIDs matching the device firmware (Hypothetical defaults based on common ESP32 provisioning)
@@ -44,10 +52,10 @@ const IntegrationCard: React.FC<{ name: string; category: string; description: s
     </div>
 );
 
-const Settings: React.FC<SettingsProps> = ({ setCurrentView }) => {
+const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme, currentUser }) => {
     // Simplified state, assuming connection is managed elsewhere.
     const [isConnected] = useState(true);
-    const [activeTab, setActiveTab] = useState<'general' | 'integrations' | 'iot' | 'security'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'integrations' | 'iot' | 'security' | 'profile' | 'notifications'>('profile');
 
     // IoT Provisioning State
     const [ssid, setSsid] = useState('');
@@ -55,8 +63,23 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView }) => {
     const [provisionStatus, setProvisionStatus] = useState<'idle' | 'scanning' | 'connecting' | 'provisioning' | 'success' | 'error'>('idle');
     const [statusMessage, setStatusMessage] = useState('');
 
+    // Profile State
+    const [profileName, setProfileName] = useState(currentUser?.name || '');
+    const [profileEmail, setProfileEmail] = useState(currentUser?.type === 'admin' ? 'admin@royal.com' : 'user@example.com');
+    const [profileAvatar, setProfileAvatar] = useState(currentUser?.avatar || '');
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Notification State
+    const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default');
+
     // Security & Webhook Logs
     const [webhookLogs, setWebhookLogs] = useState<SecurityLog[]>([]);
+
+    useEffect(() => {
+        if ('Notification' in window) {
+            setNotifPermission(Notification.permission);
+        }
+    }, []);
 
     useEffect(() => {
         // Simulate incoming webhook traffic
@@ -145,36 +168,192 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView }) => {
         }
     }
 
+    const handleProfileUpdate = (e: React.FormEvent) => {
+        e.preventDefault();
+        alert("Profile updated successfully!");
+    };
+
+    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                if (event.target?.result) {
+                    setProfileAvatar(event.target.result as string);
+                }
+            };
+            reader.readAsDataURL(e.target.files[0]);
+        }
+    };
+
+    const requestNotificationPermission = async () => {
+        if (!('Notification' in window)) {
+            alert("This browser does not support desktop notification");
+            return;
+        }
+        const permission = await Notification.requestPermission();
+        setNotifPermission(permission);
+        if (permission === 'granted') {
+            new Notification("Royal Gym", { body: "Notifications enabled successfully!" });
+        }
+    };
+
+    const sendTestNotification = () => {
+        if (notifPermission === 'granted') {
+            new Notification("Royal Gym Alert", { 
+                body: "This is a test notification from your gym management system.",
+                icon: '/logo192.png'
+            });
+        } else {
+            alert("Please enable notifications first.");
+        }
+    };
+
     return (
         <div>
             <h1 className="text-3xl font-bold text-amber-400 mb-6">Settings</h1>
             
             <div className="flex space-x-4 mb-6 border-b border-gray-700 overflow-x-auto">
-                <button 
-                    onClick={() => setActiveTab('general')}
-                    className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'general' ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-400 hover:text-white'}`}
-                >
-                    General
-                </button>
-                <button 
-                    onClick={() => setActiveTab('security')}
-                    className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'security' ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-400 hover:text-white'}`}
-                >
-                    Security & Compliance
-                </button>
-                <button 
-                    onClick={() => setActiveTab('integrations')}
-                    className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'integrations' ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-400 hover:text-white'}`}
-                >
-                    Integrations
-                </button>
-                <button 
-                    onClick={() => setActiveTab('iot')}
-                    className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'iot' ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-400 hover:text-white'}`}
-                >
-                    IoT Device Setup
-                </button>
+                <button onClick={() => setActiveTab('profile')} className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'profile' ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-400 hover:text-white'}`}>My Profile</button>
+                <button onClick={() => setActiveTab('general')} className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'general' ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-400 hover:text-white'}`}>Gym Info</button>
+                <button onClick={() => setActiveTab('notifications')} className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'notifications' ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-400 hover:text-white'}`}>Notifications</button>
+                <button onClick={() => setActiveTab('security')} className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'security' ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-400 hover:text-white'}`}>Security</button>
+                <button onClick={() => setActiveTab('integrations')} className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'integrations' ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-400 hover:text-white'}`}>Integrations</button>
+                <button onClick={() => setActiveTab('iot')} className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'iot' ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-400 hover:text-white'}`}>IoT Setup</button>
             </div>
+
+            {activeTab === 'profile' && (
+                <div className="max-w-2xl mx-auto space-y-6">
+                    <Card title="Edit Profile">
+                        <form onSubmit={handleProfileUpdate} className="space-y-6">
+                            <div className="flex flex-col items-center">
+                                <div className="relative group">
+                                    <img src={profileAvatar} alt="Profile" className="w-32 h-32 rounded-full object-cover border-4 border-gray-700" />
+                                    <button 
+                                        type="button"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="absolute bottom-0 right-0 bg-amber-500 p-2 rounded-full text-gray-900 hover:bg-amber-400 transition-colors shadow-lg"
+                                    >
+                                        <UploadIcon className="w-5 h-5" />
+                                    </button>
+                                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleAvatarChange} />
+                                </div>
+                                <p className="mt-2 text-gray-400 text-sm">Click icon to change avatar</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-1">Full Name</label>
+                                    <input 
+                                        type="text" 
+                                        value={profileName} 
+                                        onChange={(e) => setProfileName(e.target.value)}
+                                        className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 outline-none" 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-1">Email Address</label>
+                                    <input 
+                                        type="email" 
+                                        value={profileEmail} 
+                                        onChange={(e) => setProfileEmail(e.target.value)}
+                                        className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 outline-none" 
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end">
+                                <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg transition-colors">
+                                    Save Changes
+                                </button>
+                            </div>
+                        </form>
+                    </Card>
+
+                    <Card title="Appearance">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="font-bold text-white">App Theme</p>
+                                <p className="text-sm text-gray-400">Switch between dark and light mode.</p>
+                            </div>
+                            {toggleTheme && (
+                                <button 
+                                    onClick={toggleTheme}
+                                    className={`p-3 rounded-lg flex items-center gap-2 font-bold transition-colors ${theme === 'dark' ? 'bg-gray-700 text-amber-400' : 'bg-gray-200 text-gray-800'}`}
+                                >
+                                    {theme === 'dark' ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+                                    <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+                                </button>
+                            )}
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {activeTab === 'notifications' && (
+                <div className="max-w-2xl mx-auto space-y-6">
+                    <Card title="Push Notifications">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className={`p-3 rounded-full ${notifPermission === 'granted' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                    <BellIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-white">Browser Permission</h3>
+                                    <p className="text-sm text-gray-400">
+                                        Status: <span className="uppercase font-bold">{notifPermission}</span>
+                                    </p>
+                                </div>
+                            </div>
+                            {notifPermission !== 'granted' && (
+                                <button 
+                                    onClick={requestNotificationPermission}
+                                    className="bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold py-2 px-4 rounded-lg transition-colors"
+                                >
+                                    Enable Notifications
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700">
+                                <div>
+                                    <p className="font-bold text-white">Test Notification</p>
+                                    <p className="text-xs text-gray-400">Send a sample alert to this device.</p>
+                                </div>
+                                <button 
+                                    onClick={sendTestNotification}
+                                    disabled={notifPermission !== 'granted'}
+                                    className="text-sm bg-gray-700 hover:bg-gray-600 text-white py-1 px-3 rounded disabled:opacity-50"
+                                >
+                                    Send Test
+                                </button>
+                            </div>
+                            
+                            <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700">
+                                <div>
+                                    <p className="font-bold text-white">Marketing Alerts</p>
+                                    <p className="text-xs text-gray-400">Receive updates about new offers.</p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" defaultChecked className="sr-only peer" />
+                                    <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                                </label>
+                            </div>
+
+                            <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700">
+                                <div>
+                                    <p className="font-bold text-white">System Alerts</p>
+                                    <p className="text-xs text-gray-400">Security and maintenance notifications.</p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" defaultChecked className="sr-only peer" />
+                                    <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                                </label>
+                            </div>
+                        </div>
+                    </Card>
+                </div>
+            )}
 
             {activeTab === 'general' && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

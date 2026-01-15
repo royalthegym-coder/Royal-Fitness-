@@ -1,7 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI, Tool, FunctionDeclaration, Schema, Type } from '@google/genai';
-import { ChatMessage } from '../../types';
+import { GoogleGenAI, Tool, Type } from '@google/genai';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { 
     GYM_INFO, 
@@ -13,32 +12,41 @@ import {
 } from '../../constants';
 import { BotIcon } from './icons/BotIcon';
 import { UserIcon } from './icons/UserIcon';
+import { DumbbellIcon } from './icons/DumbbellIcon';
+import { WhatsAppIcon } from './icons/WhatsAppIcon';
+
+interface ChatMessage {
+    role: 'user' | 'model';
+    text: string;
+    isError?: boolean;
+}
 
 interface GeminiChatProps {
     isOpen: boolean;
     onClose: () => void;
+    onNavigate?: (section: string) => void;
     context?: {
         role: 'admin' | 'member';
         memberId?: number;
         memberName?: string;
+        avatar?: string;
     };
 }
 
 // --- MOCK DATABASE FUNCTIONS FOR THE BOT ---
 
 const getGymSchedule = (day: string) => {
-    // Simulated schedule
     const schedule: any = {
-        'Monday': ['07:00 AM - Yoga Flow', '06:00 PM - Zumba Blast', '07:30 PM - HIIT Intensity'],
-        'Tuesday': ['07:00 AM - Crossfit', '06:00 PM - Pilates Core'],
-        'Wednesday': ['07:00 AM - Power Yoga', '07:30 PM - Body Pump'],
-        'Thursday': ['07:00 AM - Crossfit', '06:00 PM - Zumba Blast'],
-        'Friday': ['07:00 AM - Yoga Flow', '07:30 PM - HIIT Intensity'],
-        'Saturday': ['08:00 AM - Bollywood Dance', '05:00 PM - Mixed Cardio'],
-        'Sunday': ['Closed for maintenance']
+        'monday': ['07:00 AM - Yoga Flow', '06:00 PM - Zumba Blast', '07:30 PM - HIIT Intensity'],
+        'tuesday': ['07:00 AM - Crossfit', '06:00 PM - Pilates Core'],
+        'wednesday': ['07:00 AM - Power Yoga', '07:30 PM - Body Pump'],
+        'thursday': ['07:00 AM - Crossfit', '06:00 PM - Zumba Blast'],
+        'friday': ['07:00 AM - Yoga Flow', '07:30 PM - HIIT Intensity'],
+        'saturday': ['08:00 AM - Bollywood Dance', '05:00 PM - Mixed Cardio'],
+        'sunday': ['Closed for maintenance']
     };
-    // Simple logic to find day
-    const d = Object.keys(schedule).find(k => day.toLowerCase().includes(k.toLowerCase())) || 'Monday';
+    // Simple fuzzy match or default to Monday
+    const d = Object.keys(schedule).find(k => day.toLowerCase().includes(k)) || 'monday';
     return schedule[d];
 };
 
@@ -64,7 +72,6 @@ const getMemberStatus = (memberId: number) => {
 };
 
 const getMemberDiet = (memberId: number) => {
-    // Find diet plan assigned to this member
     const plan = INITIAL_DIETS.find(d => d.assignedTo.includes(memberId));
     if (!plan) return { status: "no_plan", message: "You don't have a specific diet plan assigned yet. Ask your trainer!" };
     
@@ -93,14 +100,18 @@ const getMemberWorkout = (memberId: number) => {
         }
     }
     
-    // Fallback if no specific schedule
     return { 
         type: 'General Recommendation', 
         message: "No specific workout scheduled for today. I recommend a standard Full Body split or checking the 'Workouts' tab to generate a new AI plan." 
     };
 };
 
-// --- TOOL DEFINITIONS (Function Declarations) ---
+const sendWhatsAppMessageTool = (phoneNumber: string, message: string) => {
+    console.log(`[RoyalOS] Sending WhatsApp to ${phoneNumber}: ${message}`);
+    return { status: "sent", recipient: phoneNumber, content: message, timestamp: new Date().toISOString() };
+};
+
+// --- TOOL DEFINITIONS ---
 
 const gymTools: Tool[] = [
     {
@@ -154,6 +165,29 @@ const gymTools: Tool[] = [
                     },
                     required: ['muscleGroup']
                 }
+            },
+            {
+                name: 'send_whatsapp_message',
+                description: 'Send a WhatsApp message to a specific number or member. Use this for notifications, reminders, or direct communication.',
+                parameters: {
+                    type: Type.OBJECT,
+                    properties: {
+                        phoneNumber: { type: Type.STRING, description: 'The recipient phone number.' },
+                        message: { type: Type.STRING, description: 'The message content to send.' }
+                    },
+                    required: ['phoneNumber', 'message']
+                }
+            },
+            {
+                name: 'navigate_to',
+                description: 'Navigate the user to a specific section of the application. Valid sections include: dashboard, packages, members, billing, workouts, diet, settings, health, etc.',
+                parameters: {
+                    type: Type.OBJECT,
+                    properties: {
+                        section: { type: Type.STRING, description: 'The section ID to navigate to.' }
+                    },
+                    required: ['section']
+                }
             }
         ]
     }
@@ -164,7 +198,7 @@ const MicIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5
 const SendIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>;
 const XIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>;
 
-const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => {
+const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, onNavigate, context }) => {
     const [history, setHistory] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -177,8 +211,8 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
     useEffect(() => {
         if (isOpen && history.length === 0) {
             const greeting = context?.role === 'member' 
-                ? `Hi ${context.memberName || 'there'}! 👋 I'm your Royal Gym Assistant. I can help with your **Workouts**, **Diet Plan**, **Schedules**, or **Membership**. What do you need?`
-                : `Hello Admin! I'm ready to assist with gym management queries.`;
+                ? `Hi ${context.memberName || 'there'}! 👋 I'm your Royal Gym Assistant. I can help with your **Workouts**, **Diet Plan**, **Schedules**, or answer general fitness questions. What do you need?`
+                : `Hello Admin! I'm ready to assist with gym management queries. I can also send **WhatsApp** messages for you.`;
             
             setHistory([{ role: 'model', text: greeting }]);
         }
@@ -190,7 +224,6 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
         }
     }, [history, isLoading]);
 
-    // --- LOGIC: HANDLE SEND ---
     const handleSend = async (textOverride?: string) => {
         const textToSend = textOverride || input;
         if (!textToSend.trim() || isLoading) return;
@@ -201,51 +234,73 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
         setInput('');
         setIsLoading(true);
 
+        // 2. Add Placeholder for Streaming Response
+        setHistory(prev => [...prev, { role: 'model', text: '' }]);
+
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+            const apiKey = process.env.API_KEY;
+            if (!apiKey) throw new Error("API Key missing");
+
+            const ai = new GoogleGenAI({ apiKey });
             
-            // 2. Prepare System Prompt with Context
-            let systemInstruction = `You are "Royal Bot", a helpful and energetic AI agent for 'Royal The Gym'.
+            const systemInstruction = `You are "RoyalOS", the central AI assistant for 'Royal The Gym'.
+            You have access to real-time gym data via tools.
+            Always maintain a helpful, professional, and motivating tone.
+            
+            If the user asks for information you can retrieve via tools (like schedule, status, diet), USE THE TOOL.
+            If the user asks a general fitness question, answer based on your knowledge.
+            
             Gym Info: ${JSON.stringify(GYM_INFO)}.
             Current Time: ${new Date().toLocaleString()}.
-            
-            Your goal is to assist members with their fitness journey. 
-            You have access to TOOLS to look up their specific Diet Plans, Workout Routines, and Membership details.
-            ALWAYS use the tools if the user asks about "my plan", "my diet", "schedule", etc.
+            ${context?.role === 'member' ? `Member Context: ${context.memberName} (ID: ${context.memberId})` : 'User Context: Admin'}
             `;
 
-            if (context?.role === 'member') {
-                systemInstruction += ` You are speaking to a member named ${context.memberName || 'Member'} (ID: ${context.memberId}). Be encouraging and motivating.`;
-            } else {
-                systemInstruction += ` You are speaking to an Administrator. Be professional and concise.`;
-            }
+            // Exclude the last placeholder message from the API history
+            const apiHistory = history.map(h => ({
+                role: h.role, 
+                parts: [{ text: h.text }]
+            }));
 
-            // 3. Initialize Chat with Tools
             const chat = ai.chats.create({ 
-                model: 'gemini-2.5-flash-latest', 
+                model: 'gemini-3-flash-preview', 
                 config: {
                     systemInstruction: systemInstruction,
                     tools: gymTools
                 },
-                history: history.map(h => ({
-                    role: h.role, 
-                    parts: [{ text: h.text }]
-                }))
+                history: apiHistory
             });
 
-            // 4. Send Message (Multi-turn chat)
-            const result = await chat.sendMessage({ message: textToSend });
+            // 3. Send Message Stream
+            const resultStream = await chat.sendMessageStream({ message: textToSend });
             
-            // 5. Handle Function Calls
-            const functionCalls = result.functionCalls;
+            let accumulatedText = '';
+
+            for await (const chunk of resultStream) {
+                const text = chunk.text;
+                if (text) {
+                    accumulatedText += text;
+                    setHistory(prev => {
+                        const newHistory = [...prev];
+                        const lastMsg = newHistory[newHistory.length - 1];
+                        if (lastMsg.role === 'model') {
+                            lastMsg.text = accumulatedText;
+                        }
+                        return newHistory;
+                    });
+                }
+            }
+
+            const response = await resultStream.response;
+            const functionCalls = response.functionCalls;
             
             if (functionCalls && functionCalls.length > 0) {
-                // Determine function response
+                // If there are function calls, the model might not have generated text yet, or it might have.
+                // We execute the function and send the result back.
+
                 const call = functionCalls[0];
                 let functionResponseData = {};
 
-                console.log("Tool Called:", call.name);
-
+                // Map function calls to local handlers
                 if (call.name === 'get_gym_info') {
                     functionResponseData = GYM_INFO;
                 } else if (call.name === 'get_class_schedule') {
@@ -262,10 +317,21 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
                     functionResponseData = getMemberWorkout(context?.memberId || 0);
                 } else if (call.name === 'get_workout_tip') {
                     functionResponseData = { tip_request_received: true, muscle: (call.args as any).muscleGroup };
+                } else if (call.name === 'send_whatsapp_message') {
+                    const { phoneNumber, message } = call.args as any;
+                    functionResponseData = sendWhatsAppMessageTool(phoneNumber, message);
+                } else if (call.name === 'navigate_to') {
+                    const section = (call.args as any).section;
+                    if (onNavigate) {
+                        onNavigate(section);
+                        functionResponseData = { status: 'success', message: `Navigated to ${section}` };
+                    } else {
+                        functionResponseData = { status: 'error', message: 'Navigation unavailable' };
+                    }
                 }
 
-                // Send function result back to model
-                const result2 = await chat.sendMessage({
+                // Send function response (also streaming)
+                const result2Stream = await chat.sendMessageStream({
                     message: [{
                         functionResponse: {
                             name: call.name,
@@ -274,33 +340,49 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
                     }]
                 });
                 
-                const finalResponse = result2.text || "I'm sorry, I couldn't process that.";
-                setHistory(prev => [...prev, { role: 'model', text: finalResponse }]);
-                speakText(finalResponse);
-
+                let accumulatedText2 = '';
+                
+                for await (const chunk of result2Stream) {
+                    const chunkText = chunk.text;
+                    if (chunkText) {
+                        accumulatedText2 += chunkText;
+                        setHistory(prev => {
+                            const newHistory = [...prev];
+                            const lastMsg = newHistory[newHistory.length - 1];
+                            lastMsg.text = accumulatedText2; // Replace or append depending on logic, here we replace the placeholder/partial text with final answer
+                            return newHistory;
+                        });
+                    }
+                }
+                speakText(accumulatedText2);
             } else {
-                // Simple text response
-                const text = result.text || "I didn't quite get that.";
-                setHistory(prev => [...prev, { role: 'model', text: text }]);
-                speakText(text);
+                speakText(accumulatedText);
             }
 
         } catch (error) {
             console.error(error);
-            setHistory(prev => [...prev, { role: 'model', text: "I'm having trouble connecting to the gym server. Please try again." }]);
+            setHistory(prev => {
+                const newHistory = [...prev];
+                const lastMsg = newHistory[newHistory.length - 1];
+                if (lastMsg && lastMsg.role === 'model') {
+                    lastMsg.text = "⚠️ I'm having trouble connecting to the neural core. Please check your internet or try again later.";
+                    lastMsg.isError = true;
+                }
+                return newHistory;
+            });
         } finally {
             setIsLoading(false);
         }
     };
 
-    // --- VOICE LOGIC (Web Speech API) ---
     const speakText = (text: string) => {
         if ('speechSynthesis' in window) {
-            // Cancel any current speech
             window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            // Try to find a good voice
+            // Basic cleanup of markdown for speech
+            const cleanText = text.replace(/[*#]/g, ''); 
+            const utterance = new SpeechSynthesisUtterance(cleanText);
             const voices = window.speechSynthesis.getVoices();
+            // Try to find a good English voice
             const preferredVoice = voices.find(v => v.name.includes('Google US English') || v.lang === 'en-US');
             if (preferredVoice) utterance.voice = preferredVoice;
             utterance.rate = 1.1;
@@ -309,10 +391,7 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
     };
 
     const toggleListening = () => {
-        if (isListening) {
-            // Stop listening logic handled by onend
-            return; 
-        }
+        if (isListening) return; 
 
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         if (!SpeechRecognition) {
@@ -335,18 +414,17 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
         recognition.onresult = (event: any) => {
             const transcript = event.results[0][0].transcript;
             setInput(transcript);
-            handleSend(transcript); // Auto-send
+            handleSend(transcript);
         };
 
         recognition.start();
     };
 
-    // --- QUICK ACTIONS ---
     const quickActions = [
         { label: '🥗 My Diet', text: 'What is my current diet plan?' },
         { label: '💪 Workout', text: 'What workout should I do today?' },
         { label: '📅 Schedule', text: 'What classes are on today?' },
-        { label: '📋 My Plan', text: 'Check my membership status' },
+        { label: '📲 Send WhatsApp', text: 'Send a WhatsApp message to Manager saying I will be late.' }, 
     ];
 
     if (!isOpen) return null;
@@ -355,19 +433,20 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
         <div className="fixed bottom-24 right-6 z-50 w-[380px] h-[600px] flex flex-col bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden font-sans animate-fade-in-up">
             
             {/* Header */}
-            <div className="bg-gradient-to-r from-gray-800 to-gray-900 p-4 border-b border-gray-700 flex justify-between items-center">
+            <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-gradient-to-r from-gray-800 to-gray-900">
                 <div className="flex items-center">
-                    <div className="bg-amber-500/20 p-2 rounded-full mr-3 border border-amber-500/50">
+                    <div className="p-2 rounded-full mr-3 border bg-amber-500/20 border-amber-500/50">
                         <BotIcon className="w-6 h-6 text-amber-400" />
                     </div>
                     <div>
-                        <h3 className="text-white font-bold text-base">Royal Agent</h3>
-                        <p className="text-xs text-green-400 flex items-center">
-                            <span className="w-1.5 h-1.5 bg-green-400 rounded-full mr-1 animate-pulse"></span>
+                        <h3 className="text-white font-bold text-base">Royal Assistant</h3>
+                        <p className="text-xs text-gray-400 flex items-center">
+                            <span className="w-1.5 h-1.5 rounded-full mr-1 animate-pulse bg-green-400"></span>
                             Online
                         </p>
                     </div>
                 </div>
+                
                 <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-gray-700">
                     <XIcon />
                 </button>
@@ -377,48 +456,51 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
             <div ref={chatBodyRef} className="flex-1 p-4 overflow-y-auto bg-gray-900 scrollbar-thin scrollbar-thumb-gray-700">
                 <div className="space-y-4">
                     {history.map((msg, index) => (
-                        <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            {msg.role === 'model' && (
-                                <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center mr-2 border border-gray-700 flex-shrink-0">
-                                    <SparkleIcon className="w-4 h-4 text-amber-400" />
+                        <div key={index} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                            <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+                                {msg.role === 'model' && (
+                                    <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center mr-2 border border-gray-700 flex-shrink-0">
+                                        <SparkleIcon className="w-4 h-4 text-amber-400" />
+                                    </div>
+                                )}
+                                <div className={`max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                                    msg.role === 'user' 
+                                    ? 'bg-amber-500 text-gray-900 rounded-br-none font-medium' 
+                                    : msg.isError ? 'bg-red-900/50 text-red-200 border border-red-500/50' : 'bg-gray-800 text-gray-200 rounded-bl-none border border-gray-700'
+                                }`}>
+                                    {msg.role === 'model' && !msg.text ? (
+                                        <div className="flex space-x-1 h-5 items-center px-1" title="Thinking...">
+                                            <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce"></div>
+                                            <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce delay-75"></div>
+                                            <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce delay-150"></div>
+                                        </div>
+                                    ) : (
+                                        <div dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br />').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') }} />
+                                    )}
                                 </div>
-                            )}
-                            <div className={`max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
-                                msg.role === 'user' 
-                                ? 'bg-amber-500 text-gray-900 rounded-br-none font-medium' 
-                                : 'bg-gray-800 text-gray-200 rounded-bl-none border border-gray-700'
-                            }`}>
-                                <div dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br />').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') }} />
+                                {msg.role === 'user' && (
+                                    <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center ml-2 flex-shrink-0 overflow-hidden border border-amber-500/30">
+                                        {context?.avatar ? (
+                                            <img src={context.avatar} alt="Me" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <UserIcon className="w-4 h-4 text-gray-400" />
+                                        )}
+                                    </div>
+                                )}
                             </div>
-                            {msg.role === 'user' && (
-                                <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center ml-2 flex-shrink-0">
-                                    <UserIcon className="w-4 h-4 text-gray-400" />
-                                </div>
-                            )}
                         </div>
                     ))}
-                    {isLoading && (
-                        <div className="flex justify-start">
-                            <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center mr-2 border border-gray-700">
-                                <BotIcon className="w-4 h-4 text-gray-500" />
-                            </div>
-                            <div className="bg-gray-800 p-3 rounded-2xl rounded-bl-none border border-gray-700 flex items-center space-x-1 h-10">
-                                <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce"></div>
-                                <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce delay-75"></div>
-                                <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce delay-150"></div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
 
-            {/* Quick Actions (Voiceflow Style) */}
+            {/* Quick Actions */}
             <div className="px-4 py-2 bg-gray-900 border-t border-gray-800 flex gap-2 overflow-x-auto no-scrollbar">
                 {quickActions.map((action, idx) => (
                     <button 
                         key={idx}
                         onClick={() => handleSend(action.text)}
-                        className="whitespace-nowrap px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-full text-xs text-gray-300 transition-colors flex-shrink-0"
+                        disabled={isLoading}
+                        className="whitespace-nowrap px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-full text-xs text-gray-300 transition-colors flex-shrink-0 disabled:opacity-50"
                     >
                         {action.label}
                     </button>
@@ -434,7 +516,7 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                        placeholder={isListening ? "Listening..." : "Ask Royal Agent..."}
+                        placeholder={isListening ? "Listening..." : "Type your message..."}
                         className={`w-full bg-gray-900 border ${isListening ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-600'} text-white rounded-full py-3 pl-4 pr-24 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all`}
                         disabled={isLoading}
                     />
@@ -456,8 +538,8 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
                         </button>
                     </div>
                 </div>
-                <div className="text-[10px] text-center text-gray-600 mt-2">
-                    Powered by Royal AI • 24/7 Support
+                <div className="text-[10px] text-center text-gray-600 mt-2 flex items-center justify-center gap-1">
+                    Powered by <SparkleIcon className="w-3 h-3 text-amber-500"/> Gemini 3.0 Flash
                 </div>
             </div>
         </div>

@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import Card from './common/Card';
+import Modal from './common/Modal';
 import { INITIAL_LEADS, INITIAL_MEMBERS } from '../../constants';
 import { Lead, CRMWorkflow, LeadStage } from '../../types';
 import { UserGroupIcon } from './icons/UserGroupIcon';
@@ -12,6 +13,7 @@ import { getComplexResponse } from '../../lib/gemini';
 import { sendWhatsAppMessage } from '../../lib/whatsapp';
 import { DollarSignIcon } from './icons/DollarSignIcon';
 import { CalendarIcon } from './icons/CalendarIcon';
+import { BotIcon } from './icons/BotIcon';
 
 // Mock Workflows
 const INITIAL_WORKFLOWS: CRMWorkflow[] = [
@@ -21,7 +23,7 @@ const INITIAL_WORKFLOWS: CRMWorkflow[] = [
     { id: 'wf4', name: 'Birthday Delight', trigger: 'Birthday = Today', action: 'Send Greeting + Free Protein Shake Coupon', status: 'Active', stats: { runs: 8, successRate: 100 } },
 ];
 
-const PipelineColumn: React.FC<{ title: string; leads: Lead[]; color: string }> = ({ title, leads, color }) => (
+const PipelineColumn: React.FC<{ title: string; leads: Lead[]; color: string; onAiSuggest: (lead: Lead) => void }> = ({ title, leads, color, onAiSuggest }) => (
     <div className="flex-1 min-w-[250px] bg-gray-800/50 rounded-lg p-3 border border-gray-700">
         <div className={`flex justify-between items-center mb-3 pb-2 border-b border-gray-700 ${color}`}>
             <h4 className="font-bold text-sm uppercase tracking-wider">{title}</h4>
@@ -32,9 +34,18 @@ const PipelineColumn: React.FC<{ title: string; leads: Lead[]; color: string }> 
                 <div key={lead.id} className="bg-gray-700 p-3 rounded shadow-sm hover:shadow-md transition-shadow border border-gray-600 cursor-move relative group">
                     <div className="flex justify-between items-start">
                         <h5 className="font-semibold text-white">{lead.name}</h5>
-                        <button className="text-gray-400 hover:text-green-400">
-                            <WhatsAppIcon className="w-4 h-4" />
-                        </button>
+                        <div className="flex gap-1">
+                             <button 
+                                onClick={() => onAiSuggest(lead)}
+                                className="text-gray-400 hover:text-amber-400 p-1 transition-colors"
+                                title="Generate AI Follow-up"
+                            >
+                                <SparkleIcon className="w-4 h-4" />
+                            </button>
+                            <button className="text-gray-400 hover:text-green-400 p-1 transition-colors">
+                                <WhatsAppIcon className="w-4 h-4" />
+                            </button>
+                        </div>
                     </div>
                     <p className="text-xs text-gray-400 mt-1">{lead.source}</p>
                     <p className="text-xs text-gray-500 mt-2">Added: {lead.inquiryDate}</p>
@@ -43,7 +54,7 @@ const PipelineColumn: React.FC<{ title: string; leads: Lead[]; color: string }> 
                     )}
                     
                     {/* Simulated Automation Indicator */}
-                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                          <span className="flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
@@ -65,6 +76,12 @@ const CRMSystem: React.FC = () => {
     // AI Intelligence State
     const [aiSuggestions, setAiSuggestions] = useState<string | null>(null);
     const [isThinking, setIsThinking] = useState(false);
+
+    // AI Follow-up Modal State
+    const [selectedLeadForAi, setSelectedLeadForAi] = useState<Lead | null>(null);
+    const [aiMessageSuggestion, setAiMessageSuggestion] = useState('');
+    const [aiMessageOptions, setAiMessageOptions] = useState<string[]>([]);
+    const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
 
     // Group leads by stage
     const leadsByStage = useMemo(() => {
@@ -120,6 +137,79 @@ const CRMSystem: React.FC = () => {
         }
     };
 
+    const handleGenerateFollowUp = async (lead: Lead) => {
+        setSelectedLeadForAi(lead);
+        setAiMessageSuggestion('');
+        setAiMessageOptions([]);
+        setIsGeneratingSuggestion(true);
+
+        const prompt = `
+            Act as a sales representative for "Royal The Gym".
+            Generate 3 distinct WhatsApp follow-up messages for a lead with these details:
+            
+            Lead Name: ${lead.name}
+            Source: ${lead.source}
+            Current Stage: ${lead.status}
+            Last Contact: ${lead.lastContactDate || 'Never'}
+            
+            Create 3 variations:
+            1. Friendly & Casual (welcoming tone)
+            2. Benefit-Focused (highlighting results/value)
+            3. Direct/Urgent (limited offer or call to action)
+
+            Keep each under 50 words. Do not include placeholders like [Your Name], sign off as "Royal Gym Team".
+            
+            Return ONLY a JSON array of strings containing the 3 messages. 
+            Example format: ["Message 1", "Message 2", "Message 3"]
+            Do not include any markdown formatting or explanation.
+        `;
+
+        try {
+            let result = await getComplexResponse(prompt);
+            // Cleanup in case of markdown block
+            result = result.replace(/```json/g, '').replace(/```/g, '').trim();
+            
+            let options: string[] = [];
+            try {
+                options = JSON.parse(result);
+            } catch (e) {
+                // Fallback if not valid JSON array
+                options = [result];
+            }
+
+            if (Array.isArray(options) && options.length > 0) {
+                setAiMessageOptions(options);
+                setAiMessageSuggestion(options[0]);
+            } else {
+                setAiMessageSuggestion("Could not generate multiple options. Please try again.");
+            }
+        } catch (e) {
+            console.error(e);
+            setAiMessageSuggestion("Sorry, I couldn't generate a message right now.");
+        } finally {
+            setIsGeneratingSuggestion(false);
+        }
+    };
+
+    const handleSendSuggestion = async () => {
+        if (!selectedLeadForAi) return;
+        
+        // In a real app, this would use sendWhatsAppMessage from lib/whatsapp
+        // For now we simulate the send action
+        
+        const mobileNumber = selectedLeadForAi.phone;
+        
+        // Simulating API call
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        alert(`Message sent to ${selectedLeadForAi.name} (${mobileNumber}) via WhatsApp Business API:\n\n"${aiMessageSuggestion}"`);
+        
+        // Update last contact date
+        setLeads(prev => prev.map(l => l.id === selectedLeadForAi.id ? { ...l, lastContactDate: new Date().toISOString().split('T')[0] } : l));
+        
+        setSelectedLeadForAi(null);
+    };
+
     const toggleWorkflow = (id: string) => {
         setWorkflows(prev => prev.map(w => w.id === id ? { ...w, status: w.status === 'Active' ? 'Paused' : 'Active' } : w));
     };
@@ -164,11 +254,11 @@ const CRMSystem: React.FC = () => {
             {activeTab === 'pipeline' && (
                 <div className="h-[calc(100vh-250px)] min-h-[500px] overflow-x-auto">
                     <div className="flex gap-4 h-full min-w-[1200px]">
-                        <PipelineColumn title="New Leads" leads={leadsByStage['New']} color="text-blue-400" />
-                        <PipelineColumn title="Contacted" leads={leadsByStage['Contacted']} color="text-yellow-400" />
-                        <PipelineColumn title="Trial" leads={leadsByStage['Trial']} color="text-purple-400" />
-                        <PipelineColumn title="Converted" leads={leadsByStage['Converted']} color="text-green-400" />
-                        <PipelineColumn title="Lost" leads={leadsByStage['Lost']} color="text-red-400" />
+                        <PipelineColumn title="New Leads" leads={leadsByStage['New']} color="text-blue-400" onAiSuggest={handleGenerateFollowUp} />
+                        <PipelineColumn title="Contacted" leads={leadsByStage['Contacted']} color="text-yellow-400" onAiSuggest={handleGenerateFollowUp} />
+                        <PipelineColumn title="Trial" leads={leadsByStage['Trial']} color="text-purple-400" onAiSuggest={handleGenerateFollowUp} />
+                        <PipelineColumn title="Converted" leads={leadsByStage['Converted']} color="text-green-400" onAiSuggest={handleGenerateFollowUp} />
+                        <PipelineColumn title="Lost" leads={leadsByStage['Lost']} color="text-red-400" onAiSuggest={handleGenerateFollowUp} />
                     </div>
                 </div>
             )}
@@ -246,6 +336,67 @@ const CRMSystem: React.FC = () => {
                     )}
                 </div>
             )}
+
+            {/* AI Suggestion Modal */}
+            <Modal isOpen={!!selectedLeadForAi} onClose={() => setSelectedLeadForAi(null)} title={`AI Follow-up: ${selectedLeadForAi?.name}`}>
+                <div className="space-y-4">
+                    {isGeneratingSuggestion ? (
+                        <div className="flex flex-col items-center justify-center py-8">
+                            <SparkleIcon className="w-10 h-10 text-amber-400 animate-spin mb-3" />
+                            <p className="text-gray-300 animate-pulse">Drafting personalized message strategies...</p>
+                        </div>
+                    ) : (
+                        <>
+                            {aiMessageOptions.length > 0 && (
+                                <div className="grid grid-cols-1 gap-3 mb-4">
+                                    <label className="block text-sm font-bold text-gray-300">Choose a Strategy:</label>
+                                    {aiMessageOptions.map((opt, idx) => (
+                                        <div 
+                                            key={idx}
+                                            onClick={() => setAiMessageSuggestion(opt)}
+                                            className={`p-3 rounded-lg border cursor-pointer text-sm transition-all hover:scale-[1.01] ${
+                                                aiMessageSuggestion === opt 
+                                                ? 'bg-amber-900/30 border-amber-500 text-white ring-1 ring-amber-500' 
+                                                : 'bg-gray-700/50 border-gray-600 text-gray-300 hover:bg-gray-600'
+                                            }`}
+                                        >
+                                            <span className="text-xs text-gray-500 font-bold uppercase mb-1 block">Option {idx + 1}</span>
+                                            {opt}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Edit Message</label>
+                                <textarea 
+                                    className="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white text-sm focus:border-amber-500 outline-none"
+                                    rows={4}
+                                    value={aiMessageSuggestion}
+                                    onChange={(e) => setAiMessageSuggestion(e.target.value)}
+                                />
+                            </div>
+                            <div className="bg-blue-900/20 p-3 rounded border border-blue-500/30 text-xs text-blue-300">
+                                <p><strong>Context used:</strong> Source ({selectedLeadForAi?.source}), Stage ({selectedLeadForAi?.status}), Last Contact ({selectedLeadForAi?.lastContactDate || 'None'})</p>
+                            </div>
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button 
+                                    onClick={() => setSelectedLeadForAi(null)} 
+                                    className="px-4 py-2 text-sm text-gray-400 hover:text-white"
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    onClick={handleSendSuggestion}
+                                    className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold flex items-center"
+                                >
+                                    <WhatsAppIcon className="w-4 h-4 mr-2" /> Send via WhatsApp
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </Modal>
         </div>
     );
 };

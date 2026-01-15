@@ -6,6 +6,10 @@ import Card from './common/Card';
 import Modal from './common/Modal';
 import { FacebookIcon, InstagramIcon, WalkInIcon, WebIcon, OtherSourceIcon } from './icons/SocialIcons';
 import { UserGroupIcon } from './icons/UserGroupIcon';
+import { SparkleIcon } from './icons/SparkleIcon';
+import { WhatsAppIcon } from './icons/WhatsAppIcon';
+import { BotIcon } from './icons/BotIcon';
+import { getComplexResponse } from '../../lib/gemini';
 
 const SourceIcon: React.FC<{ source: LeadSource, className?: string }> = ({ source, className = "w-5 h-5" }) => {
     switch (source) {
@@ -34,6 +38,13 @@ const Leads: React.FC = () => {
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterSource, setFilterSource] = useState<LeadSource | 'All'>('All');
+
+    // AI Modal State
+    const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+    const [selectedLeadForAi, setSelectedLeadForAi] = useState<Lead | null>(null);
+    const [aiOptions, setAiOptions] = useState<string[]>([]);
+    const [selectedMessage, setSelectedMessage] = useState('');
+    const [isGenerating, setIsGenerating] = useState(false);
 
     const leadStats = useMemo(() => {
         const stats = {
@@ -75,6 +86,61 @@ const Leads: React.FC = () => {
             setLeads([...leads, { ...leadData, id: newId }]);
         }
         setModalOpen(false);
+    };
+
+    const handleOpenAiAssistant = async (lead: Lead) => {
+        setSelectedLeadForAi(lead);
+        setIsAiModalOpen(true);
+        setIsGenerating(true);
+        setAiOptions([]);
+        setSelectedMessage('');
+
+        const prompt = `
+            Act as a sales representative for "Royal The Gym".
+            Generate 3 distinct, short WhatsApp follow-up messages for a lead with these details:
+            
+            Name: ${lead.name}
+            Source: ${lead.source}
+            Current Status: ${lead.status}
+            Inquiry Date: ${lead.inquiryDate}
+            
+            Variations needed:
+            1. Friendly check-in.
+            2. Benefit/Result focused.
+            3. A limited-time offer hook.
+
+            Return ONLY a JSON array of strings. Example: ["Message 1", "Message 2", "Message 3"].
+            Do not include markdown or explanations.
+        `;
+
+        try {
+            let response = await getComplexResponse(prompt);
+            response = response.replace(/```json/g, '').replace(/```/g, '').trim();
+            const options = JSON.parse(response);
+            if (Array.isArray(options)) {
+                setAiOptions(options);
+                setSelectedMessage(options[0]);
+            } else {
+                setSelectedMessage(response); // Fallback if not array
+            }
+        } catch (error) {
+            console.error("AI Generation Error", error);
+            setSelectedMessage("Could not generate messages. Please try again.");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleSendWhatsApp = () => {
+        if (!selectedLeadForAi) return;
+        // Simulate API call
+        alert(`Message sent to ${selectedLeadForAi.name} (${selectedLeadForAi.phone}):\n\n"${selectedMessage}"`);
+        setIsAiModalOpen(false);
+        
+        // Update status to 'Contacted' if it was 'New'
+        if (selectedLeadForAi.status === 'New') {
+            setLeads(leads.map(l => l.id === selectedLeadForAi.id ? { ...l, status: 'Contacted' } : l));
+        }
     };
 
     const getStatusColor = (status: Lead['status']) => {
@@ -163,7 +229,16 @@ const Leads: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="p-3">
-                                        <button onClick={() => handleEditLead(lead)} className="text-amber-400 hover:text-amber-300">Edit</button>
+                                        <div className="flex items-center gap-3">
+                                            <button 
+                                                onClick={() => handleOpenAiAssistant(lead)} 
+                                                className="text-gray-400 hover:text-purple-400 transition-colors"
+                                                title="Generate AI Follow-up"
+                                            >
+                                                <SparkleIcon className="w-5 h-5" />
+                                            </button>
+                                            <button onClick={() => handleEditLead(lead)} className="text-amber-400 hover:text-amber-300">Edit</button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -171,6 +246,66 @@ const Leads: React.FC = () => {
                     </table>
                 </div>
             </Card>
+
+            {/* AI Assistant Modal */}
+            <Modal isOpen={isAiModalOpen} onClose={() => setIsAiModalOpen(false)} title={`AI Assistant: ${selectedLeadForAi?.name}`}>
+                <div className="space-y-4">
+                    {isGenerating ? (
+                        <div className="flex flex-col items-center justify-center py-10">
+                            <BotIcon className="w-12 h-12 text-amber-400 animate-bounce mb-4" />
+                            <p className="text-gray-300 animate-pulse">Drafting personalized messages...</p>
+                        </div>
+                    ) : (
+                        <>
+                            {aiOptions.length > 0 && (
+                                <div className="space-y-2">
+                                    <label className="text-sm text-gray-400 font-bold uppercase">Select a Strategy:</label>
+                                    {aiOptions.map((opt, idx) => (
+                                        <div 
+                                            key={idx}
+                                            onClick={() => setSelectedMessage(opt)}
+                                            className={`p-3 rounded-lg border cursor-pointer text-sm transition-all ${
+                                                selectedMessage === opt 
+                                                ? 'bg-purple-900/30 border-purple-500 text-white' 
+                                                : 'bg-gray-700/50 border-gray-600 text-gray-400 hover:bg-gray-700'
+                                            }`}
+                                        >
+                                            {opt}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Edit Message</label>
+                                <textarea
+                                    className="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-purple-500 outline-none"
+                                    rows={4}
+                                    value={selectedMessage}
+                                    onChange={(e) => setSelectedMessage(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button 
+                                    onClick={() => setIsAiModalOpen(false)}
+                                    className="px-4 py-2 text-sm text-gray-400 hover:text-white"
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    onClick={handleSendWhatsApp}
+                                    className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold flex items-center transition-colors"
+                                >
+                                    <WhatsAppIcon className="w-4 h-4 mr-2" /> Send via WhatsApp
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </Modal>
+
+            {/* Edit/Add Modal */}
             {isModalOpen && (
                 <LeadFormModal
                     isOpen={isModalOpen}

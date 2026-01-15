@@ -2,16 +2,17 @@
 import React, { useState } from 'react';
 import { GYM_INFO } from '../../constants';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
+import { MailIcon } from './icons/MailIcon';
 import { sendWhatsAppOTP } from '../../lib/whatsapp';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { FacebookIcon, InstagramIcon, TwitterIcon } from './icons/SocialIcons';
 
 interface LoginScreenProps {
-    onLogin: (email: string, pass: string, role: 'admin' | 'member') => boolean;
+    onLogin: (identifier: string, pass: string | null, role: 'admin' | 'member', method?: 'password' | 'otp') => boolean;
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
-    const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('otp');
+    const [loginMethod, setLoginMethod] = useState<'password' | 'otp' | 'email'>('otp');
     const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [otp, setOtp] = useState('');
@@ -24,7 +25,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     // GDPR Consent
     const [consent, setConsent] = useState(false);
 
-    const handleSendOTP = async () => {
+    const handleSendWhatsAppOTP = async () => {
         if (!identifier || identifier.length < 10) {
             setError('Please enter a valid phone number.');
             return;
@@ -47,20 +48,34 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         }
     };
 
+    const handleSendEmailOTP = async () => {
+        if (!identifier || !identifier.includes('@')) {
+            setError('Please enter a valid email address.');
+            return;
+        }
+        setError('');
+        setIsLoading(true);
+        
+        // Generate a random 6-digit OTP
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        setGeneratedOtp(code);
+        
+        // Simulate email sending delay
+        setTimeout(() => {
+            setIsOtpSent(true);
+            setIsLoading(false);
+            alert(`[DEMO] Email OTP Sent to ${identifier}: ${code}`);
+        }, 1500);
+    };
+
     const handleVerifyOTP = () => {
         if (!consent) {
             setError("You must agree to the Privacy Policy & Terms.");
             return;
         }
         if (otp === generatedOtp || otp === '123456') { // Backdoor for demo
-            let success = false;
-            if (role === 'admin') {
-                success = onLogin('9785300123', 'admin123', 'admin');
-            } else {
-                success = onLogin('aarav.s@example.com', 'aarav123', 'member');
-            }
-            
-            if (!success) setError('Account not found for this number.');
+            const success = onLogin(identifier, null, role, 'otp');
+            if (!success) setError('Account not found for this identifier.');
         } else {
             setError('Invalid OTP. Please try again.');
         }
@@ -72,10 +87,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             return;
         }
         setError('');
-        const success = onLogin(identifier, password, role);
+        const success = onLogin(identifier, password, role, 'password');
         if (!success) {
             setError('Invalid credentials.');
         }
+    };
+
+    // Reset state when switching methods
+    const switchMethod = (method: 'password' | 'otp' | 'email') => {
+        setLoginMethod(method);
+        setIdentifier('');
+        setPassword('');
+        setOtp('');
+        setIsOtpSent(false);
+        setError('');
+        setGeneratedOtp(null);
     };
 
     return (
@@ -116,13 +142,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 {/* Role Switcher */}
                 <div className="flex bg-black/50 rounded-xl p-1 mb-8 border border-white/5 relative z-20">
                     <button 
-                        onClick={() => { setRole('admin'); setIdentifier(''); setPassword(''); setIsOtpSent(false); }}
+                        onClick={() => { setRole('admin'); switchMethod(loginMethod); }}
                         className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all duration-300 ${role === 'admin' ? 'bg-gradient-to-r from-amber-600 to-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                     >
                         ADMIN PANEL
                     </button>
                     <button 
-                        onClick={() => { setRole('member'); setIdentifier(''); setPassword(''); setIsOtpSent(false); }}
+                        onClick={() => { setRole('member'); switchMethod(loginMethod); }}
                         className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all duration-300 ${role === 'member' ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                     >
                         MEMBER ZONE
@@ -130,42 +156,56 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 </div>
 
                 {/* Login Method Tabs */}
-                <div className="flex justify-center space-x-8 mb-8 border-b border-white/10 pb-1 relative z-20">
-                    <button onClick={() => setLoginMethod('otp')} className={`text-sm font-bold pb-3 transition-all relative ${loginMethod === 'otp' ? 'text-white' : 'text-gray-500'}`}>
+                <div className="flex justify-center space-x-4 mb-8 border-b border-white/10 pb-1 relative z-20 overflow-x-auto">
+                    <button onClick={() => switchMethod('otp')} className={`text-xs sm:text-sm font-bold pb-3 transition-all relative whitespace-nowrap ${loginMethod === 'otp' ? 'text-white' : 'text-gray-500'}`}>
                         WhatsApp OTP
                         {loginMethod === 'otp' && <span className="absolute bottom-[-1px] left-0 w-full h-0.5 bg-green-500 shadow-[0_0_10px_#22c55e]"></span>}
                     </button>
-                    <button onClick={() => setLoginMethod('password')} className={`text-sm font-bold pb-3 transition-all relative ${loginMethod === 'password' ? 'text-white' : 'text-gray-500'}`}>
+                    <button onClick={() => switchMethod('email')} className={`text-xs sm:text-sm font-bold pb-3 transition-all relative whitespace-nowrap ${loginMethod === 'email' ? 'text-white' : 'text-gray-500'}`}>
+                        Email OTP
+                        {loginMethod === 'email' && <span className="absolute bottom-[-1px] left-0 w-full h-0.5 bg-purple-500 shadow-[0_0_10px_#a855f7]"></span>}
+                    </button>
+                    <button onClick={() => switchMethod('password')} className={`text-xs sm:text-sm font-bold pb-3 transition-all relative whitespace-nowrap ${loginMethod === 'password' ? 'text-white' : 'text-gray-500'}`}>
                         Password
                         {loginMethod === 'password' && <span className="absolute bottom-[-1px] left-0 w-full h-0.5 bg-blue-500 shadow-[0_0_10px_#3b82f6]"></span>}
                     </button>
                 </div>
 
                 <form onSubmit={(e) => e.preventDefault()} className="space-y-6 relative z-20">
-                    {loginMethod === 'otp' ? (
+                    {(loginMethod === 'otp' || loginMethod === 'email') ? (
                         <>
                             {!isOtpSent ? (
                                 <div className="animate-fade-in">
-                                    <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Mobile Number</label>
+                                    <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">
+                                        {loginMethod === 'otp' ? 'Mobile Number' : 'Email Address'}
+                                    </label>
                                     <div className="relative group">
                                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                            <WhatsAppIcon className="h-5 w-5 text-green-500 group-focus-within:text-green-400 transition-colors" />
+                                            {loginMethod === 'otp' ? (
+                                                <WhatsAppIcon className="h-5 w-5 text-green-500 group-focus-within:text-green-400 transition-colors" />
+                                            ) : (
+                                                <MailIcon className="h-5 w-5 text-purple-500 group-focus-within:text-purple-400 transition-colors" />
+                                            )}
                                         </div>
                                         <input
-                                            type="tel"
+                                            type={loginMethod === 'otp' ? "tel" : "email"}
                                             value={identifier}
                                             onChange={(e) => setIdentifier(e.target.value)}
                                             className="block w-full pl-12 pr-4 py-4 border border-white/10 rounded-xl focus:ring-2 focus:ring-green-500/50 focus:border-green-500 bg-black/50 text-white placeholder-gray-600 transition-all outline-none backdrop-blur-sm"
-                                            placeholder="9876543210"
+                                            placeholder={loginMethod === 'otp' ? "9876543210" : "member@example.com"}
                                         />
                                     </div>
                                     <button
                                         type="button"
-                                        onClick={handleSendOTP}
+                                        onClick={loginMethod === 'otp' ? handleSendWhatsAppOTP : handleSendEmailOTP}
                                         disabled={isLoading}
-                                        className="mt-6 w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-[0_0_20px_rgba(22,163,74,0.3)] text-sm font-bold text-white bg-gradient-to-r from-green-700 to-green-600 hover:from-green-600 hover:to-green-500 transition-all disabled:opacity-50 transform hover:scale-[1.02]"
+                                        className={`mt-6 w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-[0_0_20px_rgba(22,163,74,0.3)] text-sm font-bold text-white transition-all disabled:opacity-50 transform hover:scale-[1.02] ${
+                                            loginMethod === 'otp' 
+                                            ? 'bg-gradient-to-r from-green-700 to-green-600 hover:from-green-600 hover:to-green-500' 
+                                            : 'bg-gradient-to-r from-purple-700 to-purple-600 hover:from-purple-600 hover:to-purple-500'
+                                        }`}
                                     >
-                                        {isLoading ? 'Connecting...' : 'Get Access Code'}
+                                        {isLoading ? 'Sending...' : 'Get Access Code'}
                                     </button>
                                 </div>
                             ) : (
@@ -180,7 +220,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                                         maxLength={6}
                                     />
                                     <div className="flex justify-between items-center mt-3">
-                                        <button type="button" onClick={() => setIsOtpSent(false)} className="text-xs text-gray-400 hover:text-white transition-colors">Change Number</button>
+                                        <button type="button" onClick={() => setIsOtpSent(false)} className="text-xs text-gray-400 hover:text-white transition-colors">Change Contact</button>
                                         <span className="text-xs text-amber-500/80">Resend available</span>
                                     </div>
                                     

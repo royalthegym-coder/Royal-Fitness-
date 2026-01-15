@@ -45,6 +45,54 @@ export async function getGeminiChatResponse(history: any[], message: string): Pr
     }
 }
 
+// --- NEW AUTONOMOUS BUSINESS FUNCTIONS ---
+
+export async function generateAutonomousMarketingStrategy(
+    reviews: any[], 
+    posts: any[], 
+    gymInfo: any
+): Promise<string> {
+    const prompt = `
+        Act as a Google Business Profile expert and AI Marketing Manager for "${gymInfo.name}".
+        
+        Analyze the current state:
+        - Recent Reviews (Sentiment): ${JSON.stringify(reviews.slice(0, 3))}
+        - Recent Posts: ${JSON.stringify(posts.slice(0, 2))}
+        
+        Generate a "Flash Optimization Plan" in HTML format:
+        1. **SEO Keyword Injection:** Suggest 5 high-impact keywords missing from the profile based on trends.
+        2. **Next Viral Post Idea:** A specific post concept (Image idea + Caption) to boost engagement this week.
+        3. **Reputation Move:** One specific action to improve the average rating.
+        
+        Keep it concise, data-driven, and ready to execute.
+    `;
+    return getComplexResponse(prompt);
+}
+
+export async function optimizeBusinessDescription(currentDesc: string, keywords: string[]): Promise<string> {
+    const prompt = `
+        Rewrite the following Gym Google Business description to be SEO-optimized.
+        Integrate these high-value keywords naturally: ${keywords.join(', ')}.
+        
+        Current Description: "${currentDesc}"
+        
+        Return ONLY the new description text. Make it punchy and conversion-focused.
+    `;
+    return getComplexResponse(prompt);
+}
+
+export async function analyzeCompetitorGap(myLocation: string): Promise<string> {
+    const prompt = `
+        Simulate a market analysis for a gym located in "${myLocation}".
+        Identify 3 common complaints people have about *other* gyms in this region (e.g., hygiene, overcrowding, hidden fees).
+        Provide a strategy on how "Royal The Gym" can capitalize on these weaknesses in our Google Business Profile.
+        Format as HTML bullet points.
+    `;
+    return getComplexResponse(prompt);
+}
+
+// --- EXISTING FUNCTIONS PRESERVED BELOW ---
+
 export async function generateTextToSpeech(text: string): Promise<string> {
     const ai = getAI();
     try {
@@ -149,8 +197,6 @@ export async function getGoogleSearchResponse(query: string): Promise<{ text: st
         return { text: "Unable to perform search.", sources: [] };
     }
 }
-
-// ... (Rest of the functions remain largely the same, wrapping in try/catch where appropriate)
 
 export async function getPostWorkoutAnalysis(member: Member, log: WorkoutLog, history: any[]): Promise<string> {
     const prompt = `Analyze workout for ${member.name}. Log: ${JSON.stringify(log)}. History count: ${history.length}. Give short feedback.`;

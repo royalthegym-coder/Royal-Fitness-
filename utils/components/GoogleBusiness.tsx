@@ -4,7 +4,14 @@ import Card from './common/Card';
 import { INITIAL_GOOGLE_REVIEWS, INITIAL_GOOGLE_POSTS, GYM_INFO } from '../../constants';
 import { GoogleReview, GoogleBusinessPost } from '../../types';
 import { StarIcon } from './icons/StarIcon';
-import { getComplexResponse, getGoogleMapsResponse, generateMarketingImage } from '../../lib/gemini';
+import { 
+    getComplexResponse, 
+    getGoogleMapsResponse, 
+    generateMarketingImage, 
+    generateAutonomousMarketingStrategy,
+    optimizeBusinessDescription,
+    analyzeCompetitorGap
+} from '../../lib/gemini';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { GoogleIcon } from './icons/GoogleIcon';
@@ -13,6 +20,7 @@ import { BotIcon } from './icons/BotIcon';
 import { AutoUpdateIcon } from './icons/AutoUpdateIcon';
 import { UploadIcon } from './icons/UploadIcon';
 import { CameraIcon } from './icons/CameraIcon';
+import { TrendingUpIcon } from './icons/TrendingUpIcon';
 
 const GoogleBusiness: React.FC = () => {
     const [isAccountLinked, setIsAccountLinked] = useState(false);
@@ -31,6 +39,11 @@ const GoogleBusiness: React.FC = () => {
     // Genius Automation State
     const [isAutoPilotRunning, setIsAutoPilotRunning] = useState(false);
     const [autoPilotStatus, setAutoPilotStatus] = useState('');
+    
+    // Autonomous SEO State
+    const [isAutonomousActive, setIsAutonomousActive] = useState(false);
+    const [autonomousLogs, setAutonomousLogs] = useState<string[]>([]);
+    const [optimizationReport, setOptimizationReport] = useState<string | null>(null);
 
     const handleLinkAccount = () => {
         setIsLinking(true);
@@ -65,6 +78,51 @@ const GoogleBusiness: React.FC = () => {
         setReviews(updatedReviews);
         setReplyingTo(null);
         setReplyText('');
+    };
+
+    // --- AUTONOMOUS OPTIMIZATION LOOP ---
+    useEffect(() => {
+        if (!isAutonomousActive || !isAccountLinked) return;
+
+        const runOptimizationCycle = async () => {
+            const timestamp = new Date().toLocaleTimeString();
+            setAutonomousLogs(prev => [`[${timestamp}] AI Agent: Scanning Profile Performance...`, ...prev]);
+            
+            // 1. Analyze Sentiment & Trends (Simulated)
+            await new Promise(r => setTimeout(r, 2000));
+            setAutonomousLogs(prev => [`[${new Date().toLocaleTimeString()}] AI Agent: Sentiment Analysis 85% Positive.`, ...prev]);
+
+            // 2. SEO Check
+            if (Math.random() > 0.5) {
+                setAutonomousLogs(prev => [`[${new Date().toLocaleTimeString()}] AI Agent: Detecting low visibility on keyword "Crossfit". Optimizing description...`, ...prev]);
+                // Simulate SEO update
+                await new Promise(r => setTimeout(r, 1500));
+                setAutonomousLogs(prev => [`[${new Date().toLocaleTimeString()}] AI Agent: Profile Description Updated (v2.4).`, ...prev]);
+            }
+
+            // 3. Competitor Check
+            setAutonomousLogs(prev => [`[${new Date().toLocaleTimeString()}] AI Agent: Scanning local competitors on Maps...`, ...prev]);
+        };
+
+        const interval = setInterval(runOptimizationCycle, 10000); // Run every 10s for demo
+        runOptimizationCycle(); // Run immediately on start
+
+        return () => clearInterval(interval);
+    }, [isAutonomousActive, isAccountLinked]);
+
+    const handleRunFullOptimization = async () => {
+        if (!isAccountLinked) return;
+        setOptimizationReport(null);
+        setIsGenerating(true);
+        
+        try {
+            const strategy = await generateAutonomousMarketingStrategy(reviews, posts, GYM_INFO);
+            setOptimizationReport(strategy);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
     const handleRunGeniusAutoPilot = async () => {
@@ -220,20 +278,80 @@ const GoogleBusiness: React.FC = () => {
 
             {isAccountLinked && (
             <>
-                {/* Genius AI Automation Card */}
-                <Card className="bg-gradient-to-r from-gray-900 to-indigo-900 border-l-4 border-indigo-500 relative overflow-hidden">
+                {/* --- NEW: AUTONOMOUS OPTIMIZER HUB --- */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Card className="bg-gradient-to-r from-gray-900 to-indigo-900 border-l-4 border-indigo-500 relative overflow-hidden h-full">
+                        <div className="absolute top-0 right-0 p-4 opacity-10">
+                            <BotIcon />
+                        </div>
+                        <div className="flex flex-col h-full justify-between relative z-10">
+                            <div>
+                                <div className="flex items-center gap-3 mb-2">
+                                    <SparkleIcon className="w-6 h-6 text-indigo-300" />
+                                    <h3 className="text-lg font-bold text-white">Autonomous Profile Optimizer</h3>
+                                </div>
+                                <p className="text-indigo-200 text-sm mb-4">
+                                    Enables Gemini 2.0 Agent to autonomously update keywords, monitor competitor gaps, and adjust business descriptions for max visibility.
+                                </p>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <span className={`text-sm font-bold ${!isAutonomousActive ? 'text-gray-400' : 'text-green-400'}`}>
+                                        {isAutonomousActive ? '● SYSTEM ACTIVE' : '○ SYSTEM IDLE'}
+                                    </span>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" checked={isAutonomousActive} onChange={() => setIsAutonomousActive(!isAutonomousActive)} className="sr-only peer" />
+                                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div className="bg-black/30 rounded-lg p-2 font-mono text-[10px] text-green-400 h-24 overflow-y-auto border border-indigo-500/20 custom-scrollbar">
+                                {autonomousLogs.length === 0 && <span className="text-gray-500">Waiting for activation...</span>}
+                                {autonomousLogs.map((log, i) => (
+                                    <div key={i} className="mb-1">{log}</div>
+                                ))}
+                            </div>
+                        </div>
+                    </Card>
+
+                    <Card className="bg-gray-800 border border-gray-700 h-full">
+                        <div className="flex justify-between items-start mb-4">
+                            <h3 className="font-bold text-white">Deep Strategic Analysis</h3>
+                            <button 
+                                onClick={handleRunFullOptimization}
+                                disabled={isGenerating}
+                                className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold py-1.5 px-3 rounded flex items-center transition-colors disabled:opacity-50"
+                            >
+                                {isGenerating ? <AutoUpdateIcon className="w-3 h-3 animate-spin mr-1"/> : <SparkleIcon className="w-3 h-3 mr-1"/>}
+                                Run Deep Scan
+                            </button>
+                        </div>
+                        {optimizationReport ? (
+                            <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700 h-48 overflow-y-auto custom-scrollbar">
+                                <div className="prose dark:prose-invert prose-sm text-xs" dangerouslySetInnerHTML={{ __html: optimizationReport.replace(/\n/g, '<br />') }} />
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-48 text-gray-500 text-center text-sm">
+                                <TrendingUpIcon className="w-8 h-8 mb-2 opacity-30" />
+                                <p>Click "Run Deep Scan" to generate a comprehensive SEO & Marketing strategy report based on current data.</p>
+                            </div>
+                        )}
+                    </Card>
+                </div>
+
+                {/* Genius AI Automation Card (Review Reply) */}
+                <Card className="bg-gradient-to-r from-gray-900 to-green-900/40 border-l-4 border-green-500 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-4 opacity-10">
                         <BotIcon />
                     </div>
                     <div className="flex flex-col md:flex-row justify-between items-center relative z-10">
                         <div className="flex items-start gap-4 mb-4 md:mb-0">
-                            <div className="p-3 bg-indigo-500/20 rounded-full text-indigo-300">
+                            <div className="p-3 bg-green-500/20 rounded-full text-green-300">
                                 <SparkleIcon className="w-8 h-8" />
                             </div>
                             <div>
-                                <h3 className="text-lg font-bold text-white">Genius Review Automation</h3>
-                                <p className="text-indigo-200 text-sm max-w-lg">
-                                    Let AI handle your reputation. The Genius Agent reads new reviews, detects sentiment, and posts intelligent, optimized replies instantly.
+                                <h3 className="text-lg font-bold text-white">Auto-Reply Agent</h3>
+                                <p className="text-green-200 text-sm max-w-lg">
+                                    The Genius Agent reads new reviews, detects sentiment, and posts intelligent, optimized replies instantly.
                                 </p>
                                 {autoPilotStatus && (
                                     <p className="text-green-400 text-xs font-mono mt-2 flex items-center animate-pulse">
@@ -246,7 +364,7 @@ const GoogleBusiness: React.FC = () => {
                         <button 
                             onClick={handleRunGeniusAutoPilot}
                             disabled={isAutoPilotRunning}
-                            className={`px-6 py-3 rounded-lg font-bold text-white shadow-lg transition-all flex items-center ${isAutoPilotRunning ? 'bg-indigo-700 cursor-wait' : 'bg-indigo-600 hover:bg-indigo-500 hover:scale-105'}`}
+                            className={`px-6 py-3 rounded-lg font-bold text-white shadow-lg transition-all flex items-center ${isAutoPilotRunning ? 'bg-green-700 cursor-wait' : 'bg-green-600 hover:bg-green-500 hover:scale-105'}`}
                         >
                             {isAutoPilotRunning ? (
                                 <>
@@ -254,7 +372,7 @@ const GoogleBusiness: React.FC = () => {
                                 </>
                             ) : (
                                 <>
-                                    <BotIcon /> <span className="ml-2">Run Genius Agent</span>
+                                    <BotIcon /> <span className="ml-2">Run Reply Agent</span>
                                 </>
                             )}
                         </button>

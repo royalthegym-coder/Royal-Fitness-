@@ -17,6 +17,7 @@ export interface Member {
   joinDate: string;
   packageId: number;
   trainerId?: number; // Added for automation
+  trainerFees?: number; // Added Gym Trainer Fees
   status: 'Active' | 'Expired' | 'Inactive';
   avatar: string;
   whatsappConsent: boolean;

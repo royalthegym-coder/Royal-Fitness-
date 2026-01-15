@@ -16,7 +16,8 @@ import {
   Bar,
   AreaChart,
   Area,
-  ComposedChart
+  ComposedChart,
+  ReferenceLine
 } from 'recharts';
 import CustomTooltip from '../common/CustomTooltip';
 import { TrophyIcon } from '../icons/TrophyIcon';
@@ -72,6 +73,11 @@ const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, 
     const [weight, setWeight] = useState('');
     const [bodyFat, setBodyFat] = useState('');
     
+    // Goals State
+    const [goalWeight, setGoalWeight] = useState<number | ''>(75);
+    const [goalBodyFat, setGoalBodyFat] = useState<number | ''>(12);
+    const [isEditingGoals, setIsEditingGoals] = useState(false);
+
     // --- Data Preparation for Charts ---
 
     const memberData = useMemo(() => {
@@ -200,9 +206,9 @@ const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, 
             {/* --- CHARTS ROW 1 --- */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 
-                {/* 1. Body Composition Chart */}
+                {/* 1. Body Composition Chart with Goals */}
                 <Card title="Body Composition Trends">
-                    <div className="h-[300px] w-full min-w-0">
+                    <div className="h-[300px] w-full min-w-0 relative">
                         <ResponsiveContainer width="100%" height="100%">
                             <ComposedChart data={bodyCompData}>
                                 <defs>
@@ -213,12 +219,14 @@ const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, 
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
                                 <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, {month:'short', day:'numeric'})} />
-                                <YAxis yAxisId="left" stroke="#3b82f6" fontSize={12} domain={['dataMin - 2', 'dataMax + 2']} />
+                                <YAxis yAxisId="left" stroke="#3b82f6" fontSize={12} domain={['dataMin - 5', 'dataMax + 5']} />
                                 <YAxis yAxisId="right" orientation="right" stroke="#10b981" fontSize={12} domain={[0, 40]} />
                                 <Tooltip content={<CustomTooltip />} />
                                 <Legend />
                                 <Area yAxisId="left" type="monotone" dataKey="weight" name="Weight (kg)" stroke="#3b82f6" fillOpacity={1} fill="url(#colorWeight)" strokeWidth={2} />
                                 <Line yAxisId="right" type="monotone" dataKey="bodyFat" name="Body Fat (%)" stroke="#10b981" strokeWidth={2} dot={{r:4}} />
+                                {goalWeight && <ReferenceLine yAxisId="left" y={goalWeight} stroke="#3b82f6" strokeDasharray="3 3" label={{ value: 'Target Weight', position: 'insideBottomLeft', fill: '#3b82f6', fontSize: 10 }} />}
+                                {goalBodyFat && <ReferenceLine yAxisId="right" y={goalBodyFat} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Target BF%', position: 'insideBottomRight', fill: '#10b981', fontSize: 10 }} />}
                             </ComposedChart>
                         </ResponsiveContainer>
                     </div>
@@ -247,7 +255,7 @@ const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 {/* 3. Consistency Chart */}
-                <Card title="Weekly Workout Frequency" className="lg:col-span-2">
+                <Card title="Weekly Workout Frequency" className="lg:col-span-1">
                     <div className="h-[250px] w-full min-w-0">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={frequencyData}>
@@ -261,7 +269,43 @@ const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, 
                     </div>
                 </Card>
 
-                {/* 4. Input Form */}
+                {/* 4. Goal Settings */}
+                <Card title="Goal Settings">
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Target Weight (kg)</label>
+                                <input 
+                                    type="number" 
+                                    step="0.1" 
+                                    value={goalWeight} 
+                                    onChange={e => setGoalWeight(parseFloat(e.target.value))} 
+                                    className="w-full bg-gray-700 text-white border border-gray-600 rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+                                    disabled={!isEditingGoals}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Target BF (%)</label>
+                                <input 
+                                    type="number" 
+                                    step="0.1" 
+                                    value={goalBodyFat} 
+                                    onChange={e => setGoalBodyFat(parseFloat(e.target.value))} 
+                                    className="w-full bg-gray-700 text-white border border-gray-600 rounded p-2 focus:ring-2 focus:ring-green-500 outline-none" 
+                                    disabled={!isEditingGoals}
+                                />
+                            </div>
+                        </div>
+                        <button 
+                            onClick={() => setIsEditingGoals(!isEditingGoals)}
+                            className={`w-full font-bold py-2 rounded-lg transition-colors mt-2 ${isEditingGoals ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'}`}
+                        >
+                            {isEditingGoals ? 'Save Goals' : 'Edit Goals'}
+                        </button>
+                    </div>
+                </Card>
+
+                {/* 5. Input Form */}
                 <Card title="Log New Body Metrics">
                     <form onSubmit={handleAddMetric} className="space-y-4">
                         <div>
@@ -293,7 +337,7 @@ const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, 
                             </div>
                         </div>
                         <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg transition-colors mt-2">
-                            Save Metrics
+                            Log Metrics
                         </button>
                     </form>
                 </Card>

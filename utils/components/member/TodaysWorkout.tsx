@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Card from '../common/Card';
 import { INITIAL_MEMBER_SCHEDULES, INITIAL_WORKOUT_TEMPLATES, INITIAL_MEMBERS } from '../../../constants';
-import { WorkoutLog, WorkoutPerformance, WorkoutExercise, MemberFitnessData, WorkoutSection } from '../../../types';
+import { WorkoutLog, WorkoutPerformance, WorkoutExercise, WorkoutSection, MemberFitnessData } from '../../../types';
 import { BotIcon } from '../icons/BotIcon';
 import { MemberView } from '../MemberPortal';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
@@ -22,6 +22,7 @@ const AdjustIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 
 const InfoIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
 const TrashIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>;
 const DownloadIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>;
+const TimerIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
 const HistoryIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" className={className || "w-4 h-4"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -35,7 +36,7 @@ interface TodaysWorkoutProps {
     fitnessData: MemberFitnessData;
 }
 
-type PerformanceLog = Record<string, { reps: string; weight: string; completed: boolean }[]>;
+type PerformanceLog = Record<string, { reps: string; weight: string; rpe: string; completed: boolean }[]>;
 
 const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComplete, setActiveView, fitnessData }) => {
     // --- STATE ---
@@ -43,6 +44,10 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
     const [isCompleted, setIsCompleted] = useState(false);
     const [sessionDuration, setSessionDuration] = useState(0);
     const [isTimerRunning, setIsTimerRunning] = useState(false);
+    
+    // Rest Timer
+    const [restTimer, setRestTimer] = useState(0);
+    const [isResting, setIsResting] = useState(false);
     
     // AI & Modals
     const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
@@ -70,7 +75,7 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
     // PDF State
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
-    // --- EFFECT: TIMER ---
+    // --- EFFECT: SESSION TIMER ---
     useEffect(() => {
         let interval: any;
         if (isTimerRunning) {
@@ -78,6 +83,18 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
         }
         return () => clearInterval(interval);
     }, [isTimerRunning]);
+
+    // --- EFFECT: REST TIMER ---
+    useEffect(() => {
+        let interval: any;
+        if (isResting && restTimer > 0) {
+            interval = setInterval(() => setRestTimer(prev => prev - 1), 1000);
+        } else if (restTimer === 0 && isResting) {
+            setIsResting(false);
+            // Could add audio beep here
+        }
+        return () => clearInterval(interval);
+    }, [isResting, restTimer]);
 
     // --- FORMAT TIME ---
     const formatTime = (seconds: number) => {
@@ -112,25 +129,21 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
         if (today === 0) return null;
 
         // Map Monday (1) to Day 1 (101), ..., Saturday (6) to Day 6 (106)
-        // IDs in INITIAL_WORKOUT_TEMPLATES are 101 to 106
         const templateId = 100 + today;
         
         return INITIAL_WORKOUT_TEMPLATES.find(t => t.id === templateId) || null;
     }, [generatedWorkout]);
 
-    // Flatten exercises for logic, keep structured for display
     const workoutStructure: WorkoutSection[] = useMemo(() => {
         if (!todaysWorkoutSchedule) return [];
         let sections: WorkoutSection[] = [];
         
-        // 1. Structure Definitions (Prioritize Pre-defined Sections)
         if ('sections' in todaysWorkoutSchedule && todaysWorkoutSchedule.sections) {
             sections = todaysWorkoutSchedule.sections.map((sec: any) => ({
                 ...sec,
                 exercises: sec.exercises.map((ex: any) => modifiedExercises[ex.name] || ex)
             }));
         } else if (todaysWorkoutSchedule.exercises) {
-            // Fallback for simple lists
             sections = [{
                 title: 'Main Workout',
                 exercises: todaysWorkoutSchedule.exercises.map((ex: any) => modifiedExercises[ex.name] || ex)
@@ -147,19 +160,19 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                 sec.exercises.forEach(ex => {
                     if (!performanceLog[ex.name]) {
                         const setCount = typeof ex.sets === 'string' ? parseInt(ex.sets.split('-')[0], 10) || 3 : 3;
-                        initialLog[ex.name] = Array(setCount).fill({ reps: '', weight: '', completed: false });
+                        initialLog[ex.name] = Array(setCount).fill({ reps: '', weight: '', rpe: '', completed: false });
                     }
                 });
             });
             setPerformanceLog(prev => ({...prev, ...initialLog}));
         }
-    }, [workoutStructure]); // Dependency changed to structure to catch updates
+    }, [workoutStructure]);
 
     // --- ACTIONS ---
 
     const toggleTimer = () => setIsTimerRunning(!isTimerRunning);
 
-    const handleSetChange = (exerciseName: string, setIndex: number, field: 'reps' | 'weight', value: string) => {
+    const handleSetChange = (exerciseName: string, setIndex: number, field: 'reps' | 'weight' | 'rpe', value: string) => {
         setPerformanceLog(prev => {
             const newLog = { ...prev };
             const newSets = [...newLog[exerciseName]];
@@ -170,12 +183,21 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
     };
 
     const toggleSetComplete = (exerciseName: string, setIndex: number) => {
-        if (!isTimerRunning) setIsTimerRunning(true); // Auto start timer on interaction
+        if (!isTimerRunning) setIsTimerRunning(true); 
+        
         setPerformanceLog(prev => {
             const newLog = { ...prev };
             const newSets = [...newLog[exerciseName]];
-            newSets[setIndex] = { ...newSets[setIndex], completed: !newSets[setIndex].completed };
+            const isCompleting = !newSets[setIndex].completed;
+            newSets[setIndex] = { ...newSets[setIndex], completed: isCompleting };
             newLog[exerciseName] = newSets;
+            
+            // Auto Start Rest Timer if completing a set
+            if (isCompleting) {
+                setRestTimer(60); // Default 60s rest
+                setIsResting(true);
+            }
+            
             return newLog;
         });
     };
@@ -183,7 +205,7 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
     const handleAddSet = (exerciseName: string) => {
         setPerformanceLog(prev => ({
             ...prev,
-            [exerciseName]: [...prev[exerciseName], { reps: '', weight: '', completed: false }]
+            [exerciseName]: [...prev[exerciseName], { reps: '', weight: '', rpe: '', completed: false }]
         }));
     };
 
@@ -198,7 +220,6 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
         setIsTimerRunning(false);
         if (!todaysWorkoutSchedule) return;
 
-        // Flatten for Analysis
         const allExercises = workoutStructure.flatMap(s => s.exercises);
         
         const performance: WorkoutPerformance[] = Object.entries(performanceLog).map(([exerciseName, sets]) => ({
@@ -250,16 +271,14 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
     }
 
     const handleAIModifyExercise = async (originalName: string, type: 'easier' | 'harder' | 'swap') => {
-        setActiveSmartMenu(null); // Close menu
-        // Optimistic update UI showing loading state could go here
+        setActiveSmartMenu(null);
         try {
             const newEx = await modifyExerciseWithAI(originalName, type);
             setModifiedExercises(prev => ({ ...prev, [originalName]: newEx }));
-            // Re-init log for new exercise
             setPerformanceLog(prev => {
                 const newLog = {...prev};
                 const setCount = parseInt(newEx.sets, 10) || 3;
-                newLog[newEx.name] = Array(setCount).fill({ reps: '', weight: '', completed: false });
+                newLog[newEx.name] = Array(setCount).fill({ reps: '', weight: '', rpe: '', completed: false });
                 return newLog;
             });
         } catch (error) {
@@ -296,7 +315,7 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
             if (emptyIndex !== -1) {
                 sets[emptyIndex] = { ...sets[emptyIndex], weight: smartSuggestion.recommendedWeight.toString(), reps: smartSuggestion.recommendedReps.toString() };
             } else {
-                sets.push({ weight: smartSuggestion.recommendedWeight.toString(), reps: smartSuggestion.recommendedReps.toString(), completed: false });
+                sets.push({ weight: smartSuggestion.recommendedWeight.toString(), reps: smartSuggestion.recommendedReps.toString(), rpe: '', completed: false });
             }
             newLog[adjustingExercise] = sets;
             return newLog;
@@ -307,7 +326,7 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
     // --- RENDER HELPERS ---
 
     const calculateProgress = () => {
-        const values = Object.values(performanceLog) as { reps: string; weight: string; completed: boolean }[][];
+        const values = Object.values(performanceLog) as { completed: boolean }[][];
         const totalSets = values.reduce((acc, sets) => acc + sets.length, 0);
         const completedSets = values.reduce((acc, sets) => acc + sets.filter(s => s.completed).length, 0);
         return totalSets === 0 ? 0 : Math.round((completedSets / totalSets) * 100);
@@ -325,12 +344,11 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                 structure: 'Full Body' as any,
                 daysPerWeek: 3,
                 notes: `Create a single session focusing on ${workoutFocus}. Return simple exercises.`,
-                memberHistory // Pass history for personalization
+                memberHistory 
             };
             
             const content = await generateAIWorkoutTemplate(promptOptions);
             
-            // Basic parsing of the AI response to make it usable in the UI
             const lines = content.split('\n');
             const parsedExercises: WorkoutExercise[] = [];
             
@@ -383,12 +401,9 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
             const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
             
             pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, imgHeight);
-            
-            // Add Footer
             pdf.setFontSize(10);
             pdf.setTextColor(150);
             pdf.text("Generated by Royal The Gym", pdfWidth / 2, pdfHeight - 10, { align: 'center' });
-            
             pdf.save(`${todaysWorkoutSchedule?.name || 'Workout'}_Plan.pdf`);
         } catch (error) {
             console.error('Error generating PDF:', error);
@@ -455,7 +470,6 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                         <SparkleIcon className="w-5 h-5 mr-2"/> Generate Smart Session
                     </button>
                 </div>
-                {/* Simplified Generator Modal for this view */}
                 <Modal isOpen={showGeneratorModal} onClose={() => setShowGeneratorModal(false)} title="Generate Session">
                      <div className="space-y-4">
                         <label className="block text-gray-300 text-sm">Focus Area</label>
@@ -513,54 +527,29 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                 </div>
                 
                 {/* Progress Bar */}
-                <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
+                <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden relative">
                     <div className="bg-gradient-to-r from-green-400 to-blue-500 h-2 transition-all duration-500" style={{ width: `${progress}%` }}></div>
                 </div>
                 
-                <div className="flex justify-between mt-2">
+                <div className="flex justify-between mt-2 items-center">
                     <button onClick={() => setIsReadinessModalOpen(true)} className="text-xs text-amber-400 flex items-center hover:underline">
                         <SparkleIcon className="w-3 h-3 mr-1" />
                         {readinessData ? `Readiness: ${readinessData.score}%` : 'Check Readiness'}
                     </button>
-                    <button onClick={handleGenerateSmartWarmup} disabled={isGeneratingWarmup} className="text-xs text-blue-400 flex items-center hover:underline disabled:opacity-50">
-                        {isGeneratingWarmup ? 'Generating...' : 'Get Smart Warmup'}
-                    </button>
+                    
+                    {/* Floating Rest Timer Display if active */}
+                    {isResting && (
+                        <div className="flex items-center text-xs text-blue-400 font-bold bg-blue-900/30 px-3 py-1 rounded-full animate-pulse border border-blue-500/30">
+                            <TimerIcon /> <span className="ml-2">Rest: {restTimer}s</span>
+                        </div>
+                    )}
+
                     <span className="text-xs text-gray-500">{progress}% Complete</span>
                 </div>
             </div>
 
-            {/* --- SMART WARMUP CARD --- */}
-            {smartWarmup && (
-                <div className="mb-6 bg-blue-900/20 border border-blue-500/50 p-4 rounded-lg animate-fade-in">
-                    <h4 className="font-bold text-blue-400 text-sm mb-2 flex items-center"><BotIcon /> Smart Warmup Routine</h4>
-                    <div className="prose prose-invert prose-sm text-gray-300" dangerouslySetInnerHTML={{__html: smartWarmup.replace(/\n/g, '<br/>')}} />
-                    <button onClick={() => setSmartWarmup(null)} className="text-xs text-gray-500 mt-2 hover:text-white">Dismiss</button>
-                </div>
-            )}
-
-            {/* --- READINESS ALERT --- */}
-            {readinessData && (
-                <div className="mb-6 bg-gray-800 border-l-4 border-amber-500 p-4 rounded-r-lg flex items-start animate-fade-in">
-                    <div className="mr-3 mt-1"><SparkleIcon className="w-5 h-5 text-amber-400" /></div>
-                    <div>
-                        <h4 className="font-bold text-white text-sm">AI Coach Adjustment</h4>
-                        <p className="text-xs text-gray-300 mt-1">{readinessData.strategy}: {readinessData.reasoning}</p>
-                        <div className="flex gap-2 mt-2">
-                            {readinessData.modifications.map((m, i) => <span key={i} className="text-[10px] bg-gray-700 px-2 py-1 rounded text-gray-300">{m}</span>)}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* --- WORKOUT SECTIONS (Wrapped for PDF) --- */}
+            {/* --- WORKOUT SECTIONS --- */}
             <div id="workout-content" className="bg-gray-900 p-4 rounded-lg relative overflow-hidden">
-                {/* Watermark */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-hidden">
-                    <h1 className="text-9xl font-black text-gray-700/10 -rotate-45 whitespace-nowrap select-none">
-                        ROYAL THE GYM
-                    </h1>
-                </div>
-
                 <div className="space-y-8 relative z-10">
                     <h2 className="text-2xl font-bold text-white border-b border-gray-700 pb-2">{todaysWorkoutSchedule.name}</h2>
                     {workoutStructure.map((section, secIndex) => (
@@ -580,7 +569,6 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                             <div className="space-y-4">
                                 {section.exercises.map((exercise, exIndex) => (
                                     <div key={exIndex} className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700 shadow-md">
-                                        {/* Exercise Header */}
                                         <div className="p-4 bg-gray-800 border-b border-gray-700 flex justify-between items-start">
                                             <div>
                                                 <h4 className="text-lg font-bold text-white flex items-center">
@@ -599,19 +587,26 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                                                 >
                                                     <SparkleIcon className="w-4 h-4" /> <span className="text-xs font-bold">AI Spotter</span>
                                                 </button>
-                                                
-                                                {/* Smart Action Menu */}
                                                 {activeSmartMenu === exercise.name && (
-                                                    <div className="absolute right-0 top-12 w-56 bg-gray-800 border border-gray-600 rounded-xl shadow-2xl z-10 overflow-hidden animate-fade-in">
+                                                    <div className="absolute right-0 top-12 w-64 bg-gray-800 border border-gray-600 rounded-xl shadow-2xl z-10 overflow-hidden animate-fade-in">
                                                         <div className="p-2 border-b border-gray-600 bg-gray-900/50">
-                                                            <p className="text-[10px] text-gray-400 uppercase font-bold text-center">Smart Modifications</p>
+                                                            <p className="text-[10px] text-gray-400 uppercase font-bold text-center">AI Performance Tuner</p>
                                                         </div>
-                                                        <button onClick={() => getSmartAdjustment(exercise.name, 'Too Easy')} className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center border-b border-gray-700">
-                                                            <AdjustIcon /> <span className="ml-2">Smart Adjust Load</span>
+                                                        
+                                                        <button onClick={() => getSmartAdjustment(exercise.name, 'Too Easy')} className="w-full text-left px-4 py-3 text-sm text-green-400 hover:bg-gray-700 flex items-center border-b border-gray-700">
+                                                            <span className="mr-2">⚡</span> Too Easy (Progression)
                                                         </button>
-                                                        <button onClick={() => handleAIModifyExercise(exercise.name, 'swap')} className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center border-b border-gray-700">
-                                                            <SwapIcon /> <span className="ml-2">Swap Machine (Busy)</span>
+                                                        <button onClick={() => getSmartAdjustment(exercise.name, 'Too Hard')} className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-gray-700 flex items-center border-b border-gray-700">
+                                                            <span className="mr-2">🛑</span> Too Hard (Regression)
                                                         </button>
+
+                                                        <button onClick={() => handleAIModifyExercise(exercise.name, 'easier')} className="w-full text-left px-4 py-3 text-sm text-yellow-400 hover:bg-gray-700 flex items-center border-b border-gray-700">
+                                                            <span className="mr-2">🩹</span> Soreness / Pain (Modify)
+                                                        </button>
+                                                        <button onClick={() => handleAIModifyExercise(exercise.name, 'swap')} className="w-full text-left px-4 py-3 text-sm text-blue-400 hover:bg-gray-700 flex items-center border-b border-gray-700">
+                                                            <SwapIcon /> <span className="ml-2">Equipment Busy (Swap)</span>
+                                                        </button>
+                                                        
                                                         <button onClick={() => alert("Opening AI Camera...")} className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center">
                                                             <CameraIcon className="w-4 h-4" /> <span className="ml-2">AI Form Check</span>
                                                         </button>
@@ -620,60 +615,52 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                                             </div>
                                         </div>
 
-                                        {/* Set Logger */}
+                                        {/* Set Logger Grid */}
                                         <div className="p-4 bg-gray-900/50">
-                                            <div className="grid grid-cols-10 gap-2 mb-2 text-xs text-gray-500 font-bold uppercase text-center">
-                                                <div className="col-span-1">Set</div>
+                                            <div className="grid grid-cols-12 gap-2 mb-2 text-[10px] text-gray-500 font-bold uppercase text-center">
+                                                <div className="col-span-1">#</div>
                                                 <div className="col-span-3">kg</div>
                                                 <div className="col-span-3">Reps</div>
+                                                <div className="col-span-2">RPE</div>
                                                 <div className="col-span-2">Done</div>
                                                 <div className="col-span-1"></div>
                                             </div>
                                             {Array.isArray(performanceLog[exercise.name]) && performanceLog[exercise.name].map((set, setIndex) => (
-                                                <div key={setIndex} className={`grid grid-cols-10 gap-2 mb-2 items-center transition-all ${set.completed ? 'opacity-70 bg-green-900/20 p-1 rounded border border-green-500/20' : ''}`}>
+                                                <div key={setIndex} className={`grid grid-cols-12 gap-2 mb-2 items-center transition-all ${set.completed ? 'opacity-70 bg-green-900/20 p-1 rounded border border-green-500/20' : ''}`}>
                                                     <div className="col-span-1 flex justify-center">
                                                         <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${set.completed ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-300'}`}>{setIndex + 1}</span>
                                                     </div>
                                                     <div className="col-span-3">
                                                         <input 
-                                                            type="number" 
-                                                            placeholder="0" 
-                                                            value={set.weight}
-                                                            onChange={(e) => handleSetChange(exercise.name, setIndex, 'weight', e.target.value)}
+                                                            type="number" placeholder="0" value={set.weight} onChange={(e) => handleSetChange(exercise.name, setIndex, 'weight', e.target.value)}
                                                             className={`w-full border rounded p-2 text-center focus:border-amber-500 outline-none text-sm font-mono ${set.completed ? 'bg-green-900/40 border-green-500/50 text-white' : 'bg-gray-800 border-gray-600 text-white'}`}
                                                         />
                                                     </div>
                                                     <div className="col-span-3">
                                                         <input 
-                                                            type="number" 
-                                                            placeholder="0" 
-                                                            value={set.reps}
-                                                            onChange={(e) => handleSetChange(exercise.name, setIndex, 'reps', e.target.value)}
+                                                            type="number" placeholder="0" value={set.reps} onChange={(e) => handleSetChange(exercise.name, setIndex, 'reps', e.target.value)}
                                                             className={`w-full border rounded p-2 text-center focus:border-amber-500 outline-none text-sm font-mono ${set.completed ? 'bg-green-900/40 border-green-500/50 text-white' : 'bg-gray-800 border-gray-600 text-white'}`}
                                                         />
                                                     </div>
+                                                    <div className="col-span-2">
+                                                        <input 
+                                                            type="number" placeholder="-" min="1" max="10" value={set.rpe || ''} onChange={(e) => handleSetChange(exercise.name, setIndex, 'rpe', e.target.value)}
+                                                            className="w-full border rounded p-2 text-center focus:border-purple-500 outline-none text-sm font-mono bg-gray-800 border-gray-600 text-white"
+                                                        />
+                                                    </div>
                                                     <div className="col-span-2 flex justify-center">
-                                                        <button 
-                                                            onClick={() => toggleSetComplete(exercise.name, setIndex)}
-                                                            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${set.completed ? 'bg-green-500 text-white shadow-lg shadow-green-500/20' : 'bg-gray-700 text-gray-500 hover:bg-gray-600'}`}
-                                                        >
+                                                        <button onClick={() => toggleSetComplete(exercise.name, setIndex)} className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${set.completed ? 'bg-green-500 text-white shadow-lg shadow-green-500/20' : 'bg-gray-700 text-gray-500 hover:bg-gray-600'}`}>
                                                             <CheckCircleIcon className="w-5 h-5" />
                                                         </button>
                                                     </div>
                                                     <div className="col-span-1 flex justify-center">
-                                                        <button 
-                                                            onClick={() => handleRemoveSet(exercise.name, setIndex)} 
-                                                            className="text-gray-600 hover:text-red-500 transition-colors"
-                                                        >
+                                                        <button onClick={() => handleRemoveSet(exercise.name, setIndex)} className="text-gray-600 hover:text-red-500 transition-colors">
                                                             <TrashIcon />
                                                         </button>
                                                     </div>
                                                 </div>
                                             ))}
-                                            <button 
-                                                onClick={() => handleAddSet(exercise.name)}
-                                                className="w-full mt-2 py-2 border border-dashed border-gray-600 text-gray-400 text-xs rounded hover:border-amber-500 hover:text-amber-500 transition-colors"
-                                            >
+                                            <button onClick={() => handleAddSet(exercise.name)} className="w-full mt-2 py-2 border border-dashed border-gray-600 text-gray-400 text-xs rounded hover:border-amber-500 hover:text-amber-500 transition-colors">
                                                 + Add Set
                                             </button>
                                         </div>
@@ -687,23 +674,13 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
 
             {/* --- FINISH BUTTON --- */}
             <div className="fixed bottom-6 left-0 right-0 px-6 flex justify-center z-10 pointer-events-none">
-                <button 
-                    onClick={handleFinishWorkout} 
-                    className="pointer-events-auto bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-4 px-12 rounded-full shadow-2xl hover:scale-105 transition-transform flex items-center text-lg ring-4 ring-green-500/20"
-                >
-                    <CheckCircleIcon className="w-6 h-6 mr-2" />
-                    Finish Workout
+                <button onClick={handleFinishWorkout} className="pointer-events-auto bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-4 px-12 rounded-full shadow-2xl hover:scale-105 transition-transform flex items-center text-lg ring-4 ring-green-500/20">
+                    <CheckCircleIcon className="w-6 h-6 mr-2" /> Finish Workout
                 </button>
             </div>
 
             {/* --- MODALS --- */}
-            <SmartReadinessModal
-                isOpen={isReadinessModalOpen}
-                onClose={() => setIsReadinessModalOpen(false)}
-                plannedWorkoutName={todaysWorkoutSchedule.name}
-                onAnalysisComplete={setReadinessData}
-            />
-
+            <SmartReadinessModal isOpen={isReadinessModalOpen} onClose={() => setIsReadinessModalOpen(false)} plannedWorkoutName={todaysWorkoutSchedule.name} onAnalysisComplete={setReadinessData} />
             <Modal isOpen={!!adjustingExercise} onClose={() => setAdjustingExercise(null)} title="Smart Adjust">
                 <div className="text-center p-4">
                     {!smartSuggestion ? (
