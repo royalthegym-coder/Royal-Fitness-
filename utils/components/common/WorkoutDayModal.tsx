@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
 import { Member, DailySchedule, WorkoutExercise } from '../../../types';
 import { INITIAL_WORKOUT_TEMPLATES } from '../../../constants';
+import ExerciseDemoModal, { getMediaForExercise } from './ExerciseDemoModal';
+import { VideoCameraIcon } from '../icons/VideoCameraIcon';
 
 interface WorkoutDayModalProps {
     isOpen: boolean;
@@ -17,6 +19,7 @@ const WorkoutDayModal: React.FC<WorkoutDayModalProps> = ({ isOpen, onClose, date
     const [templateId, setTemplateId] = useState<number | ''>(schedule?.templateId || '');
     const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
     const [isRestDay, setIsRestDay] = useState(schedule?.isRestDay || false);
+    const [demoModalExercise, setDemoModalExercise] = useState<string | null>(null);
 
     const getExercisesFromTemplate = (tid: number): WorkoutExercise[] => {
         const t = INITIAL_WORKOUT_TEMPLATES.find(temp => temp.id === tid);
@@ -105,34 +108,58 @@ const WorkoutDayModal: React.FC<WorkoutDayModalProps> = ({ isOpen, onClose, date
                 {isRestDay ? (
                     <p className="text-center text-gray-400 py-4">This is a rest day.</p>
                 ) : (
-                    <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                         {exercises.map((ex, index) => (
-                            <div key={index} className="grid grid-cols-12 gap-2 items-center">
-                                <input type="text" value={ex.name} onChange={e => handleExerciseChange(index, 'name', e.target.value)} placeholder="Exercise Name" className="col-span-5 bg-gray-600 p-2 rounded text-sm"/>
-                                <input type="text" value={ex.sets} onChange={e => handleExerciseChange(index, 'sets', e.target.value)} placeholder="Sets" className="col-span-2 bg-gray-600 p-2 rounded text-sm"/>
-                                <input type="text" value={ex.reps} onChange={e => handleExerciseChange(index, 'reps', e.target.value)} placeholder="Reps" className="col-span-2 bg-gray-600 p-2 rounded text-sm"/>
-                                <button type="button" onClick={() => removeExercise(index)} className="col-span-3 text-red-500 hover:text-red-400 text-sm">Remove</button>
+                            <div key={index} className="flex items-center gap-2 bg-gray-800 p-2 rounded-lg border border-gray-700">
+                                <div 
+                                    className="w-12 h-12 bg-black rounded flex-shrink-0 overflow-hidden border border-gray-600 group relative cursor-pointer"
+                                    onClick={() => setDemoModalExercise(ex.name)}
+                                    title="View Form Demo"
+                                >
+                                    <img 
+                                        src={getMediaForExercise(ex.name)} 
+                                        alt="demo" 
+                                        className="w-full h-full object-cover opacity-80 group-hover:opacity-50 transition-opacity" 
+                                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <VideoCameraIcon className="w-5 h-5 text-white" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-12 gap-2 flex-grow">
+                                    <input type="text" value={ex.name} onChange={e => handleExerciseChange(index, 'name', e.target.value)} placeholder="Exercise Name" className="col-span-5 bg-gray-700 border border-gray-600 p-1.5 rounded text-sm text-white focus:border-amber-500 outline-none"/>
+                                    <input type="text" value={ex.sets} onChange={e => handleExerciseChange(index, 'sets', e.target.value)} placeholder="Sets" className="col-span-2 bg-gray-700 border border-gray-600 p-1.5 rounded text-sm text-white focus:border-amber-500 outline-none"/>
+                                    <input type="text" value={ex.reps} onChange={e => handleExerciseChange(index, 'reps', e.target.value)} placeholder="Reps" className="col-span-2 bg-gray-700 border border-gray-600 p-1.5 rounded text-sm text-white focus:border-amber-500 outline-none"/>
+                                    <button type="button" onClick={() => removeExercise(index)} className="col-span-3 text-red-400 hover:text-red-300 text-xs font-bold uppercase border border-red-900/30 bg-red-900/10 rounded">Remove</button>
+                                </div>
                             </div>
                         ))}
-                        <button type="button" onClick={addExercise} className="text-sm text-green-400 hover:text-green-300">+ Add Exercise</button>
+                        <button type="button" onClick={addExercise} className="w-full py-2 border border-dashed border-gray-600 text-gray-400 hover:text-white hover:border-amber-500 rounded text-sm transition-colors">
+                            + Add Exercise
+                        </button>
                     </div>
                 )}
 
 
                 <div className="flex justify-between pt-4 mt-4 border-t border-gray-700">
-                    <button type="button" onClick={handleMarkAsRestDay} className="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-500">
+                    <button type="button" onClick={handleMarkAsRestDay} className="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-500 transition-colors">
                         Mark as Rest Day
                     </button>
                     <div>
-                         <button type="button" onClick={onClose} className="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-500 mr-2">
+                         <button type="button" onClick={onClose} className="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-500 mr-2 transition-colors">
                             Cancel
                         </button>
-                        <button type="submit" className="bg-amber-500 text-gray-900 font-bold py-2 px-4 rounded-lg hover:bg-amber-400">
+                        <button type="submit" className="bg-amber-500 text-gray-900 font-bold py-2 px-4 rounded-lg hover:bg-amber-400 transition-colors shadow-lg">
                             Save Plan
                         </button>
                     </div>
                 </div>
             </form>
+            <ExerciseDemoModal 
+                isOpen={!!demoModalExercise} 
+                onClose={() => setDemoModalExercise(null)} 
+                exerciseName={demoModalExercise || ''} 
+            />
         </Modal>
     );
 };

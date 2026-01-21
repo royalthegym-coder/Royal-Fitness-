@@ -4,29 +4,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111827" />
     <title>Royal The Gym Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
-  <script async src="https://ga.jspm.io/npm:es-module-shims@1.10.0/dist/es-module-shims.js"></script>
-  <script type="importmap">
+    <script async src="https://ga.jspm.io/npm:es-module-shims@1.10.0/dist/es-module-shims.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Russo+One&display=swap" rel="stylesheet">
+    <script type="importmap">
 {
   "imports": {
     "@google/genai": "https://esm.sh/@google/genai",
     "openai": "https://esm.sh/openai@4.52.0",
-    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
-    "react-dom": "https://esm.sh/react-dom@18.3.1",
-    "recharts": "https://esm.sh/recharts@2.12.7?external=react,react-dom",
-    "react": "https://esm.sh/react@18.3.1",
-    "react/": "https://esm.sh/react@18.3.1/",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "react": "https://esm.sh/react@18.2.0",
+    "react/": "https://esm.sh/react@18.2.0/",
+    "recharts": "https://esm.sh/recharts@2.12.0?external=react,react-dom",
     "@heroicons/react/": "https://esm.sh/@heroicons/react@2.1.3/",
     "three": "https://esm.sh/three@0.164.1",
     "html2canvas": "https://esm.sh/html2canvas@1.4.1",
     "jspdf": "https://esm.sh/jspdf@2.5.1",
     "qrcode": "https://esm.sh/qrcode@1.5.3",
+    "clsx": "https://esm.sh/clsx@2.1.0",
+    "tailwind-merge": "https://esm.sh/tailwind-merge@2.2.1",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
   }
 }
 </script>
-  <script>
+    <script>
       // Apply theme from localStorage before React loads to prevent FOUC
       if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
         document.documentElement.classList.add('dark');
@@ -34,16 +38,86 @@
         document.documentElement.classList.remove('dark');
       }
 
+      // Apply Performance Mode immediately
+      if (localStorage.getItem('royal_perf_mode') === 'turbo') {
+        document.body.classList.add('turbo-mode');
+      }
+
       // Inject API Keys for Royal The Gym AI Features
       window.process = {
         env: {
-          API_KEY: 'AIzaSyDEFXd4jSoKsSsZlnwRQhES8EvFL6kjuAE',
-          OPENAI_API_KEY: '' // Configurable via Settings
-        }
+          API_KEY: '', // This will be populated by the environment.
+          OPENAI_API_KEY: '' 
+        },
+        cwd: () => '/'
       };
     </script>
-</head>
-  <body>
+    <style>
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background-color: rgba(125, 125, 125, 0.3);
+        border-radius: 10px;
+        border: 2px solid transparent;
+        background-clip: content-box;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(125, 125, 125, 0.5);
+      }
+      ::selection {
+        background-color: #f59e0b;
+        color: #111827;
+      }
+      @keyframes progress {
+        0% { width: 0; }
+        100% { width: 100%; }
+      }
+      .animate-progress {
+        animation: progress 2s ease-in-out infinite;
+      }
+      /* Ensure root takes full viewport */
+      #root {
+        height: 100vh;
+        width: 100vw;
+      }
+      .font-signature {
+        font-family: 'Great Vibes', cursive;
+      }
+      .font-display {
+        font-family: 'Russo One', sans-serif;
+      }
+
+      /* --- TURBO MODE PERFORMANCE OPTIMIZATIONS --- */
+      body.turbo-mode * {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        box-shadow: none !important;
+        transition: none !important;
+        animation: none !important;
+        text-shadow: none !important;
+      }
+      
+      /* Keep essential structural animations if needed, but disable cosmetic ones */
+      body.turbo-mode .animate-spin {
+        animation: spin 1s linear infinite !important; /* Keep loading spinners */
+      }
+      
+      body.turbo-mode .bg-white\/5,
+      body.turbo-mode .bg-white\/10, 
+      body.turbo-mode .bg-white\/80,
+      body.turbo-mode .dark\:bg-gray-800\/30,
+      body.turbo-mode .dark\:bg-gray-900\/50 {
+        background-color: #1f2937 !important; /* Solid fallback color for glassmorphism */
+        opacity: 1 !important;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 dark:bg-gray-900 overflow-hidden m-0 p-0">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
   </body>

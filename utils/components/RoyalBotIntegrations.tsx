@@ -18,6 +18,7 @@ import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { OpenSourceIcon } from './icons/OpenSourceIcon';
 import { CloudArrowUpIcon } from './icons/CloudArrowUpIcon';
 import { StarIcon } from './icons/StarIcon';
+import { VideoCameraIcon } from './icons/VideoCameraIcon';
 import { getComplexResponse } from '../../lib/gemini';
 
 // --- TYPES ---
@@ -51,17 +52,18 @@ const RoyalBotIntegrations: React.FC = () => {
     const [processingBot, setProcessingBot] = useState<string | null>(null);
     const [logs, setLogs] = useState<string[]>([]);
     
-    // --- MARKETPLACE DATA ---
+    // --- MARKETPLACE DATA (Latest Open Source 2025) ---
     const [marketBots, setMarketBots] = useState<MarketBot[]>([
-        { id: 'llama3', name: 'Llama 3.1 (70B)', developer: 'Meta AI', description: 'State-of-the-art open source LLM for complex reasoning and chat.', category: 'LLM', downloads: '12M+', isInstalled: false, rating: 4.9 },
-        { id: 'gemma2', name: 'Gemma 2 (27B)', developer: 'Google DeepMind', description: 'High-performance open model optimized for efficiency and reasoning.', category: 'LLM', downloads: '5M+', isInstalled: false, rating: 4.8 },
-        { id: 'mistral', name: 'Mixtral 8x22B', developer: 'Mistral AI', description: 'High-efficiency mixture-of-experts model for fast gym operations.', category: 'LLM', downloads: '8M+', isInstalled: false, rating: 4.7 },
-        { id: 'qwen', name: 'Qwen 2.5-Coder', developer: 'Alibaba Cloud', description: 'Specialized in generating workout scripts and automation code.', category: 'LLM', downloads: '3M+', isInstalled: false, rating: 4.6 },
-        { id: 'sdxl', name: 'Stable Diffusion XL', developer: 'Stability AI', description: 'Generates high-quality marketing posters for gym events.', category: 'Vision', downloads: '25M+', isInstalled: false, rating: 4.8 },
-        { id: 'yolo', name: 'YOLOv9', developer: 'OpenSource', description: 'Real-time object detection for equipment usage tracking.', category: 'Vision', downloads: '10M+', isInstalled: false, rating: 4.5 },
-        { id: 'whisper', name: 'Whisper V3', developer: 'OpenAI (OSS)', description: 'Industry-leading speech recognition for voice commands.', category: 'Audio', downloads: '50M+', isInstalled: false, rating: 4.9 },
-        { id: 'openpose', name: 'OpenPose', developer: 'CMU', description: 'Real-time multi-person keypoint detection for form analysis.', category: 'Vision', downloads: '5M+', isInstalled: false, rating: 4.4 },
-        { id: 'rasa', name: 'Rasa Core', developer: 'Rasa', description: 'Open source conversational AI framework for member support.', category: 'Agent', downloads: '15M+', isInstalled: false, rating: 4.3 },
+        { id: 'svd-xt', name: 'SVD-XT Motion', developer: 'Stability AI (OSS)', description: 'Synthesizes cinematic workout demonstration videos from a single static image.', category: 'Vision', downloads: '12M+', isInstalled: false, rating: 4.9 },
+        { id: 'deepseek-r1', name: 'DeepSeek R1', developer: 'DeepSeek', description: 'Advanced reasoning model for complex biomechanics and logic analysis.', category: 'LLM', downloads: '18M+', isInstalled: false, rating: 4.9 },
+        { id: 'llama3.2', name: 'Llama 3.2 (90B)', developer: 'Meta AI', description: 'Multimodal powerhouse for vision-based workout tracking and text guidance.', category: 'LLM', downloads: '25M+', isInstalled: false, rating: 4.9 },
+        { id: 'flux1', name: 'Flux.1 [dev]', developer: 'Black Forest Labs', description: 'Next-gen image generation for hyper-realistic marketing assets.', category: 'Vision', downloads: '8M+', isInstalled: false, rating: 4.8 },
+        { id: 'phi3.5', name: 'Phi-3.5 Vision', developer: 'Microsoft', description: 'Lightweight vision model for edge devices and kiosk cameras.', category: 'Vision', downloads: '5M+', isInstalled: false, rating: 4.7 },
+        { id: 'mistral-nemo', name: 'Mistral NeMo', developer: 'Mistral x NVIDIA', description: 'Optimized for enterprise gym operations and scheduling.', category: 'LLM', downloads: '3M+', isInstalled: false, rating: 4.6 },
+        { id: 'whisper-v3', name: 'Whisper V3 Turbo', developer: 'OpenAI (OSS)', description: 'Ultra-fast speech recognition for noisy gym environments.', category: 'Audio', downloads: '50M+', isInstalled: false, rating: 4.9 },
+        { id: 'openpose-rt', name: 'OpenPose RT', developer: 'CMU', description: 'Real-time multi-person keypoint detection for form correction.', category: 'Vision', downloads: '12M+', isInstalled: true, rating: 4.5 }, 
+        { id: 'audioldm', name: 'AudioLDM-2', developer: 'OpenSource', description: 'Generates custom ambient workout music tracks.', category: 'Audio', downloads: '2M+', isInstalled: false, rating: 4.3 },
+        { id: 'qwen2.5', name: 'Qwen 2.5 Math', developer: 'Alibaba Cloud', description: 'Specialized in calculating complex nutritional macros and progressive overload.', category: 'Agent', downloads: '6M+', isInstalled: false, rating: 4.7 },
     ]);
 
     // --- INSTALLED BOTS CONFIGURATIONS ---
@@ -69,7 +71,7 @@ const RoyalBotIntegrations: React.FC = () => {
          {
             id: 'google_neural',
             name: 'Google Profile Mind',
-            provider: 'Gemini 2.0 Autonomous',
+            provider: 'Gemini 2.0 Flash',
             description: 'Continuously optimizes Maps ranking, SEO descriptions, and auto-responds to reviews.',
             icon: <SparkleIcon className="w-6 h-6" />,
             status: 'Processing',
@@ -78,10 +80,21 @@ const RoyalBotIntegrations: React.FC = () => {
             category: 'neural'
         },
         {
+            id: 'video_motion_svd',
+            name: 'AI Video Renderer',
+            provider: 'Stability SVD-XT',
+            description: 'Generates high-fidelity cardio preview videos locally using open-source diffusion models.',
+            icon: <VideoCameraIcon className="w-6 h-6" />,
+            status: 'Active',
+            stats: [{ label: 'FPS Rendered', value: '30' }, { label: 'GPU Usage', value: '82%' }],
+            color: 'text-pink-400',
+            category: 'experience'
+        },
+        {
             id: 'market_watch',
             name: 'Market Watchdog',
-            provider: 'Predictive Trends API',
-            description: 'Scans local competitor reviews and pricing to suggest strategic adjustments.',
+            provider: 'DeepSeek R1 Engine',
+            description: 'Scans local competitor reviews and pricing to suggest strategic adjustments using Chain-of-Thought.',
             icon: <TrendingUpIcon className="w-6 h-6" />,
             status: 'Active',
             stats: [{ label: 'Competitors', value: 5 }, { label: 'Gap Analysis', value: 'Ready' }],
@@ -146,7 +159,7 @@ const RoyalBotIntegrations: React.FC = () => {
         {
             id: 'fitness_ai',
             name: 'Hyper-Trainer',
-            provider: 'FitnessAI Engine',
+            provider: 'Llama 3.2 Vision',
             description: 'Generates personalized daily workout plans based on previous log performance (Progressive Overload).',
             icon: <DumbbellIcon className="w-6 h-6" />,
             status: 'Active',
@@ -173,13 +186,14 @@ const RoyalBotIntegrations: React.FC = () => {
             const time = new Date().toLocaleTimeString();
             const actions = [
                 "Gemini 2.0: Optimized Google Maps Keywords.",
-                "Gemini 2.0: Auto-Replied to 5-star review.",
+                "DeepSeek R1: Analyzing competitor pricing strategy.",
                 "Okfit: Synced 3 biometric entries.",
                 "GymOwl: Sent 2 fee reminders via WhatsApp.",
-                "FitnessAI: Updated Aarav's leg day volume.",
+                "Llama 3.2: Updated Aarav's leg day volume.",
                 "Billing: Generated Invoice #INV-2024-89.",
-                "Security: Gate 1 Locked (Member Expired).",
-                "Llama 3: Analyzing customer sentiment..."
+                "Flux.1: Generating marketing poster for 'Summer Shred'.",
+                "SVD-XT: Rendering cardio motion preview for 'Neon HIIT'.",
+                "Qwen 2.5: Recalculating macros for diet plans."
             ];
             const randomAction = actions[Math.floor(Math.random() * actions.length)];
             setLogs(prev => [`[${time}] ${randomAction}`, ...prev].slice(0, 8));
@@ -198,6 +212,8 @@ const RoyalBotIntegrations: React.FC = () => {
                 msg = "Okfit: Biometric database synced with cloud. 2 devices updated.";
             } else if (botId.includes('google')) {
                 msg = "Gemini: SEO Audit complete. Keywords injected into profile.";
+            } else if (botId.includes('svd')) {
+                msg = "SVD-XT: 1080p Motion Guide rendered for active session.";
             } else if (botId.includes('fitness')) {
                 // Actual AI call simulation
                 try {
@@ -206,12 +222,12 @@ const RoyalBotIntegrations: React.FC = () => {
                 } catch {
                     msg = "FitnessAI: Optimized 12 workout plans.";
                 }
-            } else if (botId.includes('llama')) {
-                msg = "Llama 3: Processed 500kb of local chat logs for sentiment analysis.";
+            } else if (botId.includes('market')) {
+                msg = "DeepSeek R1: Detected competitor price drop. Suggesting 10% flash sale.";
             } else if (botId.includes('openpose')) {
                 msg = "OpenPose: Calibrated camera feed for squat rack #2.";
-            } else if (botId.includes('gemma')) {
-                msg = "Gemma 2: Summarized 50 member feedback forms.";
+            } else if (botId.includes('mistral')) {
+                msg = "Mistral NeMo: Summarized 50 member feedback forms.";
             } else if (botId.includes('yolo')) {
                 msg = "YOLOv9: Detected 'Dumbbell Rack' empty. Alert sent to housekeeping.";
             }
@@ -230,7 +246,7 @@ const RoyalBotIntegrations: React.FC = () => {
             provider: bot.developer,
             description: bot.description,
             icon: bot.category === 'LLM' ? <BotIcon className="w-6 h-6"/> : 
-                  bot.category === 'Vision' ? <OpenSourceIcon className="w-6 h-6"/> :
+                  bot.category === 'Vision' ? <VideoCameraIcon className="w-6 h-6"/> :
                   bot.category === 'Audio' ? <BellIcon className="w-6 h-6"/> : <SparkleIcon className="w-6 h-6"/>,
             status: 'Deploying',
             stats: [{ label: 'Uptime', value: '0%' }, { label: 'Requests', value: 0 }],
@@ -262,14 +278,13 @@ const RoyalBotIntegrations: React.FC = () => {
                         Royal Autopilot <span className="text-xs align-top ml-2 bg-amber-500 text-black px-2 py-0.5 rounded font-bold">LATEST AI CORE</span>
                     </h1>
                     <p className="text-gray-400 text-sm mt-2 max-w-xl">
-                        Unified automation suite integrating <strong>Gemini 2.0</strong>, <strong>Okfit</strong>, <strong>GymOwl</strong>, and <strong>Open Source</strong> protocols. 
-                        Autonomous optimization for Google Business, Operations, and Revenue.
+                        Unified automation suite integrating <strong>Gemini 2.0</strong>, <strong>DeepSeek R1</strong>, <strong>Stable Video Diffusion</strong>, and <strong>Open Source</strong> protocols. 
                     </p>
                 </div>
                 <div className="relative z-10 flex flex-col items-end">
                     <div className="flex items-center gap-2 mb-2">
                         <span className="flex h-3 w-3">
-                            <span className="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-green-400 opacity-75"></span>
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                         </span>
                         <span className="text-green-400 font-mono font-bold text-sm">SYSTEM OPTIMAL</span>
@@ -290,7 +305,7 @@ const RoyalBotIntegrations: React.FC = () => {
                     <TrendingUpIcon className="w-4 h-4 mr-2" /> Growth (GymOwl)
                 </button>
                 <button onClick={() => setActiveTab('experience')} className={`pb-2 px-4 text-sm font-bold transition-colors whitespace-nowrap flex items-center ${activeTab === 'experience' ? 'border-b-2 border-indigo-400 text-indigo-400' : 'text-gray-400 hover:text-white'}`}>
-                    <DumbbellIcon className="w-4 h-4 mr-2" /> Experience (FitnessAI)
+                    <DumbbellIcon className="w-4 h-4 mr-2" /> Experience (VideoAI)
                 </button>
                 <button onClick={() => setActiveTab('store')} className={`pb-2 px-4 text-sm font-bold transition-colors whitespace-nowrap flex items-center ${activeTab === 'store' ? 'border-b-2 border-purple-400 text-purple-400' : 'text-gray-400 hover:text-white'}`}>
                     <OpenSourceIcon className="w-4 h-4 mr-2" /> Bot Store (OSS)
@@ -303,7 +318,7 @@ const RoyalBotIntegrations: React.FC = () => {
                     <div className="flex items-center justify-between">
                         <h2 className="text-xl font-bold text-white flex items-center">
                             <CloudArrowUpIcon className="w-6 h-6 mr-2 text-purple-400" />
-                            Open Source Model Hub
+                            Open Source Model Hub (2025 Edition)
                         </h2>
                         <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-1 rounded border border-purple-500/30">Community Edition</span>
                     </div>
@@ -314,7 +329,7 @@ const RoyalBotIntegrations: React.FC = () => {
                                 <div className="flex justify-between items-start mb-4">
                                     <div className="p-3 bg-gray-800 rounded-lg">
                                         {bot.category === 'LLM' ? <BotIcon className="w-6 h-6 text-purple-400"/> :
-                                         bot.category === 'Vision' ? <OpenSourceIcon className="w-6 h-6 text-blue-400"/> :
+                                         bot.category === 'Vision' ? <VideoCameraIcon className="w-6 h-6 text-blue-400"/> :
                                          <SparkleIcon className="w-6 h-6 text-green-400"/>}
                                     </div>
                                     <div className="flex flex-col items-end">
@@ -403,7 +418,7 @@ const RoyalBotIntegrations: React.FC = () => {
                     {logs.map((log, i) => (
                         <div key={i} className="flex items-start text-gray-300 border-b border-gray-800/50 pb-1 last:border-0">
                             <span className="text-green-500 mr-2">➜</span>
-                            <span className={log.includes('Gemini') ? 'text-amber-300' : log.includes('Llama') ? 'text-purple-300' : log.includes('Okfit') ? 'text-cyan-300' : log.includes('GymOwl') ? 'text-green-300' : 'text-gray-300'}>
+                            <span className={log.includes('Gemini') ? 'text-amber-300' : log.includes('Llama') || log.includes('DeepSeek') || log.includes('SVD') ? 'text-purple-300' : log.includes('Okfit') ? 'text-cyan-300' : log.includes('GymOwl') ? 'text-green-300' : 'text-gray-300'}>
                                 {log}
                             </span>
                         </div>

@@ -9,7 +9,20 @@ import AIWorkoutGeneratorModal from './common/AIWorkoutGeneratorModal';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { sendWorkoutPlanNotification } from '../../lib/whatsapp';
 import { VideoCameraIcon } from './icons/VideoCameraIcon';
-import ExerciseDemoModal from './common/ExerciseDemoModal';
+import ExerciseDemoModal, { getMediaForExercise } from './common/ExerciseDemoModal';
+
+// --- ICONS ---
+const FilterIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293.707L3.293 7.293A1 1 0 013 6.586V4z" />
+    </svg>
+);
+
+const SortIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+    </svg>
+);
 
 const MemberScheduler: React.FC = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -139,100 +152,195 @@ const MemberScheduler: React.FC = () => {
     );
 };
 
-const WorkoutTemplateCard: React.FC<{ template: WorkoutTemplate, onViewDemo: (name: string) => void }> = ({ template, onViewDemo }) => (
-    <Card className="flex flex-col h-full relative">
-        {template.isNew && (
-            <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center shadow-lg">
-                <SparkleIcon className="w-3 h-3 mr-1" />
-                AI Generated
-            </div>
-        )}
-        <div className="flex-grow">
-            <h3 className="text-lg font-bold text-amber-400">{template.name}</h3>
-            <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                template.level === 'Beginner' ? 'bg-green-700 text-green-200' :
-                template.level === 'Intermediate' ? 'bg-yellow-700 text-yellow-200' :
-                'bg-red-700 text-red-200'
-            }`}>{template.level}</span>
-            <div className="mt-4 space-y-2 text-sm text-gray-300">
-                {template.content ? (
-                    <div className="prose prose-invert prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: template.content.replace(/\n/g, '<br />') }} />
-                ) : (
-                    <>
-                        {template.exercises && template.exercises.map((ex, index) => (
-                            <div key={`ex-${index}`} className="flex justify-between items-center">
-                                <span className="flex items-center">
-                                    {ex.name}
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); onViewDemo(ex.name); }}
-                                        className="ml-2 text-gray-500 hover:text-amber-400 transition-colors"
-                                        title="View Demo"
-                                    >
-                                        <VideoCameraIcon className="w-4 h-4" />
-                                    </button>
-                                </span>
-                                <span className="font-mono text-gray-400">{ex.sets} x {ex.reps}</span>
-                            </div>
-                        ))}
-                        {template.sections && template.sections.map((section, sIndex) => (
-                            <div key={`sec-${sIndex}`} className="pt-2">
-                                <p className="font-semibold text-amber-300">{section.title}</p>
-                                <ul className="pl-4 space-y-1">
-                                    {section.exercises.map((ex, exIndex) => (
-                                        <li key={`sec-${sIndex}-ex-${exIndex}`} className="flex justify-between items-center">
-                                            <span className="flex items-center">
-                                                {ex.name}
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); onViewDemo(ex.name); }}
-                                                    className="ml-2 text-gray-500 hover:text-amber-400 transition-colors"
-                                                    title="View Demo"
-                                                >
-                                                    <VideoCameraIcon className="w-4 h-4" />
-                                                </button>
-                                            </span>
-                                            <span className="font-mono text-gray-400">{ex.sets} x {ex.reps}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        ))}
-                    </>
-                )}
-            </div>
-        </div>
-        <div className="mt-4 pt-4 border-t border-gray-700">
-            <button className="text-sm w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg transition-colors">
-                Edit Template
-            </button>
-        </div>
-    </Card>
-);
+const WorkoutTemplateCard: React.FC<{ template: WorkoutTemplate }> = ({ template }) => {
+    const [demoModalExercise, setDemoModalExercise] = useState<string | null>(null);
 
-const WorkoutLibrary: React.FC<{ templates: WorkoutTemplate[], onViewDemo: (name: string) => void }> = ({ templates, onViewDemo }) => {
-    const beginnerPlans = templates.filter(t => t.level === 'Beginner');
-    const intermediatePlans = templates.filter(t => t.level === 'Intermediate');
-    const advancedPlans = templates.filter(t => t.level === 'Advanced');
+    const handleOpenDemoModal = (e: React.MouseEvent, name: string) => {
+        e.stopPropagation();
+        setDemoModalExercise(name);
+    };
+
+    const getDifficultyVisuals = (level: string) => {
+        switch(level) {
+            case 'Beginner': return { label: 'Easy', color: 'bg-green-500', text: 'text-green-400', bars: 1 };
+            case 'Intermediate': return { label: 'Medium', color: 'bg-yellow-500', text: 'text-yellow-400', bars: 2 };
+            case 'Advanced': return { label: 'Hard', color: 'bg-red-500', text: 'text-red-400', bars: 3 };
+            default: return { label: 'Unknown', color: 'bg-gray-500', text: 'text-gray-400', bars: 0 };
+        }
+    };
+
+    const diff = getDifficultyVisuals(template.level);
 
     return (
-        <div className="space-y-12">
-            <section>
-                <h2 className="text-2xl font-semibold text-gray-200 mb-6 pb-2 border-b-2 border-green-500">Beginner Workouts</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {beginnerPlans.map(template => <WorkoutTemplateCard key={template.id} template={template} onViewDemo={onViewDemo} />)}
+        <Card className="flex flex-col h-full relative group hover:border-amber-500/50 transition-colors">
+            {template.isNew && (
+                <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center shadow-lg z-10">
+                    <SparkleIcon className="w-3 h-3 mr-1" />
+                    AI Generated
                 </div>
-            </section>
-             <section>
-                <h2 className="text-2xl font-semibold text-gray-200 mb-6 pb-2 border-b-2 border-yellow-500">Intermediate Workouts</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {intermediatePlans.map(template => <WorkoutTemplateCard key={template.id} template={template} onViewDemo={onViewDemo} />)}
+            )}
+            <div className="flex-grow">
+                <div className="flex justify-between items-start mb-2">
+                    <h3 className="text-lg font-bold text-amber-400 leading-tight pr-2">{template.name}</h3>
+                    
+                    {/* Difficulty Badge */}
+                    <div className="flex items-center gap-1.5 bg-gray-800 border border-gray-700 px-2 py-1 rounded-full shadow-sm flex-shrink-0">
+                        <div className="flex gap-0.5 items-end h-3">
+                            <div className={`w-1 rounded-[1px] ${diff.bars >= 1 ? diff.color : 'bg-gray-700'} h-1.5`}></div>
+                            <div className={`w-1 rounded-[1px] ${diff.bars >= 2 ? diff.color : 'bg-gray-700'} h-2`}></div>
+                            <div className={`w-1 rounded-[1px] ${diff.bars >= 3 ? diff.color : 'bg-gray-700'} h-2.5`}></div>
+                        </div>
+                        <span className={`text-[10px] font-bold uppercase ${diff.text}`}>{diff.label}</span>
+                    </div>
                 </div>
-            </section>
-             <section>
-                <h2 className="text-2xl font-semibold text-gray-200 mb-6 pb-2 border-b-2 border-red-500">Advanced Workouts</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {advancedPlans.map(template => <WorkoutTemplateCard key={template.id} template={template} onViewDemo={onViewDemo} />)}
+                
+                <div className="mt-4 space-y-2 text-sm text-gray-300">
+                    {template.content ? (
+                        <div className="prose prose-invert prose-sm max-w-none line-clamp-6" dangerouslySetInnerHTML={{ __html: template.content.replace(/\n/g, '<br />') }} />
+                    ) : (
+                        <>
+                            {template.exercises && template.exercises.slice(0, 3).map((ex, index) => (
+                                <div 
+                                    key={`ex-${index}`} 
+                                    onClick={(e) => handleOpenDemoModal(e, ex.name)}
+                                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-700/50 cursor-pointer border border-transparent hover:border-gray-600 transition-all"
+                                >
+                                    <div className="w-10 h-10 bg-black rounded-md flex-shrink-0 relative overflow-hidden">
+                                        <img src={getMediaForExercise(ex.name)} alt="demo" className="w-full h-full object-cover opacity-80" />
+                                    </div>
+                                    <div className="flex-grow min-w-0">
+                                        <p className="font-semibold text-white text-xs truncate">{ex.name}</p>
+                                        <p className="font-mono text-[10px] text-gray-400">{ex.sets} x {ex.reps}</p>
+                                    </div>
+                                </div>
+                            ))}
+                            {template.sections && template.sections.flatMap(s => s.exercises).slice(0, 3).map((ex, index) => (
+                                <div 
+                                    key={`sec-ex-${index}`} 
+                                    onClick={(e) => handleOpenDemoModal(e, ex.name)}
+                                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-700/50 cursor-pointer border border-transparent hover:border-gray-600 transition-all"
+                                >
+                                    <div className="w-10 h-10 bg-black rounded-md flex-shrink-0 relative overflow-hidden">
+                                        <img src={getMediaForExercise(ex.name)} alt="demo" className="w-full h-full object-cover opacity-80" />
+                                    </div>
+                                    <div className="flex-grow min-w-0">
+                                        <p className="font-semibold text-white text-xs truncate">{ex.name}</p>
+                                        <p className="font-mono text-[10px] text-gray-400">{ex.sets} x {ex.reps}</p>
+                                    </div>
+                                </div>
+                            ))}
+                            {(template.exercises?.length || 0) + (template.sections?.flatMap(s => s.exercises).length || 0) > 3 && (
+                                <p className="text-xs text-gray-500 text-center italic mt-1">+ more exercises</p>
+                            )}
+                        </>
+                    )}
                 </div>
-            </section>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-700">
+                <button className="text-sm w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg transition-colors border border-gray-600 hover:border-gray-500">
+                    View Details
+                </button>
+            </div>
+            <ExerciseDemoModal isOpen={!!demoModalExercise} onClose={() => setDemoModalExercise(null)} exerciseName={demoModalExercise || ''} />
+        </Card>
+    );
+};
+
+
+const WorkoutLibrary: React.FC<{ templates: WorkoutTemplate[] }> = ({ templates }) => {
+    const [filterDifficulty, setFilterDifficulty] = useState<string>('All');
+    const [sortOption, setSortOption] = useState<string>('Default');
+
+    const difficultyMap: Record<string, number> = {
+        'Beginner': 1,
+        'Intermediate': 2,
+        'Advanced': 3
+    };
+
+    const filteredTemplates = useMemo(() => {
+        let result = [...templates];
+
+        // 1. Filter
+        if (filterDifficulty !== 'All') {
+            result = result.filter(t => t.level === filterDifficulty);
+        }
+
+        // 2. Sort
+        if (sortOption === 'Difficulty (Easy → Hard)') {
+            result.sort((a, b) => difficultyMap[a.level] - difficultyMap[b.level]);
+        } else if (sortOption === 'Difficulty (Hard → Easy)') {
+            result.sort((a, b) => difficultyMap[b.level] - difficultyMap[a.level]);
+        } else if (sortOption === 'Name') {
+            result.sort((a, b) => a.name.localeCompare(b.name));
+        }
+
+        return result;
+    }, [templates, filterDifficulty, sortOption]);
+
+    return (
+        <div className="space-y-6">
+            {/* Toolbar */}
+            <Card className="p-4 bg-gray-800 border-gray-700">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center gap-4 w-full md:w-auto">
+                        <div className="flex items-center bg-gray-900 rounded-lg p-1 border border-gray-600">
+                            <div className="px-3 text-gray-400">
+                                <FilterIcon />
+                            </div>
+                            <select 
+                                value={filterDifficulty}
+                                onChange={(e) => setFilterDifficulty(e.target.value)}
+                                className="bg-transparent text-white text-sm font-medium py-2 pr-8 focus:outline-none cursor-pointer"
+                            >
+                                <option value="All">All Levels</option>
+                                <option value="Beginner">Easy</option>
+                                <option value="Intermediate">Medium</option>
+                                <option value="Advanced">Hard</option>
+                            </select>
+                        </div>
+
+                        <div className="flex items-center bg-gray-900 rounded-lg p-1 border border-gray-600">
+                            <div className="px-3 text-gray-400">
+                                <SortIcon />
+                            </div>
+                            <select 
+                                value={sortOption}
+                                onChange={(e) => setSortOption(e.target.value)}
+                                className="bg-transparent text-white text-sm font-medium py-2 pr-8 focus:outline-none cursor-pointer"
+                            >
+                                <option value="Default">Newest First</option>
+                                <option value="Name">Name (A-Z)</option>
+                                <option value="Difficulty (Easy → Hard)">Difficulty (Low to High)</option>
+                                <option value="Difficulty (Hard → Easy)">Difficulty (High to Low)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div className="text-sm text-gray-400">
+                        Showing <span className="text-white font-bold">{filteredTemplates.length}</span> templates
+                    </div>
+                </div>
+            </Card>
+
+            {/* Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {filteredTemplates.map(template => (
+                    <WorkoutTemplateCard key={template.id} template={template} />
+                ))}
+            </div>
+            
+            {filteredTemplates.length === 0 && (
+                <div className="text-center py-20 bg-gray-900/50 rounded-xl border-2 border-dashed border-gray-700">
+                    <DumbbellIcon className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-400 font-medium">No workouts found matching these filters.</p>
+                    <button 
+                        onClick={() => { setFilterDifficulty('All'); setSortOption('Default'); }}
+                        className="mt-4 text-amber-500 hover:text-amber-400 text-sm font-bold underline"
+                    >
+                        Clear Filters
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
@@ -243,20 +351,16 @@ const Workouts: React.FC = () => {
     const [templates, setTemplates] = useState<WorkoutTemplate[]>(INITIAL_WORKOUT_TEMPLATES);
     const [isGeneratorModalOpen, setIsGeneratorModalOpen] = useState(false);
     
-    // Demo Modal State
-    const [demoExercise, setDemoExercise] = useState<string | null>(null);
-
-    const handleSaveTemplate = (newTemplateData: { name: string; level: 'Beginner' | 'Intermediate' | 'Advanced'; content: string }) => {
+    const handleSaveTemplate = (newTemplateData: { name: string; level: 'Beginner' | 'Intermediate' | 'Advanced'; content?: string; exercises?: WorkoutExercise[] }) => {
         const newTemplate: WorkoutTemplate = {
             id: templates.length + 100, // Use a high ID to avoid collision
             name: newTemplateData.name,
             level: newTemplateData.level,
             content: newTemplateData.content,
-            exercises: [], // AI-generated content is not parsed into exercises
+            exercises: newTemplateData.exercises, // Save structured exercises if available
             isNew: true, // Mark as new
         };
-        setTemplates(prev => [...prev, newTemplate]);
-        setIsGeneratorModalOpen(false);
+        setTemplates(prev => [newTemplate, ...prev]); // Add to top
     };
 
     return (
@@ -269,10 +373,10 @@ const Workouts: React.FC = () => {
                  {activeTab === 'library' && (
                     <button
                         onClick={() => setIsGeneratorModalOpen(true)}
-                        className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-500 transition-colors flex items-center"
+                        className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-500 transition-colors flex items-center shadow-lg transform hover:scale-105"
                     >
                         <SparkleIcon className="w-5 h-5 mr-2" />
-                        Create New Template with AI
+                        Generate AI Workout
                     </button>
                 )}
             </div>
@@ -288,7 +392,7 @@ const Workouts: React.FC = () => {
                 </nav>
             </div>
             
-            {activeTab === 'library' ? <WorkoutLibrary templates={templates} onViewDemo={(name) => setDemoExercise(name)} /> : <MemberScheduler />}
+            {activeTab === 'library' ? <WorkoutLibrary templates={templates} /> : <MemberScheduler />}
 
             {isGeneratorModalOpen && (
                 <AIWorkoutGeneratorModal
@@ -297,13 +401,6 @@ const Workouts: React.FC = () => {
                     onSave={handleSaveTemplate}
                 />
             )}
-
-            {/* Exercise Demo Modal */}
-            <ExerciseDemoModal 
-                isOpen={!!demoExercise} 
-                onClose={() => setDemoExercise(null)} 
-                exerciseName={demoExercise || ''} 
-            />
         </div>
     );
 };

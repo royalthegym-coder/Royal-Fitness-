@@ -1,49 +1,108 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import Card from './common/Card';
-import { GYM_INFO, INITIAL_TRANSACTIONS, INITIAL_INVOICES, INITIAL_MEMBERS } from '../../constants';
-import { Transaction, Invoice } from '../../types';
+import { GYM_INFO } from '../../constants';
+import { Transaction, Invoice, InvoiceItem } from '../../types';
 import { CopyIcon } from './icons/CopyIcon';
 import { toDataURL } from 'qrcode';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { sendPaymentReceipt } from '../../lib/whatsapp';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import ReceiptTemplate from './common/ReceiptTemplate';
+import { SparkleIcon } from './icons/SparkleIcon';
+import { DumbbellIcon } from './icons/DumbbellIcon';
+import { UserIcon } from './icons/UserIcon';
+import { useData } from '../context/DataProvider'; // Import Context
+
+export const DownloadIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+    </svg>
+);
 
 const Payment: React.FC = () => {
+    // Consume Context
+    const { invoices, updateInvoiceStatus, transactions, addTransaction, members } = useData();
+
     const [activeTab, setActiveTab] = useState<'qr' | 'cash'>('qr');
     
     // Form State
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | ''>('');
     const [memberName, setMemberName] = useState('');
-    const [memberPhone, setMemberPhone] = useState(''); // New state for receipt
+    const [memberPhone, setMemberPhone] = useState('');
     const [amount, setAmount] = useState('');
+    const [packageName, setPackageName] = useState('');
+    const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[] | undefined>(undefined);
     const [sendReceipt, setSendReceipt] = useState(true);
+
+    // Manual Entry Smart State
+    const [manualItems, setManualItems] = useState<InvoiceItem[]>([]);
 
     const [generatedQr, setGeneratedQr] = useState<{ url: string; upi: string; name: string; amt: string; } | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
     const [copied, setCopied] = useState(false);
 
-    // Filter only pending/overdue invoices
-    const pendingInvoices = useMemo(() => {
-        return INITIAL_INVOICES.filter(inv => inv.status === 'Pending' || inv.status === 'Overdue');
-    }, []);
+    // Receipt State
+    const [showReceipt, setShowReceipt] = useState(false);
+    const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
 
-    const handleInvoiceSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const id = parseInt(e.target.value);
-        setSelectedInvoiceId(id);
-        const invoice = pendingInvoices.find(inv => inv.id === id);
-        if (invoice) {
-            setMemberName(invoice.memberName);
-            setAmount(invoice.amount.toString());
-            // Find member phone for receipt
-            const member = INITIAL_MEMBERS.find(m => m.id === invoice.memberId);
-            if (member) setMemberPhone(member.phone);
-        } else {
-            setMemberName('');
-            setAmount('');
-            setMemberPhone('');
+    // Derived from Context
+    const pendingInvoices = invoices.filter(inv => inv.status === 'Pending' || inv.status === 'Overdue');
+
+    // Auto-select invoice passed from Billing
+    useEffect(() => {
+        const pendingId = sessionStorage.getItem('latest_invoice_id');
+        if (pendingId) {
+            const id = parseInt(pendingId);
+            const invoice = pendingInvoices.find(inv => inv.id === id);
+            if (invoice) {
+                handleInvoiceSelection(invoice);
+            }
+            sessionStorage.removeItem('latest_invoice_id');
         }
+    }, [pendingInvoices]); // Trigger when pendingInvoices updates (e.g. initial load)
+
+    useEffect(() => {
+        if (!selectedInvoiceId && manualItems.length > 0) {
+            const total = manualItems.reduce((sum, item) => sum + item.amount, 0);
+            setAmount(total.toString());
+        }
+    }, [manualItems, selectedInvoiceId]);
+
+    const handleInvoiceSelection = (invoice: Invoice) => {
+        setSelectedInvoiceId(invoice.id);
+        setMemberName(invoice.memberName);
+        setAmount(invoice.amount.toString());
+        setPackageName(invoice.packageName);
+        setInvoiceItems(invoice.items);
+        setManualItems([]);
+        
+        const member = members.find(m => m.id === invoice.memberId);
+        if (member) setMemberPhone(member.phone);
+    };
+
+    const handleInvoiceSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const id = parseInt(e.target.value);
+        if (!id) {
+            handleClear();
+            return;
+        }
+        const invoice = pendingInvoices.find(inv => inv.id === id);
+        if (invoice) handleInvoiceSelection(invoice);
+    };
+
+    const handleAddManualItem = (description: string, price: number, type: InvoiceItem['type']) => {
+        if (selectedInvoiceId) {
+            setSelectedInvoiceId('');
+            setPackageName('');
+            setInvoiceItems(undefined);
+        }
+        setManualItems(prev => [...prev, { description, amount: price, type }]);
+    };
+
+    const handleClearManualItems = () => {
+        setManualItems([]);
+        setAmount('');
     };
 
     const handleGenerateQr = async () => {
@@ -65,7 +124,6 @@ const Payment: React.FC = () => {
             });
             setIsProcessing(true);
 
-            // Simulate payment confirmation
             setTimeout(async () => {
                 await processSuccess('QR Code', numericAmount);
             }, 5000);
@@ -94,16 +152,27 @@ const Payment: React.FC = () => {
             date: new Date().toISOString().split('T')[0],
             method: method,
         };
-        setTransactions(prev => [newTransaction, ...prev]);
         
-        // Automated Receipt Logic
+        // --- GLOBAL STATE UPDATE ---
+        addTransaction(newTransaction);
+        if (selectedInvoiceId) {
+            updateInvoiceStatus(Number(selectedInvoiceId), 'Paid');
+        }
+        // ---------------------------
+        
+        setLastTransaction(newTransaction);
+        
         if (sendReceipt && memberPhone) {
-            await sendPaymentReceipt(memberName, memberPhone, numericAmount, txnId);
-            alert(`Payment Recorded! Receipt sent to ${memberName} via WhatsApp.`);
-        } else {
-            alert(`Payment Recorded successfully.`);
+            sendPaymentReceipt(memberName, memberPhone, numericAmount, txnId);
         }
 
+        setShowReceipt(true);
+        setIsProcessing(false);
+        setGeneratedQr(null);
+    };
+
+    const handleReceiptClose = () => {
+        setShowReceipt(false);
         handleClear();
     };
 
@@ -111,9 +180,13 @@ const Payment: React.FC = () => {
         setMemberName('');
         setAmount('');
         setMemberPhone('');
+        setPackageName('');
+        setInvoiceItems(undefined);
+        setManualItems([]);
         setSelectedInvoiceId('');
         setGeneratedQr(null);
         setIsProcessing(false);
+        setLastTransaction(null);
     };
     
     const handleCopy = (text: string) => {
@@ -130,6 +203,21 @@ const Payment: React.FC = () => {
     return (
         <div>
             <h1 className="text-3xl font-bold text-amber-400 mb-6">Point of Sale</h1>
+            
+            {showReceipt && lastTransaction && (
+                <ReceiptTemplate 
+                    invoiceId={lastTransaction.id}
+                    memberName={lastTransaction.memberName}
+                    memberPhone={memberPhone || "N/A"}
+                    amount={lastTransaction.amount}
+                    date={lastTransaction.date}
+                    method={lastTransaction.method}
+                    packageName={packageName || (manualItems.length > 0 ? "Custom Payment" : "Gym Service")}
+                    items={selectedInvoiceId ? invoiceItems : (manualItems.length > 0 ? manualItems : undefined)}
+                    onClose={handleReceiptClose}
+                />
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Payment Terminal Card */}
                 <Card>
@@ -151,18 +239,63 @@ const Payment: React.FC = () => {
                                 <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Select Pending Invoice</label>
                                 <select 
                                     value={selectedInvoiceId} 
-                                    onChange={handleInvoiceSelect}
+                                    onChange={handleInvoiceSelectChange}
                                     className="w-full bg-gray-900 border border-gray-600 rounded-md p-2 text-white text-sm focus:ring-amber-500"
                                     disabled={isProcessing}
                                 >
-                                    <option value="">-- Manual Entry --</option>
+                                    <option value="">-- Manual Entry / POS --</option>
                                     {pendingInvoices.map(inv => (
                                         <option key={inv.id} value={inv.id}>
-                                            #{inv.id} - {inv.memberName} (₹{inv.amount}) - {inv.packageName}
+                                            #{inv.id} - {inv.memberName} (₹{inv.amount})
                                         </option>
                                     ))}
                                 </select>
                             </div>
+
+                            {/* Smart Add-ons for Manual Mode */}
+                            {!selectedInvoiceId && (
+                                <div className="space-y-2">
+                                    <p className="text-xs text-gray-400 uppercase font-bold">Quick Add (Smart POS)</p>
+                                    <div className="flex gap-2 flex-wrap">
+                                        <button 
+                                            onClick={() => handleAddManualItem("Personal Training", 5000, 'training')}
+                                            className="flex items-center text-xs bg-purple-900/30 text-purple-400 border border-purple-500/30 px-3 py-2 rounded hover:bg-purple-900/50 transition-colors"
+                                        >
+                                            <DumbbellIcon className="w-3 h-3 mr-1" /> + PT (₹5000)
+                                        </button>
+                                        <button 
+                                            onClick={() => handleAddManualItem("Monthly Membership", 1500, 'membership')}
+                                            className="flex items-center text-xs bg-amber-900/30 text-amber-400 border border-amber-500/30 px-3 py-2 rounded hover:bg-amber-900/50 transition-colors"
+                                        >
+                                            <UserIcon className="w-3 h-3 mr-1" /> + Gym Fee (₹1500)
+                                        </button>
+                                        <button 
+                                            onClick={() => handleAddManualItem("Supplements", 2000, 'product')}
+                                            className="flex items-center text-xs bg-green-900/30 text-green-400 border border-green-500/30 px-3 py-2 rounded hover:bg-green-900/50 transition-colors"
+                                        >
+                                            <SparkleIcon className="w-3 h-3 mr-1" /> + Product (₹2000)
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Item Display */}
+                            {(selectedInvoiceId ? (invoiceItems && invoiceItems.length > 0) : (manualItems.length > 0)) && (
+                                <div className="bg-gray-800/50 p-2 rounded text-xs text-gray-300 relative group">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <p className="font-bold">Billing Items:</p>
+                                        {!selectedInvoiceId && <button onClick={handleClearManualItems} className="text-[10px] text-red-400 hover:underline">Clear All</button>}
+                                    </div>
+                                    <ul className="space-y-1">
+                                        {(selectedInvoiceId ? invoiceItems : manualItems)?.map((item, idx) => (
+                                            <li key={idx} className="flex justify-between border-b border-gray-700/50 pb-1 last:border-0 last:pb-0">
+                                                <span>{item.description}</span>
+                                                <span className="font-mono text-white">₹{item.amount}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
 
                             <div>
                                 <label htmlFor="memberName" className="block text-sm font-medium text-gray-300">Member Name</label>
@@ -170,33 +303,36 @@ const Payment: React.FC = () => {
                                     type="text" id="memberName" value={memberName} onChange={(e) => setMemberName(e.target.value)}
                                     className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-amber-500 focus:border-amber-500"
                                     placeholder="Enter member's full name"
-                                    disabled={isProcessing}
+                                    disabled={isProcessing || !!selectedInvoiceId}
                                 />
                             </div>
                             <div>
-                                <label htmlFor="amount" className="block text-sm font-medium text-gray-300">Amount (₹)</label>
+                                <label htmlFor="amount" className="block text-sm font-medium text-gray-300">Total Amount (₹)</label>
                                 <input
                                     type="number" id="amount" value={amount} onChange={(e) => setAmount(e.target.value)}
-                                    className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-amber-500 focus:border-amber-500"
-                                    placeholder="e.g., 1500"
-                                    disabled={isProcessing}
+                                    className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-amber-500 focus:border-amber-500 font-bold text-lg"
+                                    placeholder="0.00"
+                                    disabled={isProcessing || !!selectedInvoiceId || manualItems.length > 0}
                                 />
                             </div>
 
                             {/* Automation Toggle */}
-                            <div className="flex items-center pt-2">
+                            <div className="flex items-center pt-2 p-3 bg-green-900/10 rounded-lg border border-green-500/20">
                                 <input 
                                     id="receipt" 
                                     type="checkbox" 
                                     checked={sendReceipt} 
                                     onChange={(e) => setSendReceipt(e.target.checked)}
                                     className="w-4 h-4 text-green-600 bg-gray-700 border-gray-600 rounded focus:ring-green-500"
-                                    disabled={!memberPhone}
+                                    disabled={!memberPhone && !selectedInvoiceId} 
                                 />
-                                <label htmlFor="receipt" className={`ml-2 text-sm font-medium ${memberPhone ? 'text-gray-300' : 'text-gray-500'}`}>
-                                    Send WhatsApp Receipt {memberPhone ? '' : '(No phone linked)'}
-                                </label>
-                                {sendReceipt && memberPhone && <WhatsAppIcon className="w-4 h-4 text-green-500 ml-2" />}
+                                <div className="ml-2">
+                                    <label htmlFor="receipt" className={`text-sm font-bold ${memberPhone || selectedInvoiceId ? 'text-green-400' : 'text-gray-500'}`}>
+                                        Auto-Send Digital Receipt via WhatsApp
+                                    </label>
+                                    <p className="text-xs text-gray-400">Includes Transaction ID & Royal Branding.</p>
+                                </div>
+                                {sendReceipt && <WhatsAppIcon className="w-5 h-5 text-green-500 ml-auto" />}
                             </div>
                         </div>
 

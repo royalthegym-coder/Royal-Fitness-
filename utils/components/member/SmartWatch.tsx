@@ -28,12 +28,15 @@ interface DeviceConfig {
     features: string[];
     color: string;
     hasDashboard?: boolean;
+    lastSynced?: string;
 }
 
 const GalaxyWatchDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const [isRinging, setIsRinging] = useState(false);
     const [isInstalling, setIsInstalling] = useState(false);
     const [appInstalled, setAppInstalled] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [lastSyncTime, setLastSyncTime] = useState('2m ago');
 
     const handleRing = () => {
         setIsRinging(true);
@@ -46,6 +49,14 @@ const GalaxyWatchDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             setIsInstalling(false);
             setAppInstalled(true);
         }, 2500);
+    };
+
+    const handleSync = () => {
+        setIsSyncing(true);
+        setTimeout(() => {
+            setIsSyncing(false);
+            setLastSyncTime('Just now');
+        }, 2000);
     };
 
     return (
@@ -75,6 +86,14 @@ const GalaxyWatchDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     </div>
                 </div>
                 <div className="mt-4 md:mt-0 flex gap-3">
+                    <button 
+                        onClick={handleSync}
+                        disabled={isSyncing}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-sm transition-all flex items-center"
+                    >
+                        <AutoUpdateIcon className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+                        {isSyncing ? 'Syncing...' : 'Sync Now'}
+                    </button>
                     <button onClick={handleRing} className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${isRinging ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-700 text-gray-200 hover:bg-gray-600'}`}>
                         {isRinging ? 'Ringing...' : 'Find My Watch'}
                     </button>
@@ -89,7 +108,7 @@ const GalaxyWatchDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                             <BioActiveIcon className="w-6 h-6 mr-2 text-blue-400" />
                             BioActive Sensor Analysis
                         </h3>
-                        <span className="text-xs text-gray-400">Last Sync: 2m ago</span>
+                        <span className="text-xs text-gray-400">Last Sync: {lastSyncTime}</span>
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -215,7 +234,8 @@ const DeviceCard: React.FC<{
     device: DeviceConfig; 
     onToggle: () => void; 
     onManage?: () => void;
-}> = ({ device, onToggle, onManage }) => (
+    onSync: () => void;
+}> = ({ device, onToggle, onManage, onSync }) => (
     <div className={`p-4 rounded-xl border transition-all duration-300 ${device.connected ? 'bg-gray-800 border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.1)]' : 'bg-gray-800/50 border-gray-700 hover:border-gray-600'}`}>
         <div className="flex justify-between items-start mb-3">
             <div className="flex items-center gap-3">
@@ -242,9 +262,17 @@ const DeviceCard: React.FC<{
                             <AutoUpdateIcon className="w-3 h-3 mr-1 animate-spin" /> Syncing Data...
                         </span>
                     ) : (
-                        <span className="flex items-center text-xs text-green-400">
-                            <CheckCircleIcon className="w-3 h-3 mr-1" /> Connected
-                        </span>
+                        <div className="flex items-center justify-between w-full">
+                            <span className="flex items-center text-xs text-green-400">
+                                <CheckCircleIcon className="w-3 h-3 mr-1" /> Connected
+                            </span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-gray-500">{device.lastSynced || 'Synced just now'}</span>
+                                <button onClick={onSync} className="text-xs text-blue-400 hover:text-white flex items-center transition-colors" title="Sync Now">
+                                    <AutoUpdateIcon className="w-3 h-3" />
+                                </button>
+                            </div>
+                        </div>
                     )}
                 </div>
                 <div className="flex flex-wrap gap-1 mb-3">
@@ -301,7 +329,8 @@ const SmartWatch: React.FC = () => {
             connected: true, 
             syncing: false,
             features: ['All Metrics', 'Sleep', 'Workout Sync'],
-            color: 'bg-green-500'
+            color: 'bg-green-500',
+            lastSynced: '10m ago'
         },
         { 
             id: 'google_fit', 
@@ -369,7 +398,7 @@ const SmartWatch: React.FC = () => {
         setDevices(prev => prev.map(d => {
             if (d.id === id) {
                 const newState = !d.connected;
-                return { ...d, connected: newState, syncing: newState }; // Start syncing on connect
+                return { ...d, connected: newState, syncing: newState, lastSynced: newState ? 'Syncing...' : undefined }; // Start syncing on connect
             }
             return d;
         }));
@@ -378,9 +407,16 @@ const SmartWatch: React.FC = () => {
         const device = devices.find(d => d.id === id);
         if (device && !device.connected) {
             setTimeout(() => {
-                setDevices(prev => prev.map(d => d.id === id ? { ...d, syncing: false } : d));
+                setDevices(prev => prev.map(d => d.id === id ? { ...d, syncing: false, lastSynced: 'Just now' } : d));
             }, 2500);
         }
+    };
+
+    const handleManualSync = (id: string) => {
+        setDevices(prev => prev.map(d => d.id === id ? { ...d, syncing: true } : d));
+        setTimeout(() => {
+            setDevices(prev => prev.map(d => d.id === id ? { ...d, syncing: false, lastSynced: 'Just now' } : d));
+        }, 2000);
     };
 
     const renderSection = (title: string, type: DeviceType, subtitle?: string) => {
@@ -400,6 +436,7 @@ const SmartWatch: React.FC = () => {
                             device={d}
                             onToggle={() => toggleDevice(d.id)}
                             onManage={() => setSelectedDevice(d.id)}
+                            onSync={() => handleManualSync(d.id)}
                         />
                     ))}
                 </div>

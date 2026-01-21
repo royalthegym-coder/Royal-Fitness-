@@ -1,6 +1,7 @@
 
 import React, { memo, useState, useEffect } from 'react';
-import { DashboardIcon, PackageIcon, MembersIcon, BillingIcon, WorkoutIcon, DietIcon, StaffIcon, ExpensesIcon, SettingsIcon, LeadsIcon, MembershipIcon, SparkleIcon } from './icons/NavIcons';
+import { DashboardIcon, PackageIcon, MembersIcon, BillingIcon, WorkoutIcon, DietIcon, StaffIcon, ExpensesIcon, SettingsIcon, LeadsIcon, MembershipIcon } from './icons/NavIcons';
+import { SparkleIcon } from './icons/SparkleIcon';
 import { QrCodeIcon } from './icons/QrCodeIcon';
 import { AIFitnessTrackerIcon } from './icons/AIFitnessTrackerIcon';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
@@ -35,46 +36,40 @@ interface SidebarProps {
   role?: 'admin' | 'member';
 }
 
+// --- CONSOLIDATED "STREET TOOLS" ---
+
 const adminNavItems = [
-  { category: 'Overview', items: [
+  { 
+    category: 'Tool 1: Royal Operations', 
+    items: [
       { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
-      { id: 'tasks', label: 'Tasks', icon: <ClipboardListIcon /> },
-  ]},
-  { category: 'Smart Business (AI)', items: [
-      { id: 'royalBots', label: 'Royal Autopilot', icon: <div className="text-amber-400"><BotIcon /></div> }, 
-      { id: 'crm', label: 'Smart CRM', icon: <UserGroupIcon /> },
-      { id: 'automation', label: 'Automation Suite', icon: <AutoUpdateIcon /> },
-      { id: 'leads', label: 'Leads (Classic)', icon: <LeadsIcon /> },
-  ]},
-  { category: 'Management', items: [
       { id: 'members', label: 'Members', icon: <MembersIcon /> },
+      { id: 'billing', label: 'Billing & POS', icon: <BillingIcon /> },
+      { id: 'payment', label: 'Terminal', icon: <QrCodeIcon /> },
       { id: 'packages', label: 'Packages', icon: <PackageIcon /> },
-      { id: 'billing', label: 'Billing', icon: <BillingIcon /> },
-      { id: 'payment', label: 'POS / Payment', icon: <QrCodeIcon /> },
-      { id: 'staff', label: 'Staff', icon: <StaffIcon /> },
+      { id: 'crm', label: 'Smart CRM', icon: <UserGroupIcon /> },
+      { id: 'automation', label: 'Automation', icon: <AutoUpdateIcon /> },
+      { id: 'staff', label: 'Staff & Payroll', icon: <StaffIcon /> },
       { id: 'expenses', label: 'Expenses', icon: <ExpensesIcon /> },
-  ]},
-  { category: 'Fitness & Nutrition', items: [
-      { id: 'workouts', label: 'Workout Library', icon: <WorkoutIcon /> },
-      { id: 'diet', label: 'Diet Plans', icon: <DietIcon /> },
-  ]},
-  { category: 'AI Intelligence Suite', items: [
-      { id: 'healthEngine', label: 'Health Dashboard', icon: <div className="text-green-400"><HealthEngineIcon /></div> },
-      { id: 'healthIntelligence', label: 'Health Intelligence', icon: <div className="text-teal-400"><HealthEngineIcon /></div> }, 
-      { id: 'geminiHub', label: 'Gemini Hub', icon: <SparkleIcon /> },
-      { id: 'geniusMode', label: 'Genius Mode', icon: <GeniusIcon /> },
-      { id: 'aiTracker', label: 'Client Analysis', icon: <AIFitnessTrackerIcon /> },
-      { id: 'simulator', label: '3D Simulator', icon: <BodyScanIcon className="w-5 h-5" /> },
-  ]},
-  { category: 'System Core', items: [
-      { id: 'security', label: 'Security Layer', icon: <ShieldCheckIcon className="w-5 h-5 text-red-500" /> },
-      { id: 'performance', label: 'Performance Layer', icon: <SpeedIcon className="w-5 h-5 text-indigo-400" /> },
-      { id: 'debugEngine', label: 'Debug Engine', icon: <TerminalIcon className="w-5 h-5 text-purple-400" /> },
-      { id: 'neuralCore', label: 'Neural System Core', icon: <BrainCircuitIcon className="w-5 h-5 text-cyan-400" /> },
-      { id: 'autoUpgrader', label: 'Auto Upgrader', icon: <CloudArrowUpIcon className="w-5 h-5" /> },
-      { id: 'selfRepair', label: 'Self-Healing Engine', icon: <BugFixIcon className="w-5 h-5 text-red-400" /> },
+      { id: 'tasks', label: 'Tasks', icon: <ClipboardListIcon /> },
       { id: 'settings', label: 'Settings', icon: <SettingsIcon /> },
-  ]},
+    ]
+  },
+  { 
+    category: 'Tool 2: Neural Engine', 
+    items: [
+      { id: 'geminiHub', label: 'Gemini Hub', icon: <SparkleIcon /> },
+      { id: 'workouts', label: 'Workouts', icon: <WorkoutIcon /> },
+      { id: 'diet', label: 'Diet Plans', icon: <DietIcon /> },
+      { id: 'healthEngine', label: 'Health Core', icon: <HealthEngineIcon /> },
+      { id: 'voiceAssistant', label: 'Voice Ops', icon: <div className="text-amber-400"><BotIcon /></div> },
+      { id: 'simulator', label: '3D Simulator', icon: <BodyScanIcon /> },
+      { id: 'royalBots', label: 'Bot Swarm', icon: <CloudArrowUpIcon /> },
+      { id: 'security', label: 'Security', icon: <ShieldCheckIcon className="w-5 h-5 text-red-500" /> },
+      { id: 'selfRepair', label: 'Self-Repair', icon: <BugFixIcon className="w-5 h-5 text-indigo-400" /> },
+      { id: 'performance', label: 'Turbo Core', icon: <SpeedIcon className="w-5 h-5 text-cyan-400" /> },
+    ]
+  }
 ];
 
 const memberNavItems = [
@@ -134,9 +129,12 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
         <nav className="flex-1 px-3 py-4 space-y-6 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-800">
           {navItems.map((section, idx) => (
             <div key={idx}>
-              <h3 className="px-3 text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 shadow-black drop-shadow-sm">
-                {section.category}
-              </h3>
+              <div className="flex items-center px-3 mb-2">
+                  <div className={`w-1 h-3 rounded-full mr-2 ${idx === 0 ? 'bg-amber-500' : 'bg-cyan-500'}`}></div>
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                    {section.category}
+                  </h3>
+              </div>
               <div className="space-y-1">
                 {section.items.map(item => (
                   <button

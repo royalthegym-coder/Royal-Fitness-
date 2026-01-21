@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import Card from '../common/Card';
 import { INITIAL_DIETS, INITIAL_MEMBERS, INITIAL_MEMBER_FITNESS_DATA, INITIAL_PACKAGES, INITIAL_HEALTH_DATA } from '../../../constants';
-import { DietPlan } from '../../../types';
+import { DietPlan, HealthData } from '../../../types';
 import { getComplexResponse, getNutritionAnalysisFromImage } from '../../../lib/gemini';
 import { SparkleIcon } from '../icons/SparkleIcon';
 import { CameraIcon } from '../icons/CameraIcon';
@@ -16,6 +16,7 @@ import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 
 interface DietPlanViewProps {
     memberId: number;
+    healthData: HealthData;
 }
 
 interface NutritionData {
@@ -55,7 +56,7 @@ const MacroCard: React.FC<{ label: string; value: string; color: string; percent
     </div>
 );
 
-const DietPlanView: React.FC<DietPlanViewProps> = ({ memberId }) => {
+const DietPlanView: React.FC<DietPlanViewProps> = ({ memberId, healthData }) => {
     const [activeTab, setActiveTab] = useState<'plan' | 'scanner' | 'coach'>('plan');
     const [isLoading, setIsLoading] = useState(false);
     const [mealPlan, setMealPlan] = useState<string | null>(null);
@@ -117,8 +118,8 @@ const DietPlanView: React.FC<DietPlanViewProps> = ({ memberId }) => {
         const packageInfo = INITIAL_PACKAGES.find(p => p.id === member?.packageId);
         const recentMetrics = memberData.metrics.slice(-3); // Last 3 records
         
-        // Simulating live wearable data sync
-        const wearableData = INITIAL_HEALTH_DATA;
+        // Use live wearable data sync from props
+        const wearableData = healthData;
 
         let scannedFoodContext = "";
         if (nutritionData) {
@@ -492,7 +493,7 @@ const DietPlanView: React.FC<DietPlanViewProps> = ({ memberId }) => {
                 </div>
             )}
 
-            {/* Coach Tab ... (Existing content preserved implicitly as it wasn't modified, but ensuring full file is returned correctly) */}
+            {/* Coach Tab */}
             {activeTab === 'coach' && (
                 <div className="space-y-6">
                     <Card title="AI Personal Nutrition Strategist">

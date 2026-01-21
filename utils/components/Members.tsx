@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Member } from '../../types';
-import { INITIAL_MEMBERS, INITIAL_PACKAGES, INITIAL_STAFF } from '../../constants';
+import { INITIAL_PACKAGES, INITIAL_STAFF } from '../../constants';
 import Card from './common/Card';
 import Modal from './common/Modal';
 import CameraModal from './common/CameraModal';
@@ -18,8 +18,10 @@ import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { CalendarIcon } from './icons/CalendarIcon';
 import { DollarSignIcon } from './icons/DollarSignIcon';
 import { PackageIcon } from './icons/NavIcons';
+import { useDebounce } from '../hooks/usePerformance';
+import { useData } from '../context/DataProvider'; // Import Context
 
-// --- ICONS FOR NEW FEATURES ---
+// ... (Keep existing Icons: EyeIcon, DownloadIcon, FilterIcon, SortIcon) ...
 const EyeIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -30,12 +32,6 @@ const EyeIcon = () => (
 const DownloadIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-    </svg>
-);
-
-const FilterIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
     </svg>
 );
 
@@ -50,10 +46,13 @@ const SortIcon = ({ direction }: { direction?: 'asc' | 'desc' }) => (
 );
 
 const Members: React.FC = () => {
-    const [members, setMembers] = useState<Member[]>(INITIAL_MEMBERS);
+    // Consume Data from Context
+    const { members, addMember, updateMember, deleteMember, packages } = useData();
     
     // Search & Filter State
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
     const [filterStatus, setFilterStatus] = useState<string>('All');
     const [filterPackage, setFilterPackage] = useState<string>('All');
 
@@ -81,12 +80,11 @@ const Members: React.FC = () => {
 
     const filteredMembers = useMemo(() => {
         let result = members.filter(member => {
-            const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                member.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                member.phone.includes(searchTerm);
+            const matchesSearch = member.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                member.email.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                member.phone.includes(debouncedSearchTerm);
             
             const matchesStatus = filterStatus === 'All' || member.status === filterStatus;
-            
             const matchesPackage = filterPackage === 'All' || member.packageId.toString() === filterPackage;
 
             return matchesSearch && matchesStatus && matchesPackage;
@@ -98,7 +96,6 @@ const Members: React.FC = () => {
                 const bValue = b[sortConfig.key];
 
                 if (aValue === undefined || bValue === undefined) return 0;
-
                 if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
                 if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
                 return 0;
@@ -106,22 +103,24 @@ const Members: React.FC = () => {
         }
 
         return result;
-    }, [members, searchTerm, filterStatus, filterPackage, sortConfig]);
+    }, [members, debouncedSearchTerm, filterStatus, filterPackage, sortConfig]);
 
-    // Reset visible count when filters change
     useEffect(() => {
         setVisibleCount(20);
-    }, [searchTerm, filterStatus, filterPackage, sortConfig]);
+    }, [debouncedSearchTerm, filterStatus, filterPackage, sortConfig]);
 
-    // Intersection Observer for Infinite Scroll
     useEffect(() => {
         const observer = new IntersectionObserver(
             (entries) => {
                 if (entries[0].isIntersecting) {
-                    setVisibleCount((prev) => prev + 20);
+                    if (visibleCount < filteredMembers.length) {
+                        setTimeout(() => {
+                            setVisibleCount((prev) => Math.min(prev + 20, filteredMembers.length));
+                        }, 300);
+                    }
                 }
             },
-            { threshold: 0.1 }
+            { threshold: 0.1, rootMargin: '100px' }
         );
 
         if (observerTarget.current) {
@@ -157,7 +156,7 @@ const Members: React.FC = () => {
 
     const handleDeleteMember = (id: number) => {
         if(confirm('Are you sure you want to delete this member?')) {
-            setMembers(members.filter(m => m.id !== id));
+            deleteMember(id); // Use Context Action
             setSelectedIds(selectedIds.filter(sid => sid !== id));
         }
     };
@@ -170,7 +169,7 @@ const Members: React.FC = () => {
 
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.checked) {
-            setSelectedIds(filteredMembers.map(m => m.id));
+            setSelectedIds(filteredMembers.slice(0, visibleCount).map(m => m.id));
         } else {
             setSelectedIds([]);
         }
@@ -186,18 +185,26 @@ const Members: React.FC = () => {
 
     const handleBulkDelete = () => {
         if(confirm(`Delete ${selectedIds.length} members?`)) {
-            setMembers(members.filter(m => !selectedIds.includes(m.id)));
+            selectedIds.forEach(id => deleteMember(id)); // Context
             setSelectedIds([]);
         }
     };
 
     const handleBulkStatusChange = (status: 'Active' | 'Expired' | 'Inactive') => {
-        setMembers(members.map(m => selectedIds.includes(m.id) ? { ...m, status } : m));
+        members.forEach(m => {
+            if(selectedIds.includes(m.id)) {
+                updateMember({...m, status}); // Context
+            }
+        });
         setSelectedIds([]);
     };
 
     const handleBulkPackageUpdate = () => {
-        setMembers(members.map(m => selectedIds.includes(m.id) ? { ...m, packageId: bulkTargetPackageId } : m));
+        members.forEach(m => {
+            if(selectedIds.includes(m.id)) {
+                updateMember({...m, packageId: bulkTargetPackageId}); // Context
+            }
+        });
         setBulkPackageModalOpen(false);
         setSelectedIds([]);
         alert("Packages updated successfully for selected members.");
@@ -206,8 +213,11 @@ const Members: React.FC = () => {
     // --- EXPORT ---
 
     const handleExport = () => {
-        const headers = ['ID,Name,Email,Phone,Status,Join Date,Package ID'];
-        const rows = filteredMembers.map(m => `${m.id},"${m.name}","${m.email}","${m.phone}",${m.status},${m.joinDate},${m.packageId}`);
+        // Updated Export Headers to include new fields
+        const headers = ['ID,Name,Gender,Email,Phone,DOB,BloodGroup,Address,EmergencyContact,EmergencyPhone,Height(cm),Weight(kg),Shift,Status,Join Date,Package ID'];
+        const rows = filteredMembers.map(m => 
+            `${m.id},"${m.name}","${m.gender || ''}","${m.email}","${m.phone}","${m.dob || ''}","${m.bloodGroup || ''}","${m.address || ''}","${m.emergencyContactName || ''}","${m.emergencyContactPhone || ''}","${m.height || ''}","${m.weight || ''}","${m.preferredShift || ''}",${m.status},${m.joinDate},${m.packageId}`
+        );
         const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -225,7 +235,7 @@ const Members: React.FC = () => {
             // Edit Mode
             const trainerChanged = memberData.trainerId !== selectedMember.trainerId;
             const updatedMember = { ...selectedMember, ...memberData };
-            setMembers(members.map(m => m.id === selectedMember.id ? updatedMember : m));
+            updateMember(updatedMember); // Use Context
             setModalOpen(false);
 
             if (trainerChanged && memberData.trainerId && memberData.whatsappConsent && memberData.whatsappMode === 'Auto') {
@@ -237,13 +247,14 @@ const Members: React.FC = () => {
 
         } else {
             // New Member Logic
-            const newId = Math.max(...members.map(m => m.id), 0) + 1;
+            const newId = members.length > 0 ? Math.max(...members.map(m => m.id)) + 1 : 1;
             const newMember: Member = { 
                 ...memberData, 
                 id: newId, 
                 avatar: memberData.avatar || `https://picsum.photos/seed/${newId}/200`,
             };
-            setMembers([...members, newMember]);
+            
+            addMember(newMember); // Use Context
             setNewlyAddedMember(newMember);
             setModalOpen(false);
             setWelcomeModalOpen(true);
@@ -259,6 +270,15 @@ const Members: React.FC = () => {
                         console.error("Error in automated message flow:", err);
                         setWelcomeStatus('idle');
                     });
+
+                if (memberData.trainerId) {
+                    const trainer = INITIAL_STAFF.find(s => s.id === memberData.trainerId);
+                    if (trainer) {
+                        sendTrainerAssignmentNotification(newMember, trainer.name)
+                            .then(() => console.log("Trainer notification sent"))
+                            .catch(err => console.error("Error sending trainer notification", err));
+                    }
+                }
             }
         }
     };
@@ -323,10 +343,10 @@ const Members: React.FC = () => {
             <Card className="overflow-hidden p-0 bg-gray-900 border-gray-700">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
-                        <thead className="bg-gray-800 text-gray-400 uppercase font-bold text-xs">
+                        <thead className="bg-gray-800 text-gray-400 uppercase font-bold text-xs sticky top-0 z-10">
                             <tr>
                                 <th className="p-4 w-4">
-                                    <input type="checkbox" onChange={handleSelectAll} checked={filteredMembers.length > 0 && selectedIds.length === filteredMembers.length} className="rounded bg-gray-700 border-gray-600 text-amber-500 focus:ring-amber-500" />
+                                    <input type="checkbox" onChange={handleSelectAll} checked={filteredMembers.length > 0 && selectedIds.length === Math.min(visibleCount, filteredMembers.length)} className="rounded bg-gray-700 border-gray-600 text-amber-500 focus:ring-amber-500" />
                                 </th>
                                 <th className="p-4 cursor-pointer hover:text-white" onClick={() => handleSort('name')}>
                                     Member <SortIcon direction={sortConfig?.key === 'name' ? sortConfig.direction : undefined} />
@@ -360,7 +380,7 @@ const Members: React.FC = () => {
                                     </td>
                                     <td className="p-4 hidden md:table-cell">
                                         <span className="bg-gray-800 text-gray-300 py-1 px-2 rounded text-xs border border-gray-700">
-                                            {INITIAL_PACKAGES.find(p => p.id === member.packageId)?.name || 'Unknown'}
+                                            {packages.find(p => p.id === member.packageId)?.name || 'Unknown'}
                                         </span>
                                     </td>
                                     <td className="p-4 hidden sm:table-cell text-gray-400 font-mono text-xs">
@@ -390,10 +410,23 @@ const Members: React.FC = () => {
                                     </td>
                                 </tr>
                             ))}
-                            {/* Infinite Scroll Trigger */}
-                            <tr ref={observerTarget}>
-                                <td colSpan={6} className="h-4"></td>
-                            </tr>
+                            
+                            {visibleCount < filteredMembers.length && (
+                                <tr ref={observerTarget} className="bg-gray-900/30">
+                                    <td colSpan={6} className="p-6 text-center border-t border-gray-800">
+                                        <div className="flex flex-col items-center justify-center space-y-2">
+                                            <div className="flex gap-1">
+                                                <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce"></div>
+                                                <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce delay-100"></div>
+                                                <div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce delay-200"></div>
+                                            </div>
+                                            <span className="text-xs font-mono text-gray-500 uppercase tracking-widest">
+                                                Loading More...
+                                            </span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -416,13 +449,14 @@ const Members: React.FC = () => {
                 />
             )}
 
-            {/* View Member Modal - Simplified */}
             {viewMember && (
                 <Modal isOpen={!!viewMember} onClose={() => setViewMember(null)} title="Member Profile">
                     <div className="text-center">
                         <img src={viewMember.avatar} alt={viewMember.name} className="w-24 h-24 rounded-full mx-auto mb-4 object-cover border-4 border-amber-500" />
                         <h2 className="text-2xl font-bold text-white">{viewMember.name}</h2>
                         <p className="text-gray-400">{viewMember.email} • {viewMember.phone}</p>
+                        
+                        {/* Basic Info */}
                         <div className="mt-6 grid grid-cols-2 gap-4 text-left">
                             <div className="bg-gray-800 p-3 rounded border border-gray-700">
                                 <p className="text-xs text-gray-500 uppercase">Status</p>
@@ -432,9 +466,33 @@ const Members: React.FC = () => {
                                 <p className="text-xs text-gray-500 uppercase">Joined</p>
                                 <p className="font-bold text-white">{viewMember.joinDate}</p>
                             </div>
+                            {viewMember.dob && (
+                                <div className="bg-gray-800 p-3 rounded border border-gray-700">
+                                    <p className="text-xs text-gray-500 uppercase">DOB</p>
+                                    <p className="font-bold text-white">{viewMember.dob}</p>
+                                </div>
+                            )}
+                            {viewMember.gender && (
+                                <div className="bg-gray-800 p-3 rounded border border-gray-700">
+                                    <p className="text-xs text-gray-500 uppercase">Gender</p>
+                                    <p className="font-bold text-white">{viewMember.gender}</p>
+                                </div>
+                            )}
+                             {viewMember.address && (
+                                <div className="bg-gray-800 p-3 rounded border border-gray-700 col-span-2">
+                                    <p className="text-xs text-gray-500 uppercase">Address</p>
+                                    <p className="font-bold text-white text-sm">{viewMember.address}</p>
+                                </div>
+                            )}
+                            
+                            {/* Membership Info */}
+                            <div className="col-span-2 border-t border-gray-700 pt-4 mt-2">
+                                <h4 className="text-amber-400 text-sm font-bold uppercase mb-2">Membership Details</h4>
+                            </div>
+
                             <div className="bg-gray-800 p-3 rounded border border-gray-700 col-span-2">
                                 <p className="text-xs text-gray-500 uppercase">Package</p>
-                                <p className="font-bold text-white">{INITIAL_PACKAGES.find(p => p.id === viewMember.packageId)?.name}</p>
+                                <p className="font-bold text-white">{packages.find(p => p.id === viewMember.packageId)?.name}</p>
                             </div>
                             {viewMember.trainerFees && (
                                 <div className="bg-gray-800 p-3 rounded border border-gray-700 col-span-2">
@@ -442,12 +500,28 @@ const Members: React.FC = () => {
                                     <p className="font-bold text-amber-400">₹{viewMember.trainerFees}</p>
                                 </div>
                             )}
+                            {viewMember.preferredShift && (
+                                <div className="bg-gray-800 p-3 rounded border border-gray-700">
+                                    <p className="text-xs text-gray-500 uppercase">Shift</p>
+                                    <p className="font-bold text-white">{viewMember.preferredShift}</p>
+                                </div>
+                            )}
+                            
+                            {/* Emergency Contact */}
+                            {(viewMember.emergencyContactName || viewMember.emergencyContactPhone) && (
+                                <div className="col-span-2 border-t border-gray-700 pt-4 mt-2">
+                                    <h4 className="text-red-400 text-sm font-bold uppercase mb-2">Emergency Contact</h4>
+                                    <div className="bg-gray-800 p-3 rounded border border-gray-700">
+                                         <p className="font-bold text-white">{viewMember.emergencyContactName || 'N/A'}</p>
+                                         <p className="text-gray-400 text-sm">{viewMember.emergencyContactPhone || 'N/A'}</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </Modal>
             )}
 
-            {/* Bulk Package Update Modal */}
             <Modal isOpen={isBulkPackageModalOpen} onClose={() => setBulkPackageModalOpen(false)} title="Bulk Change Package">
                 <div className="space-y-4">
                     <p className="text-gray-300 text-sm">Select the new package to assign to the {selectedIds.length} selected members.</p>
@@ -458,7 +532,7 @@ const Members: React.FC = () => {
                             onChange={(e) => setBulkTargetPackageId(Number(e.target.value))}
                             className="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white focus:ring-2 focus:ring-amber-500"
                         >
-                            {INITIAL_PACKAGES.map(p => (
+                            {packages.map(p => (
                                 <option key={p.id} value={p.id}>{p.name} - ₹{p.price}</option>
                             ))}
                         </select>
@@ -475,8 +549,7 @@ const Members: React.FC = () => {
     );
 };
 
-// --- MEMBER FORM MODAL COMPONENT ---
-
+// ... (MemberFormModal remains largely the same, just consumes props) ...
 interface MemberFormModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -485,18 +558,14 @@ interface MemberFormModalProps {
 }
 
 const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSave, member }) => {
+    const { packages } = useData(); // Use packages from context
     const [formData, setFormData] = useState<Partial<Member>>({
-        name: '',
-        email: '',
-        phone: '',
+        name: '', email: '', phone: '', dob: '', address: '', gender: 'Male', bloodGroup: '',
+        emergencyContactName: '', emergencyContactPhone: '',
+        height: undefined, weight: undefined, fitnessGoal: 'General Fitness', medicalConditions: '',
         joinDate: new Date().toISOString().split('T')[0],
-        packageId: INITIAL_PACKAGES[0]?.id,
-        trainerId: undefined,
-        trainerFees: undefined,
-        status: 'Active',
-        whatsappConsent: true,
-        whatsappMode: 'Auto',
-        avatar: '',
+        packageId: packages[0]?.id || 1, trainerId: undefined, trainerFees: undefined, preferredShift: 'Morning',
+        status: 'Active', whatsappConsent: true, whatsappMode: 'Auto', avatar: '',
     });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -506,31 +575,24 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
         if (member) {
             setFormData(member);
         } else {
-            // Reset for new member
             setFormData({
-                name: '',
-                email: '',
-                phone: '',
+                name: '', email: '', phone: '', dob: '', address: '', gender: 'Male', bloodGroup: '',
+                emergencyContactName: '', emergencyContactPhone: '',
+                height: undefined, weight: undefined, fitnessGoal: 'General Fitness', medicalConditions: '',
                 joinDate: new Date().toISOString().split('T')[0],
-                packageId: INITIAL_PACKAGES[0]?.id,
-                trainerId: undefined,
-                trainerFees: undefined,
-                status: 'Active',
-                whatsappConsent: true,
-                whatsappMode: 'Auto',
-                avatar: '',
+                packageId: packages[0]?.id || 1, trainerId: undefined, trainerFees: undefined, preferredShift: 'Morning',
+                status: 'Active', whatsappConsent: true, whatsappMode: 'Auto', avatar: '',
             });
         }
-    }, [member, isOpen]);
+    }, [member, isOpen, packages]);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
-        
         if (type === 'checkbox') {
             setFormData(prev => ({ ...prev, [name]: (e.target as HTMLInputElement).checked }));
         } else if (name === 'packageId' || name === 'trainerId') {
             setFormData(prev => ({ ...prev, [name]: value ? parseInt(value) : undefined }));
-        } else if (name === 'trainerFees') {
+        } else if (name === 'trainerFees' || name === 'height' || name === 'weight') {
             setFormData(prev => ({ ...prev, [name]: value ? parseFloat(value) : undefined }));
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
@@ -541,9 +603,7 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
         if (e.target.files && e.target.files[0]) {
             const reader = new FileReader();
             reader.onload = (event) => {
-                if (event.target?.result) {
-                    setFormData(prev => ({ ...prev, avatar: event.target?.result as string }));
-                }
+                if (event.target?.result) setFormData(prev => ({ ...prev, avatar: event.target?.result as string }));
             };
             reader.readAsDataURL(e.target.files[0]);
         }
@@ -557,9 +617,10 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
     return (
         <>
             <Modal isOpen={isOpen} onClose={onClose} title={member ? 'Edit Member' : 'Register New Member'}>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Avatar Upload */}
-                    <div className="flex justify-center mb-6">
+                <form onSubmit={handleSubmit} className="space-y-6 max-h-[80vh] overflow-y-auto pr-2 custom-scrollbar">
+                    
+                    {/* 1. Avatar Section */}
+                    <div className="flex justify-center mb-4">
                         <div className="relative group cursor-pointer">
                             <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-600 bg-gray-700 flex items-center justify-center">
                                 {formData.avatar ? (
@@ -582,36 +643,129 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
                         </div>
                     </div>
 
-                    {/* Personal Info */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300">Full Name</label>
-                            <input type="text" name="name" value={formData.name} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500" required />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300">Phone</label>
-                            <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500" required />
+                    {/* 2. Personal Information */}
+                    <div className="space-y-4 border-b border-gray-700 pb-4">
+                        <h4 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center">
+                            Personal Details
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300">Full Name</label>
+                                <input type="text" name="name" value={formData.name} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300">Gender</label>
+                                <select name="gender" value={formData.gender} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500">
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300">Date of Birth</label>
+                                <input type="date" name="dob" value={formData.dob || ''} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300">Blood Group</label>
+                                <select name="bloodGroup" value={formData.bloodGroup} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500">
+                                    <option value="">Select Group</option>
+                                    <option value="A+">A+</option>
+                                    <option value="A-">A-</option>
+                                    <option value="B+">B+</option>
+                                    <option value="B-">B-</option>
+                                    <option value="O+">O+</option>
+                                    <option value="O-">O-</option>
+                                    <option value="AB+">AB+</option>
+                                    <option value="AB-">AB-</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300">Email</label>
-                        <input type="email" name="email" value={formData.email} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500" required />
+                    {/* 3. Contact & Emergency */}
+                    <div className="space-y-4 border-b border-gray-700 pb-4">
+                         <h4 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center">
+                            Contact Information
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300">Phone</label>
+                                <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300">Email</label>
+                                <input type="email" name="email" value={formData.email} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500" required />
+                            </div>
+                            <div className='md:col-span-2'>
+                                <label className="block text-sm font-medium text-gray-300">Address</label>
+                                <textarea name="address" value={formData.address} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500 text-white" rows={2} placeholder="Enter full address" />
+                            </div>
+                            <div className="pt-2 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 uppercase">Emergency Contact Name</label>
+                                    <input type="text" name="emergencyContactName" value={formData.emergencyContactName} onChange={handleChange} className="mt-1 block w-full bg-gray-800 border border-gray-700 rounded-md p-2 focus:ring-red-500" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 uppercase">Emergency Phone</label>
+                                    <input type="tel" name="emergencyContactPhone" value={formData.emergencyContactPhone} onChange={handleChange} className="mt-1 block w-full bg-gray-800 border border-gray-700 rounded-md p-2 focus:ring-red-500" />
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Membership Details */}
-                    <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700 space-y-4">
-                        <h4 className="text-sm font-bold text-gray-400 uppercase">Membership Details</h4>
+                     {/* 4. Health & Fitness Profile */}
+                     <div className="space-y-4 border-b border-gray-700 pb-4">
+                         <h4 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center">
+                            Health & Goals
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300">Height (cm)</label>
+                                <input type="number" name="height" value={formData.height || ''} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300">Weight (kg)</label>
+                                <input type="number" name="weight" value={formData.weight || ''} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300">Fitness Goal</label>
+                                <select name="fitnessGoal" value={formData.fitnessGoal} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500">
+                                    <option value="General Fitness">General Fitness</option>
+                                    <option value="Weight Loss">Weight Loss</option>
+                                    <option value="Muscle Gain">Muscle Gain</option>
+                                    <option value="Endurance">Endurance</option>
+                                </select>
+                            </div>
+                            <div className="md:col-span-3">
+                                <label className="block text-sm font-medium text-gray-300">Medical Conditions / Injuries</label>
+                                <textarea name="medicalConditions" value={formData.medicalConditions} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500 text-white" rows={2} placeholder="E.g., Asthma, Knee Injury..." />
+                            </div>
+                        </div>
+                     </div>
+
+                    {/* 5. Membership Details */}
+                    <div className="space-y-4 border-b border-gray-700 pb-4">
+                        <h4 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center">
+                            Subscription & Training
+                        </h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-300">Package</label>
                                 <select name="packageId" value={formData.packageId} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500">
-                                    {INITIAL_PACKAGES.map(p => <option key={p.id} value={p.id}>{p.name} - ₹{p.price}</option>)}
+                                    {packages.map(p => <option key={p.id} value={p.id}>{p.name} - ₹{p.price}</option>)}
                                 </select>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-300">Join Date</label>
                                 <input type="date" name="joinDate" value={formData.joinDate} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300">Shift Timing</label>
+                                <select name="preferredShift" value={formData.preferredShift} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500">
+                                    <option value="Morning">Morning</option>
+                                    <option value="Afternoon">Afternoon</option>
+                                    <option value="Evening">Evening</option>
+                                </select>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-300">Status</label>
@@ -621,13 +775,6 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
                                     <option value="Inactive">Inactive</option>
                                 </select>
                             </div>
-                        </div>
-                    </div>
-
-                    {/* Trainer Info - Added Trainer Fees */}
-                    <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700 space-y-4">
-                        <h4 className="text-sm font-bold text-gray-400 uppercase">Training & Fees</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-300">Assign Trainer</label>
                                 <select name="trainerId" value={formData.trainerId || ''} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:ring-amber-500">
@@ -636,20 +783,15 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-300">Gym Trainer Fees (₹)</label>
-                                <div className="relative mt-1 rounded-md shadow-sm">
-                                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                                        <span className="text-gray-500 sm:text-sm">₹</span>
-                                    </div>
-                                    <input 
-                                        type="number" 
-                                        name="trainerFees" 
-                                        value={formData.trainerFees || ''} 
-                                        onChange={handleChange} 
-                                        className="block w-full rounded-md border-gray-600 bg-gray-700 pl-7 p-2 text-white focus:border-amber-500 focus:ring-amber-500 sm:text-sm" 
-                                        placeholder="0.00" 
-                                    />
-                                </div>
+                                <label className="block text-sm font-medium text-gray-300">Trainer Fees (₹)</label>
+                                <input
+                                    type="number"
+                                    name="trainerFees"
+                                    value={formData.trainerFees || ''}
+                                    onChange={handleChange}
+                                    className="block w-full rounded-md border-gray-600 bg-gray-700 p-2 text-white focus:border-amber-500 focus:ring-amber-500 sm:text-sm"
+                                    placeholder="0.00"
+                                />
                             </div>
                         </div>
                     </div>
@@ -663,7 +805,7 @@ const MemberFormModal: React.FC<MemberFormModalProps> = ({ isOpen, onClose, onSa
                         <input type="checkbox" name="whatsappConsent" checked={formData.whatsappConsent} onChange={handleChange} className="h-4 w-4 text-green-500 focus:ring-green-500 border-gray-600 rounded bg-gray-700" />
                     </div>
 
-                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-700 sticky bottom-0 bg-gray-800 pb-2">
                         <button type="button" onClick={onClose} className="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-500 transition-colors">Cancel</button>
                         <button type="submit" className="bg-amber-500 text-gray-900 font-bold py-2 px-6 rounded-lg hover:bg-amber-400 transition-colors shadow-lg">Save Member</button>
                     </div>

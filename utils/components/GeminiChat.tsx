@@ -15,6 +15,7 @@ import { BotIcon } from './icons/BotIcon';
 import { UserIcon } from './icons/UserIcon';
 import { DumbbellIcon } from './icons/DumbbellIcon';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
+import { generateAIWorkoutTemplate } from '../../lib/gemini';
 
 interface ChatMessage {
     role: 'user' | 'model';
@@ -157,6 +158,20 @@ const gymTools: Tool[] = [
                 description: 'Fetch the specific workout routine scheduled for the logged-in member for today.',
             },
             {
+                name: 'generate_workout_routine',
+                description: 'Generate a personalized workout routine for the user based on their goals and preferences.',
+                parameters: {
+                    type: Type.OBJECT,
+                    properties: {
+                        goal: { type: Type.STRING, description: 'Fitness goal (e.g., Muscle Gain, Fat Loss)' },
+                        level: { type: Type.STRING, description: 'Fitness level (Beginner, Intermediate, Advanced)' },
+                        focus: { type: Type.STRING, description: 'Target muscle group or focus (e.g., Full Body, Legs, Cardio)' },
+                        days: { type: Type.NUMBER, description: 'Number of days per week (default 3)' }
+                    },
+                    required: ['goal', 'level']
+                }
+            },
+            {
                 name: 'get_workout_tip',
                 description: 'Get a quick technical fitness tip based on a specific muscle group.',
                 parameters: {
@@ -244,6 +259,9 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, onNavigate, co
             You have access to real-time gym data.
             Always maintain a helpful, professional, and motivating tone.
             
+            You can answer questions about the gym, member status, diet plans, and workouts.
+            You can also generate full workout routines using the 'generate_workout_routine' tool.
+            
             Gym Info: ${JSON.stringify(GYM_INFO)}.
             Current Time: ${new Date().toLocaleString()}.
             ${context?.role === 'member' ? `Member Context: ${context.memberName} (ID: ${context.memberId})` : 'User Context: Admin'}
@@ -317,6 +335,18 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, onNavigate, co
                     else if (call.name === 'get_my_status') functionResponseData = getMemberStatus(context?.memberId || 0);
                     else if (call.name === 'get_my_diet') functionResponseData = getMemberDiet(context?.memberId || 0);
                     else if (call.name === 'get_my_workout') functionResponseData = getMemberWorkout(context?.memberId || 0);
+                    else if (call.name === 'generate_workout_routine') {
+                        const args = call.args as any;
+                        const plan = await generateAIWorkoutTemplate({
+                            name: `AI Plan for ${context?.memberName || 'Member'}`,
+                            level: args.level,
+                            goal: args.goal,
+                            structure: args.focus || 'Full Body',
+                            daysPerWeek: args.days || 3,
+                            notes: "Generated via Chat"
+                        });
+                        functionResponseData = { result: plan };
+                    }
                     else if (call.name === 'get_workout_tip') functionResponseData = { tip_request_received: true, muscle: (call.args as any).muscleGroup };
                     else if (call.name === 'send_whatsapp_message') functionResponseData = sendWhatsAppMessageTool((call.args as any).phoneNumber, (call.args as any).message);
                     else if (call.name === 'navigate_to') {
@@ -403,8 +433,8 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, onNavigate, co
     const quickActions = [
         { label: '🥗 My Diet', text: 'What is my current diet plan?' },
         { label: '💪 Workout', text: 'What workout should I do today?' },
+        { label: '✨ Create Plan', text: 'Generate a 4-day muscle gain workout plan for me.' },
         { label: '📅 Schedule', text: 'What classes are on today?' },
-        { label: '📲 Send WhatsApp', text: 'Send a WhatsApp message to Manager saying I will be late.' }, 
     ];
 
     if (!isOpen) return null;

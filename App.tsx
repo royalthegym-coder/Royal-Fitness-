@@ -9,6 +9,8 @@ import { checkMembershipExpiryAndNotify } from './lib/whatsapp';
 import { ChatIcon } from './utils/components/icons/ChatIcon';
 import GeminiChat from './utils/components/GeminiChat';
 import { View, Theme } from './types';
+import { ToastProvider } from './utils/context/ToastProvider';
+import { DataProvider, useData } from './utils/context/DataProvider'; // Import DataProvider
 
 // Lazy load heavy components to improve initial load speed and performance
 const Dashboard = React.lazy(() => import('./utils/components/Dashboard'));
@@ -53,23 +55,21 @@ interface CurrentUser {
 }
 
 const LoadingSpinner = () => (
-    <div className="flex items-center justify-center h-full w-full bg-gray-100 dark:bg-gray-900">
+    <div className="flex items-center justify-center h-full w-full">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500"></div>
     </div>
 );
 
-const App: React.FC = () => {
-    // Optimized: Default to Admin to bypass login screen for faster access ("Fast Movement")
-    const [currentUser, setCurrentUser] = useState<CurrentUser | null>({
-        type: 'admin',
-        name: 'Royal Admin',
-        avatar: 'https://i.pravatar.cc/150?u=admin'
-    });
-    
+// Inner Component to use Data Hook if needed, or just keep structure clean
+const AppContent: React.FC = () => {
+    const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
     const [currentView, setCurrentView] = useState<View>('dashboard');
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [theme, setTheme] = useState<Theme>('dark');
     const [isChatOpen, setChatOpen] = useState(false);
+
+    // Get Data from Context (Example: Ensure members are loaded for login check)
+    const { members } = useData();
 
     useEffect(() => {
         if (theme === 'dark') {
@@ -79,46 +79,56 @@ const App: React.FC = () => {
         }
     }, [theme]);
 
-    // Simulate Daily Cron Job (Optimized to not block render)
-    useEffect(() => {
-        if (currentUser?.type === 'admin') {
-            const runCheck = async () => {
-                try {
-                    const count = await checkMembershipExpiryAndNotify();
-                    if (count > 0) console.log(`[System] Auto-reminded ${count} members.`);
-                } catch (e) {
-                    console.error("Automation check failed", e);
-                }
-            };
-            runCheck();
-        }
-    }, [currentUser]);
-
     const toggleTheme = () => {
         setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
     };
 
-    const handleLogin = (identifier: string, pass: string, role: 'admin' | 'member'): boolean => {
+    const handleLogin = (identifier: string, pass: string | null, role: 'admin' | 'member', method: 'password' | 'otp'): boolean => {
+        // --- ADMIN LOGIN ---
         if (role === 'admin') {
-            const isValidAdmin = (identifier === 'admin@royal.com' || identifier === '9785300123' || identifier === '+919785300123');
-            if (isValidAdmin && pass === 'admin123') {
-                setCurrentUser({ type: 'admin', name: 'Admin', avatar: 'https://i.pravatar.cc/150?u=admin' });
+            const authorizedAdmins = ['admin@royal.com', '9785300123', '+919785300123'];
+            const isAuthorized = authorizedAdmins.includes(identifier);
+
+            if (!isAuthorized) return false;
+
+            if (method === 'otp' || (method === 'password' && pass === 'admin123')) {
+                setCurrentUser({ type: 'admin', name: 'Super Admin', avatar: 'https://i.pravatar.cc/150?u=admin' });
                 return true;
             }
         }
+
+        // --- MEMBER LOGIN ---
         if (role === 'member') {
-            const member = INITIAL_MEMBERS.find(m => m.email === identifier || m.phone === identifier);
-            if (member && pass === `${member.name.split(' ')[0].toLowerCase()}123`) {
-                setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
-                return true;
+            // Use 'members' from Context instead of static constant
+            const member = members.find(m => 
+                m.email.toLowerCase() === identifier.toLowerCase() || 
+                m.phone.replace(/\D/g,'').slice(-10) === identifier.replace(/\D/g,'').slice(-10)
+            );
+
+            if (!member) return false;
+
+            if (method === 'otp') {
+                 setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
+                 return true;
+            }
+
+            if (method === 'password') {
+                const expectedPass = `${member.name.split(' ')[0].toLowerCase()}123`;
+                if (pass === expectedPass) {
+                    setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
+                    return true;
+                }
             }
         }
+
         return false;
     };
 
     const handleLogout = () => {
-        setCurrentUser(null);
+        sessionStorage.clear();
+        setChatOpen(false);
         setCurrentView('dashboard');
+        setCurrentUser(null);
     };
 
     const renderView = () => {
@@ -172,20 +182,30 @@ const App: React.FC = () => {
     }
 
     return (
-        <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 ${theme}`}>
-            <Sidebar currentView={currentView} setCurrentView={setCurrentView} isOpen={isSidebarOpen} setIsOpen={setSidebarOpen} />
-            <div className="flex-1 flex flex-col overflow-hidden relative">
-                <Header onLogout={handleLogout} userName={currentUser.name} avatar={currentUser.avatar} theme={theme} toggleTheme={toggleTheme}>
-                    <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 focus:outline-none md:hidden">
-                        <MenuIcon />
-                    </button>
-                </Header>
-                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 dark:bg-gray-900 p-6 scroll-smooth">
-                    <Suspense fallback={<LoadingSpinner />}>
-                        {renderView()}
-                    </Suspense>
-                </main>
+        <div className={`h-screen w-screen font-sans text-gray-800 dark:text-gray-100 ${theme}`}>
+             <div className="absolute inset-0 z-0 pointer-events-none">
+                <img src="https://images.unsplash.com/photo-1571902943202-507ec2618e8f?q=80&w=2070&auto=format&fit=crop" alt="Gym background" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-sm"></div>
             </div>
+
+            <div className="relative z-10 flex h-full w-full">
+                <Sidebar currentView={currentView} setCurrentView={setCurrentView} isOpen={isSidebarOpen} setIsOpen={setSidebarOpen} />
+                <div className="flex-1 flex flex-col h-screen">
+                    <Header onLogout={handleLogout} userName={currentUser.name} avatar={currentUser.avatar} theme={theme} toggleTheme={toggleTheme}>
+                        <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 focus:outline-none md:hidden">
+                            <MenuIcon />
+                        </button>
+                    </Header>
+                    <main className="flex-1 overflow-y-auto">
+                        <div className="p-6">
+                            <Suspense fallback={<div className="h-[calc(100vh-150px)] flex items-center justify-center"><LoadingSpinner /></div>}>
+                                {renderView()}
+                            </Suspense>
+                        </div>
+                    </main>
+                </div>
+            </div>
+
             <button
                 onClick={() => setChatOpen(!isChatOpen)}
                 className="fixed bottom-6 right-6 bg-amber-500 text-gray-900 p-4 rounded-full shadow-lg hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 z-50 transform hover:scale-110 transition-transform"
@@ -206,5 +226,14 @@ const App: React.FC = () => {
         </div>
     );
 };
+
+
+const App: React.FC = () => (
+    <ToastProvider>
+        <DataProvider>
+            <AppContent />
+        </DataProvider>
+    </ToastProvider>
+);
 
 export default App;

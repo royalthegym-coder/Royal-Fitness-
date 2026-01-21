@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Tool } from "@google/genai";
+import { GoogleGenAI, Tool, Modality } from "@google/genai";
 import { Member, WorkoutLog, MemberFitnessData, WorkoutExercise, BodyMetric } from "../types";
 
 // Type definitions
@@ -95,22 +95,41 @@ export async function analyzeCompetitorGap(myLocation: string): Promise<string> 
 
 export async function generateTextToSpeech(text: string): Promise<string> {
     const ai = getAI();
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-preview-tts',
-            contents: { parts: [{ text }] },
-            config: {
-                responseModalities: ['AUDIO'],
-                speechConfig: {
-                    voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
+    const maxRetries = 3;
+    let attempt = 0;
+
+    if (!text || text.trim().length === 0) return "";
+
+    while (attempt < maxRetries) {
+        try {
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash-preview-tts',
+                contents: { parts: [{ text }] },
+                config: {
+                    responseModalities: [Modality.AUDIO], // Fix: Use Modality enum
+                    speechConfig: {
+                        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
+                    }
                 }
+            });
+            return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || "";
+        } catch (error: any) {
+            // Check for Rate Limit (429) or Service Unavailable (503)
+            if (error.message?.includes('429') || error.status === 429 || error.code === 429 || 
+                error.message?.includes('503') || error.status === 503) {
+                attempt++;
+                console.warn(`TTS Rate limit hit (Attempt ${attempt}/${maxRetries}). Retrying...`);
+                // Exponential backoff: 1s, 2s, 4s
+                await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
+                continue;
             }
-        });
-        return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || "";
-    } catch (error) {
-        console.error("TTS Error:", error);
-        return "";
+            
+            console.error("TTS Error:", error);
+            // Non-retriable error
+            return "";
+        }
     }
+    return "";
 }
 
 export async function generateMarketingImage(topic: string): Promise<string | null> {
@@ -121,8 +140,7 @@ export async function generateMarketingImage(topic: string): Promise<string | nu
     Ensure it looks appealing and motivational for a fitness business.`;
     
     try {
-        // Switched to gemini-2.5-flash-image (Gemini Banana) to resolve PERMISSION_DENIED errors
-        // This model is generally available and efficient for this task.
+        // Switched to gemini-2.5-flash-image (Gemini Banana)
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: {
@@ -142,7 +160,6 @@ export async function generateMarketingImage(topic: string): Promise<string | nu
         }
     } catch (e) {
         console.error("Image generation failed", e);
-        // Fallback or just return null to handle gracefully in UI
     }
     return null;
 }
@@ -204,8 +221,30 @@ export async function getPostWorkoutAnalysis(member: Member, log: WorkoutLog, hi
 }
 
 export async function generateAIWorkoutTemplate(options: any): Promise<string> {
-    const prompt = `Create a workout template. Options: ${JSON.stringify(options)}. Return markdown.`;
-    return getComplexResponse(prompt);
+    const prompt = `Create a comprehensive workout template. 
+    Options: ${JSON.stringify(options)}. 
+    
+    Return a valid JSON object with this exact structure:
+    {
+      "name": "Workout Name",
+      "description": "A brief description of the strategy",
+      "exercises": [
+        { "name": "Exercise Name", "sets": "3", "reps": "12" }
+      ]
+    }`;
+    
+    const ai = getAI();
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: { responseMimeType: 'application/json' }
+        });
+        return response.text || "{}";
+    } catch (e) {
+        console.error("Workout Generation Error", e);
+        return "{}";
+    }
 }
 
 export async function modifyExerciseWithAI(exerciseName: string, type: 'easier' | 'harder' | 'swap'): Promise<WorkoutExercise> {
@@ -254,8 +293,9 @@ export async function analyzeReadinessAndModify(data: any): Promise<ReadinessOut
     }
 }
 
-export async function getSmartWarmup(workoutName: string): Promise<string> {
-    return getComplexResponse(`Create a smart warmup for ${workoutName}. Keep it brief.`);
+export async function getSmartWarmup(workoutName: string, context?: string): Promise<string> {
+    const prompt = `Create a smart, concise warmup for ${workoutName}.${context ? ` User Context: ${context}` : ''} Focus on mobilizing key joints and raising body temp. Format as HTML bullet points.`;
+    return getComplexResponse(prompt);
 }
 
 export async function getAICoachSuggestion(context: any): Promise<string> {

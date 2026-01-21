@@ -14,22 +14,18 @@ const CheckIcon: React.FC = () => (
     </svg>
 );
 
-const calculateAnnualPrice = (pkg: Package): number => {
-    const discount = 0.80; // 20% discount
-    switch (pkg.id) {
-        case 1: return (1500 + 11 * 1000) * discount;
-        case 2: return (pkg.price * 4) * discount;
-        case 3: return (pkg.price * 2) * discount;
-        case 4: return (pkg.price * 12) * discount;
-        case 5: return (pkg.price * 4) * discount;
-        case 6: return (pkg.price * 2) * discount;
-        case 7: return (pkg.price * 12) * discount;
-        default: return 0;
-    }
-};
+const getAnnualPackageForCategory = (category: string) => {
+    return INITIAL_PACKAGES.find(p => p.category === category && p.duration.includes('12 Months'));
+}
 
 const PackageCard: React.FC<{ pkg: Package }> = ({ pkg }) => {
-    const annualPrice = calculateAnnualPrice(pkg);
+    // Logic: If package is < 12 months, suggest the annual (Diamond) plan price for comparison.
+    // If it IS the 12 month plan, highlight it as best value.
+    const isAnnual = pkg.duration.includes('12 Months');
+    const annualPackage = !isAnnual ? getAnnualPackageForCategory(pkg.category) : null;
+    
+    // Calculate potential savings or just show the annual price
+    const annualPriceDisplay = annualPackage ? annualPackage.price : null;
 
     return (
         <Card className="flex flex-col border-2 border-gray-700 hover:border-amber-500 transition-all duration-300 transform hover:-translate-y-1 h-full relative overflow-hidden group">
@@ -40,7 +36,7 @@ const PackageCard: React.FC<{ pkg: Package }> = ({ pkg }) => {
                     <span className="text-4xl font-extrabold text-white">₹{pkg.price.toLocaleString()}</span>
                     <span className="text-lg font-medium text-gray-400"> / {pkg.duration}</span>
                 </div>
-                {pkg.details && <p className="text-amber-300 text-sm font-semibold mb-4">{pkg.details}</p>}
+                {pkg.details && <p className="text-amber-300 text-sm font-semibold mb-4 bg-amber-900/20 p-2 rounded border border-amber-500/20">{pkg.details}</p>}
                 
                 <ul className="space-y-3 mb-4">
                     {pkg.features.map((feature, index) => (
@@ -51,11 +47,21 @@ const PackageCard: React.FC<{ pkg: Package }> = ({ pkg }) => {
                     ))}
                 </ul>
             </div>
+            
             <div className="mt-auto pt-4 border-t border-gray-700 relative z-10">
-                 <div className="text-center mb-4">
-                    <p className="text-lg font-bold text-gray-200">Annual Plan: <span className="text-green-400">₹{annualPrice.toLocaleString()}</span></p>
-                    <p className="text-[10px] text-gray-500 uppercase">Save 20%</p>
-                </div>
+                 {annualPriceDisplay && (
+                     <div className="text-center mb-4 bg-gray-800/50 p-2 rounded-lg border border-gray-600">
+                        <p className="text-sm font-medium text-gray-300">Switch to Annual (Diamond): <span className="text-green-400 font-bold">₹{annualPriceDisplay.toLocaleString()}</span></p>
+                        <p className="text-[10px] text-green-400 uppercase font-bold">Save 20%</p>
+                    </div>
+                 )}
+                 {isAnnual && (
+                     <div className="text-center mb-4">
+                        <p className="text-sm font-bold text-green-400 flex justify-center items-center bg-green-900/20 py-1 rounded">
+                            <SparkleIcon className="w-4 h-4 mr-1" /> Best Value Plan
+                        </p>
+                    </div>
+                 )}
                 <button className="w-full bg-amber-500 text-gray-900 font-bold py-3 px-4 rounded-lg hover:bg-amber-400 transition-colors shadow-lg">
                     Choose Plan
                 </button>
@@ -128,7 +134,7 @@ const Packages: React.FC = () => {
         <section>
             <div className="flex items-center mb-6 pb-2 border-b-2 border-amber-500/50">
                 <div className="bg-amber-500 w-2 h-8 mr-3 rounded-sm"></div>
-                <h2 className="text-2xl font-semibold text-white">Regular Gym Workout</h2>
+                <h2 className="text-2xl font-semibold text-white">Regular Gym Packages</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {regularPackages.map(pkg => <PackageCard key={pkg.id} pkg={pkg} />)}
@@ -138,7 +144,7 @@ const Packages: React.FC = () => {
         <section>
             <div className="flex items-center mb-6 pb-2 border-b-2 border-blue-500/50">
                 <div className="bg-blue-500 w-2 h-8 mr-3 rounded-sm"></div>
-                <h2 className="text-2xl font-semibold text-white">Cardio Gym Workout</h2>
+                <h2 className="text-2xl font-semibold text-white">Cardio Gym Packages</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {cardioPackages.map(pkg => <PackageCard key={pkg.id} pkg={pkg} />)}

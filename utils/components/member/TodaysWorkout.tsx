@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import Card from '../common/Card';
 import { INITIAL_MEMBER_SCHEDULES, INITIAL_WORKOUT_TEMPLATES, INITIAL_MEMBERS } from '../../../constants';
-import { WorkoutLog, WorkoutPerformance, WorkoutExercise, WorkoutSection, MemberFitnessData } from '../../../types';
+import { WorkoutLog, WorkoutPerformance, WorkoutExercise, WorkoutSection, MemberFitnessData, HealthData } from '../../../types';
 import { BotIcon } from '../icons/BotIcon';
 import { MemberView } from '../MemberPortal';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
@@ -15,15 +15,14 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { VideoCameraIcon } from '../icons/VideoCameraIcon';
 import { AutoUpdateIcon } from '../icons/AutoUpdateIcon';
+import { getMediaForExercise } from '../common/ExerciseDemoModal';
+import ExerciseDemoModal from '../common/ExerciseDemoModal';
 
 // --- ICONS ---
 const PlayIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>;
 const PauseIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>;
 const SwapIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>;
-const InfoIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
-const TrashIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>;
 const DownloadIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>;
-const TimerIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
 const HistoryIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" className={className || "w-4 h-4"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -35,6 +34,7 @@ interface TodaysWorkoutProps {
     onWorkoutComplete: (log: WorkoutLog) => void;
     setActiveView: (view: MemberView) => void;
     fitnessData: MemberFitnessData;
+    healthData: HealthData;
 }
 
 type PerformanceLog = Record<string, { reps: string; weight: string; rpe: string; completed: boolean }[]>;
@@ -44,187 +44,13 @@ const getLocalToday = () => {
     return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
 };
 
-// --- SMART AI EXERCISE DEMO COMPONENT ---
-const AIExerciseDemo: React.FC<{ exerciseName: string; onClose: () => void }> = ({ exerciseName, onClose }) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [isAiOverlay, setIsAiOverlay] = useState(true);
-    const [playbackSpeed, setPlaybackSpeed] = useState(1);
-
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        let animationFrame: number;
-        let t = 0;
-
-        const render = () => {
-            // Resize logic
-            canvas.width = canvas.parentElement?.clientWidth || 600;
-            canvas.height = canvas.parentElement?.clientHeight || 340;
-            const w = canvas.width;
-            const h = canvas.height;
-
-            // Clear Background
-            ctx.fillStyle = '#111827'; // Dark Gray
-            ctx.fillRect(0, 0, w, h);
-
-            // Draw Grid (Floor & Wall)
-            ctx.strokeStyle = '#1f2937';
-            ctx.lineWidth = 1;
-            // Floor grid
-            for(let x=0; x<w; x+=40) {
-                ctx.beginPath(); 
-                ctx.moveTo(x, h/2 + 50); 
-                ctx.lineTo(x - (x-w/2)*0.5, h); 
-                ctx.stroke(); 
-            }
-            // Horizon line
-            ctx.beginPath(); ctx.moveTo(0, h/2+50); ctx.lineTo(w, h/2+50); ctx.stroke();
-
-            // Simulation of "Perfect Form" Motion (Generic Squat/Press Cycle)
-            const cycle = (Math.sin(t) + 1) / 2; // 0 to 1
-            const centerX = w / 2;
-            const centerY = h / 2 + 50;
-            const scale = h / 400;
-
-            // Stick Figure Points (Generic Athletic Motion)
-            const headY = centerY - 150 * scale + (cycle * 50 * scale);
-            const neckY = headY + 30 * scale;
-            const hipY = centerY + (cycle * 50 * scale);
-            const kneeY = centerY + 100 * scale + (cycle * 20 * scale);
-            const footY = centerY + 180 * scale;
-
-            // Draw Skeleton
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            
-            // AI Overlay Glow
-            if (isAiOverlay) {
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = '#4ade80'; // Green glow
-                ctx.strokeStyle = '#4ade80';
-            } else {
-                ctx.shadowBlur = 0;
-                ctx.strokeStyle = '#e5e7eb';
-            }
-            
-            ctx.lineWidth = 6 * scale;
-
-            // Torso
-            ctx.beginPath();
-            ctx.moveTo(centerX, neckY);
-            ctx.lineTo(centerX, hipY);
-            ctx.stroke();
-
-            // Legs (Left)
-            ctx.beginPath();
-            ctx.moveTo(centerX, hipY);
-            ctx.lineTo(centerX - 30 * scale, kneeY);
-            ctx.lineTo(centerX - 30 * scale, footY);
-            ctx.stroke();
-
-            // Legs (Right)
-            ctx.beginPath();
-            ctx.moveTo(centerX, hipY);
-            ctx.lineTo(centerX + 30 * scale, kneeY);
-            ctx.lineTo(centerX + 30 * scale, footY);
-            ctx.stroke();
-
-            // Arms (Left)
-            const armY = neckY + 10 * scale;
-            const handY = headY - 40 * scale * (1-cycle); 
-            
-            ctx.beginPath();
-            ctx.moveTo(centerX, armY);
-            ctx.lineTo(centerX - 50 * scale, armY + 20 * scale);
-            ctx.lineTo(centerX - 70 * scale, handY);
-            ctx.stroke();
-
-            // Arms (Right)
-            ctx.beginPath();
-            ctx.moveTo(centerX, armY);
-            ctx.lineTo(centerX + 50 * scale, armY + 20 * scale);
-            ctx.lineTo(centerX + 70 * scale, handY);
-            ctx.stroke();
-
-            // Head
-            ctx.fillStyle = isAiOverlay ? '#22c55e' : '#fff';
-            ctx.beginPath();
-            ctx.arc(centerX, headY, 15 * scale, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Trajectory Lines (AI Feature)
-            if (isAiOverlay) {
-                ctx.strokeStyle = 'rgba(74, 222, 128, 0.3)';
-                ctx.lineWidth = 1;
-                ctx.setLineDash([5, 5]);
-                ctx.beginPath();
-                ctx.moveTo(centerX - 70 * scale, headY - 50 * scale);
-                ctx.lineTo(centerX - 70 * scale, headY + 150 * scale);
-                ctx.stroke();
-                ctx.setLineDash([]);
-            }
-
-            t += 0.08 * playbackSpeed;
-            animationFrame = requestAnimationFrame(render);
-        };
-        render();
-
-        return () => cancelAnimationFrame(animationFrame);
-    }, [isAiOverlay, playbackSpeed]);
-
-    return (
-        <div className="bg-black border-b border-gray-700 relative overflow-hidden transition-all duration-300">
-            <div className="relative w-full aspect-video bg-gray-900">
-                <canvas ref={canvasRef} className="w-full h-full block" />
-                
-                {/* HUD */}
-                <div className="absolute top-4 left-4 flex flex-col gap-1 pointer-events-none">
-                    <span className="text-[10px] font-mono text-green-400 bg-green-900/40 px-2 py-1 rounded border border-green-500/30 animate-pulse flex items-center w-fit">
-                        <span className="w-1.5 h-1.5 bg-green-400 rounded-full mr-1.5"></span>
-                        AI FORM TRACKING ACTIVE
-                    </span>
-                    <span className="text-xl font-black text-white drop-shadow-lg tracking-wide uppercase">{exerciseName}</span>
-                </div>
-
-                {/* AI Stats */}
-                <div className="absolute top-4 right-4 flex flex-col items-end gap-2 pointer-events-none">
-                    <div className="bg-black/60 backdrop-blur-md p-2 rounded border border-gray-700/50 text-right">
-                        <p className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Target Muscle</p>
-                        <p className="text-xs font-bold text-amber-400">Primary Agonist</p>
-                    </div>
-                    <div className="bg-black/60 backdrop-blur-md p-2 rounded border border-gray-700/50 text-right">
-                        <p className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Ideal Tempo</p>
-                        <p className="text-xs font-bold text-blue-400">2-0-2 (Controlled)</p>
-                    </div>
-                </div>
-
-                {/* Controls */}
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/80 to-transparent p-4 flex items-center justify-between">
-                    <div className="flex gap-4 items-center">
-                        <button onClick={() => setPlaybackSpeed(prev => prev === 1 ? 0.5 : 1)} className="text-[10px] font-bold text-white bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded border border-gray-600 transition-colors">
-                            {playbackSpeed === 0.5 ? '0.5x SLO-MO' : '1.0x SPEED'}
-                        </button>
-                        <button onClick={() => setIsAiOverlay(!isAiOverlay)} className={`text-[10px] font-bold px-2 py-1 rounded border transition-colors ${isAiOverlay ? 'bg-green-900/50 text-green-400 border-green-500/50' : 'bg-gray-800 text-gray-400 border-gray-600'}`}>
-                            AI OVERLAY {isAiOverlay ? 'ON' : 'OFF'}
-                        </button>
-                    </div>
-                    <button onClick={onClose} className="text-xs text-gray-400 hover:text-white underline">Close Demo</button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComplete, setActiveView, fitnessData }) => {
+const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComplete, setActiveView, fitnessData, healthData }) => {
     // --- STATE ---
     const [performanceLog, setPerformanceLog] = useState<PerformanceLog>({});
     const [isCompleted, setIsCompleted] = useState(false);
     const [sessionDuration, setSessionDuration] = useState(0);
     const [isTimerRunning, setIsTimerRunning] = useState(false);
-    const [hasStarted, setHasStarted] = useState(false); // New state for pre-workout check
+    const [hasStarted, setHasStarted] = useState(false);
     
     // Rest Timer
     const [restTimer, setRestTimer] = useState(0);
@@ -243,13 +69,13 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
     const [isModifying, setIsModifying] = useState(false);
     
     // Smart Action Menu State
-    const [activeSmartMenu, setActiveSmartMenu] = useState<string | null>(null); // Exercise Name
+    const [activeSmartMenu, setActiveSmartMenu] = useState<string | null>(null); 
     const [adjustingExercise, setAdjustingExercise] = useState<string | null>(null);
     const [smartSuggestion, setSmartSuggestion] = useState<{ adjustment: string, recommendedWeight: number, recommendedReps: number } | null>(null);
     const [isAdjusting, setIsAdjusting] = useState(false);
 
-    // Demo View State
-    const [viewingDemo, setViewingDemo] = useState<string | null>(null);
+    // Demo Modal State
+    const [demoModalExercise, setDemoModalExercise] = useState<string | null>(null);
 
     // Dynamic Readiness
     const [isReadinessModalOpen, setIsReadinessModalOpen] = useState(false);
@@ -278,27 +104,22 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
             interval = setInterval(() => setRestTimer(prev => prev - 1), 1000);
         } else if (restTimer === 0 && isResting) {
             setIsResting(false);
-            // Could add audio beep here
         }
         return () => clearInterval(interval);
     }, [isResting, restTimer]);
 
-    // --- FORMAT TIME ---
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // --- HELPER: GET LAST PERFORMANCE ---
     const getLastPerformance = (exerciseName: string) => {
         const memberLogs = fitnessData[memberId]?.logs || [];
-        // Iterate backwards
         for (let i = memberLogs.length - 1; i >= 0; i--) {
             const log = memberLogs[i];
             const perf = log.performance?.find(p => p.exercise === exerciseName);
             if (perf && perf.sets.length > 0) {
-                // Find heaviest set
                 const maxSet = perf.sets.reduce((prev, current) => (prev.weight > current.weight) ? prev : current);
                 return `${maxSet.weight}kg x ${maxSet.reps}`;
             }
@@ -306,18 +127,11 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
         return 'New';
     };
 
-    // --- DATA PREP (DYNAMIC DAILY SCHEDULE) ---
     const todaysWorkoutSchedule = useMemo(() => {
         if (generatedWorkout) return generatedWorkout;
-        
-        const today = new Date().getDay(); // 0 (Sun) - 6 (Sat)
-        
-        // Sunday is rest day
+        const today = new Date().getDay(); 
         if (today === 0) return null;
-
-        // Map Monday (1) to Day 1 (101), ..., Saturday (6) to Day 6 (106)
         const templateId = 100 + today;
-        
         return INITIAL_WORKOUT_TEMPLATES.find(t => t.id === templateId) || null;
     }, [generatedWorkout]);
 
@@ -339,7 +153,6 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
         return sections;
     }, [todaysWorkoutSchedule, modifiedExercises]);
 
-    // Initialize Log
     useEffect(() => {
         if (todaysWorkoutSchedule) {
             const initialLog: PerformanceLog = {};
@@ -355,8 +168,6 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
         }
     }, [workoutStructure]);
 
-    // --- ACTIONS ---
-
     const toggleTimer = () => setIsTimerRunning(!isTimerRunning);
 
     const handleSetChange = (exerciseName: string, setIndex: number, field: 'reps' | 'weight' | 'rpe', value: string) => {
@@ -371,20 +182,16 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
 
     const toggleSetComplete = (exerciseName: string, setIndex: number) => {
         if (!isTimerRunning) setIsTimerRunning(true); 
-        
         setPerformanceLog(prev => {
             const newLog = { ...prev };
             const newSets = [...newLog[exerciseName]];
             const isCompleting = !newSets[setIndex].completed;
             newSets[setIndex] = { ...newSets[setIndex], completed: isCompleting };
             newLog[exerciseName] = newSets;
-            
-            // Auto Start Rest Timer if completing a set
             if (isCompleting) {
-                setRestTimer(60); // Default 60s rest
+                setRestTimer(60); 
                 setIsResting(true);
             }
-            
             return newLog;
         });
     };
@@ -432,7 +239,7 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
         if (member) {
             setIsAnalyzing(true);
             try {
-                const analysis = await getPostWorkoutAnalysis(member, log, memberHistory);
+                const analysis = await getPostWorkoutAnalysis(member, log, memberHistory.logs);
                 setAiAnalysis(analysis);
             } catch (err) {
                 console.error("AI Analysis Failed", err);
@@ -442,13 +249,16 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
         }
     };
 
-    // --- AI MODIFICATIONS ---
-
     const handleGenerateSmartWarmup = async () => {
         if (!todaysWorkoutSchedule) return;
         setIsGeneratingWarmup(true);
         try {
-            const warmup = await getSmartWarmup(todaysWorkoutSchedule.name);
+            let context = "";
+            if (readinessData) {
+                context += `Readiness Score: ${readinessData.score}/100. Strategy: ${readinessData.strategy}. Reasoning: ${readinessData.reasoning}. `;
+            }
+            context += `Live Health Data: Heart Rate Avg ${healthData.heartRate.avg}bpm, Sleep ${healthData.sleep.totalHours}hrs, Steps ${healthData.steps}.`;
+            const warmup = await getSmartWarmup(todaysWorkoutSchedule.name, context);
             setSmartWarmup(warmup);
         } catch(e) {
             console.error(e);
@@ -459,7 +269,6 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
 
     const handleApplyReadiness = () => {
         if (readinessData && readinessData.score < 60) {
-            // Apply volume reduction if readiness is low
             const newModified: Record<string, WorkoutExercise> = {};
             workoutStructure.forEach(sec => {
                 sec.exercises.forEach(ex => {
@@ -529,8 +338,6 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
         setAdjustingExercise(null);
     };
 
-    // --- RENDER HELPERS ---
-
     const calculateProgress = () => {
         const values = Object.values(performanceLog) as { completed: boolean }[][];
         const totalSets = values.reduce((acc, sets) => acc + sets.length, 0);
@@ -550,33 +357,20 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                 structure: 'Full Body' as any,
                 daysPerWeek: 3,
                 notes: `Create a single session focusing on ${workoutFocus}. Return simple exercises.`,
-                memberHistory 
+                memberHistory,
+                currentHealth: healthData
             };
             
-            const content = await generateAIWorkoutTemplate(promptOptions);
-            
-            const lines = content.split('\n');
-            const parsedExercises: WorkoutExercise[] = [];
-            
-            lines.forEach(line => {
-                if (line.trim().startsWith('- **') || line.trim().startsWith('- ')) {
-                    const cleanLine = line.replace(/[*_]/g, '').replace(/^- /, '');
-                    const parts = cleanLine.split(':');
-                    if (parts.length > 1) {
-                        const name = parts[0].trim();
-                        const setRepMatch = parts[1].match(/(\d+)\s+sets/i);
-                        const sets = setRepMatch ? setRepMatch[1] : '3';
-                        parsedExercises.push({ name, sets: sets, reps: '10-12' });
-                    }
-                }
-            });
+            const rawResponse = await generateAIWorkoutTemplate(promptOptions);
+            const cleanJson = rawResponse.replace(/```json|```/g, '').trim();
+            const plan = JSON.parse(cleanJson);
 
-            if (parsedExercises.length > 0) {
+            if (plan.exercises && plan.exercises.length > 0) {
                 setGeneratedWorkout({
                     id: Date.now(),
-                    name: `AI Smart Session: ${workoutFocus}`,
+                    name: plan.name || `AI Smart Session: ${workoutFocus}`,
                     level: "Custom",
-                    exercises: parsedExercises
+                    exercises: plan.exercises
                 });
                 setShowGeneratorModal(false);
             } else {
@@ -595,17 +389,14 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
         setIsDownloadingPdf(true);
         const element = document.getElementById('workout-content');
         if (!element) return;
-
         try {
             const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: '#111827' });
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF('p', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = pdf.internal.pageSize.getHeight();
-            
             const imgProps = pdf.getImageProperties(imgData);
             const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
-            
             pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, imgHeight);
             pdf.setFontSize(10);
             pdf.setTextColor(150);
@@ -618,8 +409,6 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
             setIsDownloadingPdf(false);
         }
     };
-
-    // --- VIEWS ---
 
     if (isCompleted) {
         return (
@@ -643,7 +432,6 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                         </div>
                     </div>
                 </Card>
-
                 {(isAnalyzing || aiAnalysis) && (
                     <Card title="AI Performance Report" className="border-amber-500/50">
                         {isAnalyzing ? (
@@ -667,7 +455,7 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
         return (
             <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
                 <div className="bg-gray-800 p-8 rounded-full border-4 border-amber-500/20">
-                    <BotIcon />
+                    <BotIcon className="w-16 h-16 text-amber-400" />
                 </div>
                 <h2 className="text-3xl font-bold text-white">Sunday: Active Recovery</h2>
                 <p className="text-gray-400 max-w-md text-center">Take a break or do some light stretching. Recovery is where growth happens. Want to train anyway?</p>
@@ -693,10 +481,8 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
         );
     }
 
-    // --- PRE-WORKOUT READINESS CHECK FLOW ---
     if (!hasStarted) {
         if (readinessData) {
-            // Readiness Analyzed - Show Report
             return (
                 <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-6">
                     <Card className="max-w-xl w-full border-2 border-amber-500/50 bg-gradient-to-b from-gray-800 to-gray-900">
@@ -705,20 +491,17 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                             <h2 className="text-2xl font-bold text-white">Daily Readiness Report</h2>
                             <p className="text-gray-400">Analysis complete for {todaysWorkoutSchedule.name}</p>
                         </div>
-                        
                         <div className="flex justify-center mb-6">
                             <div className={`text-center p-4 rounded-xl border ${readinessData.score >= 80 ? 'bg-green-900/30 border-green-500' : readinessData.score >= 60 ? 'bg-yellow-900/30 border-yellow-500' : 'bg-red-900/30 border-red-500'}`}>
                                 <p className="text-xs text-gray-400 uppercase font-bold">Readiness Score</p>
                                 <p className="text-4xl font-black text-white">{readinessData.score}</p>
                             </div>
                         </div>
-
                         <div className="space-y-4 mb-8">
                             <div className="bg-gray-800 p-4 rounded-lg">
                                 <h4 className="font-bold text-amber-400 text-sm mb-2">Strategy: {readinessData.strategy}</h4>
                                 <p className="text-sm text-gray-300 italic">"{readinessData.reasoning}"</p>
                             </div>
-                            
                             {readinessData.modifications.length > 0 && (
                                 <div>
                                     <p className="text-xs text-gray-500 uppercase font-bold mb-2">Suggested Adjustments</p>
@@ -732,19 +515,12 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                                 </div>
                             )}
                         </div>
-
                         <div className="flex flex-col gap-3">
-                            <button 
-                                onClick={handleApplyReadiness}
-                                className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center"
-                            >
+                            <button onClick={handleApplyReadiness} className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center">
                                 <SparkleIcon className="w-5 h-5 mr-2" />
                                 {readinessData.score < 60 ? 'Apply Reductions & Start' : 'Apply & Start Workout'}
                             </button>
-                            <button 
-                                onClick={() => setHasStarted(true)}
-                                className="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition-colors"
-                            >
+                            <button onClick={() => setHasStarted(true)} className="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition-colors">
                                 Ignore & Start Original Plan
                             </button>
                         </div>
@@ -752,7 +528,6 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                 </div>
             );
         } else {
-            // Initial Pre-Flight Screen
             return (
                 <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-6">
                     <Card className="max-w-lg w-full text-center py-10 bg-gray-900 border border-gray-700">
@@ -760,30 +535,16 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                             <h2 className="text-3xl font-bold text-white mb-2">{todaysWorkoutSchedule.name}</h2>
                             <p className="text-gray-400">Ready to train? Let's check your recovery first.</p>
                         </div>
-                        
                         <div className="space-y-4">
-                            <button 
-                                onClick={() => setIsReadinessModalOpen(true)}
-                                className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold py-4 rounded-xl hover:from-amber-400 hover:to-orange-500 transition-all shadow-lg flex items-center justify-center text-lg"
-                            >
-                                <SparkleIcon className="w-6 h-6 mr-2" />
-                                Check Readiness (AI)
+                            <button onClick={() => setIsReadinessModalOpen(true)} className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold py-4 rounded-xl hover:from-amber-400 hover:to-orange-500 transition-all shadow-lg flex items-center justify-center text-lg">
+                                <SparkleIcon className="w-6 h-6 mr-2" /> Check Readiness (AI)
                             </button>
-                            
-                            <button 
-                                onClick={() => setHasStarted(true)}
-                                className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3 rounded-xl transition-colors border border-gray-600"
-                            >
+                            <button onClick={() => setHasStarted(true)} className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3 rounded-xl transition-colors border border-gray-600">
                                 Skip & Start Immediately
                             </button>
                         </div>
                     </Card>
-                    <SmartReadinessModal 
-                        isOpen={isReadinessModalOpen} 
-                        onClose={() => setIsReadinessModalOpen(false)} 
-                        plannedWorkoutName={todaysWorkoutSchedule.name} 
-                        onAnalysisComplete={setReadinessData} 
-                    />
+                    <SmartReadinessModal isOpen={isReadinessModalOpen} onClose={() => setIsReadinessModalOpen(false)} plannedWorkoutName={todaysWorkoutSchedule.name} onAnalysisComplete={setReadinessData} />
                 </div>
             );
         }
@@ -793,7 +554,9 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
 
     return (
         <div className="pb-20">
-            {/* --- TOP HEADER: LIVE SESSION COCKPIT --- */}
+            <ExerciseDemoModal isOpen={!!demoModalExercise} onClose={() => setDemoModalExercise(null)} exerciseName={demoModalExercise || ''} />
+            
+            {/* TOP HEADER */}
             <div className="sticky top-0 z-20 bg-gray-900/95 backdrop-blur-md border-b border-gray-700 pb-4 pt-2 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 mb-6 shadow-xl transition-all duration-300">
                 <div className="flex justify-between items-center mb-2">
                     <div>
@@ -806,12 +569,7 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <button
-                            onClick={handleDownloadPDF}
-                            disabled={isDownloadingPdf}
-                            className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white flex items-center transition-colors text-xs font-bold disabled:opacity-50"
-                            title="Download PDF"
-                        >
+                        <button onClick={handleDownloadPDF} disabled={isDownloadingPdf} className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white flex items-center transition-colors text-xs font-bold disabled:opacity-50" title="Download PDF">
                             {isDownloadingPdf ? <SparkleIcon className="w-4 h-4 animate-spin"/> : <DownloadIcon />}
                             <span className="ml-1 hidden sm:inline">PDF</span>
                         </button>
@@ -819,210 +577,210 @@ const TodaysWorkout: React.FC<TodaysWorkoutProps> = ({ memberId, onWorkoutComple
                             <p className="text-xs text-gray-500">Duration</p>
                             <p className="font-mono text-xl font-bold text-white tracking-widest">{formatTime(sessionDuration)}</p>
                         </div>
-                        <button 
-                            onClick={toggleTimer} 
-                            className={`p-3 rounded-full shadow-lg transition-transform hover:scale-105 ${isTimerRunning ? 'bg-amber-500/20 text-amber-400 border border-amber-500' : 'bg-green-500 text-white'}`}
-                        >
+                        <button onClick={toggleTimer} className={`p-3 rounded-full shadow-lg transition-transform hover:scale-105 ${isTimerRunning ? 'bg-amber-500/20 text-amber-400 border border-amber-500' : 'bg-green-500 text-white'}`}>
                             {isTimerRunning ? <PauseIcon /> : <PlayIcon />}
                         </button>
                     </div>
                 </div>
-                
-                {/* Progress Bar */}
-                <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden relative">
-                    <div className="bg-gradient-to-r from-green-400 to-blue-500 h-2 transition-all duration-500" style={{ width: `${progress}%` }}></div>
+                <div className="flex items-center gap-4">
+                    <div className="flex-grow bg-gray-800 h-2 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-500 ease-out" style={{ width: `${progress}%` }}></div>
+                    </div>
+                    <span className="text-xs font-bold text-amber-400 w-10 text-right">{progress}%</span>
                 </div>
-                
-                <div className="flex justify-between mt-2 items-center">
-                    {/* Floating Rest Timer Display if active */}
-                    {isResting ? (
-                        <div className="flex items-center text-xs text-blue-400 font-bold bg-blue-900/30 px-3 py-1 rounded-full animate-pulse border border-blue-500/30">
-                            <TimerIcon /> <span className="ml-2">Rest: {restTimer}s</span>
+                {isResting && (
+                    <div className="absolute top-16 left-0 right-0 flex justify-center pointer-events-none animate-slide-down">
+                        <div className="bg-black/80 backdrop-blur-md text-white px-6 py-2 rounded-full border border-green-500/50 shadow-2xl flex items-center gap-3">
+                            <span className="text-xs text-green-400 font-bold uppercase tracking-wider animate-pulse">Resting</span>
+                            <span className="text-xl font-mono font-bold">{restTimer}s</span>
+                            <button onClick={() => { setIsResting(false); setRestTimer(0); }} className="pointer-events-auto bg-gray-700 hover:bg-gray-600 rounded-full p-1 ml-2 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                            </button>
                         </div>
-                    ) : (
-                        <span className="text-xs text-gray-500">
-                            {readinessData ? `Readiness: ${readinessData.score}/100` : ''}
-                        </span>
-                    )}
-
-                    <span className="text-xs text-gray-500">{progress}% Complete</span>
-                </div>
+                    </div>
+                )}
             </div>
 
-            {/* --- WORKOUT SECTIONS --- */}
-            <div id="workout-content" className="bg-gray-900 p-4 rounded-lg relative overflow-hidden">
-                <div className="space-y-8 relative z-10">
-                    <h2 className="text-2xl font-bold text-white border-b border-gray-700 pb-2">{todaysWorkoutSchedule.name}</h2>
-                    {workoutStructure.map((section, secIndex) => (
-                        <div key={secIndex} className="relative">
-                            <div className={`flex items-center mb-4 p-2 rounded ${
-                                section.title.includes('Warm') ? 'bg-amber-900/30 border-l-4 border-amber-500' : 
-                                section.title.includes('Cool') ? 'bg-blue-900/30 border-l-4 border-blue-500' : 'bg-green-900/30 border-l-4 border-green-500'
-                            }`}>
-                                <h3 className={`text-lg font-bold uppercase tracking-wider ${
-                                    section.title.includes('Warm') ? 'text-amber-400' : 
-                                    section.title.includes('Cool') ? 'text-blue-400' : 'text-white'
-                                }`}>
-                                    {section.title}
-                                </h3>
-                            </div>
+            {/* AI WARMUP */}
+            {!smartWarmup ? (
+                <div className="mb-6 flex justify-center">
+                    <button onClick={handleGenerateSmartWarmup} disabled={isGeneratingWarmup} className="bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-400 text-xs font-bold py-2 px-6 rounded-full border border-amber-500/50 flex items-center transition-all shadow-[0_0_15px_rgba(245,158,11,0.1)]">
+                        <SparkleIcon className={`w-4 h-4 mr-2 ${isGeneratingWarmup ? 'animate-spin' : ''}`} />
+                        {isGeneratingWarmup ? 'Designing Protocol...' : 'Generate Smart Warmup (AI)'}
+                    </button>
+                </div>
+            ) : (
+                <div className="mb-6 bg-gray-800/50 p-4 rounded-xl border border-amber-500/20 animate-fade-in">
+                    <h4 className="text-sm font-bold text-amber-400 mb-2 flex items-center">
+                        <SparkleIcon className="w-4 h-4 mr-2" /> AI Warmup Protocol
+                    </h4>
+                    <div className="prose dark:prose-invert prose-sm text-gray-300 text-xs" dangerouslySetInnerHTML={{ __html: smartWarmup.replace(/\n/g, '<br />') }} />
+                </div>
+            )}
 
-                            <div className="space-y-4">
-                                {section.exercises.map((exercise, exIndex) => (
-                                    <div key={exIndex} className={`bg-gray-800 rounded-xl overflow-hidden border transition-all duration-300 ${modifiedExercises[exercise.name] ? 'border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'border-gray-700 shadow-md'}`}>
-                                        <div className="p-4 bg-gray-800 border-b border-gray-700 flex justify-between items-start">
-                                            <div>
-                                                <h4 className="text-lg font-bold text-white flex items-center">
-                                                    {exercise.name}
-                                                    {modifiedExercises[exercise.name] && (
-                                                        <span className="ml-2 bg-amber-500/20 text-amber-400 text-[10px] px-2 py-0.5 rounded-full border border-amber-500/50 flex items-center">
-                                                            <SparkleIcon className="w-3 h-3 mr-1" /> Modified
-                                                        </span>
-                                                    )}
-                                                    <button className="ml-2 text-gray-500 hover:text-amber-400" onClick={() => alert("Exercise Info")}><InfoIcon /></button>
-                                                </h4>
-                                                <p className="text-xs text-gray-400 mt-1">Target: <span className="text-amber-400 font-mono">{exercise.sets} x {exercise.reps}</span></p>
-                                                <div className="flex gap-2 mt-2">
-                                                    <p className="text-[10px] text-blue-400 flex items-center">
-                                                        <HistoryIcon className="w-3 h-3 mr-1"/> Last: {getLastPerformance(exercise.name)}
-                                                    </p>
-                                                    <button
-                                                        onClick={() => setViewingDemo(viewingDemo === exercise.name ? null : exercise.name)}
-                                                        className="text-[10px] text-gray-400 hover:text-green-400 flex items-center"
-                                                    >
-                                                        <VideoCameraIcon className="w-3 h-3 mr-1" />
-                                                        {viewingDemo === exercise.name ? 'Hide Demo' : 'View Demo'}
-                                                    </button>
+            {/* WORKOUT LIST */}
+            <div id="workout-content" className="space-y-8">
+                {workoutStructure.map((section, sIndex) => (
+                    <div key={sIndex} className="animate-fade-in-up" style={{ animationDelay: `${sIndex * 100}ms` }}>
+                        {section.title && (
+                            <h3 className="text-lg font-bold text-gray-400 uppercase tracking-widest border-b border-gray-700 pb-2 mb-4 flex items-center">
+                                {section.title}
+                            </h3>
+                        )}
+                        <div className="space-y-6">
+                            {section.exercises.map((exercise, eIndex) => {
+                                const exerciseLog = performanceLog[exercise.name] || [];
+                                const isModified = modifiedExercises[exercise.name];
+                                const lastPerf = getLastPerformance(exercise.name);
+
+                                return (
+                                    <div key={eIndex} className={`bg-gray-800 rounded-xl border transition-all duration-300 hover:border-gray-600 ${isModified ? 'border-blue-500/50 bg-blue-900/10' : 'border-gray-700'}`}>
+                                        
+                                        {/* Exercise Header */}
+                                        <div className="p-4 border-b border-gray-700 bg-gray-800/50 rounded-t-xl flex items-start gap-4">
+                                            <div 
+                                                onClick={() => setDemoModalExercise(exercise.name)}
+                                                className="w-24 h-24 bg-black rounded-lg cursor-pointer group relative flex-shrink-0 shadow-lg border border-gray-700 overflow-hidden"
+                                                title="Tap to watch AI form guide"
+                                            >
+                                                <img src={getMediaForExercise(exercise.name)} alt="demo" className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" />
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 group-hover:bg-black/20 transition-all">
+                                                    <VideoCameraIcon className="w-8 h-8 text-cyan-400 group-hover:scale-110 transition-transform mb-1" />
+                                                    <span className="text-[9px] font-bold text-white uppercase tracking-wider bg-cyan-900/80 px-1.5 py-0.5 rounded backdrop-blur-sm border border-cyan-500/50">AI Coach</span>
                                                 </div>
                                             </div>
-                                            <div className="relative">
-                                                <button 
-                                                    onClick={() => setActiveSmartMenu(activeSmartMenu === exercise.name ? null : exercise.name)}
-                                                    className={`p-2 rounded-lg shadow-lg transition-all flex items-center gap-1 ${isModifying ? 'bg-gray-700 text-gray-400 cursor-wait' : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-500 hover:to-purple-500'}`}
-                                                    disabled={isModifying}
-                                                >
-                                                    {isModifying ? <AutoUpdateIcon className="w-4 h-4 animate-spin"/> : <SparkleIcon className="w-4 h-4" />} 
-                                                    <span className="text-xs font-bold">{isModifying ? 'Updating...' : 'AI Spotter'}</span>
-                                                </button>
-                                                {activeSmartMenu === exercise.name && (
-                                                    <div className="absolute right-0 top-12 w-64 bg-gray-800 border border-gray-600 rounded-xl shadow-2xl z-10 overflow-hidden animate-fade-in">
-                                                        <div className="p-2 border-b border-gray-600 bg-gray-900/50">
-                                                            <p className="text-[10px] text-gray-400 uppercase font-bold text-center">AI Performance Tuner</p>
-                                                        </div>
-                                                        
-                                                        <button onClick={() => getSmartAdjustment(exercise.name, 'Too Easy')} className="w-full text-left px-4 py-3 text-sm text-green-400 hover:bg-gray-700 flex items-center border-b border-gray-700">
-                                                            <span className="mr-2">⚡</span> Too Easy (Progression)
-                                                        </button>
-                                                        <button onClick={() => getSmartAdjustment(exercise.name, 'Too Hard')} className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-gray-700 flex items-center border-b border-gray-700">
-                                                            <span className="mr-2">🛑</span> Too Hard (Regression)
-                                                        </button>
 
-                                                        <button onClick={() => handleAIModifyExercise(exercise.name, 'easier')} className="w-full text-left px-4 py-3 text-sm text-yellow-400 hover:bg-gray-700 flex items-center border-b border-gray-700">
-                                                            <span className="mr-2">🩹</span> Soreness / Pain (Modify)
-                                                        </button>
-                                                        <button onClick={() => handleAIModifyExercise(exercise.name, 'swap')} className="w-full text-left px-4 py-3 text-sm text-blue-400 hover:bg-gray-700 flex items-center border-b border-gray-700">
-                                                            <SwapIcon /> <span className="ml-2">Equipment Busy (Swap)</span>
-                                                        </button>
-                                                        
-                                                        <button onClick={() => alert("Opening AI Camera...")} className="w-full text-left px-4 py-3 text-sm text-gray-200 hover:bg-gray-700 flex items-center">
-                                                            <CameraIcon className="w-4 h-4" /> <span className="ml-2">AI Form Check</span>
-                                                        </button>
+                                            <div className="flex-grow flex justify-between items-start">
+                                                <div>
+                                                    <h4 className="text-xl font-bold text-white">
+                                                        {exercise.name}
+                                                    </h4>
+                                                    {isModified && <span className="mt-1 inline-block text-[10px] bg-blue-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">AI Adjusted</span>}
+                                                    <div className="flex items-center gap-4 mt-2">
+                                                        <p className="text-sm text-gray-400">Target: <span className="text-amber-400 font-mono">{exercise.sets}</span> sets x <span className="text-amber-400 font-mono">{exercise.reps}</span> reps</p>
+                                                        <div className="flex items-center text-xs text-gray-500 bg-gray-900 px-2 py-0.5 rounded">
+                                                            <HistoryIcon className="w-3 h-3 mr-1" /> Last: {lastPerf}
+                                                        </div>
                                                     </div>
-                                                )}
+                                                </div>
+
+                                                <div className="relative">
+                                                    <button onClick={() => setActiveSmartMenu(activeSmartMenu === exercise.name ? null : exercise.name)} className={`p-2 rounded-lg transition-colors ${activeSmartMenu === exercise.name ? 'bg-amber-500 text-gray-900' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}>
+                                                        <BotIcon className="w-5 h-5" />
+                                                    </button>
+                                                    {activeSmartMenu === exercise.name && (
+                                                        <div className="absolute right-0 top-full mt-2 w-48 bg-gray-800 border border-gray-600 rounded-xl shadow-2xl z-10 overflow-hidden animate-fade-in">
+                                                            <div className="px-3 py-2 bg-gray-900 border-b border-gray-700 text-[10px] font-bold text-gray-400 uppercase">AI Modifications</div>
+                                                            <button onClick={() => handleAIModifyExercise(exercise.name, 'easier')} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white flex items-center">
+                                                                <span className="w-2 h-2 rounded-full bg-green-500 mr-2"></span> Make Easier
+                                                            </button>
+                                                            <button onClick={() => handleAIModifyExercise(exercise.name, 'harder')} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white flex items-center">
+                                                                <span className="w-2 h-2 rounded-full bg-red-500 mr-2"></span> Make Harder
+                                                            </button>
+                                                            <button onClick={() => handleAIModifyExercise(exercise.name, 'swap')} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white flex items-center border-t border-gray-700">
+                                                                <SwapIcon /> <span className="ml-2">Swap Exercise</span>
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
 
-                                        {/* Inline Demo View */}
-                                        {viewingDemo === exercise.name && (
-                                            <AIExerciseDemo exerciseName={exercise.name} onClose={() => setViewingDemo(null)} />
-                                        )}
-
-                                        {/* Set Logger Grid */}
-                                        <div className="p-4 bg-gray-900/50">
-                                            <div className="grid grid-cols-12 gap-2 mb-2 text-[10px] text-gray-500 font-bold uppercase text-center">
-                                                <div className="col-span-1">#</div>
-                                                <div className="col-span-3">kg</div>
+                                        {/* Sets Table */}
+                                        <div className="p-4">
+                                            <div className="grid grid-cols-12 gap-2 mb-2 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">
+                                                <div className="col-span-1">Set</div>
+                                                <div className="col-span-3">Kg</div>
                                                 <div className="col-span-3">Reps</div>
                                                 <div className="col-span-2">RPE</div>
-                                                <div className="col-span-2">Done</div>
-                                                <div className="col-span-1"></div>
+                                                <div className="col-span-3">Status</div>
                                             </div>
-                                            {Array.isArray(performanceLog[exercise.name]) && performanceLog[exercise.name].map((set, setIndex) => (
-                                                <div key={setIndex} className={`grid grid-cols-12 gap-2 mb-2 items-center transition-all ${set.completed ? 'opacity-70 bg-green-900/20 p-1 rounded border border-green-500/20' : ''}`}>
-                                                    <div className="col-span-1 flex justify-center">
-                                                        <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${set.completed ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-300'}`}>{setIndex + 1}</span>
+                                            
+                                            <div className="space-y-2">
+                                                {exerciseLog.map((set, setIndex) => (
+                                                    <div key={setIndex} className={`grid grid-cols-12 gap-2 items-center text-sm p-2 rounded-lg transition-colors ${set.completed ? 'bg-green-900/10' : 'bg-gray-900/30'}`}>
+                                                        <div className="col-span-1 text-center font-bold text-gray-400">{setIndex + 1}</div>
+                                                        <div className="col-span-3">
+                                                            <input type="number" placeholder="0" className={`w-full bg-gray-900 border ${set.completed ? 'border-green-500/30 text-green-400' : 'border-gray-700 text-white'} rounded p-2 text-center focus:ring-1 focus:ring-amber-500 outline-none`} value={set.weight} onChange={(e) => handleSetChange(exercise.name, setIndex, 'weight', e.target.value)} />
+                                                        </div>
+                                                        <div className="col-span-3">
+                                                            <input type="number" placeholder="0" className={`w-full bg-gray-900 border ${set.completed ? 'border-green-500/30 text-green-400' : 'border-gray-700 text-white'} rounded p-2 text-center focus:ring-1 focus:ring-amber-500 outline-none`} value={set.reps} onChange={(e) => handleSetChange(exercise.name, setIndex, 'reps', e.target.value)} />
+                                                        </div>
+                                                        <div className="col-span-2">
+                                                            <input type="number" placeholder="-" className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-center text-gray-400 focus:text-white outline-none" value={set.rpe} onChange={(e) => handleSetChange(exercise.name, setIndex, 'rpe', e.target.value)} />
+                                                        </div>
+                                                        <div className="col-span-3 flex justify-center gap-1">
+                                                            <button onClick={() => toggleSetComplete(exercise.name, setIndex)} className={`p-2 rounded-lg transition-all w-full flex items-center justify-center ${set.completed ? 'bg-green-500 text-white shadow-lg shadow-green-900/50' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
+                                                                {set.completed ? <CheckCircleIcon className="w-4 h-4" /> : <span className="text-[10px] font-bold">LOG</span>}
+                                                            </button>
+                                                        </div>
                                                     </div>
-                                                    <div className="col-span-3">
-                                                        <input 
-                                                            type="number" placeholder="0" value={set.weight} onChange={(e) => handleSetChange(exercise.name, setIndex, 'weight', e.target.value)}
-                                                            className={`w-full border rounded p-2 text-center focus:border-amber-500 outline-none text-sm font-mono ${set.completed ? 'bg-green-900/40 border-green-500/50 text-white' : 'bg-gray-800 border-gray-600 text-white'}`}
-                                                        />
-                                                    </div>
-                                                    <div className="col-span-3">
-                                                        <input 
-                                                            type="number" placeholder="0" value={set.reps} onChange={(e) => handleSetChange(exercise.name, setIndex, 'reps', e.target.value)}
-                                                            className={`w-full border rounded p-2 text-center focus:border-amber-500 outline-none text-sm font-mono ${set.completed ? 'bg-green-900/40 border-green-500/50 text-white' : 'bg-gray-800 border-gray-600 text-white'}`}
-                                                        />
-                                                    </div>
-                                                    <div className="col-span-2">
-                                                        <input 
-                                                            type="number" placeholder="-" min="1" max="10" value={set.rpe || ''} onChange={(e) => handleSetChange(exercise.name, setIndex, 'rpe', e.target.value)}
-                                                            className="w-full border rounded p-2 text-center focus:border-purple-500 outline-none text-sm font-mono bg-gray-800 border-gray-600 text-white"
-                                                        />
-                                                    </div>
-                                                    <div className="col-span-2 flex justify-center">
-                                                        <button onClick={() => toggleSetComplete(exercise.name, setIndex)} className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${set.completed ? 'bg-green-500 text-white shadow-lg shadow-green-500/20' : 'bg-gray-700 text-gray-500 hover:bg-gray-600'}`}>
-                                                            <CheckCircleIcon className="w-5 h-5" />
-                                                        </button>
-                                                    </div>
-                                                    <div className="col-span-1 flex justify-center">
-                                                        <button onClick={() => handleRemoveSet(exercise.name, setIndex)} className="text-gray-600 hover:text-red-500 transition-colors">
-                                                            <TrashIcon />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            <button onClick={() => handleAddSet(exercise.name)} className="w-full mt-2 py-2 border border-dashed border-gray-600 text-gray-400 text-xs rounded hover:border-amber-500 hover:text-amber-500 transition-colors">
-                                                + Add Set
+                                                ))}
+                                            </div>
+
+                                            <button onClick={() => handleAddSet(exercise.name)} className="mt-3 w-full py-2 border border-dashed border-gray-600 rounded-lg text-xs font-bold text-gray-500 hover:text-white hover:border-gray-500 transition-colors">
+                                                + ADD SET
                                             </button>
+
+                                            {/* AI Feedback Box */}
+                                            {adjustingExercise === exercise.name && (
+                                                <div className="mt-4 p-4 bg-black/40 border border-amber-500/30 rounded-lg animate-fade-in">
+                                                    {isAdjusting ? (
+                                                        <div className="flex items-center text-amber-400 text-xs">
+                                                            <AutoUpdateIcon className="w-4 h-4 animate-spin mr-2"/>
+                                                            Calculating optimal load...
+                                                        </div>
+                                                    ) : smartSuggestion ? (
+                                                        <div>
+                                                            <div className="flex justify-between items-start mb-2">
+                                                                <span className="text-amber-400 text-xs font-bold uppercase">AI Recommendation</span>
+                                                                <button onClick={() => setAdjustingExercise(null)} className="text-gray-500 hover:text-white">✕</button>
+                                                            </div>
+                                                            <p className="text-sm text-gray-300 mb-2">{smartSuggestion.adjustment}</p>
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="text-center bg-gray-800 p-2 rounded">
+                                                                    <p className="text-[10px] text-gray-500 uppercase">Weight</p>
+                                                                    <p className="font-bold text-white">{smartSuggestion.recommendedWeight}kg</p>
+                                                                </div>
+                                                                <div className="text-center bg-gray-800 p-2 rounded">
+                                                                    <p className="text-[10px] text-gray-500 uppercase">Reps</p>
+                                                                    <p className="font-bold text-white">{smartSuggestion.recommendedReps}</p>
+                                                                </div>
+                                                                <button onClick={applySmartSuggestion} className="ml-auto bg-amber-500 text-black text-xs font-bold px-3 py-2 rounded hover:bg-amber-400">
+                                                                    Apply
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            )}
+
+                                            {/* Quick Rating Buttons */}
+                                            <div className="mt-4 flex justify-between items-center pt-3 border-t border-gray-700/50">
+                                                <span className="text-[10px] text-gray-500 font-bold uppercase">Rate Last Set</span>
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => getSmartAdjustment(exercise.name, 'Too Easy')} className="px-2 py-1 rounded text-[10px] bg-gray-800 text-gray-400 hover:text-green-400 border border-gray-700 hover:border-green-500 transition-colors">Too Easy</button>
+                                                    <button onClick={() => getSmartAdjustment(exercise.name, 'Perfect')} className="px-2 py-1 rounded text-[10px] bg-gray-800 text-gray-400 hover:text-blue-400 border border-gray-700 hover:border-blue-500 transition-colors">Perfect</button>
+                                                    <button onClick={() => getSmartAdjustment(exercise.name, 'Too Hard')} className="px-2 py-1 rounded text-[10px] bg-gray-800 text-gray-400 hover:text-red-400 border border-gray-700 hover:border-red-500 transition-colors">Too Hard</button>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
+                                );
+                            })}
                         </div>
-                    ))}
-                </div>
+                    </div>
+                ))}
             </div>
 
-            {/* --- FINISH BUTTON --- */}
-            <div className="fixed bottom-6 left-0 right-0 px-6 flex justify-center z-10 pointer-events-none">
-                <button onClick={handleFinishWorkout} className="pointer-events-auto bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-4 px-12 rounded-full shadow-2xl hover:scale-105 transition-transform flex items-center text-lg ring-4 ring-green-500/20">
-                    <CheckCircleIcon className="w-6 h-6 mr-2" /> Finish Workout
-                </button>
-            </div>
-
-            {/* --- MODALS --- */}
-            <SmartReadinessModal isOpen={isReadinessModalOpen} onClose={() => setIsReadinessModalOpen(false)} plannedWorkoutName={todaysWorkoutSchedule.name} onAnalysisComplete={setReadinessData} />
-            <Modal isOpen={!!adjustingExercise} onClose={() => setAdjustingExercise(null)} title="Smart Adjust">
-                <div className="text-center p-4">
-                    {!smartSuggestion ? (
-                        <div className="flex flex-col items-center">
-                            <SparkleIcon className="w-12 h-12 text-amber-400 animate-spin mb-4" />
-                            <p className="text-gray-300">Analyzing your strength curve...</p>
-                        </div>
-                    ) : (
-                        <div>
-                            <p className="text-sm text-gray-400 uppercase font-bold mb-2">AI Suggestion</p>
-                            <div className="flex justify-center items-end gap-2 mb-4">
-                                <span className="text-5xl font-bold text-white">{smartSuggestion.recommendedWeight}</span>
-                                <span className="text-xl text-gray-400 mb-2">kg</span>
-                            </div>
-                            <p className="text-amber-400 mb-6 italic">"{smartSuggestion.adjustment}"</p>
-                            <button onClick={applySmartSuggestion} className="w-full bg-green-500 py-3 rounded-lg font-bold text-white">Apply Change</button>
-                        </div>
-                    )}
+            <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-900 border-t border-gray-800 z-10 md:pl-64">
+                <div className="max-w-4xl mx-auto flex gap-4">
+                    <button onClick={handleFinishWorkout} className="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-green-900/20 transition-transform active:scale-95 flex items-center justify-center text-lg">
+                        <CheckCircleIcon className="w-6 h-6 mr-2" />
+                        Finish Workout
+                    </button>
                 </div>
-            </Modal>
+            </div>
         </div>
     );
 };

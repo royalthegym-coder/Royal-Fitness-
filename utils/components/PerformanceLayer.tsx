@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Card from './common/Card';
 import { SpeedIcon } from './icons/SpeedIcon';
 import { TraceIcon } from './icons/TraceIcon';
@@ -70,7 +70,16 @@ const PerformanceLayer: React.FC = () => {
             const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             
             setMetrics(prev => {
-                const last = prev[prev.length - 1];
+                const defaultMetric: SystemMetric = { 
+                    time: timeStr, 
+                    cpu: 20, 
+                    memory: 400, 
+                    eventLoopLag: 5, 
+                    rps: 100, 
+                    latency: 50 
+                };
+                const last = prev.length > 0 ? prev[prev.length - 1] : defaultMetric;
+                
                 let baseCpu = loadTestStatus === 'running' ? 85 : 25;
                 let baseLatency = loadTestStatus === 'running' ? 450 : 45;
                 let baseRps = loadTestStatus === 'running' ? 2500 : 150;
@@ -78,7 +87,7 @@ const PerformanceLayer: React.FC = () => {
                 const newMetric: SystemMetric = {
                     time: timeStr,
                     cpu: Math.min(100, Math.max(0, baseCpu + Math.random() * 10 - 5)),
-                    memory: Math.min(2048, Math.max(200, (last?.memory || 400) + (Math.random() * 20 - 10))),
+                    memory: Math.min(2048, Math.max(200, (last.memory) + (Math.random() * 20 - 10))),
                     eventLoopLag: Math.max(0, (loadTestStatus === 'running' ? 50 : 5) + Math.random() * 10),
                     rps: Math.max(0, baseRps + Math.random() * 50),
                     latency: Math.max(10, baseLatency + Math.random() * 100),
@@ -168,6 +177,11 @@ const PerformanceLayer: React.FC = () => {
     };
 
     // --- RENDERERS ---
+    
+    // Safely get latest metrics to prevent crash on initial render
+    const currentCpu = metrics.length > 0 ? metrics[metrics.length-1].cpu.toFixed(1) : '0.0';
+    const currentMemory = metrics.length > 0 ? metrics[metrics.length-1].memory.toFixed(0) : '0';
+    const currentLag = metrics.length > 0 ? metrics[metrics.length-1].eventLoopLag.toFixed(2) : '0.00';
 
     const renderProfiler = () => (
         <div className="space-y-6">
@@ -188,7 +202,7 @@ const PerformanceLayer: React.FC = () => {
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
-                    <p className="text-2xl font-bold text-white mt-2">{metrics[metrics.length-1]?.cpu.toFixed(1)}%</p>
+                    <p className="text-2xl font-bold text-white mt-2">{currentCpu}%</p>
                 </Card>
                 <Card className="border-t-4 border-amber-500">
                     <p className="text-gray-400 text-xs font-bold uppercase">Memory Heap</p>
@@ -206,7 +220,7 @@ const PerformanceLayer: React.FC = () => {
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
-                    <p className="text-2xl font-bold text-white mt-2">{metrics[metrics.length-1]?.memory.toFixed(0)} MB</p>
+                    <p className="text-2xl font-bold text-white mt-2">{currentMemory} MB</p>
                 </Card>
                 <Card className="border-t-4 border-pink-500">
                     <p className="text-gray-400 text-xs font-bold uppercase">Event Loop Lag</p>
@@ -218,7 +232,7 @@ const PerformanceLayer: React.FC = () => {
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
-                    <p className="text-2xl font-bold text-white mt-2">{metrics[metrics.length-1]?.eventLoopLag.toFixed(2)} ms</p>
+                    <p className="text-2xl font-bold text-white mt-2">{currentLag} ms</p>
                 </Card>
             </div>
         </div>

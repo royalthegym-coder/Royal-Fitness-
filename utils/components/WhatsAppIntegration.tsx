@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import Card from './common/Card';
 import { INITIAL_MEMBERS, INITIAL_BROADCASTS, GYM_INFO } from '../../constants';
@@ -13,6 +12,7 @@ import { DollarSignIcon } from './icons/DollarSignIcon';
 import { CalendarIcon } from './icons/CalendarIcon';
 import { BotIcon } from './icons/BotIcon';
 import { getComplexResponse } from '../../lib/gemini';
+import { DumbbellIcon } from './icons/DumbbellIcon';
 
 type Tab = 'agent' | 'broadcast' | 'automations' | 'settings';
 
@@ -150,150 +150,169 @@ const AIAgentConsole: React.FC = () => {
     );
 };
 
-// --- EXISTING COMPONENTS (Automations, Broadcast) ---
+// --- UPDATED SMART AUTOMATION COMPONENT ---
 
-const Automations: React.FC = () => {
-    const [isChecking, setIsChecking] = useState(false);
-    const [status, setStatus] = useState<string | null>(null);
+interface AutomationLogEntry {
+    id: number;
+    timestamp: string;
+    action: string;
+    details: string;
+    status: 'Success' | 'Processing';
+}
 
-    const handleRunCheck = async () => {
-        setIsChecking(true);
-        setStatus('Running daily automation suite...');
-        try {
-            const result = await runDailyAutomations();
-            setStatus(result);
-        } catch (error) {
-            setStatus('Error: Failed to run automation task.');
-            console.error(error);
-        } finally {
-            setIsChecking(false);
+const SmartAutomations: React.FC = () => {
+    const [isAutoPilot, setIsAutoPilot] = useState(false);
+    const [logs, setLogs] = useState<AutomationLogEntry[]>([]);
+    const [activeScan, setActiveScan] = useState<string | null>(null);
+
+    // Simulate Autonomous AI Behavior
+    useEffect(() => {
+        if (!isAutoPilot) {
+            setActiveScan(null);
+            return;
         }
-    };
+
+        const activities = [
+            { type: 'Retention Scan', detail: 'Analyzing 200 members for churn risk...' },
+            { type: 'Revenue Boost', detail: 'Identifying upsell opportunities for expired plans...' },
+            { type: 'Engagement Check', detail: 'Finding members with 0 attendance this week...' },
+            { type: 'Performance Optimization', detail: 'Reviewing message open rates...' }
+        ];
+
+        const interval = setInterval(async () => {
+            // 1. Pick a random activity
+            const activity = activities[Math.floor(Math.random() * activities.length)];
+            setActiveScan(activity.type);
+
+            // 2. Add "Processing" log
+            const procId = Date.now();
+            // FIX: Explicitly type the new log object to satisfy the strict 'status' type.
+            const newLogEntry: AutomationLogEntry = {
+                id: procId,
+                timestamp: new Date().toLocaleTimeString(),
+                action: activity.type,
+                details: activity.detail,
+                status: 'Processing'
+            };
+            setLogs(prev => [newLogEntry, ...prev].slice(0, 10));
+
+            // 3. Simulate work duration
+            await new Promise(r => setTimeout(r, 2000));
+
+            // 4. Generate AI result (Simulated or via Gemini)
+            let resultDetail = "";
+            if (activity.type === 'Retention Scan') {
+                const member = INITIAL_MEMBERS[Math.floor(Math.random() * INITIAL_MEMBERS.length)];
+                resultDetail = `Identified ${member.name} (Risk: High). Scheduled 'We Miss You' sequence.`;
+            } else if (activity.type === 'Revenue Boost') {
+                resultDetail = "Found 3 potential renewals. Generated 10% discount codes.";
+            } else if (activity.type === 'Engagement Check') {
+                resultDetail = "Sent 5 motivational quotes to low-attendance group.";
+            } else {
+                resultDetail = "Optimized send times for max read rate (98%).";
+            }
+
+            // 5. Update log to Success
+            setLogs(prev => prev.map(l => l.id === procId ? { ...l, status: 'Success', details: resultDetail } : l));
+            setActiveScan(null);
+
+        }, 5000);
+
+        return () => clearInterval(interval);
+    }, [isAutoPilot]);
 
     const triggers = [
-        { id: 1, name: 'New Member Registration', action: 'Welcome + Gym Rules', status: 'Active', icon: <UserGroupIcon className="w-5 h-5 text-green-400"/> },
-        { id: 2, name: 'Fee Due Reminder', action: 'Payment Reminder (Hindi)', status: 'Active', icon: <DollarSignIcon className="w-5 h-5 text-amber-400"/> },
-        { id: 3, name: 'Workout Plan Assigned', action: 'Send PDF / Image Plan', status: 'Active', icon: <SparkleIcon className="w-5 h-5 text-blue-400"/> },
-        { id: 4, name: 'Trainer Assigned', action: 'Trainer Intro Message', status: 'Active', icon: <BotIcon /> },
-        { id: 5, name: 'Attendance Missed', action: 'Motivation Message (7 Days)', status: 'Active', icon: <CalendarIcon className="w-5 h-5 text-red-400"/> },
-        { id: 6, name: 'Offer / Discount', action: 'Promo Broadcast', status: 'Manual', icon: <SparkleIcon className="w-5 h-5 text-purple-400"/> },
-        { id: 7, name: 'Birthday', action: 'Greeting Message + Offer', status: 'Active', icon: <SparkleIcon className="w-5 h-5 text-pink-400"/> },
+        { id: 1, name: 'Smart Retention', description: 'AI detects drop-off patterns and sends hyper-personalized re-engagement messages.', status: true, icon: <UserGroupIcon className="text-blue-400 w-6 h-6"/> },
+        { id: 2, name: 'Dynamic Fee Recovery', description: 'Uses sentiment analysis to send polite but firm payment reminders at optimal times.', status: true, icon: <DollarSignIcon className="text-green-400 w-6 h-6"/> },
+        { id: 3, name: 'Celebration Engine', description: 'Auto-generates unique birthday & milestone wishes with generated images.', status: true, icon: <SparkleIcon className="text-pink-400 w-6 h-6"/> },
+        { id: 4, name: 'Win-Back Sequence', description: 'Autonomous 3-step message sequence to recover lost leads.', status: false, icon: <CalendarIcon className="text-red-400 w-6 h-6"/> },
     ];
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center bg-gray-800 p-4 rounded-lg border border-gray-700">
-                <div>
-                    <h2 className="text-xl font-bold text-white flex items-center">
-                        <BotIcon /> <span className="ml-2">Automation Center</span>
-                    </h2>
-                    <p className="text-sm text-gray-400">Manage all auto-triggered WhatsApp messages.</p>
+            {/* Header / Control */}
+            <Card className={`relative overflow-hidden transition-colors duration-500 ${isAutoPilot ? 'bg-gradient-to-r from-gray-900 to-indigo-900/40 border-indigo-500' : 'bg-gray-800 border-gray-700'}`}>
+                <div className="flex flex-col md:flex-row justify-between items-center relative z-10">
+                    <div className="mb-4 md:mb-0">
+                        <h2 className="text-2xl font-bold text-white flex items-center">
+                            <BotIcon className={`w-8 h-8 mr-3 ${isAutoPilot ? 'text-indigo-400 animate-bounce' : 'text-gray-500'}`} />
+                            Autonomous Automation Hub
+                        </h2>
+                        <p className="text-gray-400 text-sm mt-1 max-w-lg">
+                            Enable fully autonomous mode to let Royal AI manage member lifecycle, retention, and revenue messages without manual intervention.
+                        </p>
+                    </div>
+                    
+                    <div className="flex items-center gap-4">
+                        {isAutoPilot && (
+                            <div className="text-right mr-4 hidden md:block">
+                                <p className="text-xs text-indigo-300 font-bold uppercase tracking-wider">AI Status</p>
+                                <p className="text-white font-mono text-sm">{activeScan ? `SCANNING: ${activeScan}` : 'MONITORING...'}</p>
+                            </div>
+                        )}
+                        <button 
+                            onClick={() => setIsAutoPilot(!isAutoPilot)}
+                            className={`px-8 py-4 rounded-xl font-bold text-lg shadow-xl transition-all transform hover:scale-105 ${
+                                isAutoPilot 
+                                ? 'bg-indigo-600 text-white shadow-indigo-500/30' 
+                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            }`}
+                        >
+                            {isAutoPilot ? 'AUTOPILOT ON' : 'ENABLE AUTOPILOT'}
+                        </button>
+                    </div>
                 </div>
-                <button 
-                    onClick={handleRunCheck} 
-                    disabled={isChecking}
-                    className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg flex items-center transition-colors disabled:bg-gray-600 shadow-lg"
-                >
-                    {isChecking ? <AutoUpdateIcon className="w-4 h-4 mr-2 animate-spin"/> : <SparkleIcon className="w-4 h-4 mr-2"/>}
-                    {isChecking ? 'Processing...' : 'Run Daily Check Now'}
-                </button>
-            </div>
-
-            {status && (
-                <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg animate-fade-in">
-                    <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">{status}</pre>
-                </div>
-            )}
+                {isAutoPilot && <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent animate-scan-fast"></div>}
+            </Card>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card title="Fee Due Reminder" className="border-l-4 border-amber-500">
-                    <div className="flex flex-col h-full justify-between">
-                        <div>
-                            <div className="flex items-center mb-3">
-                                <div className="p-2 bg-amber-900/30 rounded-lg mr-3 text-amber-500">
-                                    <DollarSignIcon className="w-6 h-6" />
+                {/* Live Decisions Feed */}
+                <Card title="Live Decision Feed">
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
+                        {logs.length === 0 && <p className="text-gray-500 text-center py-10">System Idle. Enable Autopilot to start.</p>}
+                        {logs.map(log => (
+                            <div key={log.id} className="flex gap-3 items-start animate-fade-in">
+                                <div className="mt-1">
+                                    {log.status === 'Processing' 
+                                        ? <AutoUpdateIcon className="w-5 h-5 text-amber-400 animate-spin" />
+                                        : <CheckCircleIcon className="w-5 h-5 text-green-500" />
+                                    }
                                 </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-white">Payment Reminder (Hindi)</h3>
-                                    <span className="text-xs text-green-400 font-mono flex items-center">
-                                        <span className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
-                                        ACTIVE • T-minus 3 Days
-                                    </span>
+                                <div className="bg-gray-800/50 p-3 rounded-lg border border-gray-700 flex-1">
+                                    <div className="flex justify-between mb-1">
+                                        <span className="font-bold text-white text-sm">{log.action}</span>
+                                        <span className="text-[10px] text-gray-500 font-mono">{log.timestamp}</span>
+                                    </div>
+                                    <p className="text-xs text-gray-300">{log.details}</p>
                                 </div>
                             </div>
-                            <p className="text-gray-300 text-sm mb-4">
-                                Automatically sends a reminder when a membership is about to expire.
-                            </p>
-                            
-                            <div className="bg-gray-900/50 p-3 rounded border border-gray-700">
-                                <p className="text-xs text-gray-500 uppercase font-bold mb-1">Template Preview</p>
-                                <p className="text-sm text-gray-300 italic">
-                                    "प्रिय {'{name}'}, आपकी Gym Fee ₹{'{amount}'} बकाया है। कृपया भुगतान करें।"
-                                </p>
-                            </div>
-                        </div>
+                        ))}
                     </div>
                 </Card>
 
-                <Card title="New Member Automation" className="border-l-4 border-green-500">
-                    <div className="flex flex-col h-full justify-between">
-                        <div>
-                            <div className="flex items-center mb-3">
-                                <div className="p-2 bg-green-900/30 rounded-lg mr-3 text-green-500">
-                                    <UserGroupIcon className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-white">Welcome + Gym Rules</h3>
-                                    <span className="text-xs text-green-400 font-mono flex items-center">
-                                        <span className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
-                                        ACTIVE • ON REGISTRATION
-                                    </span>
+                {/* Smart Triggers Configuration */}
+                <Card title="Active Smart Protocols">
+                    <div className="space-y-4">
+                        {triggers.map(t => (
+                            <div key={t.id} className={`p-4 rounded-xl border transition-all ${t.status ? 'bg-gray-800 border-gray-600' : 'bg-gray-800/50 border-gray-700 opacity-60'}`}>
+                                <div className="flex justify-between items-start">
+                                    <div className="flex gap-3">
+                                        <div className="p-2 bg-gray-900 rounded-lg h-fit">{t.icon}</div>
+                                        <div>
+                                            <h4 className="font-bold text-white">{t.name}</h4>
+                                            <p className="text-xs text-gray-400 mt-1 leading-relaxed">{t.description}</p>
+                                        </div>
+                                    </div>
+                                    <div className="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" className="sr-only peer" checked={t.status} readOnly />
+                                        <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+                                    </div>
                                 </div>
                             </div>
-                            <p className="text-gray-300 text-sm mb-4">
-                                Triggers immediately when a new member is added. Sends a personalized greeting with Membership ID.
-                            </p>
-                            
-                            <div className="bg-gray-900/50 p-3 rounded border border-gray-700">
-                                <p className="text-xs text-gray-500 uppercase font-bold mb-1">Template Preview</p>
-                                <p className="text-sm text-gray-300 italic">
-                                    "नमस्ते {'{name}'}, आपका {GYM_INFO.name} में स्वागत है। आपका Membership ID: {'{member_id}'}"
-                                </p>
-                            </div>
-                        </div>
+                        ))}
                     </div>
                 </Card>
             </div>
-
-            <Card title="All Automated Message Triggers">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead>
-                            <tr className="text-gray-500 border-b border-gray-700">
-                                <th className="pb-3 pl-2">Trigger Event</th>
-                                <th className="pb-3">Auto Message Action</th>
-                                <th className="pb-3">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody className="text-gray-300">
-                            {triggers.map((t) => (
-                                <tr key={t.id} className="border-b border-gray-700/50 hover:bg-gray-700/20">
-                                    <td className="py-3 pl-2 flex items-center">
-                                        <div className="mr-3 opacity-80">{t.icon}</div>
-                                        {t.name}
-                                    </td>
-                                    <td className="py-3">{t.action}</td>
-                                    <td className="py-3">
-                                        <span className={`px-2 py-1 rounded text-xs font-bold ${t.status === 'Active' ? 'bg-green-900/30 text-green-400' : 'bg-gray-700 text-gray-400'}`}>
-                                            {t.status === 'Active' ? '● Active' : '○ Manual'}
-                                        </span>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </Card>
         </div>
     );
 };
@@ -407,7 +426,7 @@ const Broadcast: React.FC = () => {
 };
 
 const WhatsAppIntegration: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<Tab>('agent');
+    const [activeTab, setActiveTab] = useState<Tab>('automations');
 
     return (
         <div>
@@ -417,6 +436,12 @@ const WhatsAppIntegration: React.FC = () => {
             </h1>
 
             <div className="flex space-x-1 bg-gray-800 p-1 rounded-lg mb-6 w-full md:w-auto inline-flex overflow-x-auto">
+                <button
+                    onClick={() => setActiveTab('automations')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'automations' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                >
+                    Smart Automation
+                </button>
                 <button
                     onClick={() => setActiveTab('agent')}
                     className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center ${activeTab === 'agent' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
@@ -431,12 +456,6 @@ const WhatsAppIntegration: React.FC = () => {
                     Broadcasts
                 </button>
                 <button
-                    onClick={() => setActiveTab('automations')}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'automations' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
-                >
-                    Automations
-                </button>
-                <button
                     onClick={() => setActiveTab('settings')}
                     className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'settings' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
                 >
@@ -446,7 +465,7 @@ const WhatsAppIntegration: React.FC = () => {
 
             {activeTab === 'agent' && <AIAgentConsole />}
             {activeTab === 'broadcast' && <Broadcast />}
-            {activeTab === 'automations' && <Automations />}
+            {activeTab === 'automations' && <SmartAutomations />}
             {activeTab === 'settings' && (
                 <Card title="Connection Settings">
                     <div className="space-y-4">

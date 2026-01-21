@@ -19,6 +19,12 @@ import { SunIcon } from './icons/SunIcon';
 import { MoonIcon } from './icons/MoonIcon';
 import { UploadIcon } from './icons/UploadIcon';
 import { BotIcon } from './icons/BotIcon';
+import { BugFixIcon } from './icons/BugFixIcon';
+import { SparkleIcon } from './icons/SparkleIcon';
+import { SupportIcon } from './icons/SupportIcon';
+import { SpeedIcon } from './icons/SpeedIcon'; // Reusing existing icon
+import { useToast } from '../hooks/useToast';
+import { toggleTurboMode } from '../hooks/usePerformance';
 
 interface SettingsProps {
     setCurrentView: (view: View) => void;
@@ -69,9 +75,10 @@ const IntegrationCard: React.FC<{
 );
 
 const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme, currentUser }) => {
+    const { addToast } = useToast();
     // Simplified state, assuming connection is managed elsewhere.
     const [isConnected] = useState(true);
-    const [activeTab, setActiveTab] = useState<'general' | 'integrations' | 'iot' | 'security' | 'profile' | 'notifications'>('profile');
+    const [activeTab, setActiveTab] = useState<'general' | 'integrations' | 'iot' | 'security' | 'profile' | 'notifications' | 'feedback' | 'performance'>('performance');
 
     // IoT Provisioning State
     const [ssid, setSsid] = useState('');
@@ -95,6 +102,20 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
     const [isOpenAIModalOpen, setIsOpenAIModalOpen] = useState(false);
     const [openAIKey, setOpenAIKey] = useState('');
 
+    // Feedback State
+    const [feedbackType, setFeedbackType] = useState<'bug' | 'feature' | 'general'>('bug');
+    const [feedbackTitle, setFeedbackTitle] = useState('');
+    const [feedbackDesc, setFeedbackDesc] = useState('');
+    const [feedbackPriority, setFeedbackPriority] = useState('Medium');
+    const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+    const [feedbackHistory, setFeedbackHistory] = useState([
+        { id: 1, type: 'bug', title: 'Login Timeout', status: 'Resolved', date: '2024-07-20' },
+        { id: 2, type: 'feature', title: 'Dark Mode Toggle', status: 'Implemented', date: '2024-07-25' }
+    ]);
+    
+    // Performance State
+    const [isTurboMode, setIsTurboMode] = useState(false);
+
     useEffect(() => {
         if ('Notification' in window) {
             setNotifPermission(Notification.permission);
@@ -102,6 +123,9 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
         // Load OpenAI Key
         const savedKey = localStorage.getItem('OPENAI_API_KEY');
         if (savedKey) setOpenAIKey(savedKey);
+        
+        // Load Turbo Mode
+        setIsTurboMode(localStorage.getItem('royal_perf_mode') === 'turbo');
     }, []);
 
     useEffect(() => {
@@ -121,11 +145,18 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
         }, 8000);
         return () => clearInterval(interval);
     }, []);
+    
+    const handleTurboToggle = () => {
+        const newState = !isTurboMode;
+        setIsTurboMode(newState);
+        toggleTurboMode(newState);
+        addToast(newState ? "Turbo Mode Activated: Maximum Speed" : "Turbo Mode Deactivated: High Quality", 'info');
+    };
 
     const handleProvisionDevice = async () => {
         // ... (Existing provision logic kept as is)
         if (!ssid || !password) {
-            alert("Please enter both SSID and Password.");
+            addToast("Please enter both SSID and Password.", 'error');
             return;
         }
         setProvisionStatus('scanning');
@@ -152,9 +183,9 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
         }
     };
 
-    const handleExportData = () => alert("Preparing GDPR Data Export...");
-    const handleDeleteAccount = () => { if(confirm("Are you sure?")) alert("Request received."); }
-    const handleProfileUpdate = (e: React.FormEvent) => { e.preventDefault(); alert("Profile updated successfully!"); };
+    const handleExportData = () => addToast("Preparing GDPR Data Export...", 'info');
+    const handleDeleteAccount = () => { if(confirm("Are you sure?")) addToast("Account deletion request received.", 'info'); }
+    const handleProfileUpdate = (e: React.FormEvent) => { e.preventDefault(); addToast("Profile updated successfully!", 'success'); };
     
     const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -173,13 +204,42 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
 
     const sendTestNotification = () => {
         if (notifPermission === 'granted') new Notification("Royal Gym Alert", { body: "Test notification." });
-        else alert("Enable notifications first.");
+        else addToast("Enable notifications first.", 'error');
     };
 
     const handleSaveOpenAIKey = () => {
         localStorage.setItem('OPENAI_API_KEY', openAIKey);
         setIsOpenAIModalOpen(false);
-        alert("OpenAI API Key Saved.");
+        addToast("OpenAI API Key Saved.", 'success');
+    };
+
+    const handleSubmitFeedback = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!feedbackTitle.trim() || !feedbackDesc.trim()) {
+            addToast("Please fill in the title and description.", 'error');
+            return;
+        }
+
+        setIsSubmittingFeedback(true);
+        
+        // Simulate API call
+        setTimeout(() => {
+            const newEntry = {
+                id: Date.now(),
+                type: feedbackType,
+                title: feedbackTitle,
+                status: 'Under Review',
+                date: new Date().toISOString().split('T')[0]
+            };
+            setFeedbackHistory(prev => [newEntry, ...prev]);
+            
+            // Reset form
+            setFeedbackTitle('');
+            setFeedbackDesc('');
+            setIsSubmittingFeedback(false);
+            
+            addToast("Feedback submitted successfully. Thank you!", 'success');
+        }, 1500);
     };
 
     return (
@@ -187,7 +247,7 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
             <h1 className="text-3xl font-bold text-amber-400 mb-6">Settings</h1>
             
             <div className="flex space-x-4 mb-6 border-b border-gray-700 overflow-x-auto">
-                {['profile', 'general', 'notifications', 'security', 'integrations', 'iot'].map(tab => (
+                {['performance', 'profile', 'general', 'notifications', 'security', 'integrations', 'iot', 'feedback'].map(tab => (
                     <button 
                         key={tab}
                         onClick={() => setActiveTab(tab as any)} 
@@ -197,6 +257,51 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
                     </button>
                 ))}
             </div>
+
+            {/* Performance Tab (NEW) */}
+            {activeTab === 'performance' && (
+                <div className="max-w-2xl mx-auto space-y-6">
+                    <Card title="Optimization Engine">
+                        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-800 to-gray-900 rounded-lg border border-gray-700">
+                            <div className="flex items-start gap-4">
+                                <div className={`p-3 rounded-full ${isTurboMode ? 'bg-amber-500 text-black' : 'bg-gray-700 text-gray-400'}`}>
+                                    <SpeedIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-white text-lg">Turbo Mode</h3>
+                                    <p className="text-gray-400 text-sm mt-1">
+                                        Disables blur effects, shadows, and heavy animations. 
+                                        <br/>Recommended for low-end devices or battery saving.
+                                    </p>
+                                </div>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" checked={isTurboMode} onChange={handleTurboToggle} className="sr-only peer" />
+                                <div className="w-14 h-7 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-amber-500"></div>
+                            </label>
+                        </div>
+                    </Card>
+                    
+                    <Card title="Cache Management">
+                         <div className="flex justify-between items-center">
+                            <div>
+                                <p className="font-bold text-white">Application Cache</p>
+                                <p className="text-sm text-gray-400">Clear temporary data to free up memory.</p>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    localStorage.clear();
+                                    sessionStorage.clear();
+                                    window.location.reload();
+                                }}
+                                className="bg-red-900/30 border border-red-500/50 text-red-300 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-900/50"
+                            >
+                                Clear & Reload
+                            </button>
+                        </div>
+                    </Card>
+                </div>
+            )}
 
             {/* Profile Tab */}
             {activeTab === 'profile' && (
@@ -365,6 +470,117 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
                             {statusMessage && <div className="text-center text-sm text-gray-300 mt-2">{statusMessage}</div>}
                         </div>
                     </Card>
+                </div>
+            )}
+
+            {/* Feedback Tab */}
+            {activeTab === 'feedback' && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2">
+                        <Card title="Submit Feedback">
+                            <div className="flex items-center gap-2 mb-4 bg-gray-800 p-3 rounded-lg border border-gray-700">
+                                <SupportIcon className="w-5 h-5 text-amber-400" />
+                                <p className="text-sm text-gray-300">Found a bug or have a feature idea? Let us know directly.</p>
+                            </div>
+                            <form onSubmit={handleSubmitFeedback} className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-400 mb-1">Feedback Type</label>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setFeedbackType('bug')}
+                                                className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center transition-colors ${feedbackType === 'bug' ? 'bg-red-900/40 text-red-400 border border-red-500/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}
+                                            >
+                                                <BugFixIcon className="w-4 h-4 mr-2" /> Bug
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setFeedbackType('feature')}
+                                                className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center transition-colors ${feedbackType === 'feature' ? 'bg-blue-900/40 text-blue-400 border border-blue-500/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}
+                                            >
+                                                <SparkleIcon className="w-4 h-4 mr-2" /> Feature
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-400 mb-1">Priority</label>
+                                        <select 
+                                            value={feedbackPriority}
+                                            onChange={(e) => setFeedbackPriority(e.target.value)}
+                                            className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 outline-none h-[42px]"
+                                        >
+                                            <option>Low</option>
+                                            <option>Medium</option>
+                                            <option>High</option>
+                                            <option>Critical</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-1">Subject</label>
+                                    <input 
+                                        type="text" 
+                                        value={feedbackTitle} 
+                                        onChange={(e) => setFeedbackTitle(e.target.value)}
+                                        placeholder={feedbackType === 'bug' ? "e.g., App crashes on profile update" : "e.g., Add dark mode for calendar"}
+                                        className="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-amber-500 outline-none"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-1">Description</label>
+                                    <textarea 
+                                        rows={4}
+                                        value={feedbackDesc}
+                                        onChange={(e) => setFeedbackDesc(e.target.value)}
+                                        placeholder="Describe the issue or idea in detail..."
+                                        className="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-amber-500 outline-none"
+                                    />
+                                </div>
+
+                                <div className="flex justify-end pt-2">
+                                    <button 
+                                        type="submit" 
+                                        disabled={isSubmittingFeedback}
+                                        className="bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold py-2 px-6 rounded-lg transition-colors flex items-center disabled:opacity-50"
+                                    >
+                                        {isSubmittingFeedback ? 'Sending...' : 'Submit Feedback'}
+                                    </button>
+                                </div>
+                            </form>
+                        </Card>
+                    </div>
+
+                    <div className="lg:col-span-1">
+                        <Card title="My Submissions">
+                            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
+                                {feedbackHistory.length === 0 && <p className="text-gray-500 text-sm text-center py-4">No submissions yet.</p>}
+                                {feedbackHistory.map(item => (
+                                    <div key={item.id} className="bg-gray-800 p-3 rounded-lg border border-gray-700">
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                                                item.type === 'bug' ? 'bg-red-900/30 text-red-400' : 'bg-blue-900/30 text-blue-400'
+                                            }`}>
+                                                {item.type}
+                                            </span>
+                                            <span className="text-xs text-gray-500">{item.date}</span>
+                                        </div>
+                                        <h4 className="font-semibold text-white text-sm mb-1 line-clamp-1">{item.title}</h4>
+                                        <div className="flex justify-between items-center mt-2">
+                                            <span className="text-xs text-gray-400">Status:</span>
+                                            <span className={`text-xs font-bold ${
+                                                item.status === 'Resolved' || item.status === 'Implemented' ? 'text-green-400' : 'text-yellow-400'
+                                            }`}>
+                                                {item.status}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </Card>
+                    </div>
                 </div>
             )}
 

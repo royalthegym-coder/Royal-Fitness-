@@ -10,6 +10,7 @@ import { SparkleIcon } from './icons/SparkleIcon';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { BotIcon } from './icons/BotIcon';
 import { getComplexResponse } from '../../lib/gemini';
+import { EditIcon } from './icons/EditIcon';
 
 const SourceIcon: React.FC<{ source: LeadSource, className?: string }> = ({ source, className = "w-5 h-5" }) => {
     switch (source) {
@@ -96,8 +97,8 @@ const Leads: React.FC = () => {
         setSelectedMessage('');
 
         const prompt = `
-            Act as a sales representative for "Royal The Gym".
-            Generate 3 distinct, short WhatsApp follow-up messages for a lead with these details:
+            Act as a senior sales representative for "Royal The Gym".
+            Generate 3 distinct, high-converting WhatsApp follow-up messages for a potential member (lead) with these details:
             
             Name: ${lead.name}
             Source: ${lead.source}
@@ -105,23 +106,31 @@ const Leads: React.FC = () => {
             Inquiry Date: ${lead.inquiryDate}
             
             Variations needed:
-            1. Friendly check-in.
-            2. Benefit/Result focused.
-            3. A limited-time offer hook.
+            1. Friendly check-in: Warm tone, asking if they have questions.
+            2. Benefit/Result focused: Highlight gym features or success stories relevant to typical gym goers.
+            3. A limited-time offer hook: Create urgency with a special sign-up offer valid for 48 hours.
 
             Return ONLY a JSON array of strings. Example: ["Message 1", "Message 2", "Message 3"].
-            Do not include markdown or explanations.
+            Do not include markdown blocks or explanations in the output.
         `;
 
         try {
             let response = await getComplexResponse(prompt);
             response = response.replace(/```json/g, '').replace(/```/g, '').trim();
-            const options = JSON.parse(response);
-            if (Array.isArray(options)) {
+            
+            let options: string[] = [];
+            try {
+                options = JSON.parse(response);
+            } catch (e) {
+                // Try to split by newlines if JSON parse fails
+                options = response.split('\n').filter(line => line.length > 10);
+            }
+
+            if (Array.isArray(options) && options.length > 0) {
                 setAiOptions(options);
                 setSelectedMessage(options[0]);
             } else {
-                setSelectedMessage(response); // Fallback if not array
+                setSelectedMessage(response); // Fallback
             }
         } catch (error) {
             console.error("AI Generation Error", error);
@@ -134,7 +143,10 @@ const Leads: React.FC = () => {
     const handleSendWhatsApp = () => {
         if (!selectedLeadForAi) return;
         // Simulate API call
-        alert(`Message sent to ${selectedLeadForAi.name} (${selectedLeadForAi.phone}):\n\n"${selectedMessage}"`);
+        const mobileNumber = selectedLeadForAi.phone;
+        const url = `https://wa.me/${mobileNumber}?text=${encodeURIComponent(selectedMessage)}`;
+        window.open(url, '_blank');
+        
         setIsAiModalOpen(false);
         
         // Update status to 'Contacted' if it was 'New'
@@ -183,12 +195,12 @@ const Leads: React.FC = () => {
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
-                    <div className="flex items-center bg-gray-700 rounded-lg border border-gray-600 p-1">
+                    <div className="flex items-center bg-gray-700 rounded-lg border border-gray-600 p-1 overflow-x-auto">
                         {filterSources.map(source => (
                             <button
                                 key={source}
                                 onClick={() => setFilterSource(source)}
-                                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${filterSource === source ? 'bg-amber-500 text-gray-900' : 'text-gray-300 hover:bg-gray-600'}`}
+                                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${filterSource === source ? 'bg-amber-500 text-gray-900' : 'text-gray-300 hover:bg-gray-600'}`}
                             >
                                 {source}
                             </button>
@@ -229,15 +241,18 @@ const Leads: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="p-3">
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-2">
                                             <button 
                                                 onClick={() => handleOpenAiAssistant(lead)} 
-                                                className="text-gray-400 hover:text-purple-400 transition-colors"
+                                                className="bg-purple-900/30 hover:bg-purple-600 hover:text-white text-purple-400 border border-purple-500/30 px-3 py-1.5 rounded-md flex items-center gap-1 transition-all text-xs font-bold"
                                                 title="Generate AI Follow-up"
                                             >
-                                                <SparkleIcon className="w-5 h-5" />
+                                                <SparkleIcon className="w-3 h-3" />
+                                                <span className="hidden xl:inline">AI Follow-up</span>
                                             </button>
-                                            <button onClick={() => handleEditLead(lead)} className="text-amber-400 hover:text-amber-300">Edit</button>
+                                            <button onClick={() => handleEditLead(lead)} className="text-gray-400 hover:text-white p-1.5 rounded bg-gray-800 hover:bg-gray-600 transition-colors">
+                                                <EditIcon className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -297,7 +312,7 @@ const Leads: React.FC = () => {
                                     onClick={handleSendWhatsApp}
                                     className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold flex items-center transition-colors"
                                 >
-                                    <WhatsAppIcon className="w-4 h-4 mr-2" /> Send via WhatsApp
+                                    <WhatsAppIcon className="w-4 h-4 mr-2" /> Open WhatsApp
                                 </button>
                             </div>
                         </>

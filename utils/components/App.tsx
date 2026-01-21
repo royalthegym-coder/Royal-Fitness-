@@ -9,6 +9,7 @@ import { checkMembershipExpiryAndNotify } from './lib/whatsapp';
 import { ChatIcon } from './utils/components/icons/ChatIcon';
 import GeminiChat from './utils/components/GeminiChat';
 import { View, Theme } from './types';
+import { ToastProvider } from './utils/context/ToastProvider';
 
 // Lazy load heavy components to improve initial load speed and performance
 const Dashboard = React.lazy(() => import('./utils/components/Dashboard'));
@@ -58,7 +59,7 @@ const LoadingSpinner = () => (
     </div>
 );
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
     const [currentView, setCurrentView] = useState<View>('dashboard');
     const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -73,16 +74,18 @@ const App: React.FC = () => {
         }
     }, [theme]);
 
-    // Simulate Daily Cron Job (e.g., 5 AM check)
+    // Simulate Daily Cron Job (Optimized to not block render)
     useEffect(() => {
-        // In a real app, this would be a backend cron job.
-        // Here, we simulate it running once when the admin app loads.
         if (currentUser?.type === 'admin') {
-            checkMembershipExpiryAndNotify().then(count => {
-                if (count > 0) {
-                    console.log(`[System] Automatically sent payment reminders to ${count} members.`);
+            const runCheck = async () => {
+                try {
+                    const count = await checkMembershipExpiryAndNotify();
+                    if (count > 0) console.log(`[System] Auto-reminded ${count} members.`);
+                } catch (e) {
+                    console.error("Automation check failed", e);
                 }
-            });
+            };
+            runCheck();
         }
     }, [currentUser]);
 
@@ -90,31 +93,64 @@ const App: React.FC = () => {
         setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
     };
 
-    const handleLogin = (identifier: string, pass: string, role: 'admin' | 'member'): boolean => {
+    /**
+     * Enhanced Login Handler supporting OTP and strict validation.
+     */
+    const handleLogin = (identifier: string, pass: string | null, role: 'admin' | 'member', method: 'password' | 'otp'): boolean => {
+        // --- ADMIN LOGIN ---
         if (role === 'admin') {
-            // Allow login via email OR specific business phone number
-            const isValidAdmin = (identifier === 'admin@royal.com' || identifier === '9785300123' || identifier === '+919785300123');
-            
-            if (isValidAdmin && pass === 'admin123') {
-                setCurrentUser({ type: 'admin', name: 'Admin', avatar: 'https://i.pravatar.cc/150?u=admin' });
+            const authorizedAdmins = ['admin@royal.com', '9785300123', '+919785300123'];
+            const isAuthorized = authorizedAdmins.includes(identifier);
+
+            if (!isAuthorized) return false;
+
+            // Allow login if method is OTP (assumed verified by LoginScreen) OR if password matches
+            if (method === 'otp' || (method === 'password' && pass === 'admin123')) {
+                setCurrentUser({ type: 'admin', name: 'Super Admin', avatar: 'https://i.pravatar.cc/150?u=admin' });
                 return true;
             }
         }
+
+        // --- MEMBER LOGIN ---
         if (role === 'member') {
-            // Member login remains by email for demo purposes, or could be extended to phone
-            const member = INITIAL_MEMBERS.find(m => m.email === identifier || m.phone === identifier);
-            // In a real app, you'd check a hashed password. This is just for the demo.
-            if (member && pass === `${member.name.split(' ')[0].toLowerCase()}123`) {
-                setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
-                return true;
+            // Find member by Email OR Phone
+            const member = INITIAL_MEMBERS.find(m => 
+                m.email.toLowerCase() === identifier.toLowerCase() || 
+                m.phone.replace(/\D/g,'').slice(-10) === identifier.replace(/\D/g,'').slice(-10)
+            );
+
+            if (!member) return false; // Strict check: Member MUST exist in DB
+
+            if (method === 'otp') {
+                 setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
+                 return true;
+            }
+
+            if (method === 'password') {
+                // Simple password logic for demo: first name + 123
+                const expectedPass = `${member.name.split(' ')[0].toLowerCase()}123`;
+                if (pass === expectedPass) {
+                    setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
+                    return true;
+                }
             }
         }
+
         return false;
     };
 
     const handleLogout = () => {
-        setCurrentUser(null);
+        // Clear session storage to remove any temporary data
+        sessionStorage.clear();
+        
+        // Close AI Chat if open
+        setChatOpen(false);
+        
+        // Reset View
         setCurrentView('dashboard');
+        
+        // Clear User State to trigger Login Screen
+        setCurrentUser(null);
     };
 
     const renderView = () => {
@@ -168,20 +204,30 @@ const App: React.FC = () => {
     }
 
     return (
-        <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 ${theme}`}>
-            <Sidebar currentView={currentView} setCurrentView={setCurrentView} isOpen={isSidebarOpen} setIsOpen={setSidebarOpen} />
-            <div className="flex-1 flex flex-col overflow-hidden">
-                <Header onLogout={handleLogout} userName={currentUser.name} avatar={currentUser.avatar} theme={theme} toggleTheme={toggleTheme}>
-                    <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 focus:outline-none md:hidden">
-                        <MenuIcon />
-                    </button>
-                </Header>
-                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 dark:bg-gray-900 p-6">
-                    <Suspense fallback={<LoadingSpinner />}>
-                        {renderView()}
-                    </Suspense>
-                </main>
+        <div className={`h-screen w-screen font-sans text-gray-800 dark:text-gray-100 ${theme}`}>
+             <div className="absolute inset-0 z-0 pointer-events-none">
+                <img src="https://images.unsplash.com/photo-1571902943202-507ec2618e8f?q=80&w=2070&auto=format&fit=crop" alt="Gym background" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-sm"></div>
             </div>
+
+            <div className="relative z-10 flex h-full w-full">
+                <Sidebar currentView={currentView} setCurrentView={setCurrentView} isOpen={isSidebarOpen} setIsOpen={setSidebarOpen} />
+                <div className="flex-1 flex flex-col h-screen">
+                    <Header onLogout={handleLogout} userName={currentUser.name} avatar={currentUser.avatar} theme={theme} toggleTheme={toggleTheme}>
+                        <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 focus:outline-none md:hidden">
+                            <MenuIcon />
+                        </button>
+                    </Header>
+                    <main className="flex-1 overflow-y-auto">
+                        <div className="p-6">
+                            <Suspense fallback={<div className="h-[calc(100vh-150px)] flex items-center justify-center"><LoadingSpinner /></div>}>
+                                {renderView()}
+                            </Suspense>
+                        </div>
+                    </main>
+                </div>
+            </div>
+
             <button
                 onClick={() => setChatOpen(!isChatOpen)}
                 className="fixed bottom-6 right-6 bg-amber-500 text-gray-900 p-4 rounded-full shadow-lg hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 z-50 transform hover:scale-110 transition-transform"
@@ -192,6 +238,7 @@ const App: React.FC = () => {
             <GeminiChat 
                 isOpen={isChatOpen} 
                 onClose={() => setChatOpen(false)} 
+                onNavigate={(view) => setCurrentView(view as View)}
                 context={{ 
                     role: currentUser.type, 
                     memberId: currentUser.id, 
@@ -201,5 +248,12 @@ const App: React.FC = () => {
         </div>
     );
 };
+
+
+const App: React.FC = () => (
+    <ToastProvider>
+        <AppContent />
+    </ToastProvider>
+);
 
 export default App;

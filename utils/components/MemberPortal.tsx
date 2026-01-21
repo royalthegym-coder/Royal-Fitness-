@@ -1,11 +1,11 @@
 
 import React, { useState } from 'react';
 import Header from './Header';
-import { INITIAL_MEMBERS, INITIAL_MEMBER_FITNESS_DATA } from '../../constants';
+import { INITIAL_MEMBERS, INITIAL_MEMBER_FITNESS_DATA, INITIAL_HEALTH_DATA } from '../../constants';
 import TodaysWorkout from './member/TodaysWorkout';
 import DietPlanView from './member/DietPlanView';
 import FitnessTracker from './member/FitnessTracker';
-import { MemberFitnessData, WorkoutLog } from '../../types';
+import { MemberFitnessData, WorkoutLog, HealthData } from '../../types';
 import { Theme } from '../../types';
 import MemberHealthDashboard from './member/MemberHealthDashboard';
 import FuturisticFeatures from './FuturisticFeatures';
@@ -16,6 +16,7 @@ import Sidebar from './Sidebar';
 import { MenuIcon } from './icons/MenuIcon';
 import GeminiChat from './GeminiChat';
 import { ChatIcon } from './icons/ChatIcon';
+import GeoMetricAccess from './member/GeoMetricAccess'; // Import new component
 
 interface MemberPortalProps {
     onLogout: () => void;
@@ -29,8 +30,12 @@ export type MemberView = 'workout' | 'diet' | 'tracker' | 'health' | 'ai_tools' 
 const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId, theme, toggleTheme }) => {
     const [activeView, setActiveView] = useState<MemberView>('workout');
     const [fitnessData, setFitnessData] = useState<MemberFitnessData>(INITIAL_MEMBER_FITNESS_DATA);
+    
+    // Shared Health Data State (Lifted from Dashboard)
+    const [healthData, setHealthData] = useState<HealthData>(INITIAL_HEALTH_DATA);
     const [isHealthConnected, setIsHealthConnected] = useState(false);
     const [isConnectingHealth, setIsConnectingHealth] = useState(false);
+    
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [isChatOpen, setChatOpen] = useState(false);
 
@@ -81,9 +86,21 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId,
 
         switch (activeView) {
             case 'workout':
-                return <TodaysWorkout memberId={loggedInMemberId} onWorkoutComplete={handleWorkoutComplete} setActiveView={setActiveView} fitnessData={fitnessData} />;
+                return (
+                    <div className="space-y-6">
+                        {/* GeoMetric Access is prominently displayed on the Workout Dashboard */}
+                        <GeoMetricAccess /> 
+                        <TodaysWorkout 
+                            memberId={loggedInMemberId} 
+                            onWorkoutComplete={handleWorkoutComplete} 
+                            setActiveView={setActiveView} 
+                            fitnessData={fitnessData} 
+                            healthData={healthData}
+                        />
+                    </div>
+                );
             case 'diet':
-                return <DietPlanView memberId={loggedInMemberId} />;
+                return <DietPlanView memberId={loggedInMemberId} healthData={healthData} />;
             case 'tracker':
                 return <FitnessTracker memberId={loggedInMemberId} fitnessData={fitnessData} setFitnessData={setFitnessData} />;
             case 'health':
@@ -92,6 +109,8 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId,
                     isConnecting={isConnectingHealth} 
                     onConnect={handleHealthConnect}
                     onDisconnect={handleHealthDisconnect}
+                    healthData={healthData}
+                    setHealthData={setHealthData}
                 />;
             case 'ai_tools':
                 return <FuturisticFeatures />;
@@ -102,7 +121,13 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId,
             case 'smartwatch':
                 return <SmartWatch />;
             default:
-                return <TodaysWorkout memberId={loggedInMemberId} onWorkoutComplete={handleWorkoutComplete} setActiveView={setActiveView} fitnessData={fitnessData} />;
+                return <TodaysWorkout 
+                            memberId={loggedInMemberId} 
+                            onWorkoutComplete={handleWorkoutComplete} 
+                            setActiveView={setActiveView} 
+                            fitnessData={fitnessData} 
+                            healthData={healthData}
+                        />;
         }
     };
     
@@ -116,41 +141,48 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId,
     }
     
     return (
-        <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 ${theme}`}>
-            <Sidebar 
-                currentView={activeView} 
-                setCurrentView={(view) => setActiveView(view as MemberView)} 
-                isOpen={isSidebarOpen} 
-                setIsOpen={setSidebarOpen} 
-                role="member"
-            />
+        <div className={`h-screen w-screen font-sans text-gray-800 dark:text-gray-100 ${theme} bg-gray-100 dark:bg-gray-900`}>
+             <div className="absolute inset-0 z-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-900/10 via-gray-900 to-black opacity-30"></div>
+             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none opacity-50"></div>
             
-            <div className="flex-1 flex flex-col overflow-hidden">
-                <Header onLogout={onLogout} userName={selectedMember.name} avatar={selectedMember.avatar} theme={theme} toggleTheme={toggleTheme}>
-                    <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 focus:outline-none md:hidden mr-4">
-                        <MenuIcon />
-                    </button>
-                </Header>
+            <div className="relative z-10 flex h-full w-full">
+                <Sidebar 
+                    currentView={activeView} 
+                    setCurrentView={(view) => setActiveView(view as MemberView)} 
+                    isOpen={isSidebarOpen} 
+                    setIsOpen={setSidebarOpen} 
+                    role="member"
+                />
                 
-                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
-                    <div className="max-w-6xl mx-auto">
-                        <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
-                            <div>
-                                <h1 className="text-3xl font-bold text-amber-500 dark:text-amber-400">Member Portal</h1>
-                                <p className="text-gray-500 dark:text-gray-400">Welcome back, {selectedMember?.name}!</p>
-                            </div>
-                            <div className="mt-4 md:mt-0 px-4 py-2 bg-white dark:bg-gray-800 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 flex items-center shadow-sm">
-                                <span className="mr-2">Membership Status:</span>
-                                <span className={`font-bold flex items-center ${getStatusColor(selectedMember.status)}`}>
-                                    <span className={`w-2.5 h-2.5 rounded-full mr-2 ${getStatusDotColor(selectedMember.status)} ${selectedMember.status === 'Active' ? 'animate-pulse' : ''}`}></span>
-                                    {selectedMember.status}
-                                </span>
+                <div className="flex-1 flex flex-col h-screen">
+                    <Header onLogout={onLogout} userName={selectedMember.name} avatar={selectedMember.avatar} theme={theme} toggleTheme={toggleTheme}>
+                        <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="text-gray-500 dark:text-gray-400 focus:outline-none md:hidden mr-4">
+                            <MenuIcon />
+                        </button>
+                    </Header>
+                    
+                    <main className="flex-1 overflow-y-auto">
+                        <div className="p-4 sm:p-6 lg:p-8">
+                            <div className="max-w-6xl mx-auto">
+                                <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
+                                    <div>
+                                        <h1 className="text-3xl font-bold text-amber-500 dark:text-amber-400">Member Portal</h1>
+                                        <p className="text-gray-500 dark:text-gray-400">Welcome back, {selectedMember?.name}!</p>
+                                    </div>
+                                    <div className="mt-4 md:mt-0 px-4 py-2 bg-white dark:bg-gray-800 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 flex items-center shadow-sm">
+                                        <span className="mr-2">Membership Status:</span>
+                                        <span className={`font-bold flex items-center ${getStatusColor(selectedMember.status)}`}>
+                                            <span className={`w-2.5 h-2.5 rounded-full mr-2 ${getStatusDotColor(selectedMember.status)} ${selectedMember.status === 'Active' ? 'animate-pulse' : ''}`}></span>
+                                            {selectedMember.status}
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                {renderMemberView()}
                             </div>
                         </div>
-                        
-                        {renderMemberView()}
-                    </div>
-                </main>
+                    </main>
+                </div>
             </div>
 
             <button

@@ -3,12 +3,18 @@ import { Package, Member, Invoice, Staff, Expense, DietPlan, Lead, GoogleReview,
 
 export const GYM_INFO = {
   name: 'Royal The Gym',
-  contact: '+91 9785300123', // Updated
-  email: 'royalthegym@gmail.com', // Updated
+  logo: 'https://i.ibb.co/6800735/Royal-The-Gym.png',
+  contact: '+91 9785300123',
+  email: 'royalthegym@gmail.com',
   address: '2nd floor, Vishwakarma Complex, Gandhi Chowk, Khemi Sati Road, Jhunjhunu, Rajasthan- 333001',
   website: 'https://royal-the-gym.grexa.site',
+  // EXACT COORDINATES FOR GEOFENCING
+  coordinates: {
+    latitude: 28.1289, 
+    longitude: 75.3995
+  },
   upiIds: {
-    gpay1: '9785300123@okbizaxis', // Updated based on phone
+    gpay1: '9785300123@okbizaxis',
     gpay2: 'royalthegym@oksbi',
   },
   gpay: {
@@ -16,7 +22,7 @@ export const GYM_INFO = {
     mobile: '+91 9785300123'
   },
   whatsappNumber: '+919785300123',
-  googleBusinessEmail: 'royalthegym@gmail.com', // Updated
+  googleBusinessEmail: 'royalthegym@gmail.com',
   socials: {
     instagram: 'https://www.instagram.com/royalthegym/',
     facebook: 'https://www.facebook.com/royalthegym/',
@@ -29,64 +35,91 @@ export const INITIAL_PACKAGES: Package[] = [
   // Regular Gym Workouts
   { 
     id: 1, 
-    name: 'Basic Membership', 
+    name: 'Temporary Membership', 
     category: 'Regular', 
-    price: 1500, 
-    duration: 'First Month', 
-    details: 'then ₹1000/month', 
+    price: 1200, 
+    duration: '1 Month', 
+    details: 'Valid for just one month', 
     features: ['Gym Access Only'] 
   },
   { 
     id: 2, 
-    name: 'Standard Package', 
+    name: 'Basic Gym Membership', 
+    category: 'Regular', 
+    price: 1500, 
+    duration: '1 Month', 
+    details: 'First month ₹1500, then ₹1000/month', 
+    features: ['Gym Access Only'] 
+  },
+  { 
+    id: 3, 
+    name: 'Standard Gym Package', 
     category: 'Regular', 
     price: 3000, 
     duration: '3 Months', 
     features: ['Gym Access', 'Diet Plan'] 
   },
   { 
-    id: 3, 
-    name: 'Premium Package', 
+    id: 4, 
+    name: 'Premium Gym Package', 
     category: 'Regular', 
     price: 5000, 
     duration: '6 Months', 
-    features: ['Gym Access', 'Diet Plan', '10 Days Workout Tracking'] 
+    features: ['Gym Access', 'Diet Plan', '10 Days Workout Training'] 
+  },
+  { 
+    id: 5, 
+    name: 'Diamond Gym Package', 
+    category: 'Regular', 
+    price: 9000, 
+    duration: '12 Months', 
+    details: 'Annual Plan (Save 20%)',
+    features: ['Gym Access', 'Diet Plan', '15 Days Workout Training'] 
   },
   
   // Cardio Gym Workouts
   { 
-    id: 4, 
-    name: 'Basic Membership', 
+    id: 6, 
+    name: 'Basic Cardio Membership', 
     category: 'Cardio', 
     price: 2000, 
     duration: '1 Month', 
-    features: ['Full Gym Access'] 
+    features: ['Full Gym Access (Cardio + Weights)'] 
   },
   { 
-    id: 5, 
-    name: 'Standard Package', 
+    id: 7, 
+    name: 'Standard Cardio Package', 
     category: 'Cardio', 
     price: 5000, 
     duration: '3 Months', 
     features: ['Full Gym Access', 'Diet Plan'] 
   },
   { 
-    id: 6, 
-    name: 'Premium Package', 
+    id: 8, 
+    name: 'Premium Cardio Package', 
     category: 'Cardio', 
     price: 9000, 
     duration: '6 Months', 
-    features: ['Full Gym Access', 'Diet Plan', '10 Days Workout Tracking'] 
+    features: ['Full Gym Access', 'Diet Plan', '10 Days Workout Training'] 
+  },
+  { 
+    id: 9, 
+    name: 'Diamond Cardio Package', 
+    category: 'Cardio', 
+    price: 16000, 
+    duration: '12 Months', 
+    details: 'Annual Plan (Save 20%)',
+    features: ['Full Gym Access', 'Diet Plan', '4 Weeks Workout Training'] 
   },
 
   // Personal Training
   { 
-    id: 7, 
+    id: 10, 
     name: 'Personal Training', 
     category: 'Personal Training', 
     price: 5000, 
     duration: '1 Month', 
-    features: ['Personalized Training Sessions', 'Custom Diet Plan'] 
+    features: ['Personalized Training Sessions', 'Diet Plan', 'Exercise Plan'] 
   },
 ];
 
@@ -94,15 +127,15 @@ export const INITIAL_MEMBERS: Member[] = [
   { id: 1, name: 'Aarav Sharma', email: 'aarav.s@example.com', phone: '9876543210', joinDate: '2023-05-15', packageId: 3, trainerId: 2, status: 'Active', avatar: 'https://picsum.photos/seed/aarav/200', whatsappConsent: true },
   { id: 2, name: 'Priya Patel', email: 'priya.p@example.com', phone: '9876543211', joinDate: '2023-06-01', packageId: 2, status: 'Active', avatar: 'https://picsum.photos/seed/priya/200', whatsappConsent: true },
   { id: 3, name: 'Rohan Kumar', email: 'rohan.k@example.com', phone: '9876543212', joinDate: '2022-12-20', packageId: 1, status: 'Expired', avatar: 'https://picsum.photos/seed/rohan/200', whatsappConsent: true },
-  { id: 4, name: 'Anika Singh', email: 'anika.s@example.com', phone: '9876543213', joinDate: '2024-07-05', packageId: 4, trainerId: 3, status: 'Active', avatar: 'https://picsum.photos/seed/anika/200', whatsappConsent: true },
+  { id: 4, name: 'Anika Singh', email: 'anika.s@example.com', phone: '9876543213', joinDate: '2024-07-05', packageId: 6, trainerId: 3, status: 'Active', avatar: 'https://picsum.photos/seed/anika/200', whatsappConsent: true },
   { id: 5, name: 'Vikram Mehta', email: 'vikram.m@example.com', phone: '9876543214', joinDate: '2023-02-11', packageId: 5, status: 'Inactive', avatar: 'https://picsum.photos/seed/vikram/200', whatsappConsent: false },
 ];
 
 export const INITIAL_INVOICES: Invoice[] = [
-  { id: 1, memberId: 1, memberName: 'Aarav Sharma', packageId: 3, packageName: 'Premium Package (Regular)', amount: 5000, date: '2024-07-01', status: 'Paid' },
-  { id: 2, memberId: 2, memberName: 'Priya Patel', packageId: 2, packageName: 'Standard Package (Regular)', amount: 3000, date: '2024-07-05', status: 'Paid' },
-  { id: 3, memberId: 4, memberName: 'Anika Singh', packageId: 4, packageName: 'Basic Membership (Cardio)', amount: 2000, date: '2024-07-10', status: 'Pending' },
-  { id: 4, memberId: 3, memberName: 'Rohan Kumar', packageId: 1, packageName: 'Basic Membership (Regular)', amount: 1500, date: '2024-01-20', status: 'Overdue' },
+  { id: 1, memberId: 1, memberName: 'Aarav Sharma', packageId: 3, packageName: 'Standard Gym Package', amount: 3000, date: '2024-07-01', status: 'Paid' },
+  { id: 2, memberId: 2, memberName: 'Priya Patel', packageId: 2, packageName: 'Basic Gym Membership', amount: 1500, date: '2024-07-05', status: 'Paid' },
+  { id: 3, memberId: 4, memberName: 'Anika Singh', packageId: 6, packageName: 'Basic Cardio Membership', amount: 2000, date: '2024-07-10', status: 'Pending' },
+  { id: 4, memberId: 3, memberName: 'Rohan Kumar', packageId: 1, packageName: 'Temporary Membership', amount: 1200, date: '2024-01-20', status: 'Overdue' },
 ];
 
 export const INITIAL_STAFF: Staff[] = [
@@ -169,7 +202,7 @@ export const INITIAL_WORKOUT_TEMPLATES: WorkoutTemplate[] = [
     { 
         id: 103, 
         name: 'Day 3: Functional & Core', 
-        level: 'Intermediate', 
+        level: 'Advanced', 
         sections: [
             { title: '🔥 Warm-up & Activation', exercises: [
                 { name: 'High Knees', sets: '2', reps: '30s' },
@@ -192,7 +225,7 @@ export const INITIAL_WORKOUT_TEMPLATES: WorkoutTemplate[] = [
     { 
         id: 104, 
         name: 'Day 4: Strength Endurance', 
-        level: 'Intermediate', 
+        level: 'Beginner', 
         sections: [
             { title: '🔥 Warm-up & Activation', exercises: [
                 { name: 'Jumping Jacks', sets: '1', reps: '2 min' },
@@ -215,7 +248,7 @@ export const INITIAL_WORKOUT_TEMPLATES: WorkoutTemplate[] = [
     { 
         id: 105, 
         name: 'Day 5: Compound Focus', 
-        level: 'Intermediate', 
+        level: 'Advanced', 
         sections: [
             { title: '🔥 Warm-up & Activation', exercises: [
                 { name: 'Rower/Bike', sets: '1', reps: '5 min' },

@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Card from '../common/Card';
 import { BodyMetric, WorkoutLog, MemberFitnessData } from '../../../types';
 import { INITIAL_MEMBERS } from '../../../constants';
@@ -76,7 +76,9 @@ const WorkoutLogItem: React.FC<{ log: WorkoutLog }> = ({ log }) => {
 
 const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, setFitnessData }) => {
     const [weight, setWeight] = useState('');
+    const [height, setHeight] = useState(''); // Height in cm
     const [bodyFat, setBodyFat] = useState('');
+    const [bmi, setBmi] = useState<number | null>(null);
     
     // Goals State
     const [goalWeight, setGoalWeight] = useState<number | ''>(75);
@@ -132,6 +134,29 @@ const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, 
         return Object.entries(weeks).map(([name, count]) => ({ name, count }));
     }, [memberData.logs]);
 
+    // BMI Calculation Effect
+    useEffect(() => {
+        if (weight && height) {
+            const w = parseFloat(weight);
+            const h = parseFloat(height) / 100; // cm to m
+            if (h > 0 && w > 0) {
+                const calculatedBmi = w / (h * h);
+                setBmi(parseFloat(calculatedBmi.toFixed(1)));
+            } else {
+                setBmi(null);
+            }
+        } else {
+            setBmi(null);
+        }
+    }, [weight, height]);
+
+    const getBmiCategory = (value: number) => {
+        if (value < 18.5) return { label: 'Underweight', color: 'text-blue-400', bg: 'bg-blue-400' };
+        if (value < 25) return { label: 'Normal Weight', color: 'text-green-400', bg: 'bg-green-400' };
+        if (value < 30) return { label: 'Overweight', color: 'text-yellow-400', bg: 'bg-yellow-400' };
+        return { label: 'Obese', color: 'text-red-400', bg: 'bg-red-400' };
+    };
+
     const handleAddMetric = (e: React.FormEvent) => {
         e.preventDefault();
         if (!weight && !bodyFat) return;
@@ -153,6 +178,7 @@ const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, 
             };
         });
         
+        // Reset form but keep height as it likely won't change
         setWeight('');
         setBodyFat('');
     };
@@ -310,14 +336,14 @@ const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, 
                     </div>
                 </Card>
 
-                {/* 5. Input Form */}
+                {/* 5. Input Form & BMI Calculator */}
                 <Card title="Log New Body Metrics">
                     <form onSubmit={handleAddMetric} className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-400 mb-1">Date</label>
                             <input type="date" disabled value={getLocalToday()} className="w-full bg-gray-700 text-gray-500 border border-gray-600 rounded p-2 text-sm" />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-3 gap-2">
                             <div>
                                 <label className="block text-sm font-medium text-gray-300 mb-1">Weight (kg)</label>
                                 <input 
@@ -327,6 +353,17 @@ const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, 
                                     onChange={e => setWeight(e.target.value)} 
                                     className="w-full bg-gray-700 text-white border border-gray-600 rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
                                     placeholder="0.0"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Height (cm)</label>
+                                <input 
+                                    type="number" 
+                                    step="1" 
+                                    value={height} 
+                                    onChange={e => setHeight(e.target.value)} 
+                                    className="w-full bg-gray-700 text-white border border-gray-600 rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+                                    placeholder="0"
                                 />
                             </div>
                             <div>
@@ -341,6 +378,22 @@ const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, 
                                 />
                             </div>
                         </div>
+
+                        {/* BMI Display */}
+                        {bmi && (
+                            <div className="bg-gray-800 p-3 rounded-lg border border-gray-600 flex justify-between items-center animate-fade-in">
+                                <div>
+                                    <p className="text-xs text-gray-400 uppercase font-bold">Calculated BMI</p>
+                                    <p className="text-xl font-bold text-white">{bmi}</p>
+                                </div>
+                                <div className="text-right">
+                                    <span className={`text-sm font-bold ${getBmiCategory(bmi).color}`}>
+                                        {getBmiCategory(bmi).label}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
                         <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg transition-colors mt-2">
                             Log Metrics
                         </button>

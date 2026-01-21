@@ -14,15 +14,32 @@ export interface Member {
   name: string;
   email: string;
   phone: string;
+  dob?: string;
+  gender?: 'Male' | 'Female' | 'Other'; // Added Gender
+  bloodGroup?: string; // Added Blood Group
+  address?: string;
+  emergencyContactName?: string; // Added Emergency Contact
+  emergencyContactPhone?: string; // Added Emergency Phone
   joinDate: string;
   packageId: number;
-  trainerId?: number; // Added for automation
-  trainerFees?: number; // Added Gym Trainer Fees
+  trainerId?: number;
+  trainerFees?: number;
+  preferredShift?: 'Morning' | 'Evening' | 'Afternoon'; // Added Shift
+  height?: number; // cm
+  weight?: number; // kg
+  fitnessGoal?: 'Weight Loss' | 'Muscle Gain' | 'General Fitness' | 'Endurance'; // Added Goal
+  medicalConditions?: string; // Added Medical History
   status: 'Active' | 'Expired' | 'Inactive';
   avatar: string;
   whatsappConsent: boolean;
-  whatsappMode?: 'Auto' | 'Manual'; // Added for manual override
-  lastWorkoutDate?: string; // New for CRM
+  whatsappMode?: 'Auto' | 'Manual';
+  lastWorkoutDate?: string;
+}
+
+export interface InvoiceItem {
+    description: string;
+    amount: number;
+    type: 'membership' | 'training' | 'product' | 'other';
 }
 
 export interface Invoice {
@@ -32,6 +49,7 @@ export interface Invoice {
   packageId: number;
   packageName: string;
   amount: number;
+  items?: InvoiceItem[];
   date: string;
   status: 'Paid' | 'Pending' | 'Overdue';
 }

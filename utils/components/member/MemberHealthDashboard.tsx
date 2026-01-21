@@ -24,6 +24,8 @@ interface MemberHealthDashboardProps {
     isConnecting: boolean;
     onConnect: () => void;
     onDisconnect?: () => void;
+    healthData: HealthData;
+    setHealthData: React.Dispatch<React.SetStateAction<HealthData>>;
 }
 
 // --- VISUAL COMPONENTS ---
@@ -66,9 +68,7 @@ const ProtocolLog: React.FC<{ logs: string[] }> = ({ logs }) => (
 
 // --- MAIN COMPONENT ---
 
-const MemberHealthDashboard: React.FC<MemberHealthDashboardProps> = ({ isConnected, isConnecting, onConnect, onDisconnect }) => {
-    // Data State
-    const [healthData, setHealthData] = useState<HealthData>(INITIAL_HEALTH_DATA);
+const MemberHealthDashboard: React.FC<MemberHealthDashboardProps> = ({ isConnected, isConnecting, onConnect, onDisconnect, healthData, setHealthData }) => {
     const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     
