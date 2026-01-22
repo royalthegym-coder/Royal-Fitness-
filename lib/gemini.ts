@@ -337,18 +337,33 @@ export async function analyzeExerciseForm(base64Image: string): Promise<{ feedba
     const ai = getAI();
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-3-pro-image-preview', // Improved model for vision
             contents: {
                 parts: [
                     { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-                    { text: 'Analyze exercise form. Return JSON: { "feedback": "string", "status": "Good" | "Correction Needed" | "Idle" }' }
+                    { text: `
+                        You are an elite Gym Instructor (Vision AI). 
+                        Analyze this video frame of a person exercising.
+                        
+                        1. Identify the exercise (if possible, or just the posture).
+                        2. Check for form errors (e.g. rounded back, knees caving).
+                        3. Provide a VERY SHORT corrective command (max 8 words) that can be spoken via TTS.
+                        
+                        Return JSON: { 
+                            "feedback": "string (The voice command, e.g. 'Keep your back straight')", 
+                            "status": "Good" | "Correction Needed" | "Idle" 
+                        }
+                        If no person/exercise is clear, return status "Idle" and feedback "".
+                    ` }
                 ]
             },
             config: { responseMimeType: 'application/json' }
         });
-        return JSON.parse(response.text || '{"feedback": "Error", "status": "Idle"}');
-    } catch {
-        return { feedback: "Analysis failed", status: "Idle" };
+        const text = response.text || '{"feedback": "", "status": "Idle"}';
+        return JSON.parse(text);
+    } catch (e) {
+        console.error("Vision Analysis Error", e);
+        return { feedback: "", status: "Idle" };
     }
 }
 

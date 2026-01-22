@@ -7,6 +7,24 @@ import { SparkleIcon } from './icons/SparkleIcon';
 import { getComplexResponse } from '../../lib/gemini';
 import { BotIcon } from './icons/BotIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { EditIcon } from './icons/EditIcon';
+import Modal from './common/Modal';
+
+// Predefined list of all possible features
+const AVAILABLE_FEATURES = [
+    "Gym Access", 
+    "Cardio Zone",
+    "Personal Training", 
+    "Diet Plan", 
+    "Steam & Sauna", 
+    "Group Classes", 
+    "Locker Access", 
+    "Pool Access",
+    "24/7 Access", 
+    "Massage Therapy",
+    "Yoga Sessions",
+    "Crossfit Zone"
+];
 
 const CheckIcon: React.FC = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
@@ -18,7 +36,7 @@ const getAnnualPackageForCategory = (category: string) => {
     return INITIAL_PACKAGES.find(p => p.category === category && p.duration.includes('12 Months'));
 }
 
-const PackageCard: React.FC<{ pkg: Package }> = ({ pkg }) => {
+const PackageCard: React.FC<{ pkg: Package; onEditFeatures: (pkg: Package) => void }> = ({ pkg, onEditFeatures }) => {
     // Logic: If package is < 12 months, suggest the annual (Diamond) plan price for comparison.
     // If it IS the 12 month plan, highlight it as best value.
     const isAnnual = pkg.duration.includes('12 Months');
@@ -30,8 +48,20 @@ const PackageCard: React.FC<{ pkg: Package }> = ({ pkg }) => {
     return (
         <Card className="flex flex-col border-2 border-gray-700 hover:border-amber-500 transition-all duration-300 transform hover:-translate-y-1 h-full relative overflow-hidden group">
             <div className="flex-grow relative z-10">
-                <h3 className="text-2xl font-bold text-amber-400">{pkg.name}</h3>
-                <p className="text-gray-400 text-sm mb-4 bg-gray-800 inline-block px-2 py-1 rounded">{pkg.category}</p>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h3 className="text-2xl font-bold text-amber-400">{pkg.name}</h3>
+                        <p className="text-gray-400 text-sm mb-4 bg-gray-800 inline-block px-2 py-1 rounded">{pkg.category}</p>
+                    </div>
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onEditFeatures(pkg); }}
+                        className="p-2 text-gray-400 hover:text-white bg-gray-800 rounded-full hover:bg-gray-700 transition-colors"
+                        title="Customize Features"
+                    >
+                        <EditIcon className="w-4 h-4" />
+                    </button>
+                </div>
+
                 <div className="my-4">
                     <span className="text-4xl font-extrabold text-white">₹{pkg.price.toLocaleString()}</span>
                     <span className="text-lg font-medium text-gray-400"> / {pkg.duration}</span>
@@ -74,9 +104,12 @@ const PackageCard: React.FC<{ pkg: Package }> = ({ pkg }) => {
 };
 
 const Packages: React.FC = () => {
-  const [packages] = useState(INITIAL_PACKAGES);
+  const [packages, setPackages] = useState(INITIAL_PACKAGES);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizationResult, setOptimizationResult] = useState<string | null>(null);
+  
+  // Feature Editing State
+  const [editingPackage, setEditingPackage] = useState<Package | null>(null);
 
   const regularPackages = packages.filter(p => p.category === 'Regular');
   const cardioPackages = packages.filter(p => p.category === 'Cardio');
@@ -102,6 +135,27 @@ const Packages: React.FC = () => {
       } finally {
           setIsOptimizing(false);
       }
+  };
+
+  const handleEditFeatures = (pkg: Package) => {
+      setEditingPackage(pkg);
+  };
+
+  const toggleFeature = (feature: string) => {
+      if (!editingPackage) return;
+
+      const currentFeatures = editingPackage.features;
+      const newFeatures = currentFeatures.includes(feature)
+          ? currentFeatures.filter(f => f !== feature)
+          : [...currentFeatures, feature];
+
+      // Update Local Editing State
+      setEditingPackage({ ...editingPackage, features: newFeatures });
+
+      // Update Global State
+      setPackages(prev => prev.map(p => 
+          p.id === editingPackage.id ? { ...p, features: newFeatures } : p
+      ));
   };
 
   return (
@@ -137,7 +191,7 @@ const Packages: React.FC = () => {
                 <h2 className="text-2xl font-semibold text-white">Regular Gym Packages</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {regularPackages.map(pkg => <PackageCard key={pkg.id} pkg={pkg} />)}
+                {regularPackages.map(pkg => <PackageCard key={pkg.id} pkg={pkg} onEditFeatures={handleEditFeatures} />)}
             </div>
         </section>
 
@@ -147,7 +201,7 @@ const Packages: React.FC = () => {
                 <h2 className="text-2xl font-semibold text-white">Cardio Gym Packages</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {cardioPackages.map(pkg => <PackageCard key={pkg.id} pkg={pkg} />)}
+                {cardioPackages.map(pkg => <PackageCard key={pkg.id} pkg={pkg} onEditFeatures={handleEditFeatures} />)}
             </div>
         </section>
 
@@ -157,9 +211,49 @@ const Packages: React.FC = () => {
                 <h2 className="text-2xl font-semibold text-white">Personal Training</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {ptPackages.map(pkg => <PackageCard key={pkg.id} pkg={pkg} />)}
+                {ptPackages.map(pkg => <PackageCard key={pkg.id} pkg={pkg} onEditFeatures={handleEditFeatures} />)}
             </div>
         </section>
+
+        {/* Feature Customization Modal */}
+        <Modal 
+            isOpen={!!editingPackage} 
+            onClose={() => setEditingPackage(null)} 
+            title={editingPackage ? `Customize: ${editingPackage.name}` : 'Customize Features'}
+        >
+            <div className="space-y-4">
+                <p className="text-gray-400 text-sm">Select the amenities included in this package.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                    {AVAILABLE_FEATURES.map((feature) => {
+                        const isSelected = editingPackage?.features.includes(feature);
+                        return (
+                            <div 
+                                key={feature} 
+                                onClick={() => toggleFeature(feature)}
+                                className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${
+                                    isSelected 
+                                    ? 'bg-amber-900/20 border-amber-500/50 text-amber-100' 
+                                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
+                                }`}
+                            >
+                                <span className="text-sm font-medium">{feature}</span>
+                                <div className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-amber-500 border-amber-500' : 'border-gray-500'}`}>
+                                    {isSelected && <svg className="w-3 h-3 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+                <div className="flex justify-end pt-4 border-t border-gray-700">
+                    <button 
+                        onClick={() => setEditingPackage(null)} 
+                        className="bg-amber-500 text-gray-900 font-bold py-2 px-6 rounded-lg hover:bg-amber-400 transition-colors shadow-lg"
+                    >
+                        Done
+                    </button>
+                </div>
+            </div>
+        </Modal>
 
     </div>
   );
