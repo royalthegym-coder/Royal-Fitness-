@@ -2,9 +2,27 @@
 import { Member } from '../types';
 import { GYM_INFO, INITIAL_MEMBERS, INITIAL_PACKAGES } from '../constants';
 
-// Credentials from environment variables or fallbacks
-const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_ID || '123456789';
-const ACCESS_TOKEN = process.env.WHATSAPP_TOKEN || 'mock_token';
+// Helper to get credentials dynamically (from LocalStorage or Env)
+const getWhatsAppCredentials = () => {
+    // Check localStorage first (User configured in Settings)
+    const storedToken = typeof localStorage !== 'undefined' ? localStorage.getItem('whatsapp_access_token') : null;
+    const storedPhoneId = typeof localStorage !== 'undefined' ? localStorage.getItem('whatsapp_phone_id') : null;
+
+    if (storedToken && storedPhoneId) {
+        return { token: storedToken, phoneId: storedPhoneId, isMock: false };
+    }
+
+    // Fallback to Env safely using window.process
+    const ENV_PHONE_NUMBER_ID = (window as any).process?.env?.WHATSAPP_PHONE_ID;
+    const ENV_ACCESS_TOKEN = (window as any).process?.env?.WHATSAPP_TOKEN;
+
+    if (ENV_ACCESS_TOKEN && ENV_PHONE_NUMBER_ID) {
+        return { token: ENV_ACCESS_TOKEN, phoneId: ENV_PHONE_NUMBER_ID, isMock: false };
+    }
+
+    // Fallback to Mock
+    return { token: 'mock_token', phoneId: '123456789', isMock: true };
+};
 
 interface WhatsAppMessageParams {
     mobileNumber: string;
@@ -22,12 +40,14 @@ export async function sendWhatsAppMessage({
     languageCode = "en", 
     parameters 
 }: WhatsAppMessageParams): Promise<boolean> {
-    const url = `https://graph.facebook.com/v17.0/${PHONE_NUMBER_ID}/messages`;
+    const { token, phoneId, isMock } = getWhatsAppCredentials();
+
+    const url = `https://graph.facebook.com/v17.0/${phoneId}/messages`;
     
     // Check if we are in a mock environment
-    if (ACCESS_TOKEN === 'mock_token') {
-        console.log(`[Mock WhatsApp API] Sending template "${templateName}" to ${mobileNumber}`);
-        console.log(`[Mock WhatsApp API] Content Params:`, JSON.stringify(parameters));
+    if (isMock) {
+        console.log(`[Neural Guardian] Sending template "${templateName}" to ${mobileNumber}`);
+        console.log(`[Neural Guardian] Content Params:`, JSON.stringify(parameters));
         return new Promise(resolve => setTimeout(() => resolve(true), 1000));
     }
 
@@ -51,7 +71,7 @@ export async function sendWhatsAppMessage({
         const response = await fetch(url, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${ACCESS_TOKEN}`,
+                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(payload)
@@ -89,11 +109,11 @@ export async function sendWhatsAppWelcomeMessage(member: Member): Promise<boolea
     
     return sendWhatsAppMessage({
         mobileNumber,
-        templateName: "royal_welcome_hindi", 
-        languageCode: "hi", 
+        templateName: "royal_welcome_protocol", 
+        languageCode: "en", 
         parameters: [
             { type: "text", text: member.name },
-            { type: "text", text: GYM_INFO.name },
+            { type: "text", text: "Protocol v2.5" },
             { type: "text", text: member.id.toString() }
         ]
     });
@@ -104,13 +124,12 @@ export async function sendWhatsAppWelcomeMessage(member: Member): Promise<boolea
  */
 export async function sendPaymentReceipt(memberName: string, phone: string, amount: number, invoiceId: string): Promise<boolean> {
     const mobileNumber = `91${phone.replace(/\D/g, '')}`;
-    const date = new Date().toLocaleDateString('en-IN');
     
-    // Template: "नमस्ते {{1}}, आपका भुगतान ₹{{2}} (Invoice: {{3}}) सफल रहा। धन्यवाद! - Royal The Gym"
+    // Victory Gratitude Message
     return sendWhatsAppMessage({
         mobileNumber,
-        templateName: "payment_receipt_royal", 
-        languageCode: "hi", 
+        templateName: "payment_victory_receipt", 
+        languageCode: "en", 
         parameters: [
             { type: "text", text: memberName },
             { type: "text", text: amount.toString() },
@@ -140,11 +159,12 @@ export function calculateExpiryDate(joinDateStr: string, packageId: number): Dat
 }
 
 /**
- * AUTOMATION: Checks for members expiring in the next 3 days (Inclusive).
- * Triggers Daily for 3 days before expiry.
+ * AUTOMATION: PERSISTENT FINANCIAL GUARDIAN
+ * Checks for members expiring in the next 3 days OR already expired.
+ * Uses an "Escalation Matrix" for message tone.
  */
 export async function checkMembershipExpiryAndNotify(): Promise<number> {
-    console.log("[Automation] Running Daily Fee Reminder Check (3-Day Window)...");
+    console.log("[Neural Guardian] Initiating Financial Scan...");
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -152,36 +172,53 @@ export async function checkMembershipExpiryAndNotify(): Promise<number> {
     let sentCount = 0;
 
     for (const member of INITIAL_MEMBERS) {
-        if (member.status !== 'Active' || !member.whatsappConsent) continue;
+        if (!member.whatsappConsent) continue;
 
         const expiryDate = calculateExpiryDate(member.joinDate, member.packageId);
         if (!expiryDate) continue;
 
-        // Calculate days remaining
         const diffTime = expiryDate.getTime() - today.getTime();
         const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-        // Logic: Send reminder if expiry is in 3, 2, or 1 day(s), or today (0).
-        if (daysRemaining >= 0 && daysRemaining <= 3) {
-            const pkg = INITIAL_PACKAGES.find(p => p.id === member.packageId);
-            const amount = pkg ? pkg.price : 0;
-            const mobileNumber = `91${member.phone.replace(/\D/g, '')}`;
-            
-            // Generate Payment Link (Clickable QR)
-            const payLink = `https://upilinks.in/payment-link?pa=${GYM_INFO.upiIds.gpay1}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${amount}`;
-            
-            console.log(`[Automation] Sending Reminder to ${member.name} (Expiring in ${daysRemaining} days).`);
+        const pkg = INITIAL_PACKAGES.find(p => p.id === member.packageId);
+        const amount = pkg ? pkg.price : 0;
+        const mobileNumber = `91${member.phone.replace(/\D/g, '')}`;
+        const payLink = generateUPILink(amount, member.name);
 
-            // Sending Template with Payment Link embedded
+        let templateName = "";
+        let headerText = "";
+        let bodyText = "";
+
+        // ESCALATION MATRIX
+        if (daysRemaining === 3) {
+            templateName = "fee_reminder_tactical";
+            headerText = "TACTICAL ADVISORY";
+            bodyText = `Agent ${member.name}, your resource allocation expires in 72 hours. Maintain your streak.`;
+        } else if (daysRemaining === 1) {
+            templateName = "fee_reminder_tactical";
+            headerText = "URGENT DEPLOYMENT";
+            bodyText = `CRITICAL: 24 hours remaining. Renew now to avoid account suspension.`;
+        } else if (daysRemaining === 0) {
+            templateName = "fee_reminder_critical";
+            headerText = "FINAL NOTICE";
+            bodyText = `Your access terminates at midnight. Immediate action required. Amount: ₹${amount}`;
+        } else if (daysRemaining < 0 && member.status === 'Expired') {
+            templateName = "fee_reminder_breach"; // A stricter template
+            headerText = "PROTOCOL BREACH";
+            bodyText = `Access Denied. Account Frozen. Settle ₹${amount} to reactivate your Neural Profile.`;
+        }
+
+        if (templateName) {
+            console.log(`[Neural Guardian] Targeting ${member.name}. Threat Level: ${daysRemaining < 0 ? 'HIGH' : 'MODERATE'}`);
+            
             await sendWhatsAppMessage({
                 mobileNumber,
-                templateName: "fee_reminder_with_link", // Custom template needed in Meta Manager
-                languageCode: "hi",
+                templateName: templateName, 
+                languageCode: "en",
                 parameters: [
-                    { type: "text", text: member.name }, // {{1}} Name
-                    { type: "text", text: daysRemaining === 0 ? "आज" : `${daysRemaining} दिन में` }, // {{2}} Time left
-                    { type: "text", text: amount.toString() }, // {{3}} Amount
-                    { type: "text", text: payLink } // {{4}} Payment Link (Click to Pay)
+                    { type: "text", text: headerText }, 
+                    { type: "text", text: bodyText }, 
+                    { type: "text", text: payLink }      
                 ]
             });
             sentCount++;
@@ -219,5 +256,5 @@ export async function checkBirthdaysAndNotify(): Promise<number> { return 0; }
 export async function checkAttendanceAndNotify(): Promise<number> { return 0; }
 export async function runDailyAutomations(): Promise<string> {
     const fees = await checkMembershipExpiryAndNotify();
-    return `Automations Run: Sent ${fees} fee reminders.`;
+    return `Neural Guardian Report: ${fees} tactical reminders deployed.`;
 }

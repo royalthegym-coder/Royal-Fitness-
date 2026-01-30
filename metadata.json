@@ -1,6 +1,6 @@
 {
-  "name": "Royal The Gym Management",
-  "description": "A comprehensive gym management application for 'Royal The Gym' to manage members, packages, billing, workouts, and more. It features a modern dashboard, detailed reporting, and an intuitive user interface.",
+  "name": "Royal The Gym - Superhuman Protocol",
+  "description": "An autonomous AI-powered gym management OS for 'Royal The Gym' featuring neural biometrics, vision-based training, and proactive health intelligence.",
   "requestFramePermissions": [
     "camera",
     "microphone",

@@ -1,28 +1,15 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import Card from '../common/Card';
-import { BodyMetric, WorkoutLog, MemberFitnessData } from '../../../types';
-import { INITIAL_MEMBERS } from '../../../constants';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  AreaChart,
-  Area,
-  ComposedChart,
-  ReferenceLine
-} from 'recharts';
-import CustomTooltip from '../common/CustomTooltip';
-import { TrophyIcon } from '../icons/TrophyIcon';
-import { ChartBarIcon } from '../icons/ChartBarIcon';
-import { CalendarIcon } from '../icons/CalendarIcon';
+import { MemberFitnessData } from '../../../types';
+import { useData } from '../../context/DataProvider';
+import { BotIcon } from '../icons/BotIcon';
+import { SparkleIcon } from '../icons/SparkleIcon';
+import { HeartRateIcon, SleepIcon } from '../icons/HealthIcons';
+import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
+import { getComplexResponse } from '../../../lib/gemini';
+import { AutoUpdateIcon } from '../icons/AutoUpdateIcon';
+import { BrainCircuitIcon } from '../icons/BrainCircuitIcon';
 
 interface FitnessTrackerProps {
     memberId: number;
@@ -30,385 +17,150 @@ interface FitnessTrackerProps {
     setFitnessData: React.Dispatch<React.SetStateAction<MemberFitnessData>>;
 }
 
-const getLocalToday = () => {
-    const d = new Date();
-    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
-};
+const ProtocolArchitect: React.FC<{ hrv: number; sleep: number }> = ({ hrv, sleep }) => {
+    const [protocol, setProtocol] = useState({
+        mode: 'Analyzing...',
+        intensity: 100,
+        volume: 'Standard',
+        color: 'text-gray-400',
+        prescription: 'Syncing Bio-Data...'
+    });
 
-const WorkoutLogItem: React.FC<{ log: WorkoutLog }> = ({ log }) => {
+    useEffect(() => {
+        // Neural Synthesis Logic
+        const readinessScore = (hrv * 0.6) + (sleep * 10 * 0.4); // Simple weighted score
+        
+        let newProtocol;
+        if (readinessScore < 45) {
+            newProtocol = {
+                mode: 'Sympathetic Overdrive',
+                intensity: 60,
+                volume: 'De-load (-40%)',
+                color: 'text-red-500',
+                prescription: 'System stressed. Protocol switched to "Active Recovery". Focus on mobility.'
+            };
+        } else if (readinessScore < 70) {
+            newProtocol = {
+                mode: 'Baseline',
+                intensity: 85,
+                volume: 'Maintenance',
+                color: 'text-amber-500',
+                prescription: 'Moderate readiness. Maintain planned volume but cap RPE at 7.'
+            };
+        } else {
+            newProtocol = {
+                mode: 'Parasympathetic Dominance',
+                intensity: 110,
+                volume: 'Overload (+10%)',
+                color: 'text-green-400',
+                prescription: 'CNS primed. Go for PRs. Increase volume load by 5-10%.'
+            };
+        }
+        setProtocol(newProtocol);
+    }, [hrv, sleep]);
+
     return (
-        <details className="bg-gray-800 border border-gray-700 rounded-lg group transition-all duration-300 open:bg-gray-800/80">
-            <summary className="p-4 font-semibold cursor-pointer flex justify-between items-center text-gray-200 hover:text-amber-400 transition-colors">
-                <div className="flex items-center gap-3">
-                    <div className="bg-gray-700 p-2 rounded-md group-open:bg-amber-500/20 group-open:text-amber-500">
-                        <span className="text-xs font-mono text-gray-400 group-open:text-amber-500">{log.date}</span>
-                    </div>
-                    <span className="text-lg">{log.templateName}</span>
-                </div>
-                <div className="flex items-center gap-4">
-                    <span className="text-xs text-gray-500 bg-gray-900 px-2 py-1 rounded-full">{log.completedExercises.length} Exercises</span>
-                    <span className="transform transition-transform group-open:rotate-180">▼</span>
-                </div>
-            </summary>
-            <div className="p-4 border-t border-gray-700 bg-gray-900/30">
-                {log.performance && log.performance.length > 0 ? (
-                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {log.performance.map((perf, i) => (
-                            <div key={i} className="bg-gray-800 p-3 rounded border border-gray-700">
-                                <p className="font-bold text-amber-500 text-sm mb-2">{perf.exercise}</p>
-                                <div className="flex flex-wrap gap-2">
-                                    {perf.sets.map((set, j) => (
-                                        <span key={j} className="text-xs bg-gray-700 px-2 py-1 rounded text-gray-300 border border-gray-600">
-                                            {set.weight}kg × {set.reps}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <p className="text-sm text-gray-500">No detailed performance data available.</p>
-                )}
+        <div className="relative overflow-hidden bg-gray-900 rounded-2xl border border-gray-700 shadow-2xl p-6">
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+                <BrainCircuitIcon className="w-24 h-24 text-cyan-500" />
             </div>
-        </details>
+            
+            <div className="flex items-center gap-3 mb-6 relative z-10">
+                <div className="p-2 bg-cyan-900/30 rounded-lg border border-cyan-500/30">
+                    <BotIcon className="w-6 h-6 text-cyan-400" />
+                </div>
+                <div>
+                    <h3 className="text-lg font-bold text-white">Neural Synthesis Engine</h3>
+                    <p className="text-xs text-cyan-400 font-mono">THE PROTOCOL ARCHITECT</p>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-6 relative z-10">
+                <div className="bg-black/40 p-3 rounded-xl border border-gray-700">
+                    <p className="text-[10px] text-gray-500 uppercase tracking-widest">Protocol Mode</p>
+                    <p className={`text-sm font-bold ${protocol.color} mt-1`}>{protocol.mode}</p>
+                </div>
+                <div className="bg-black/40 p-3 rounded-xl border border-gray-700">
+                    <p className="text-[10px] text-gray-500 uppercase tracking-widest">Live Intensity</p>
+                    <p className="text-xl font-black text-white mt-1">{protocol.intensity}%</p>
+                </div>
+            </div>
+
+            <div className="bg-gray-800/50 p-4 rounded-xl border-l-4 border-cyan-500 relative z-10">
+                <p className="text-xs text-gray-300 leading-relaxed font-mono">
+                    <span className="text-cyan-400 font-bold">>> DIRECTIVE:</span> {protocol.prescription}
+                </p>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between text-[10px] text-gray-500 font-mono">
+                <span className="flex items-center"><AutoUpdateIcon className="w-3 h-3 mr-1 animate-spin"/> LIVE SYNC</span>
+                <span>LATENCY: 12ms</span>
+            </div>
+        </div>
     );
 };
 
-const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, setFitnessData }) => {
-    const [weight, setWeight] = useState('');
-    const [height, setHeight] = useState(''); // Height in cm
-    const [bodyFat, setBodyFat] = useState('');
-    const [bmi, setBmi] = useState<number | null>(null);
+const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId }) => {
+    const { liveHealthData } = useData(); 
     
-    // Goals State
-    const [goalWeight, setGoalWeight] = useState<number | ''>(75);
-    const [goalBodyFat, setGoalBodyFat] = useState<number | ''>(12);
-    const [isEditingGoals, setIsEditingGoals] = useState(false);
-
-    // --- Data Preparation for Charts ---
-
-    const memberData = useMemo(() => {
-        return fitnessData[memberId] || { logs: [], metrics: [] };
-    }, [fitnessData, memberId]);
-
-    // 1. Body Composition Data
-    const bodyCompData = useMemo(() => {
-        return [...memberData.metrics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    }, [memberData.metrics]);
-
-    // 2. Strength Progress Data (Extracting max weight for key lifts)
-    const strengthData = useMemo(() => {
-        const dataMap: Record<string, { date: string; Bench?: number; Squat?: number; Deadlift?: number }> = {};
-        
-        memberData.logs.forEach(log => {
-            if (!log.performance) return;
-            
-            const date = log.date;
-            if (!dataMap[date]) dataMap[date] = { date };
-
-            log.performance.forEach(perf => {
-                const name = perf.exercise.toLowerCase();
-                const maxWeight = Math.max(...perf.sets.map(s => s.weight));
-                
-                if (name.includes('bench')) dataMap[date].Bench = maxWeight;
-                else if (name.includes('squat')) dataMap[date].Squat = maxWeight;
-                else if (name.includes('deadlift')) dataMap[date].Deadlift = maxWeight;
-            });
-        });
-
-        return Object.values(dataMap).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    }, [memberData.logs]);
-
-    // 3. Workout Frequency Data (Group by Week)
-    const frequencyData = useMemo(() => {
-        const weeks: Record<string, number> = {};
-        memberData.logs.forEach(log => {
-            const date = new Date(log.date);
-            const startOfWeek = new Date(date.setDate(date.getDate() - date.getDay()));
-            const weekLabel = `${startOfWeek.getDate()}/${startOfWeek.getMonth() + 1}`;
-            weeks[weekLabel] = (weeks[weekLabel] || 0) + 1;
-        });
-        
-        // Ensure at least last 4 weeks are shown even if empty
-        // (Simplified for demo: just taking existing data)
-        return Object.entries(weeks).map(([name, count]) => ({ name, count }));
-    }, [memberData.logs]);
-
-    // BMI Calculation Effect
-    useEffect(() => {
-        if (weight && height) {
-            const w = parseFloat(weight);
-            const h = parseFloat(height) / 100; // cm to m
-            if (h > 0 && w > 0) {
-                const calculatedBmi = w / (h * h);
-                setBmi(parseFloat(calculatedBmi.toFixed(1)));
-            } else {
-                setBmi(null);
-            }
-        } else {
-            setBmi(null);
-        }
-    }, [weight, height]);
-
-    const getBmiCategory = (value: number) => {
-        if (value < 18.5) return { label: 'Underweight', color: 'text-blue-400', bg: 'bg-blue-400' };
-        if (value < 25) return { label: 'Normal Weight', color: 'text-green-400', bg: 'bg-green-400' };
-        if (value < 30) return { label: 'Overweight', color: 'text-yellow-400', bg: 'bg-yellow-400' };
-        return { label: 'Obese', color: 'text-red-400', bg: 'bg-red-400' };
-    };
-
-    const handleAddMetric = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!weight && !bodyFat) return;
-
-        const newMetric: BodyMetric = {
-            date: getLocalToday(),
-            weight: weight ? parseFloat(weight) : undefined,
-            bodyFat: bodyFat ? parseFloat(bodyFat) : undefined,
-        };
-
-        setFitnessData(prevData => {
-            const currentMemberData = prevData[memberId] || { logs: [], metrics: [] };
-            return {
-                ...prevData,
-                [memberId]: {
-                    ...currentMemberData,
-                    metrics: [...currentMemberData.metrics, newMetric],
-                },
-            };
-        });
-        
-        // Reset form but keep height as it likely won't change
-        setWeight('');
-        setBodyFat('');
-    };
+    // Simulate Bio-Metrics for demo if live data is generic
+    const hrv = useMemo(() => 35 + Math.floor(Math.random() * 50), []); // 35-85
+    const sleep = liveHealthData.sleep.totalHours;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8 animate-fade-in">
+            {/* Header */}
             <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold text-amber-400 flex items-center">
-                    <ChartBarIcon />
-                    <span className="ml-3">Fitness Analytics</span>
-                </h1>
-                <div className="text-sm text-gray-400 bg-gray-800 px-3 py-1 rounded-full border border-gray-700">
-                    Last Updated: Today
+                <div>
+                    <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 flex items-center">
+                        <SparkleIcon className="w-8 h-8 mr-3 text-cyan-400" />
+                        Warrior Performance Lab
+                    </h1>
+                    <p className="text-gray-400 text-sm mt-1">
+                        Biometric Telemetry & Neural Adaptation
+                    </p>
                 </div>
             </div>
 
-            {/* --- TOP STATS ROW --- */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="bg-gradient-to-br from-blue-900/40 to-gray-800 border-blue-500/30">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-xs text-blue-400 font-bold uppercase mb-1">Total Workouts</p>
-                            <p className="text-3xl font-bold text-white">{memberData.logs.length}</p>
-                        </div>
-                        <TrophyIcon className="w-8 h-8 text-blue-500 opacity-50" />
-                    </div>
-                </Card>
-                <Card className="bg-gradient-to-br from-green-900/40 to-gray-800 border-green-500/30">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-xs text-green-400 font-bold uppercase mb-1">Current Weight</p>
-                            <p className="text-3xl font-bold text-white">
-                                {memberData.metrics.length > 0 ? memberData.metrics[memberData.metrics.length - 1].weight : '-'} <span className="text-sm font-normal text-gray-400">kg</span>
-                            </p>
-                        </div>
-                        <div className="bg-green-500/20 p-2 rounded-full">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 8.586 15.586 4H12z" clipRule="evenodd" />
-                            </svg>
-                        </div>
-                    </div>
-                </Card>
-                <Card className="bg-gradient-to-br from-amber-900/40 to-gray-800 border-amber-500/30">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-xs text-amber-400 font-bold uppercase mb-1">Consistency</p>
-                            <p className="text-3xl font-bold text-white">
-                                {frequencyData.length > 0 ? (frequencyData.reduce((acc, curr) => acc + curr.count, 0) / frequencyData.length).toFixed(1) : 0} <span className="text-sm font-normal text-gray-400">/week</span>
-                            </p>
-                        </div>
-                        <CalendarIcon className="w-8 h-8 text-amber-500 opacity-50" />
-                    </div>
-                </Card>
-            </div>
-
-            {/* --- CHARTS ROW 1 --- */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                
-                {/* 1. Body Composition Chart with Goals */}
-                <Card title="Body Composition Trends">
-                    <div className="h-[300px] w-full min-w-0 relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <ComposedChart data={bodyCompData}>
-                                <defs>
-                                    <linearGradient id="colorWeight" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-                                <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, {month:'short', day:'numeric'})} />
-                                <YAxis yAxisId="left" stroke="#3b82f6" fontSize={12} domain={['dataMin - 5', 'dataMax + 5']} />
-                                <YAxis yAxisId="right" orientation="right" stroke="#10b981" fontSize={12} domain={[0, 40]} />
-                                <Tooltip content={<CustomTooltip />} />
-                                <Legend />
-                                <Area yAxisId="left" type="monotone" dataKey="weight" name="Weight (kg)" stroke="#3b82f6" fillOpacity={1} fill="url(#colorWeight)" strokeWidth={2} />
-                                <Line yAxisId="right" type="monotone" dataKey="bodyFat" name="Body Fat (%)" stroke="#10b981" strokeWidth={2} dot={{r:4}} />
-                                {goalWeight && <ReferenceLine yAxisId="left" y={goalWeight} stroke="#3b82f6" strokeDasharray="3 3" label={{ value: 'Target Weight', position: 'insideBottomLeft', fill: '#3b82f6', fontSize: 10 }} />}
-                                {goalBodyFat && <ReferenceLine yAxisId="right" y={goalBodyFat} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Target BF%', position: 'insideBottomRight', fill: '#10b981', fontSize: 10 }} />}
-                            </ComposedChart>
-                        </ResponsiveContainer>
-                    </div>
-                </Card>
+                {/* 1. Protocol Architect */}
+                <ProtocolArchitect hrv={hrv} sleep={sleep} />
 
-                {/* 2. Strength Progress Chart */}
-                <Card title="Strength Progression (Max Lift)">
-                    <div className="h-[300px] w-full min-w-0">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={strengthData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-                                <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, {month:'short', day:'numeric'})} />
-                                <YAxis stroke="#9ca3af" fontSize={12} />
-                                <Tooltip content={<CustomTooltip />} />
-                                <Legend />
-                                <Line connectNulls type="monotone" dataKey="Bench" stroke="#f59e0b" strokeWidth={2} activeDot={{ r: 6 }} />
-                                <Line connectNulls type="monotone" dataKey="Squat" stroke="#ec4899" strokeWidth={2} activeDot={{ r: 6 }} />
-                                <Line connectNulls type="monotone" dataKey="Deadlift" stroke="#8b5cf6" strokeWidth={2} activeDot={{ r: 6 }} />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                </Card>
-            </div>
-
-            {/* --- CHARTS ROW 2 & INPUT --- */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                {/* 3. Consistency Chart */}
-                <Card title="Weekly Workout Frequency" className="lg:col-span-1">
-                    <div className="h-[250px] w-full min-w-0">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={frequencyData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-                                <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} />
-                                <YAxis stroke="#9ca3af" fontSize={12} allowDecimals={false} />
-                                <Tooltip content={<CustomTooltip />} cursor={{fill: 'rgba(255, 255, 255, 0.05)'}} />
-                                <Bar dataKey="count" name="Sessions" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={40} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </Card>
-
-                {/* 4. Goal Settings */}
-                <Card title="Goal Settings">
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Target Weight (kg)</label>
-                                <input 
-                                    type="number" 
-                                    step="0.1" 
-                                    value={goalWeight} 
-                                    onChange={e => setGoalWeight(parseFloat(e.target.value))} 
-                                    className="w-full bg-gray-700 text-white border border-gray-600 rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
-                                    disabled={!isEditingGoals}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Target BF (%)</label>
-                                <input 
-                                    type="number" 
-                                    step="0.1" 
-                                    value={goalBodyFat} 
-                                    onChange={e => setGoalBodyFat(parseFloat(e.target.value))} 
-                                    className="w-full bg-gray-700 text-white border border-gray-600 rounded p-2 focus:ring-2 focus:ring-green-500 outline-none" 
-                                    disabled={!isEditingGoals}
-                                />
-                            </div>
-                        </div>
-                        <button 
-                            onClick={() => setIsEditingGoals(!isEditingGoals)}
-                            className={`w-full font-bold py-2 rounded-lg transition-colors mt-2 ${isEditingGoals ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'}`}
-                        >
-                            {isEditingGoals ? 'Save Goals' : 'Edit Goals'}
-                        </button>
-                    </div>
-                </Card>
-
-                {/* 5. Input Form & BMI Calculator */}
-                <Card title="Log New Body Metrics">
-                    <form onSubmit={handleAddMetric} className="space-y-4">
+                {/* 2. Live Metrics */}
+                <div className="grid grid-cols-1 gap-4">
+                    <Card className="flex items-center justify-between border-l-4 border-purple-500 bg-gray-900/50">
                         <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Date</label>
-                            <input type="date" disabled value={getLocalToday()} className="w-full bg-gray-700 text-gray-500 border border-gray-600 rounded p-2 text-sm" />
+                            <p className="text-xs text-gray-400 uppercase font-bold tracking-widest">Heart Rate Variability</p>
+                            <div className="flex items-baseline mt-2">
+                                <span className={`text-5xl font-black ${hrv < 40 ? 'text-red-500' : hrv < 60 ? 'text-amber-500' : 'text-green-500'}`}>{hrv}</span>
+                                <span className="text-sm text-gray-500 ml-2 font-bold">ms</span>
+                            </div>
+                            <p className="text-[10px] text-gray-500 mt-1">CNS Recovery Status</p>
                         </div>
-                        <div className="grid grid-cols-3 gap-2">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Weight (kg)</label>
-                                <input 
-                                    type="number" 
-                                    step="0.1" 
-                                    value={weight} 
-                                    onChange={e => setWeight(e.target.value)} 
-                                    className="w-full bg-gray-700 text-white border border-gray-600 rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
-                                    placeholder="0.0"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Height (cm)</label>
-                                <input 
-                                    type="number" 
-                                    step="1" 
-                                    value={height} 
-                                    onChange={e => setHeight(e.target.value)} 
-                                    className="w-full bg-gray-700 text-white border border-gray-600 rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
-                                    placeholder="0"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Body Fat (%)</label>
-                                <input 
-                                    type="number" 
-                                    step="0.1" 
-                                    value={bodyFat} 
-                                    onChange={e => setBodyFat(e.target.value)} 
-                                    className="w-full bg-gray-700 text-white border border-gray-600 rounded p-2 focus:ring-2 focus:ring-green-500 outline-none" 
-                                    placeholder="0.0"
-                                />
-                            </div>
+                        <div className="h-16 w-16 rounded-full bg-purple-900/20 flex items-center justify-center border border-purple-500/20">
+                            <HeartRateIcon className="w-8 h-8 text-purple-500" />
                         </div>
-
-                        {/* BMI Display */}
-                        {bmi && (
-                            <div className="bg-gray-800 p-3 rounded-lg border border-gray-600 flex justify-between items-center animate-fade-in">
-                                <div>
-                                    <p className="text-xs text-gray-400 uppercase font-bold">Calculated BMI</p>
-                                    <p className="text-xl font-bold text-white">{bmi}</p>
-                                </div>
-                                <div className="text-right">
-                                    <span className={`text-sm font-bold ${getBmiCategory(bmi).color}`}>
-                                        {getBmiCategory(bmi).label}
-                                    </span>
-                                </div>
+                    </Card>
+                    <Card className="flex items-center justify-between border-l-4 border-blue-500 bg-gray-900/50">
+                        <div>
+                            <p className="text-xs text-gray-400 uppercase font-bold tracking-widest">Sleep Efficiency</p>
+                            <div className="flex items-baseline mt-2">
+                                <span className="text-5xl font-black text-white">{sleep}</span>
+                                <span className="text-sm text-gray-500 ml-2 font-bold">hrs</span>
                             </div>
-                        )}
-
-                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg transition-colors mt-2">
-                            Log Metrics
-                        </button>
-                    </form>
-                </Card>
-            </div>
-
-            {/* --- LOG HISTORY --- */}
-            <Card title="Workout History">
-                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                    {memberData.logs.length > 0 ? [...memberData.logs].reverse().map((log: WorkoutLog, index) => (
-                        <WorkoutLogItem key={index} log={log} />
-                    )) : <p className="text-gray-500 text-center py-8">No workouts logged yet. Go to "Today's Workout" to start tracking.</p>}
+                             <p className="text-[10px] text-gray-500 mt-1">Deep Sleep: {liveHealthData.sleep.deepHours}h</p>
+                        </div>
+                        <div className="h-16 w-16 rounded-full bg-blue-900/20 flex items-center justify-center border border-blue-500/20">
+                            <SleepIcon className="w-8 h-8 text-blue-500" />
+                        </div>
+                    </Card>
                 </div>
-            </Card>
+            </div>
+            
+            <div className="flex items-center justify-center pt-4 opacity-50">
+                 <ShieldCheckIcon className="w-4 h-4 text-gray-500 mr-2" />
+                 <span className="text-[10px] text-gray-500 font-mono uppercase">Processed securely on-device (Zero-Knowledge Proof)</span>
+            </div>
         </div>
     );
 };

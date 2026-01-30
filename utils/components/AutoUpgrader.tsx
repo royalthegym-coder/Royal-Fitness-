@@ -44,19 +44,18 @@ interface Dependency {
 const AutoUpgrader: React.FC = () => {
     // --- STATE ---
     
-    // GitHub Actions
+    // GitHub Actions Simulation
     const [workflow, setWorkflow] = useState<WorkflowRun | null>(null);
     
-    // ArgoCD
+    // ArgoCD Simulation
     const [syncStatus, setSyncStatus] = useState<'Synced' | 'OutOfSync' | 'Syncing'>('Synced');
-    const [appHealth, setAppHealth] = useState<'Healthy' | 'Progressing' | 'Degraded'>('Healthy');
     
-    // Kubernetes
+    // Kubernetes Simulation
     const [pods, setPods] = useState<Pod[]>(
-        Array(12).fill(null).map((_, i) => ({ id: `royal-pod-${i}`, version: 'v1.1', status: 'Running', health: 'healthy' }))
+        Array(8).fill(null).map((_, i) => ({ id: `royal-pod-${i}`, version: 'v1.1', status: 'Running', health: 'healthy' }))
     );
     
-    // Renovate
+    // Renovate Bot Simulation
     const [dependencies, setDependencies] = useState<Dependency[]>([
         { name: 'react', currentVersion: '18.2.0', newVersion: '18.3.0', type: 'feature', prStatus: 'open' },
         { name: 'axios', currentVersion: '1.4.0', newVersion: '1.6.0', type: 'security', prStatus: 'open' },
@@ -81,18 +80,19 @@ const AutoUpgrader: React.FC = () => {
         };
         setWorkflow(newWorkflow);
         
-        // Simulate Build Process
-        setTimeout(() => updateStep(newWorkflow, 0, 'success', '45s', 'running'), 2000);
-        setTimeout(() => updateStep(newWorkflow, 1, 'success', '12s', 'running'), 4000);
-        setTimeout(() => updateStep(newWorkflow, 2, 'success', '1m 20s', 'running'), 7000);
+        // Simulate Build Process Stages
+        setTimeout(() => updateStep(0, 'success', '45s', 'running'), 2000);
+        setTimeout(() => updateStep(1, 'success', '12s', 'running'), 4000);
+        setTimeout(() => updateStep(2, 'success', '1m 20s', 'running'), 7000);
         setTimeout(() => {
-            updateStep(newWorkflow, 3, 'success', '5s', 'success');
+            updateStep(3, 'success', '5s', 'success');
             setWorkflow(prev => prev ? { ...prev, status: 'completed' } : null);
             setSyncStatus('OutOfSync'); // Trigger ArgoCD OutOfSync
+            handleArgoSync();
         }, 9000);
     };
 
-    const updateStep = (wf: WorkflowRun, stepIndex: number, status: any, duration: string, nextStatus: any) => {
+    const updateStep = (stepIndex: number, status: any, duration: string, nextStatus: any) => {
         setWorkflow(prev => {
             if (!prev) return null;
             const newSteps = [...prev.steps];
@@ -105,271 +105,196 @@ const AutoUpgrader: React.FC = () => {
     };
 
     const handleArgoSync = () => {
-        setSyncStatus('Syncing');
-        setAppHealth('Progressing');
-        
-        // Trigger K8s Rolling Update
-        performRollingUpdate();
-        
         setTimeout(() => {
-            setSyncStatus('Synced');
-            setAppHealth('Healthy');
-        }, 12000); // Sync complete after rolling update
-    };
-
-    const performRollingUpdate = () => {
-        // Replace pods one by one
-        let index = 0;
-        const interval = setInterval(() => {
-            if (index >= pods.length) {
-                clearInterval(interval);
-                return;
-            }
-
-            setPods(currentPods => {
-                const newPods = [...currentPods];
-                // Terminate old
-                newPods[index] = { ...newPods[index], status: 'Terminating', health: 'warning' };
-                return newPods;
-            });
-
-            setTimeout(() => {
-                setPods(currentPods => {
-                    const newPods = [...currentPods];
-                    // Create new
-                    newPods[index] = { ...newPods[index], version: 'v1.2', status: 'ContainerCreating', health: 'healthy' };
+            setSyncStatus('Syncing');
+            // Rolling Update Simulation
+            let replaced = 0;
+            const interval = setInterval(() => {
+                setPods(prev => {
+                    const newPods = [...prev];
+                    if (replaced < newPods.length) {
+                        newPods[replaced] = { ...newPods[replaced], status: 'Terminating' };
+                        // Add new pod
+                        setTimeout(() => {
+                            setPods(curr => {
+                                const p = [...curr];
+                                p[replaced - 1] = { ...p[replaced - 1], id: `royal-pod-new-${replaced}`, version: 'v1.2', status: 'Running' };
+                                return p;
+                            });
+                        }, 500);
+                    }
                     return newPods;
                 });
-                
-                setTimeout(() => {
-                    setPods(currentPods => {
-                        const newPods = [...currentPods];
-                        // Running
-                        newPods[index] = { ...newPods[index], status: 'Running' };
-                        return newPods;
-                    });
-                }, 800);
+                replaced++;
+                if (replaced > pods.length) {
+                    clearInterval(interval);
+                    setSyncStatus('Synced');
+                }
             }, 800);
-
-            index++;
         }, 1000);
     };
 
-    const handleMergeDependency = (depName: string) => {
-        setDependencies(prev => prev.map(d => d.name === depName ? { ...d, prStatus: 'merged' } : d));
-        // Auto trigger build when merging
+    const handleMergeDep = (idx: number) => {
+        setDependencies(prev => prev.map((d, i) => i === idx ? { ...d, prStatus: 'merged' } : d));
+        // Trigger build automatically on merge
         setTimeout(() => handleTriggerBuild(), 1000);
     };
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-gray-900 p-6 rounded-xl border border-gray-700 shadow-xl">
                 <div>
-                    <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400 flex items-center">
-                        <AutoUpdateIcon className="w-8 h-8 mr-3 text-blue-400" />
-                        RoyalOps Command Center
+                    <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 flex items-center">
+                        <CloudArrowUpIcon className="w-10 h-10 mr-3 text-cyan-400" />
+                        Royal Auto-Upgrader
                     </h1>
-                    <p className="text-gray-400 text-sm mt-1">Automated Patching & Deployment Pipeline</p>
+                    <p className="text-gray-400 text-sm mt-1">CI/CD Pipeline • Rolling Updates • Dependency AI</p>
                 </div>
-                <div className="flex gap-2">
-                    <div className="px-3 py-1 bg-gray-800 rounded border border-gray-700 text-xs text-gray-400 flex items-center">
-                        <div className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></div>
-                        System Healthy
+                <div className="flex items-center gap-4 mt-4 md:mt-0">
+                    <div className="flex flex-col items-end">
+                        <span className="text-[10px] uppercase font-bold text-gray-500">Current Release</span>
+                        <span className="text-xl font-mono font-bold text-green-400">v1.2.4-stable</span>
                     </div>
+                    <button 
+                        onClick={handleTriggerBuild}
+                        disabled={workflow?.status === 'in_progress'}
+                        className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg shadow-lg flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <AutoUpdateIcon className={`w-5 h-5 mr-2 ${workflow?.status === 'in_progress' ? 'animate-spin' : ''}`} />
+                        {workflow?.status === 'in_progress' ? 'Deploying...' : 'Force Update'}
+                    </button>
                 </div>
             </div>
 
-            {/* TOP ROW: CI/CD & GITOPS */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                
-                {/* 1. GITHUB ACTIONS */}
-                <Card className="relative overflow-hidden border-t-4 border-gray-600 bg-gray-900">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="flex items-center">
-                            <GitIcon className="w-6 h-6 mr-3 text-white" />
-                            <div>
-                                <h3 className="text-lg font-bold text-white">GitHub Actions</h3>
-                                <p className="text-xs text-gray-400">Continuous Integration</p>
-                            </div>
-                        </div>
-                        <button 
-                            onClick={handleTriggerBuild}
-                            disabled={workflow?.status === 'in_progress'}
-                            className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded-md font-bold transition-colors disabled:opacity-50"
-                        >
-                            {workflow?.status === 'in_progress' ? 'Running...' : 'Trigger Build'}
-                        </button>
-                    </div>
-
-                    {!workflow ? (
-                        <div className="flex flex-col items-center justify-center h-40 text-gray-500 text-sm">
-                            <p>No active workflows.</p>
-                            <p className="text-xs mt-1">Last run: 2 hours ago (Success)</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-4 animate-fade-in">
-                            <div className="flex justify-between items-center text-xs text-gray-400 border-b border-gray-700 pb-2">
-                                <span>{workflow.commitMessage}</span>
-                                <span className="text-blue-400 font-mono">{workflow.id}</span>
-                            </div>
-                            <div className="space-y-2">
-                                {workflow.steps.map((step, i) => (
-                                    <div key={step.id} className="flex items-center justify-between bg-gray-800 p-2 rounded">
-                                        <div className="flex items-center">
-                                            <div className={`w-2 h-2 rounded-full mr-3 ${
-                                                step.status === 'success' ? 'bg-green-500' : 
-                                                step.status === 'running' ? 'bg-amber-500 animate-pulse' : 
-                                                step.status === 'failed' ? 'bg-red-500' : 'bg-gray-600'
-                                            }`}></div>
-                                            <span className={`text-sm ${step.status === 'pending' ? 'text-gray-500' : 'text-gray-200'}`}>{step.name}</span>
-                                        </div>
-                                        <span className="text-xs font-mono text-gray-500">{step.duration}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </Card>
-
-                {/* 2. ARGOCD */}
-                <Card className="relative overflow-hidden border-t-4 border-cyan-500 bg-gray-900">
-                    <div className="flex justify-between items-start mb-6">
-                        <div className="flex items-center">
-                            <div className="mr-3">
-                                {/* Argo Squid Icon Simulation */}
-                                <svg className="w-6 h-6 text-cyan-400" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/> 
-                                </svg>
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-bold text-white">ArgoCD</h3>
-                                <p className="text-xs text-gray-400">GitOps Deployment</p>
-                            </div>
-                        </div>
-                        <div className="flex gap-2">
-                            <span className={`px-2 py-1 rounded text-xs font-bold border ${
-                                syncStatus === 'Synced' ? 'bg-green-900/20 text-green-400 border-green-500/50' : 
-                                syncStatus === 'Syncing' ? 'bg-blue-900/20 text-blue-400 border-blue-500/50' : 
-                                'bg-yellow-900/20 text-yellow-400 border-yellow-500/50'
-                            }`}>
-                                {syncStatus}
-                            </span>
-                            <span className={`px-2 py-1 rounded text-xs font-bold border ${appHealth === 'Healthy' ? 'bg-green-900/20 text-green-400 border-green-500/50' : 'bg-blue-900/20 text-blue-400 border-blue-500/50'}`}>
-                                {appHealth}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center justify-between bg-gray-800 p-4 rounded-lg border border-gray-700">
-                        <div className="text-center">
-                            <GitIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                            <p className="text-xs text-gray-500">Repo State</p>
-                            <p className="text-sm font-bold text-white">v1.2.0</p>
-                        </div>
-                        
-                        <div className="flex-1 px-4 flex flex-col items-center">
-                            <div className={`h-1 w-full rounded-full mb-2 ${syncStatus === 'Synced' ? 'bg-green-500' : 'bg-gray-600'}`}>
-                                {syncStatus === 'Syncing' && <div className="h-full bg-blue-400 animate-progress"></div>}
-                            </div>
-                            <button 
-                                onClick={handleArgoSync}
-                                disabled={syncStatus === 'Syncing' || syncStatus === 'Synced'}
-                                className="text-xs bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-1.5 rounded-full font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-900/20"
-                            >
-                                {syncStatus === 'Syncing' ? <AutoUpdateIcon className="w-3 h-3 animate-spin"/> : 'SYNC NOW'}
-                            </button>
-                        </div>
-
-                        <div className="text-center">
-                            <KubernetesIcon className="w-8 h-8 text-blue-400 mx-auto mb-2" />
-                            <p className="text-xs text-gray-500">Live State</p>
-                            <p className="text-sm font-bold text-white">{pods[0].version}</p>
-                        </div>
-                    </div>
-                </Card>
-            </div>
-
-            {/* BOTTOM ROW: K8S & RENOVATE */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                {/* 3. KUBERNETES VISUALIZER */}
-                <Card className="lg:col-span-2 border-t-4 border-blue-600 bg-gray-900">
-                    <div className="flex justify-between items-center mb-6">
-                        <div className="flex items-center">
-                            <KubernetesIcon className="w-6 h-6 mr-3 text-blue-500" />
-                            <div>
-                                <h3 className="text-lg font-bold text-white">Live Cluster Map</h3>
-                                <p className="text-xs text-gray-400">Zero-Downtime Rolling Update Visualization</p>
+                {/* COLUMN 1: BUILD PIPELINE */}
+                <div className="lg:col-span-2 space-y-6">
+                    <Card title="Live Build Pipeline (GitHub Actions)" className="border-t-4 border-gray-600">
+                        <div className="flex items-center gap-3 mb-6 bg-gray-800 p-3 rounded-lg border border-gray-700">
+                            <GitIcon className="w-6 h-6 text-white" />
+                            <div className="flex-1">
+                                <p className="text-sm font-bold text-white">{workflow ? workflow.commitMessage : "No active builds"}</p>
+                                <p className="text-xs text-gray-400">{workflow ? `Triggered by ${workflow.author}` : "System Idle"}</p>
                             </div>
+                            <span className={`text-xs px-2 py-1 rounded font-bold uppercase ${
+                                workflow?.status === 'in_progress' ? 'bg-amber-500/20 text-amber-400 animate-pulse' : 
+                                workflow?.status === 'completed' ? 'bg-green-500/20 text-green-400' : 'bg-gray-700 text-gray-500'
+                            }`}>
+                                {workflow?.status || 'IDLE'}
+                            </span>
                         </div>
-                        <div className="text-xs font-mono text-gray-500">
-                            Replicas: <span className="text-white">12/12</span>
-                        </div>
-                    </div>
 
-                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
-                        {pods.map((pod) => (
-                            <div 
-                                key={pod.id} 
-                                className={`aspect-square rounded-lg border-2 flex flex-col items-center justify-center transition-all duration-300 ${
-                                    pod.status === 'Terminating' ? 'bg-red-900/20 border-red-500/50 scale-90 opacity-50' :
-                                    pod.status === 'ContainerCreating' ? 'bg-blue-900/20 border-blue-500/50 animate-pulse' :
-                                    pod.version === 'v1.2' ? 'bg-green-900/20 border-green-500/50 shadow-[0_0_10px_rgba(34,197,94,0.2)]' :
-                                    'bg-gray-800 border-gray-600'
-                                }`}
-                            >
-                                <div className={`w-2 h-2 rounded-full mb-1 ${pod.status === 'Running' ? 'bg-green-400' : 'bg-amber-400'}`}></div>
-                                <span className="text-[10px] font-mono text-gray-300">{pod.version}</span>
-                                <span className="text-[8px] text-gray-500 uppercase">{pod.status === 'ContainerCreating' ? 'Init' : pod.status}</span>
-                            </div>
-                        ))}
-                    </div>
-                </Card>
+                        <div className="space-y-4 relative">
+                            {/* Connector Line */}
+                            <div className="absolute left-6 top-4 bottom-4 w-0.5 bg-gray-700"></div>
 
-                {/* 4. RENOVATE BOT */}
-                <Card className="border-t-4 border-indigo-500 bg-gray-900">
-                    <div className="flex items-center mb-6">
-                        <BotIcon className="w-6 h-6 mr-3 text-indigo-400" />
-                        <div>
-                            <h3 className="text-lg font-bold text-white">Renovate Bot</h3>
-                            <p className="text-xs text-gray-400">Dependency Intelligence</p>
-                        </div>
-                    </div>
-
-                    <div className="space-y-3">
-                        {dependencies.map((dep, idx) => (
-                            <div key={idx} className={`p-3 rounded-lg border flex justify-between items-center transition-all ${dep.prStatus === 'merged' ? 'opacity-50 grayscale bg-gray-800 border-gray-700' : 'bg-gray-800 border-gray-700 hover:border-indigo-500/50'}`}>
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <p className="font-bold text-sm text-white">{dep.name}</p>
-                                        {dep.type === 'security' && <span className="text-[8px] bg-red-900 text-red-200 px-1.5 py-0.5 rounded font-bold uppercase">Sec</span>}
+                            {(workflow ? workflow.steps : [
+                                { name: 'Build & Lint', status: 'pending', duration: '-' },
+                                { name: 'Unit Tests', status: 'pending', duration: '-' },
+                                { name: 'Docker Build', status: 'pending', duration: '-' },
+                                { name: 'Deploy to Cluster', status: 'pending', duration: '-' },
+                            ]).map((step, idx) => (
+                                <div key={idx} className="relative pl-14">
+                                    <div className={`absolute left-4 top-1 w-5 h-5 rounded-full border-4 border-gray-900 z-10 ${
+                                        step.status === 'success' ? 'bg-green-500' : 
+                                        step.status === 'running' ? 'bg-amber-500 animate-ping' : 'bg-gray-600'
+                                    }`}></div>
+                                    <div className={`p-3 rounded-lg border flex justify-between items-center transition-all ${
+                                        step.status === 'running' ? 'bg-gray-800 border-amber-500/50 shadow-lg' : 'bg-gray-900 border-gray-800'
+                                    }`}>
+                                        <span className="text-sm font-medium text-gray-200">{step.name}</span>
+                                        <span className="text-xs font-mono text-gray-500">{step.duration}</span>
                                     </div>
-                                    <p className="text-xs text-gray-400 mt-0.5">
-                                        {dep.currentVersion} <span className="text-indigo-400">→ {dep.newVersion}</span>
-                                    </p>
                                 </div>
-                                {dep.prStatus === 'open' ? (
+                            ))}
+                        </div>
+                    </Card>
+
+                    <Card title="Cluster State (Kubernetes)" className="bg-black border-gray-800">
+                        <div className="flex justify-between items-center mb-4">
+                            <div className="flex items-center gap-2">
+                                <KubernetesIcon className="w-5 h-5 text-blue-500" />
+                                <span className="text-xs font-mono text-gray-400">Target: production-cluster-1</span>
+                            </div>
+                            <span className={`text-xs font-bold px-2 py-1 rounded ${
+                                syncStatus === 'Synced' ? 'text-green-400 bg-green-900/20' : 
+                                syncStatus === 'Syncing' ? 'text-blue-400 bg-blue-900/20 animate-pulse' : 'text-yellow-400 bg-yellow-900/20'
+                            }`}>
+                                ArgoCD: {syncStatus}
+                            </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-4 gap-2">
+                            {pods.map((pod) => (
+                                <div key={pod.id} className={`p-2 rounded border transition-all duration-500 ${
+                                    pod.status === 'Running' ? 'bg-green-900/20 border-green-500/30' : 
+                                    pod.status === 'Terminating' ? 'bg-red-900/20 border-red-500/30 opacity-50 scale-95' :
+                                    'bg-blue-900/20 border-blue-500/30 animate-pulse'
+                                }`}>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <div className={`w-2 h-2 rounded-full ${pod.status === 'Running' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                                        <span className="text-[9px] font-mono text-gray-500">{pod.version}</span>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-gray-300 truncate">{pod.id}</p>
+                                    <p className="text-[9px] text-gray-500">{pod.status}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+                </div>
+
+                {/* COLUMN 2: DEPENDENCIES */}
+                <div className="lg:col-span-1 space-y-6">
+                    <Card className="h-full border-t-4 border-purple-500 bg-gray-800/50">
+                        <div className="flex items-center gap-3 mb-6">
+                            <BotIcon className="w-8 h-8 text-purple-400" />
+                            <div>
+                                <h3 className="font-bold text-white">Renovate Bot</h3>
+                                <p className="text-xs text-gray-400">Auto-Dependency Management</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            {dependencies.map((dep, idx) => (
+                                <div key={idx} className="bg-gray-900 p-3 rounded-xl border border-gray-700 relative overflow-hidden">
+                                    {dep.prStatus === 'merged' && (
+                                        <div className="absolute inset-0 bg-green-900/80 flex items-center justify-center z-10 backdrop-blur-sm">
+                                            <span className="text-green-400 font-bold text-xs flex items-center">
+                                                <CheckCircleIcon className="w-4 h-4 mr-1" /> MERGED
+                                            </span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between items-start mb-2">
+                                        <p className="font-bold text-sm text-white">{dep.name}</p>
+                                        <span className={`text-[9px] px-1.5 py-0.5 rounded border uppercase ${
+                                            dep.type === 'security' ? 'border-red-500 text-red-400' : 'border-blue-500 text-blue-400'
+                                        }`}>{dep.type}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
+                                        <span className="font-mono bg-gray-800 px-1 rounded">{dep.currentVersion}</span>
+                                        <span>→</span>
+                                        <span className="font-mono text-green-400 bg-green-900/30 px-1 rounded">{dep.newVersion}</span>
+                                    </div>
                                     <button 
-                                        onClick={() => handleMergeDependency(dep.name)}
-                                        className="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold px-3 py-1.5 rounded transition-colors"
+                                        onClick={() => handleMergeDep(idx)}
+                                        className="w-full py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-bold rounded transition-colors flex items-center justify-center border border-gray-600"
                                     >
-                                        Merge PR
+                                        <GitIcon className="w-3 h-3 mr-1" /> Merge Pull Request
                                     </button>
-                                ) : (
-                                    <span className="text-xs text-green-500 font-bold flex items-center">
-                                        <CheckCircleIcon className="w-3 h-3 mr-1" /> Merged
-                                    </span>
-                                )}
-                            </div>
-                        ))}
-                        {dependencies.every(d => d.prStatus === 'merged') && (
-                            <div className="text-center py-4 text-green-400 text-sm animate-fade-in">
-                                <SparkleIcon className="w-6 h-6 mx-auto mb-2" />
-                                All dependencies up to date!
-                            </div>
-                        )}
-                    </div>
-                </Card>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        <div className="mt-6 p-3 bg-purple-900/10 rounded-lg border border-purple-500/20">
+                            <p className="text-xs text-purple-300 flex items-start">
+                                <SparkleIcon className="w-4 h-4 mr-2 flex-shrink-0" />
+                                AI Analysis: "Upgrading `axios` fixes CVE-2024-XXXX. Recommended immediate merge."
+                            </p>
+                        </div>
+                    </Card>
+                </div>
             </div>
         </div>
     );

@@ -1,521 +1,387 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Card from '../common/Card';
-import { SmartWatchIcon } from '../icons/SmartWatchIcon';
-import { CheckCircleIcon } from '../icons/CheckCircleIcon';
-import { AutoUpdateIcon } from '../icons/AutoUpdateIcon';
-import { SamsungHealthIcon } from '../icons/SamsungHealthIcon';
+import { INITIAL_HEALTH_DATA } from '../../constants';
 import { GoogleIcon } from '../icons/GoogleIcon';
-import { SmartRingIcon } from '../icons/SmartRingIcon';
-import { SmartBandIcon } from '../icons/SmartBandIcon';
-import { WatchOSIcon } from '../icons/WatchOSIcon';
-import { SamsungWatchIcon } from '../icons/SamsungWatchIcon';
-import { BioActiveIcon } from '../icons/BioActiveIcon';
-import { HeartRateIcon, SleepIcon } from '../icons/HealthIcons';
-import { CameraIcon } from '../icons/CameraIcon';
-import { BotIcon } from '../icons/BotIcon';
+import { SamsungHealthIcon } from '../icons/SamsungHealthIcon';
+import { SmartWatchIcon } from '../icons/SmartWatchIcon'; 
 import { AppleHealthIcon } from '../icons/AppleHealthIcon';
+import { HealthData } from '../../../types';
+import { CaloriesIcon, HeartRateIcon, SleepIcon, StepsIcon } from '../icons/HealthIcons';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { getComplexResponse } from '../../../lib/gemini';
+import { SparkleIcon } from '../icons/SparkleIcon';
+import CustomTooltip from '../common/CustomTooltip';
+import { WatchOSIcon } from '../icons/WatchOSIcon'; 
+import { useData } from '../../context/DataProvider';
+import { LockIcon } from '../icons/LockIcon';
+import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
 
-type DeviceType = 'platform' | 'watch' | 'band' | 'ring';
+const MetricCard: React.FC<{ title: string; value: string; unit: string; icon: React.ReactNode; isLive?: boolean; subtext?: string }> = ({ title, value, unit, icon, isLive, subtext }) => (
+    <Card className={`flex items-center relative overflow-hidden ${isLive ? 'border-green-500/30' : ''}`}>
+        {isLive && <span className="absolute top-2 right-2 flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+        </span>}
+        <div className="p-3 bg-gray-200 dark:bg-gray-700 rounded-full mr-4">
+            {icon}
+        </div>
+        <div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
+            <p className="text-2xl font-bold">{value} <span className="text-base font-normal text-gray-500 dark:text-gray-400">{unit}</span></p>
+            {subtext && <p className="text-xs text-green-500 font-mono mt-1">{subtext}</p>}
+        </div>
+    </Card>
+);
 
-interface DeviceConfig {
-    id: string;
-    name: string;
-    type: DeviceType;
-    icon: React.ReactNode;
-    connected: boolean;
-    syncing: boolean;
-    features: string[];
-    color: string;
-    hasDashboard?: boolean;
-    lastSynced?: string;
-}
+const HealthConnectHub: React.FC = () => {
+    // --- CONNECTED TO GLOBAL CONTEXT ---
+    const { connectedDevice, setConnectedDevice, liveHealthData, updateLiveHealthData } = useData();
+    
+    // Local State
+    const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'scanning' | 'connected'>('disconnected');
+    const [aiSummary, setAiSummary] = useState('');
+    const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+    const [packetLog, setPacketLog] = useState<string[]>([]);
+    const [encryptionStatus, setEncryptionStatus] = useState(false);
 
-const GalaxyWatchDashboard: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-    const [isRinging, setIsRinging] = useState(false);
-    const [isInstalling, setIsInstalling] = useState(false);
-    const [appInstalled, setAppInstalled] = useState(false);
-    const [isSyncing, setIsSyncing] = useState(false);
-    const [lastSyncTime, setLastSyncTime] = useState('2m ago');
+    // Sync local state with context if already connected
+    useEffect(() => {
+        if (connectedDevice?.status === 'Connected') {
+            setConnectionStatus('connected');
+            setEncryptionStatus(true);
+        }
+    }, [connectedDevice]);
 
-    const handleRing = () => {
-        setIsRinging(true);
-        setTimeout(() => setIsRinging(false), 3000);
-    };
+    // --- REALISTIC DATA SIMULATION ENGINE ---
+    useEffect(() => {
+        if (connectionStatus !== 'connected') return;
 
-    const handleInstall = () => {
-        setIsInstalling(true);
+        let tick = 0;
+        const interval = setInterval(() => {
+            tick += 0.2; // Time increment
+            
+            // 1. Bio-Metric Algorithm (Sine Wave for Organic HR)
+            const noise = Math.random() * 4 - 2; 
+            const activityWave = Math.sin(tick) * 15; 
+            const newHeartRate = Math.floor(75 + Math.abs(activityWave) + noise); 
+            
+            // 2. Step Cadence
+            const stepIncrement = newHeartRate > 85 ? Math.floor(Math.random() * 3 + 1) : (Math.random() > 0.7 ? 1 : 0);
+            const newSteps = liveHealthData.steps + stepIncrement;
+            
+            // 3. Metabolic Burn
+            const calorieIncrement = (newHeartRate / 2000) * 5;
+            const newCalories = liveHealthData.caloriesBurned + calorieIncrement;
+            
+            // 4. Update History Vector
+            const newHistoryPoint = { 
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), 
+                value: newHeartRate 
+            };
+            const newHistory = [...liveHealthData.heartRate.history.slice(-19), newHistoryPoint];
+
+            // 5. Commit to Global Context
+            updateLiveHealthData({
+                steps: newSteps,
+                caloriesBurned: parseFloat(newCalories.toFixed(2)),
+                heartRate: {
+                    ...liveHealthData.heartRate,
+                    avg: newHeartRate,
+                    history: newHistory
+                }
+            });
+
+            // 6. Packet Stream Logging (Data Normalization Visualization)
+            if (Math.random() > 0.6) {
+                const latency = Math.floor(Math.random() * 50 + 10);
+                const size = Math.floor(Math.random() * 128 + 32);
+                const source = connectedDevice?.platform || 'Sensor';
+                setPacketLog(prev => [`[NORMALIZE] ${source} >> JSON | HR=${newHeartRate} | ${size}B | AES-256`, ...prev].slice(0, 8));
+            }
+
+            // 7. Battery Drain Simulation
+            if (connectedDevice && Math.random() > 0.99) {
+                 setConnectedDevice({
+                     ...connectedDevice,
+                     battery: Math.max(0, connectedDevice.battery - 1),
+                     lastSync: 'Just now'
+                 });
+            }
+
+        }, 2000); 
+
+        return () => clearInterval(interval);
+    }, [connectionStatus, liveHealthData, connectedDevice]);
+
+    const handleConnect = (type: 'google_fit' | 'samsung_health' | 'apple_health' | 'smartwatch') => {
+        setConnectionStatus('scanning');
+        
+        // Protocol Handshake Simulation
+        let platform: any = 'Proprietary';
+        let deviceName = 'Generic Device';
+
+        if (type === 'smartwatch') { deviceName = 'Galaxy Watch 6 Classic'; platform = 'Proprietary'; }
+        else if (type === 'samsung_health') { deviceName = 'Samsung Health (Galaxy S24)'; platform = 'Samsung Health'; }
+        else if (type === 'apple_health') { deviceName = 'Apple Health (iPhone 15 Pro)'; platform = 'Apple Health'; }
+        else { deviceName = 'Google Fit (Pixel 8)'; platform = 'Google Fit'; }
+
         setTimeout(() => {
-            setIsInstalling(false);
-            setAppInstalled(true);
+            setConnectedDevice({
+                id: Date.now().toString(),
+                name: deviceName,
+                type: 'Watch',
+                platform: platform,
+                battery: 85,
+                status: 'Connected',
+                lastSync: 'Just now'
+            });
+            setConnectionStatus('connected');
+            setEncryptionStatus(true);
         }, 2500);
     };
 
-    const handleSync = () => {
-        setIsSyncing(true);
-        setTimeout(() => {
-            setIsSyncing(false);
-            setLastSyncTime('Just now');
-        }, 2000);
+    const handleDisconnect = () => {
+        setConnectionStatus('disconnected');
+        setConnectedDevice(null);
+        setEncryptionStatus(false);
     };
 
-    return (
-        <div className="animate-fade-in space-y-6">
-            <button onClick={onBack} className="flex items-center text-gray-400 hover:text-white mb-4 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
-                Back to Devices
-            </button>
-
-            {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-center bg-gradient-to-r from-blue-900 to-gray-900 p-6 rounded-2xl border border-blue-500/30 shadow-xl">
-                <div className="flex items-center gap-6">
-                    <div className="relative">
-                        <SamsungWatchIcon className="w-20 h-20 text-blue-400" />
-                        <span className="absolute top-0 right-0 flex h-4 w-4">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-4 w-4 bg-green-500 border-2 border-gray-900"></span>
-                        </span>
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-bold text-white">Galaxy Watch 6</h2>
-                        <p className="text-blue-300 text-sm font-mono">MODEL: SM-R940 • BATT: 82%</p>
-                        <div className="flex gap-2 mt-2">
-                            <span className="bg-blue-500/20 text-blue-300 text-xs px-2 py-1 rounded border border-blue-500/30">One UI 5.0 Watch</span>
-                            <span className="bg-green-500/20 text-green-300 text-xs px-2 py-1 rounded border border-green-500/30">Wear OS 4</span>
-                        </div>
-                    </div>
-                </div>
-                <div className="mt-4 md:mt-0 flex gap-3">
-                    <button 
-                        onClick={handleSync}
-                        disabled={isSyncing}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-sm transition-all flex items-center"
-                    >
-                        <AutoUpdateIcon className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
-                        {isSyncing ? 'Syncing...' : 'Sync Now'}
-                    </button>
-                    <button onClick={handleRing} className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${isRinging ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-700 text-gray-200 hover:bg-gray-600'}`}>
-                        {isRinging ? 'Ringing...' : 'Find My Watch'}
-                    </button>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* BIOACTIVE SENSOR */}
-                <Card className="lg:col-span-2 border-t-4 border-blue-500 bg-gray-800/80">
-                    <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-bold text-white flex items-center">
-                            <BioActiveIcon className="w-6 h-6 mr-2 text-blue-400" />
-                            BioActive Sensor Analysis
-                        </h3>
-                        <span className="text-xs text-gray-400">Last Sync: {lastSyncTime}</span>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                        <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-700">
-                            <p className="text-xs text-gray-400 uppercase tracking-wide">Skeletal Muscle</p>
-                            <p className="text-2xl font-bold text-white mt-1">32.4 <span className="text-sm font-normal text-gray-500">kg</span></p>
-                            <div className="w-full bg-gray-700 h-1.5 rounded-full mt-2">
-                                <div className="bg-green-500 h-1.5 rounded-full" style={{ width: '75%' }}></div>
-                            </div>
-                        </div>
-                        <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-700">
-                            <p className="text-xs text-gray-400 uppercase tracking-wide">Body Fat Mass</p>
-                            <p className="text-2xl font-bold text-white mt-1">18.2 <span className="text-sm font-normal text-gray-500">kg</span></p>
-                            <div className="w-full bg-gray-700 h-1.5 rounded-full mt-2">
-                                <div className="bg-yellow-500 h-1.5 rounded-full" style={{ width: '45%' }}></div>
-                            </div>
-                        </div>
-                        <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-700">
-                            <p className="text-xs text-gray-400 uppercase tracking-wide">Body Water</p>
-                            <p className="text-2xl font-bold text-white mt-1">42.8 <span className="text-sm font-normal text-gray-500">kg</span></p>
-                            <div className="w-full bg-gray-700 h-1.5 rounded-full mt-2">
-                                <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: '60%' }}></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="p-4 rounded-xl border border-red-500/20 bg-red-900/10 flex items-center justify-between">
-                            <div>
-                                <p className="text-xs text-red-400 font-bold uppercase">ECG Monitor</p>
-                                <p className="text-white font-semibold">Sinus Rhythm</p>
-                            </div>
-                            <HeartRateIcon className="w-8 h-8 text-red-500 animate-pulse" />
-                        </div>
-                        <div className="p-4 rounded-xl border border-purple-500/20 bg-purple-900/10 flex items-center justify-between">
-                            <div>
-                                <p className="text-xs text-purple-400 font-bold uppercase">Blood Pressure</p>
-                                <p className="text-white font-semibold">118 / 78 <span className="text-xs text-gray-400">mmHg</span></p>
-                            </div>
-                            <div className="h-8 w-8 rounded-full border-2 border-purple-500 flex items-center justify-center text-purple-500 font-bold text-xs">BP</div>
-                        </div>
-                    </div>
-                </Card>
-
-                {/* SLEEP COACHING */}
-                <Card className="border-t-4 border-indigo-500 bg-gray-800/80">
-                    <h3 className="text-lg font-bold text-white flex items-center mb-4">
-                        <SleepIcon className="w-6 h-6 mr-2 text-indigo-400" />
-                        Sleep Coaching
-                    </h3>
-                    <div className="text-center py-4">
-                        <div className="inline-block p-4 bg-indigo-900/30 rounded-full mb-3 border border-indigo-500/30">
-                            <span className="text-4xl">🦁</span>
-                        </div>
-                        <p className="text-indigo-300 font-bold text-lg">Unconcerned Lion</p>
-                        <p className="text-xs text-gray-400 mt-1">You sleep deeply but inconsistently.</p>
-                    </div>
-                    <div className="space-y-3 mt-4">
-                        <div className="flex justify-between text-sm">
-                            <span className="text-gray-400">Sleep Score</span>
-                            <span className="text-green-400 font-bold">85/100</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                            <span className="text-gray-400">Snore Detection</span>
-                            <span className="text-red-400 font-bold">12 mins</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                            <span className="text-gray-400">Blood Oxygen</span>
-                            <span className="text-blue-400 font-bold">96% (Min)</span>
-                        </div>
-                    </div>
-                </Card>
-
-                {/* TOOLS */}
-                <Card title="Royal Gym Tools" className="lg:col-span-3">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <button 
-                            className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${appInstalled ? 'bg-green-900/20 border-green-500/50' : 'bg-gray-700 border-gray-600 hover:bg-gray-600'}`}
-                            onClick={handleInstall}
-                            disabled={appInstalled || isInstalling}
-                        >
-                            {isInstalling ? (
-                                <AutoUpdateIcon className="w-8 h-8 text-white animate-spin mb-2" />
-                            ) : appInstalled ? (
-                                <CheckCircleIcon className="w-8 h-8 text-green-500 mb-2" />
-                            ) : (
-                                <BotIcon className="w-8 h-8 text-white mb-2" />
-                            )}
-                            <span className="text-sm font-bold text-white">{appInstalled ? 'Installed' : isInstalling ? 'Installing...' : 'Install Gym App'}</span>
-                            <span className="text-[10px] text-gray-400 mt-1">Companion App</span>
-                        </button>
-
-                        <button className="p-4 rounded-xl border border-gray-600 bg-gray-700 hover:bg-gray-600 flex flex-col items-center justify-center transition-all group">
-                            <CameraIcon className="w-8 h-8 text-cyan-400 mb-2 group-hover:scale-110 transition-transform" />
-                            <span className="text-sm font-bold text-white">Camera Controller</span>
-                            <span className="text-[10px] text-gray-400 mt-1">Form Check Remote</span>
-                        </button>
-
-                        <div className="p-4 rounded-xl border border-gray-600 bg-gray-700 flex flex-col items-center justify-center">
-                            <div className="flex items-center justify-center w-full mb-2">
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" className="sr-only peer" />
-                                    <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                </label>
-                            </div>
-                            <span className="text-sm font-bold text-white">Theater Mode</span>
-                            <span className="text-[10px] text-gray-400 mt-1">Silence Watch</span>
-                        </div>
-
-                        <div className="p-4 rounded-xl border border-gray-600 bg-gray-700 flex flex-col items-center justify-center">
-                            <div className="text-2xl font-mono text-amber-400 font-bold mb-1">00:00</div>
-                            <span className="text-sm font-bold text-white">Rest Timer</span>
-                            <span className="text-[10px] text-gray-400 mt-1">Sync to Watch</span>
-                        </div>
-                    </div>
-                </Card>
-            </div>
-        </div>
-    );
-};
-
-const DeviceCard: React.FC<{ 
-    device: DeviceConfig; 
-    onToggle: () => void; 
-    onManage?: () => void;
-    onSync: () => void;
-}> = ({ device, onToggle, onManage, onSync }) => (
-    <div className={`p-4 rounded-xl border transition-all duration-300 ${device.connected ? 'bg-gray-800 border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.1)]' : 'bg-gray-800/50 border-gray-700 hover:border-gray-600'}`}>
-        <div className="flex justify-between items-start mb-3">
-            <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${device.color} bg-opacity-20`}>
-                    {device.icon}
-                </div>
-                <div>
-                    <h4 className="font-bold text-white text-sm">{device.name}</h4>
-                    <p className="text-[10px] text-gray-400 uppercase tracking-wider">{device.type}</p>
-                </div>
-            </div>
-            {/* Connection Toggle */}
-            <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" checked={device.connected} onChange={onToggle} className="sr-only peer" />
-                <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
-            </label>
-        </div>
-        
-        {device.connected && (
-            <div className="pt-3 border-t border-gray-700">
-                <div className="flex justify-between items-center mb-3">
-                    {device.syncing ? (
-                        <span className="flex items-center text-xs text-amber-400">
-                            <AutoUpdateIcon className="w-3 h-3 mr-1 animate-spin" /> Syncing Data...
-                        </span>
-                    ) : (
-                        <div className="flex items-center justify-between w-full">
-                            <span className="flex items-center text-xs text-green-400">
-                                <CheckCircleIcon className="w-3 h-3 mr-1" /> Connected
-                            </span>
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-gray-500">{device.lastSynced || 'Synced just now'}</span>
-                                <button onClick={onSync} className="text-xs text-blue-400 hover:text-white flex items-center transition-colors" title="Sync Now">
-                                    <AutoUpdateIcon className="w-3 h-3" />
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-                <div className="flex flex-wrap gap-1 mb-3">
-                    {device.features.map((feature, i) => (
-                        <span key={i} className="text-[10px] bg-gray-900 border border-gray-600 px-2 py-0.5 rounded text-gray-300">
-                            {feature}
-                        </span>
-                    ))}
-                </div>
-                
-                {device.hasDashboard && !device.syncing && (
-                    <button 
-                        onClick={onManage}
-                        className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center shadow-lg"
-                    >
-                        <SamsungWatchIcon className="w-4 h-4 mr-2" />
-                        Manage Device Features
-                    </button>
-                )}
-            </div>
-        )}
-    </div>
-);
-
-const SmartWatch: React.FC = () => {
-    const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
-    const [devices, setDevices] = useState<DeviceConfig[]>([
-        { 
-            id: 'galaxy_watch', 
-            name: 'Galaxy Watch 6', 
-            type: 'watch', 
-            icon: <SamsungWatchIcon className="w-6 h-6 text-blue-400"/>, 
-            connected: false, 
-            syncing: false,
-            features: ['BIA Sensor', 'Sleep Coach', 'ECG/BP'],
-            color: 'bg-blue-500',
-            hasDashboard: true
-        },
-        { 
-            id: 'apple_health', 
-            name: 'Apple Health', 
-            type: 'platform', 
-            icon: <AppleHealthIcon className="w-6 h-6 text-red-500"/>, 
-            connected: false, 
-            syncing: false,
-            features: ['Activity Rings', 'Heart Health', 'Sleep'],
-            color: 'bg-red-500'
-        },
-        { 
-            id: 'samsung_health', 
-            name: 'Samsung Health', 
-            type: 'platform', 
-            icon: <SamsungHealthIcon className="w-6 h-6 text-green-500"/>, 
-            connected: true, 
-            syncing: false,
-            features: ['All Metrics', 'Sleep', 'Workout Sync'],
-            color: 'bg-green-500',
-            lastSynced: '10m ago'
-        },
-        { 
-            id: 'google_fit', 
-            name: 'Google Fit', 
-            type: 'platform', 
-            icon: <GoogleIcon className="w-6 h-6"/>, 
-            connected: false, 
-            syncing: false,
-            features: ['Steps', 'Heart Points'],
-            color: 'bg-white'
-        },
-        { 
-            id: 'apple_watch', 
-            name: 'Apple Watch Ultra', 
-            type: 'watch', 
-            icon: <div className="text-xl">🍎</div>, 
-            connected: false, 
-            syncing: false,
-            features: ['Activity Rings', 'Depth', 'GPS'],
-            color: 'bg-red-500'
-        },
-        { 
-            id: 'oura', 
-            name: 'Oura Ring Gen3', 
-            type: 'ring', 
-            icon: <SmartRingIcon className="w-6 h-6 text-amber-400"/>, 
-            connected: false, 
-            syncing: false,
-            features: ['Readiness', 'Sleep Score', 'Recovery'],
-            color: 'bg-amber-500'
-        },
-        { 
-            id: 'ultrahuman', 
-            name: 'Ultrahuman Air', 
-            type: 'ring', 
-            icon: <SmartRingIcon className="w-6 h-6 text-orange-400"/>, 
-            connected: false, 
-            syncing: false,
-            features: ['Metabolism', 'Movement', 'Sleep'],
-            color: 'bg-orange-500'
-        },
-        { 
-            id: 'mi_band', 
-            name: 'Xiaomi Band 8', 
-            type: 'band', 
-            icon: <SmartBandIcon className="w-6 h-6 text-purple-400"/>, 
-            connected: false, 
-            syncing: false,
-            features: ['Steps', 'Basic HR', 'Battery'],
-            color: 'bg-purple-500'
-        },
-        { 
-            id: 'whoop', 
-            name: 'Whoop 4.0', 
-            type: 'band', 
-            icon: <SmartBandIcon className="w-6 h-6 text-gray-200"/>, 
-            connected: false, 
-            syncing: false,
-            features: ['Strain', 'Recovery', 'HRV'],
-            color: 'bg-gray-600'
-        },
-    ]);
-
-    const toggleDevice = (id: string) => {
-        setDevices(prev => prev.map(d => {
-            if (d.id === id) {
-                const newState = !d.connected;
-                return { ...d, connected: newState, syncing: newState, lastSynced: newState ? 'Syncing...' : undefined }; // Start syncing on connect
-            }
-            return d;
-        }));
-
-        // Simulate Sync finish
-        const device = devices.find(d => d.id === id);
-        if (device && !device.connected) {
-            setTimeout(() => {
-                setDevices(prev => prev.map(d => d.id === id ? { ...d, syncing: false, lastSynced: 'Just now' } : d));
-            }, 2500);
+    const handleGenerateSummary = async () => {
+        setIsGeneratingSummary(true);
+        setAiSummary('');
+        const prompt = `
+            Act as a Proactive Health Intelligence System.
+            Analyze this live fitness stream for a user at "Royal The Gym".
+            Device: ${connectedDevice?.name} (${connectedDevice?.platform}).
+            
+            Metrics:
+            - Steps: ${liveHealthData.steps}
+            - HR: ${liveHealthData.heartRate.avg} bpm
+            - Burn: ${liveHealthData.caloriesBurned} kcal
+            
+            Identify if they are in "Fat Burn" or "Cardio" zone. Give 2 tactical recovery tips.
+            Format as HTML.
+        `;
+        try {
+            const summary = await getComplexResponse(prompt);
+            setAiSummary(summary);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsGeneratingSummary(false);
         }
     };
 
-    const handleManualSync = (id: string) => {
-        setDevices(prev => prev.map(d => d.id === id ? { ...d, syncing: true } : d));
-        setTimeout(() => {
-            setDevices(prev => prev.map(d => d.id === id ? { ...d, syncing: false, lastSynced: 'Just now' } : d));
-        }, 2000);
-    };
-
-    const renderSection = (title: string, type: DeviceType, subtitle?: string) => {
-        const filtered = devices.filter(d => d.type === type);
-        if (filtered.length === 0) return null;
-        
+    if (connectionStatus === 'disconnected') {
         return (
-            <div className="mb-8">
-                <div className="flex items-baseline mb-4">
-                    <h3 className="text-xl font-bold text-white mr-3">{title}</h3>
-                    {subtitle && <span className="text-xs text-gray-500 uppercase tracking-wide">{subtitle}</span>}
+            <div>
+                <div className="flex items-center gap-3 mb-6">
+                    <h1 className="text-3xl font-bold text-amber-500 dark:text-amber-400">Wearable Connect Hub</h1>
+                    <span className="text-[10px] font-bold bg-gray-800 text-gray-400 px-2 py-1 rounded border border-gray-600">v3.0 (2026 Ready)</span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {filtered.map(d => (
-                        <DeviceCard 
-                            key={d.id}
-                            device={d}
-                            onToggle={() => toggleDevice(d.id)}
-                            onManage={() => setSelectedDevice(d.id)}
-                            onSync={() => handleManualSync(d.id)}
-                        />
-                    ))}
-                </div>
-            </div>
-        );
-    };
-
-    // If a specific device dashboard is active (e.g. Samsung Watch), render it
-    if (selectedDevice === 'galaxy_watch') {
-        return <GalaxyWatchDashboard onBack={() => setSelectedDevice(null)} />;
-    }
-
-    return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-amber-400 flex items-center">
-                        <SmartWatchIcon />
-                        <span className="ml-3">Wearable Connect Hub</span>
-                    </h1>
-                    <p className="text-gray-400 text-sm mt-1">Sync your Smart Watches, Bands, and Rings for 360° health tracking.</p>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded-full border border-gray-700">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                    <span className="text-xs font-mono text-gray-300">HUB ONLINE</span>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
-                    <Card>
-                        {renderSection("Smart Watches", 'watch', "Advanced Telemetry")}
-                        {renderSection("Health Platforms", 'platform', "Data Aggregators")}
-                        {renderSection("Smart Rings", 'ring', "Recovery & Sleep")}
-                        {renderSection("Fitness Bands", 'band', "Activity Tracking")}
-                    </Card>
-                </div>
-
-                <div className="space-y-6">
-                    <Card className="bg-gradient-to-br from-blue-900/40 to-gray-800 border-blue-500/30">
-                        <div className="text-center py-6">
-                            <h3 className="text-lg font-bold text-white mb-2">Live Sync Status</h3>
-                            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-blue-500/10 mb-4 animate-pulse relative">
-                                <SamsungHealthIcon className="w-10 h-10 text-blue-400 absolute opacity-50" />
-                                <AutoUpdateIcon className="w-8 h-8 text-blue-400 z-10" />
+                
+                <p className="text-gray-400 mb-6 max-w-2xl text-sm">
+                    Unified connectivity protocol. Sync data from Health Connect (Android), HealthKit (iOS), or direct BLE devices. 
+                    <span className="block mt-2 text-green-400 font-bold flex items-center"><LockIcon className="w-3 h-3 mr-1"/> HIPAA Compliant / AES-256 Encrypted</span>
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <Card className="hover:border-red-500 transition-colors cursor-pointer border-2 border-transparent group bg-gradient-to-br from-gray-800 to-gray-900">
+                        <div className="text-center py-8 px-4">
+                            <div className="group-hover:scale-110 transition-transform duration-300">
+                                <AppleHealthIcon className="w-16 h-16 mx-auto mb-4 text-white" />
                             </div>
-                            <p className="text-sm text-gray-300">Processing incoming data streams.</p>
-                            <div className="mt-4 space-y-2 text-left bg-gray-900/50 p-3 rounded-lg border border-gray-700">
-                                <div className="flex justify-between text-xs text-gray-400">
-                                    <span>Samsung Health</span>
-                                    <span className="text-green-400">Connected</span>
-                                </div>
-                                <div className="flex justify-between text-xs text-gray-400">
-                                    <span>Google Fit</span>
-                                    <span className="text-gray-600">Offline</span>
-                                </div>
-                                <div className="flex justify-between text-xs text-gray-400">
-                                    <span>Apple Health</span>
-                                    <span className={devices.find(d => d.id === 'apple_health')?.connected ? "text-green-400" : "text-gray-600"}>
-                                        {devices.find(d => d.id === 'apple_health')?.connected ? "Connected" : "Offline"}
-                                    </span>
-                                </div>
-                            </div>
+                            <h2 className="text-xl font-semibold mb-2 text-white">Apple Health</h2>
+                            <p className="text-gray-500 dark:text-gray-400 mb-6 text-xs">iOS HealthKit Bridge</p>
+                            <button onClick={() => handleConnect('apple_health')} className="bg-white text-black font-bold py-2 px-6 rounded-full hover:bg-gray-200 transition-colors shadow-md text-xs uppercase tracking-wider">Sync iOS</button>
                         </div>
                     </Card>
 
-                    <Card title="Data Privacy">
-                        <p className="text-xs text-gray-400 leading-relaxed">
-                            Your health data is encrypted locally (AES-256) and used solely to tailor your AI recommendations. 
-                            We strictly adhere to <span className="text-amber-400">Samsung Health</span>, <span className="text-amber-400">Google Health Connect</span>, and <span className="text-amber-400">Apple HealthKit</span> privacy policies.
-                        </p>
-                        <button className="text-xs text-blue-400 mt-4 hover:underline flex items-center">
-                            <CheckCircleIcon className="w-3 h-3 mr-1" /> View Data Agreement
-                        </button>
+                    <Card className="hover:border-blue-500 transition-colors cursor-pointer border-2 border-transparent group bg-gradient-to-br from-gray-800 to-gray-900">
+                        <div className="text-center py-8 px-4">
+                            <div className="group-hover:scale-110 transition-transform duration-300">
+                                <SamsungHealthIcon className="w-16 h-16 mx-auto mb-4" />
+                            </div>
+                            <h2 className="text-xl font-semibold mb-2 text-white">Samsung Health</h2>
+                            <p className="text-gray-500 dark:text-gray-400 mb-6 text-xs">Health SDK (Android)</p>
+                            <button onClick={() => handleConnect('samsung_health')} className="bg-blue-600 text-white font-bold py-2 px-6 rounded-full hover:bg-blue-500 transition-colors shadow-md text-xs uppercase tracking-wider">Sync Android</button>
+                        </div>
+                    </Card>
+
+                    <Card className="hover:border-yellow-500 transition-colors cursor-pointer border-2 border-transparent group bg-gradient-to-br from-gray-800 to-gray-900">
+                        <div className="text-center py-8 px-4">
+                            <div className="group-hover:scale-110 transition-transform duration-300">
+                                <GoogleIcon className="w-16 h-16 mx-auto mb-4" />
+                            </div>
+                            <h2 className="text-xl font-semibold mb-2 text-white">Google Fit / HC</h2>
+                            <p className="text-gray-500 dark:text-gray-400 mb-6 text-xs">Health Connect API</p>
+                            <button onClick={() => handleConnect('google_fit')} className="bg-white text-gray-800 font-bold py-2 px-6 rounded-full hover:bg-gray-200 transition-colors shadow-md text-xs uppercase tracking-wider">Sync Google</button>
+                        </div>
+                    </Card>
+
+                    <Card className="hover:border-amber-500 transition-colors cursor-pointer border-2 border-transparent relative overflow-hidden group bg-gradient-to-br from-gray-800 to-gray-900">
+                        <div className="absolute top-0 right-0 bg-amber-500 text-xs font-bold text-gray-900 px-2 py-1 rounded-bl-lg">BLE</div>
+                        <div className="text-center py-8 px-4">
+                            <div className="group-hover:scale-110 transition-transform duration-300">
+                                <WatchOSIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                            </div>
+                            <h2 className="text-xl font-semibold mb-2 text-white">Direct Scan</h2>
+                            <p className="text-gray-500 dark:text-gray-400 mb-6 text-xs">Bluetooth Smart / ANT+</p>
+                            <button onClick={() => handleConnect('smartwatch')} className="bg-amber-500 text-gray-900 font-bold py-2 px-6 rounded-full hover:bg-amber-400 transition-colors shadow-md text-xs uppercase tracking-wider">Scan Device</button>
+                        </div>
                     </Card>
                 </div>
+            </div>
+        );
+    }
+
+    if (connectionStatus === 'scanning') {
+        return (
+            <Card>
+                <div className="flex flex-col items-center justify-center py-20">
+                    <div className="relative">
+                        <div className="w-24 h-24 bg-amber-500/10 rounded-full animate-ping absolute inset-0"></div>
+                        <div className="w-24 h-24 bg-amber-500/20 rounded-full animate-pulse absolute inset-0 delay-75"></div>
+                        <div className="relative z-10 p-6 bg-gray-900 rounded-full border border-amber-500/50">
+                             <SmartWatchIcon />
+                        </div>
+                    </div>
+                    <h2 className="text-2xl font-bold mt-8 animate-pulse text-amber-500">Handshake in Progress...</h2>
+                    <p className="text-gray-400 mt-2 font-mono text-sm">Negotiating security keys via Health Connect...</p>
+                </div>
+            </Card>
+        );
+    }
+
+    return (
+        <div>
+            <div className="flex justify-between items-center mb-6 bg-gray-900 p-4 rounded-xl border border-gray-800">
+                <div className="flex items-center">
+                    <h1 className="text-2xl font-bold text-amber-500 dark:text-amber-400">Live Telemetry</h1>
+                    <span className="ml-3 px-2 py-0.5 text-[10px] font-bold text-white bg-red-600 rounded animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.7)]">STREAMING</span>
+                </div>
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center px-3 py-1 bg-green-900/20 rounded-full border border-green-500/30">
+                         <LockIcon className="w-3 h-3 text-green-500 mr-2"/>
+                         <span className="text-[10px] text-green-400 font-bold">AES-256 ENCRYPTED</span>
+                    </div>
+                    <div className="hidden md:flex items-center px-3 py-1 bg-gray-800 rounded-full border border-gray-700">
+                        {connectedDevice?.platform === 'Apple Health' ? <AppleHealthIcon className="w-4 h-4 mr-2 text-white" /> : connectedDevice?.platform === 'Samsung Health' ? <SamsungHealthIcon className="w-4 h-4 mr-2" /> : connectedDevice?.platform === 'Google Fit' ? <GoogleIcon className="w-4 h-4 mr-2" /> : <WatchOSIcon className="w-4 h-4 mr-2 text-amber-400" />}
+                        <span className="text-sm font-medium text-gray-300">{connectedDevice?.name}</span>
+                        <span className={`ml-3 text-xs font-bold ${connectedDevice && connectedDevice.battery < 20 ? 'text-red-400' : 'text-green-400'}`}>
+                            {connectedDevice?.battery}% 🔋
+                        </span>
+                    </div>
+                    <button onClick={handleDisconnect} className="text-xs text-red-400 hover:text-red-300 underline">Unlink</button>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <MetricCard 
+                    title="Live Cadence" 
+                    value={liveHealthData.steps.toLocaleString()} 
+                    unit="steps" 
+                    icon={<StepsIcon />} 
+                    isLive 
+                    subtext={connectedDevice?.platform === 'Apple Health' ? "Core Motion API" : "Pedometer Sensor"}
+                />
+                <MetricCard 
+                    title="Heart Rate" 
+                    value={liveHealthData.heartRate.avg.toString()} 
+                    unit="bpm" 
+                    icon={<HeartRateIcon />} 
+                    isLive 
+                    subtext="Optical Sensor (1Hz)"
+                />
+                <MetricCard 
+                    title="Metabolic Burn" 
+                    value={Math.floor(liveHealthData.caloriesBurned).toLocaleString()} 
+                    unit="kcal" 
+                    icon={<CaloriesIcon />} 
+                    isLive 
+                    subtext="Active Energy"
+                />
+                <MetricCard 
+                    title="Sleep Score" 
+                    value={liveHealthData.sleep.totalHours.toString()} 
+                    unit="hours" 
+                    icon={<SleepIcon />} 
+                    subtext={`Deep: ${liveHealthData.sleep.deepHours}h`}
+                />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                <div className="lg:col-span-2">
+                    <Card title="Live Biometric Stream">
+                        <div className="h-[300px] w-full min-w-0 relative">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={liveHealthData.heartRate.history}>
+                                    <XAxis dataKey="time" stroke="currentColor" className="text-xs" tick={false} />
+                                    <YAxis stroke="currentColor" className="text-xs" domain={['dataMin - 5', 'dataMax + 5']} />
+                                    <Tooltip content={<CustomTooltip />} />
+                                    <Line 
+                                        type="monotone" 
+                                        dataKey="value" 
+                                        stroke="#ef4444" 
+                                        strokeWidth={3} 
+                                        dot={false} 
+                                        name="Heart Rate" 
+                                        unit=" bpm" 
+                                        isAnimationActive={false} 
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                            <div className="absolute top-2 right-2 text-xs text-red-500 font-bold animate-pulse font-mono">
+                                ● REAL-TIME
+                            </div>
+                        </div>
+                    </Card>
+                </div>
+                <div>
+                     <Card title="Data Normalization Node" className="bg-black border-gray-700 h-full flex flex-col">
+                        <div className="flex-1 overflow-y-auto font-mono text-[10px] text-green-500 p-2 space-y-1 custom-scrollbar">
+                             {packetLog.map((log, i) => (
+                                 <div key={i} className="border-b border-gray-800 pb-0.5">{log}</div>
+                             ))}
+                             {packetLog.length === 0 && <span className="opacity-50">Waiting for data packets...</span>}
+                        </div>
+                        <div className="mt-2 text-[10px] text-gray-500 flex justify-between">
+                            <span>PROTOCOL: HEALTH_CONNECT_V1</span>
+                            <span>STATUS: SYNCED</span>
+                        </div>
+                    </Card>
+                </div>
+            </div>
+            
+            <div className="mt-6">
+                <Card className="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 border-indigo-500/30">
+                    <div className="flex justify-between items-center mb-4">
+                         <h3 className="text-xl font-bold text-indigo-400 flex items-center">
+                            <SparkleIcon className="w-5 h-5 mr-2" /> AI Health SRE
+                         </h3>
+                         <button
+                            onClick={handleGenerateSummary}
+                            disabled={isGeneratingSummary}
+                            className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2 px-4 rounded-lg transition-all disabled:opacity-50 shadow-lg"
+                        >
+                            {isGeneratingSummary ? 'Analyzing Patterns...' : 'Run Deep Analysis'}
+                        </button>
+                    </div>
+                    
+                    {aiSummary ? (
+                        <div className="p-4 bg-gray-800/80 border border-indigo-500/20 rounded-lg animate-fade-in">
+                            <div className="prose dark:prose-invert prose-sm max-w-none text-gray-300" dangerouslySetInnerHTML={{ __html: aiSummary.replace(/\n/g, '<br />') }} />
+                        </div>
+                    ) : (
+                        <p className="text-sm text-gray-400">
+                            Gemini Intelligence is monitoring your stream for anomalies (Arrhythmia, Stress Spikes, Recovery needs). Click analyze for a report.
+                        </p>
+                    )}
+                </Card>
             </div>
         </div>
     );
 };
 
-export default SmartWatch;
+export default HealthConnectHub;

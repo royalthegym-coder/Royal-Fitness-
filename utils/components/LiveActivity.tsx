@@ -38,7 +38,7 @@ const EventIcon: React.FC<{ type: ActivityEvent['type'] }> = ({ type }) => {
 
 const LiveActivity: React.FC<LiveActivityProps> = ({ setCurrentView }) => {
     const [events, setEvents] = useState<ActivityEvent[]>(INITIAL_ACTIVITY_EVENTS);
-    const [_, setNow] = useState(new Date());
+    const [now, setNow] = useState(new Date());
 
     useEffect(() => {
         const interval = setInterval(() => {

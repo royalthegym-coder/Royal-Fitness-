@@ -63,6 +63,7 @@ const Tasks: React.FC = () => {
     
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+    const [editingDateTaskId, setEditingDateTaskId] = useState<number | null>(null);
 
     const filteredAndSortedTasks = useMemo(() => {
         let filtered = [...tasks];
@@ -128,6 +129,13 @@ const Tasks: React.FC = () => {
     
     const handleToggleComplete = (taskId: number) => {
         setTasks(tasks.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t));
+    };
+
+    const handleQuickDateUpdate = (taskId: number, newDate: string) => {
+        if (newDate) {
+            setTasks(tasks.map(t => t.id === taskId ? { ...t, dueDate: newDate } : t));
+        }
+        setEditingDateTaskId(null);
     };
 
     const today = getLocalToday();
@@ -301,10 +309,33 @@ const Tasks: React.FC = () => {
                                                     <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider flex items-center ${getPriorityBadgeStyles(task.priority)}`}>
                                                         {task.priority}
                                                     </span>
-                                                    <span className={`text-xs ${dueColor} font-medium flex items-center`}>
-                                                        <CalendarIcon className="w-3 h-3 mr-1" />
-                                                        {dueText}
-                                                    </span>
+                                                    {editingDateTaskId === task.id ? (
+                                                        <input 
+                                                            type="date"
+                                                            defaultValue={task.dueDate}
+                                                            className="bg-gray-700 text-white text-xs border border-amber-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            onBlur={(e) => handleQuickDateUpdate(task.id, e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') handleQuickDateUpdate(task.id, (e.currentTarget as HTMLInputElement).value);
+                                                                if (e.key === 'Escape') setEditingDateTaskId(null);
+                                                            }}
+                                                            autoFocus
+                                                        />
+                                                    ) : (
+                                                        <span 
+                                                            className={`text-xs ${dueColor} font-medium flex items-center cursor-pointer hover:bg-gray-700/50 px-1.5 py-0.5 rounded transition-colors group/date`}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (!task.completed) setEditingDateTaskId(task.id);
+                                                            }}
+                                                            title={task.completed ? "Task completed" : "Click to change due date"}
+                                                        >
+                                                            <CalendarIcon className="w-3 h-3 mr-1" />
+                                                            {dueText}
+                                                            {!task.completed && <EditIcon className="w-3 h-3 ml-1.5 opacity-0 group-hover/date:opacity-100 text-gray-500 transition-opacity" />}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                             {task.description && (

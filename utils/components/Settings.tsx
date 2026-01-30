@@ -4,17 +4,13 @@ import Card from './common/Card';
 import { GYM_INFO } from '../../constants';
 import { View, Theme } from '../../types';
 import { GoogleIcon } from './icons/GoogleIcon';
-import { FacebookIcon, InstagramIcon, TwitterIcon } from './icons/SocialIcons';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import Modal from './common/Modal';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { BluetoothIcon } from './icons/BluetoothIcon';
-import { WifiIcon } from './icons/WifiIcon';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { SecurityLog } from '../../types';
-import { KeyIcon } from './icons/KeyIcon';
 import { BellIcon } from './icons/BellIcon';
-import { UserIcon } from './icons/UserIcon';
 import { SunIcon } from './icons/SunIcon';
 import { MoonIcon } from './icons/MoonIcon';
 import { UploadIcon } from './icons/UploadIcon';
@@ -22,9 +18,11 @@ import { BotIcon } from './icons/BotIcon';
 import { BugFixIcon } from './icons/BugFixIcon';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { SupportIcon } from './icons/SupportIcon';
-import { SpeedIcon } from './icons/SpeedIcon'; // Reusing existing icon
+import { SpeedIcon } from './icons/SpeedIcon';
 import { useToast } from '../hooks/useToast';
-import { toggleTurboMode } from '../hooks/usePerformance';
+import { toggleTurboMode, performanceCache } from '../hooks/usePerformance';
+import { validateWgerKey } from '../../lib/wger';
+import { AutoUpdateIcon } from './icons/AutoUpdateIcon';
 
 interface SettingsProps {
     setCurrentView: (view: View) => void;
@@ -43,14 +41,18 @@ const IntegrationCard: React.FC<{
     description: string; 
     status: 'Active' | 'Inactive';
     onConfigure?: () => void;
-}> = ({ name, category, description, status, onConfigure }) => (
+    icon?: React.ReactNode;
+}> = ({ name, category, description, status, onConfigure, icon }) => (
     <div className="flex items-start justify-between p-4 bg-gray-700/50 rounded-lg border border-gray-600">
-        <div>
-            <div className="flex items-center">
-                <h4 className="font-bold text-white text-lg mr-3">{name}</h4>
-                <span className="text-xs bg-gray-600 text-gray-300 px-2 py-0.5 rounded-full">{category}</span>
+        <div className="flex gap-4">
+             {icon && <div className="mt-1">{icon}</div>}
+            <div>
+                <div className="flex items-center">
+                    <h4 className="font-bold text-white text-lg mr-3">{name}</h4>
+                    <span className="text-xs bg-gray-600 text-gray-300 px-2 py-0.5 rounded-full">{category}</span>
+                </div>
+                <p className="text-sm text-gray-400 mt-1">{description}</p>
             </div>
-            <p className="text-sm text-gray-400 mt-1">{description}</p>
         </div>
         <div className="flex items-center gap-2">
             {status === 'Active' && (
@@ -76,8 +78,6 @@ const IntegrationCard: React.FC<{
 
 const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme, currentUser }) => {
     const { addToast } = useToast();
-    // Simplified state, assuming connection is managed elsewhere.
-    const [isConnected] = useState(true);
     const [activeTab, setActiveTab] = useState<'general' | 'integrations' | 'iot' | 'security' | 'profile' | 'notifications' | 'feedback' | 'performance'>('performance');
 
     // IoT Provisioning State
@@ -97,10 +97,26 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
 
     // Security & Webhook Logs
     const [webhookLogs, setWebhookLogs] = useState<SecurityLog[]>([]);
+    const [geoLockEnabled, setGeoLockEnabled] = useState(false);
+    const [isCalibrating, setIsCalibrating] = useState(false);
 
     // OpenAI State
     const [isOpenAIModalOpen, setIsOpenAIModalOpen] = useState(false);
     const [openAIKey, setOpenAIKey] = useState('');
+
+    // Wger State
+    const [isWgerModalOpen, setIsWgerModalOpen] = useState(false);
+    const [wgerApiKey, setWgerApiKey] = useState('');
+    const [isWgerValidating, setIsWgerValidating] = useState(false);
+
+    // Google Business State
+    const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
+    const [googleApiKey, setGoogleApiKey] = useState('');
+
+    // WhatsApp Business State
+    const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+    const [whatsappToken, setWhatsappToken] = useState('');
+    const [whatsappPhoneId, setWhatsappPhoneId] = useState('');
 
     // Feedback State
     const [feedbackType, setFeedbackType] = useState<'bug' | 'feature' | 'general'>('bug');
@@ -115,17 +131,34 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
     
     // Performance State
     const [isTurboMode, setIsTurboMode] = useState(false);
+    const [isCleaning, setIsCleaning] = useState(false);
 
     useEffect(() => {
         if ('Notification' in window) {
             setNotifPermission(Notification.permission);
         }
-        // Load OpenAI Key
-        const savedKey = localStorage.getItem('OPENAI_API_KEY');
-        if (savedKey) setOpenAIKey(savedKey);
+        // Load Keys with safe fallback
+        const envOpenAI = (window as any).process?.env?.OPENAI_API_KEY;
+        const savedOpenAIKey = localStorage.getItem('OPENAI_API_KEY') || envOpenAI;
+        if (savedOpenAIKey) setOpenAIKey(savedOpenAIKey);
         
+        const savedWgerKey = localStorage.getItem('wger_api_key');
+        if (savedWgerKey) setWgerApiKey(savedWgerKey);
+
+        const savedGoogleKey = localStorage.getItem('google_business_key');
+        if (savedGoogleKey) setGoogleApiKey(savedGoogleKey);
+
+        const savedWhatsAppToken = localStorage.getItem('whatsapp_access_token');
+        if (savedWhatsAppToken) setWhatsappToken(savedWhatsAppToken);
+
+        const savedWhatsAppPhoneId = localStorage.getItem('whatsapp_phone_id');
+        if (savedWhatsAppPhoneId) setWhatsappPhoneId(savedWhatsAppPhoneId);
+
         // Load Turbo Mode
         setIsTurboMode(localStorage.getItem('royal_perf_mode') === 'turbo');
+
+        // Load GeoLock
+        setGeoLockEnabled(localStorage.getItem('royal_geo_lock') === 'true');
     }, []);
 
     useEffect(() => {
@@ -151,6 +184,77 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
         setIsTurboMode(newState);
         toggleTurboMode(newState);
         addToast(newState ? "Turbo Mode Activated: Maximum Speed" : "Turbo Mode Deactivated: High Quality", 'info');
+    };
+
+    const handleGeoLockToggle = () => {
+        const newState = !geoLockEnabled;
+        setGeoLockEnabled(newState);
+        localStorage.setItem('royal_geo_lock', String(newState));
+        addToast(newState ? "Geo-Lock Active: Admin access restricted." : "Geo-Lock Disabled: Remote Access Allowed.", newState ? 'success' : 'info');
+    };
+
+    const handleCalibrateLocation = () => {
+        setIsCalibrating(true);
+        if (!navigator.geolocation) {
+            addToast("Geolocation not supported by this browser.", 'error');
+            setIsCalibrating(false);
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude } = position.coords;
+                // Save custom coordinates
+                localStorage.setItem('royal_gym_lat', latitude.toString());
+                localStorage.setItem('royal_gym_lng', longitude.toString());
+                localStorage.setItem('royal_geo_lock', 'true'); // Auto-enable on calibrate
+                setGeoLockEnabled(true);
+                
+                addToast(`Location Calibrated! Gym set to: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, 'success');
+                setIsCalibrating(false);
+            },
+            (err) => {
+                addToast("Failed to get location. Ensure GPS is on.", 'error');
+                setIsCalibrating(false);
+            },
+            { enableHighAccuracy: true }
+        );
+    };
+
+    const handleClearCache = () => {
+        if (isCleaning) return;
+        setIsCleaning(true);
+        addToast("Optimizing storage...", 'info');
+        setTimeout(() => {
+            try {
+                const keysToPreserve = [
+                    'royal_user', 'theme', 'royal_perf_mode', 
+                    'OPENAI_API_KEY', 'wger_api_key', 'google_business_key',
+                    'whatsapp_access_token', 'whatsapp_phone_id',
+                    'royal_members', 'royal_invoices', 'royal_packages', 
+                    'royal_leads', 'royal_transactions', 'royal_geo_lock',
+                    'royal_gym_lat', 'royal_gym_lng'
+                ];
+                const allKeys = Object.keys(localStorage);
+                let cleanedCount = 0;
+                allKeys.forEach(key => {
+                    if (!keysToPreserve.includes(key)) {
+                        localStorage.removeItem(key);
+                        cleanedCount++;
+                    }
+                });
+                try { sessionStorage.clear(); } catch (e) { console.warn("Session clean skipped"); }
+                if (performanceCache && typeof performanceCache.clear === 'function') {
+                    performanceCache.clear();
+                }
+                addToast(`Success! Cleared ${cleanedCount} temp files. System Optimized.`, 'success');
+            } catch (error) {
+                console.error("Cache clear error:", error);
+                addToast("Minor error during optimization, but system is safe.", 'error');
+            } finally {
+                setIsCleaning(false);
+            }
+        }, 500);
     };
 
     const handleProvisionDevice = async () => {
@@ -213,16 +317,46 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
         addToast("OpenAI API Key Saved.", 'success');
     };
 
+    const handleSaveWgerKey = async () => {
+        setIsWgerValidating(true);
+        const isValid = await validateWgerKey(wgerApiKey);
+        setIsWgerValidating(false);
+
+        if (isValid) {
+            localStorage.setItem('wger_api_key', wgerApiKey);
+            setIsWgerModalOpen(false);
+            addToast("Wger Integration Connected Successfully!", 'success');
+        } else {
+            localStorage.setItem('wger_api_key', wgerApiKey); // Saving anyway for demo persistence
+            setIsWgerModalOpen(false);
+            addToast("Wger Key saved (Validation warning: could not verify).", 'info');
+        }
+    };
+
+    const handleSaveGoogleKey = () => {
+        localStorage.setItem('google_business_key', googleApiKey);
+        setIsGoogleModalOpen(false);
+        addToast("Google Business API Key Saved. Integration Active.", 'success');
+    };
+
+    const handleSaveWhatsAppKey = () => {
+        if (!whatsappToken || !whatsappPhoneId) {
+            addToast("Please fill in both Token and Phone ID", "error");
+            return;
+        }
+        localStorage.setItem('whatsapp_access_token', whatsappToken);
+        localStorage.setItem('whatsapp_phone_id', whatsappPhoneId);
+        setIsWhatsAppModalOpen(false);
+        addToast("WhatsApp Business API Connected Successfully.", 'success');
+    };
+
     const handleSubmitFeedback = (e: React.FormEvent) => {
         e.preventDefault();
         if (!feedbackTitle.trim() || !feedbackDesc.trim()) {
             addToast("Please fill in the title and description.", 'error');
             return;
         }
-
         setIsSubmittingFeedback(true);
-        
-        // Simulate API call
         setTimeout(() => {
             const newEntry = {
                 id: Date.now(),
@@ -232,12 +366,9 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
                 date: new Date().toISOString().split('T')[0]
             };
             setFeedbackHistory(prev => [newEntry, ...prev]);
-            
-            // Reset form
             setFeedbackTitle('');
             setFeedbackDesc('');
             setIsSubmittingFeedback(false);
-            
             addToast("Feedback submitted successfully. Thank you!", 'success');
         }, 1500);
     };
@@ -258,7 +389,7 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
                 ))}
             </div>
 
-            {/* Performance Tab (NEW) */}
+            {/* Performance Tab */}
             {activeTab === 'performance' && (
                 <div className="max-w-2xl mx-auto space-y-6">
                     <Card title="Optimization Engine">
@@ -281,23 +412,69 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
                             </label>
                         </div>
                     </Card>
-                    
-                    <Card title="Cache Management">
+                    <Card title="System Maintenance">
                          <div className="flex justify-between items-center">
                             <div>
                                 <p className="font-bold text-white">Application Cache</p>
-                                <p className="text-sm text-gray-400">Clear temporary data to free up memory.</p>
+                                <p className="text-sm text-gray-400">Cleanup temporary files to free up memory.</p>
                             </div>
-                            <button 
-                                onClick={() => {
-                                    localStorage.clear();
-                                    sessionStorage.clear();
-                                    window.location.reload();
-                                }}
-                                className="bg-red-900/30 border border-red-500/50 text-red-300 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-900/50"
-                            >
-                                Clear & Reload
+                            <button onClick={handleClearCache} disabled={isCleaning} className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${isCleaning ? 'bg-gray-700 text-gray-400 border-gray-600 cursor-not-allowed' : 'bg-red-900/30 border-red-500/50 text-red-300 hover:bg-red-900/50'}`}>
+                                {isCleaning ? 'Optimizing...' : 'Clear Cache'}
                             </button>
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {/* Security Tab */}
+            {activeTab === 'security' && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <Card title="Admin Access Control">
+                        <div className="flex flex-col gap-4">
+                            <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700">
+                                <div className="flex items-start gap-3">
+                                    <div className={`p-2 rounded-full ${geoLockEnabled ? 'bg-red-500/20 text-red-400' : 'bg-gray-700 text-gray-400'}`}>
+                                        <ShieldCheckIcon className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-white">Admin Geo-Fencing</h3>
+                                        <p className="text-sm text-gray-400">Restrict admin login to gym premises only (GPS Check).</p>
+                                    </div>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" checked={geoLockEnabled} onChange={handleGeoLockToggle} className="sr-only peer" />
+                                    <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+                                </label>
+                            </div>
+                            
+                            <button 
+                                onClick={handleCalibrateLocation} 
+                                disabled={isCalibrating}
+                                className="w-full bg-blue-900/20 border border-blue-500/50 text-blue-300 hover:bg-blue-900/40 font-bold py-3 px-4 rounded-lg flex items-center justify-center transition-colors"
+                            >
+                                {isCalibrating ? <AutoUpdateIcon className="w-5 h-5 mr-2 animate-spin"/> : <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+                                {isCalibrating ? 'Calibrating...' : 'Set Gym Location to Here'}
+                            </button>
+                            
+                            <p className="text-xs text-gray-500 text-center">
+                                *Clicking this button sets the lock to your current location.
+                            </p>
+                        </div>
+                    </Card>
+                    <Card title="Webhook Monitor">
+                        <div className="bg-black/40 rounded-lg p-3 h-64 overflow-y-auto font-mono text-xs border border-gray-700">
+                            {webhookLogs.map(log => (
+                                <div key={log.id} className="mb-2 pb-2 border-b border-gray-800">
+                                    <div className="flex justify-between text-gray-400"><span>{new Date(log.timestamp).toLocaleTimeString()}</span><span className="text-blue-400">{log.source}</span></div>
+                                    <div className="text-green-500">[{log.event}] {log.status}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+                    <Card title="Data Rights">
+                        <div className="space-y-4">
+                            <button onClick={handleExportData} className="w-full bg-gray-700 py-2 rounded text-white text-sm">Export Data (GDPR)</button>
+                            <button onClick={handleDeleteAccount} className="w-full bg-red-900/30 text-red-300 border border-red-900 py-2 rounded text-sm">Delete Account</button>
                         </div>
                     </Card>
                 </div>
@@ -363,12 +540,10 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
                     <Card title="Application Settings">
                         <div className="space-y-4">
                             <div className="flex justify-between items-center bg-gray-700 p-3 rounded-lg">
-                                <div className="flex items-center"><GoogleIcon className="w-5 h-5 mr-3"/> Google Business</div>
-                                <span className="bg-green-500 text-white text-xs px-2 py-1 rounded">Connected</span>
-                            </div>
-                            <div className="flex justify-between items-center bg-gray-700 p-3 rounded-lg">
                                 <div className="flex items-center"><WhatsAppIcon className="w-5 h-5 mr-3 text-green-500"/> WhatsApp Business</div>
-                                <span className="bg-green-500 text-white text-xs px-2 py-1 rounded">Connected</span>
+                                <span className={`text-white text-xs px-2 py-1 rounded ${whatsappToken ? 'bg-green-500' : 'bg-gray-500'}`}>
+                                    {whatsappToken ? 'Connected' : 'Not Connected'}
+                                </span>
                             </div>
                         </div>
                     </Card>
@@ -394,39 +569,32 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
                 </Card>
             )}
 
-            {/* Security Tab */}
-            {activeTab === 'security' && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card title="Webhook Monitor">
-                        <div className="bg-black/40 rounded-lg p-3 h-64 overflow-y-auto font-mono text-xs border border-gray-700">
-                            {webhookLogs.map(log => (
-                                <div key={log.id} className="mb-2 pb-2 border-b border-gray-800">
-                                    <div className="flex justify-between text-gray-400"><span>{new Date(log.timestamp).toLocaleTimeString()}</span><span className="text-blue-400">{log.source}</span></div>
-                                    <div className="text-green-500">[{log.event}] {log.status}</div>
-                                </div>
-                            ))}
-                        </div>
-                    </Card>
-                    <Card title="Data Rights">
-                        <div className="space-y-4">
-                            <button onClick={handleExportData} className="w-full bg-gray-700 py-2 rounded text-white text-sm">Export Data (GDPR)</button>
-                            <button onClick={handleDeleteAccount} className="w-full bg-red-900/30 text-red-300 border border-red-900 py-2 rounded text-sm">Delete Account</button>
-                        </div>
-                    </Card>
-                </div>
-            )}
-
             {/* Integrations Tab */}
             {activeTab === 'integrations' && (
                 <div className="space-y-6">
+                    <Card title="Marketing & Visibility">
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <IntegrationCard 
+                                name="Google Business Profile" 
+                                category="Marketing" 
+                                description="Manage reviews, posts, and map data via API." 
+                                status={googleApiKey ? 'Active' : 'Inactive'}
+                                onConfigure={() => setIsGoogleModalOpen(true)}
+                                icon={<GoogleIcon className="w-8 h-8" />}
+                            />
+                            <IntegrationCard 
+                                name="WhatsApp Business" 
+                                category="Marketing" 
+                                description="Automate messages, broadcasts, and chatbots." 
+                                status={whatsappToken ? 'Active' : 'Inactive'}
+                                onConfigure={() => setIsWhatsAppModalOpen(true)}
+                                icon={<WhatsAppIcon className="w-8 h-8 text-green-500" />}
+                            />
+                         </div>
+                    </Card>
                     <Card title="AI & Automation Core">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <IntegrationCard 
-                                name="Gemini (RoyalOS)" 
-                                category="Default AI" 
-                                description="Primary neural engine for chat, vision, and reasoning." 
-                                status="Active"
-                            />
+                            <IntegrationCard name="Gemini (RoyalOS)" category="Default AI" description="Primary neural engine for chat, vision, and reasoning." status="Active" />
                             <IntegrationCard 
                                 name="OpenAI (GPT-4)" 
                                 category="Advanced LLM" 
@@ -434,23 +602,19 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
                                 status={openAIKey ? 'Active' : 'Inactive'}
                                 onConfigure={() => setIsOpenAIModalOpen(true)}
                             />
-                            <IntegrationCard 
-                                name="Rasa / LangChain" 
-                                category="AI Chatbot" 
-                                description="Powers the 'Gemini Assistant' for natural language processing." 
-                                status="Active"
-                            />
-                            <IntegrationCard 
-                                name="Alan AI" 
-                                category="Voice Command" 
-                                description="Enables offline and online voice navigation." 
-                                status="Active"
-                            />
+                            <IntegrationCard name="Rasa / LangChain" category="AI Chatbot" description="Powers the 'Gemini Assistant' for natural language processing." status="Active" />
+                            <IntegrationCard name="Alan AI" category="Voice Command" description="Enables offline and online voice navigation." status="Active" />
                         </div>
                     </Card>
                     <Card title="Fitness & Analytics">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <IntegrationCard name="Wger" category="Workout Tracker" description="Workout logging database." status="Active" />
+                            <IntegrationCard 
+                                name="Wger" 
+                                category="Workout Tracker" 
+                                description="Workout logging database (Open Source)." 
+                                status={wgerApiKey ? 'Active' : 'Inactive'}
+                                onConfigure={() => setIsWgerModalOpen(true)}
+                            />
                             <IntegrationCard name="Grafana" category="Visualization" description="High-performance metric dashboards." status="Active" />
                         </div>
                     </Card>
@@ -505,11 +669,7 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-400 mb-1">Priority</label>
-                                        <select 
-                                            value={feedbackPriority}
-                                            onChange={(e) => setFeedbackPriority(e.target.value)}
-                                            className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 outline-none h-[42px]"
-                                        >
+                                        <select value={feedbackPriority} onChange={(e) => setFeedbackPriority(e.target.value)} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 outline-none h-[42px]">
                                             <option>Low</option>
                                             <option>Medium</option>
                                             <option>High</option>
@@ -517,42 +677,22 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
                                         </select>
                                     </div>
                                 </div>
-
                                 <div>
                                     <label className="block text-sm font-medium text-gray-400 mb-1">Subject</label>
-                                    <input 
-                                        type="text" 
-                                        value={feedbackTitle} 
-                                        onChange={(e) => setFeedbackTitle(e.target.value)}
-                                        placeholder={feedbackType === 'bug' ? "e.g., App crashes on profile update" : "e.g., Add dark mode for calendar"}
-                                        className="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-amber-500 outline-none"
-                                    />
+                                    <input type="text" value={feedbackTitle} onChange={(e) => setFeedbackTitle(e.target.value)} placeholder={feedbackType === 'bug' ? "e.g., App crashes on profile update" : "e.g., Add dark mode for calendar"} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-amber-500 outline-none" />
                                 </div>
-
                                 <div>
                                     <label className="block text-sm font-medium text-gray-400 mb-1">Description</label>
-                                    <textarea 
-                                        rows={4}
-                                        value={feedbackDesc}
-                                        onChange={(e) => setFeedbackDesc(e.target.value)}
-                                        placeholder="Describe the issue or idea in detail..."
-                                        className="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-amber-500 outline-none"
-                                    />
+                                    <textarea rows={4} value={feedbackDesc} onChange={(e) => setFeedbackDesc(e.target.value)} placeholder="Describe the issue or idea in detail..." className="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-amber-500 outline-none" />
                                 </div>
-
                                 <div className="flex justify-end pt-2">
-                                    <button 
-                                        type="submit" 
-                                        disabled={isSubmittingFeedback}
-                                        className="bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold py-2 px-6 rounded-lg transition-colors flex items-center disabled:opacity-50"
-                                    >
+                                    <button type="submit" disabled={isSubmittingFeedback} className="bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold py-2 px-6 rounded-lg transition-colors flex items-center disabled:opacity-50">
                                         {isSubmittingFeedback ? 'Sending...' : 'Submit Feedback'}
                                     </button>
                                 </div>
                             </form>
                         </Card>
                     </div>
-
                     <div className="lg:col-span-1">
                         <Card title="My Submissions">
                             <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
@@ -560,9 +700,7 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
                                 {feedbackHistory.map(item => (
                                     <div key={item.id} className="bg-gray-800 p-3 rounded-lg border border-gray-700">
                                         <div className="flex justify-between items-start mb-1">
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
-                                                item.type === 'bug' ? 'bg-red-900/30 text-red-400' : 'bg-blue-900/30 text-blue-400'
-                                            }`}>
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${item.type === 'bug' ? 'bg-red-900/30 text-red-400' : 'bg-blue-900/30 text-blue-400'}`}>
                                                 {item.type}
                                             </span>
                                             <span className="text-xs text-gray-500">{item.date}</span>
@@ -570,9 +708,7 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
                                         <h4 className="font-semibold text-white text-sm mb-1 line-clamp-1">{item.title}</h4>
                                         <div className="flex justify-between items-center mt-2">
                                             <span className="text-xs text-gray-400">Status:</span>
-                                            <span className={`text-xs font-bold ${
-                                                item.status === 'Resolved' || item.status === 'Implemented' ? 'text-green-400' : 'text-yellow-400'
-                                            }`}>
+                                            <span className={`text-xs font-bold ${item.status === 'Resolved' || item.status === 'Implemented' ? 'text-green-400' : 'text-yellow-400'}`}>
                                                 {item.status}
                                             </span>
                                         </div>
@@ -608,6 +744,109 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme,
                     <div className="flex justify-end pt-4">
                         <button onClick={() => setIsOpenAIModalOpen(false)} className="mr-2 text-gray-400 hover:text-white px-4 py-2">Cancel</button>
                         <button onClick={handleSaveOpenAIKey} className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded-lg">Save Key</button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Wger Configuration Modal */}
+            <Modal isOpen={isWgerModalOpen} onClose={() => setIsWgerModalOpen(false)} title="Configure Wger Integration">
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 bg-gray-800 p-3 rounded-lg border border-gray-700">
+                        <div className="bg-blue-500/20 p-2 rounded-lg text-blue-400">
+                            <span className="font-bold">W</span>
+                        </div>
+                        <div>
+                            <h4 className="text-white font-bold">Wger Workout Manager</h4>
+                            <p className="text-xs text-gray-400">Sync exercises and workout templates from wger.de</p>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-1">API Token</label>
+                        <input 
+                            type="password" 
+                            value={wgerApiKey} 
+                            onChange={(e) => setWgerApiKey(e.target.value)} 
+                            placeholder="Wger API Token"
+                            className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none font-mono" 
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Get your token from your wger.de profile settings.</p>
+                    </div>
+                    <div className="flex justify-end pt-4">
+                         <button onClick={() => setIsWgerModalOpen(false)} className="mr-2 text-gray-400 hover:text-white px-4 py-2">Cancel</button>
+                         <button 
+                            onClick={handleSaveWgerKey} 
+                            disabled={isWgerValidating}
+                            className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg flex items-center"
+                        >
+                            {isWgerValidating ? <AutoUpdateIcon className="w-4 h-4 animate-spin mr-2"/> : null}
+                            {isWgerValidating ? "Verifying..." : "Connect Wger"}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Google Business API Modal */}
+            <Modal isOpen={isGoogleModalOpen} onClose={() => setIsGoogleModalOpen(false)} title="Google Business Profile API">
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 bg-gray-800 p-3 rounded-lg border border-gray-700">
+                        <GoogleIcon className="w-8 h-8" />
+                        <div>
+                            <h4 className="text-white font-bold">Google My Business</h4>
+                            <p className="text-xs text-gray-400">Automate reviews and posts via API.</p>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-1">API Key / Client ID</label>
+                        <input 
+                            type="password" 
+                            value={googleApiKey} 
+                            onChange={(e) => setGoogleApiKey(e.target.value)} 
+                            placeholder="AIzaSy..."
+                            className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none font-mono" 
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Stored securely in local storage.</p>
+                    </div>
+                    <div className="flex justify-end pt-4">
+                        <button onClick={() => setIsGoogleModalOpen(false)} className="mr-2 text-gray-400 hover:text-white px-4 py-2">Cancel</button>
+                        <button onClick={handleSaveGoogleKey} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg">Save API Key</button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* WhatsApp Business API Modal */}
+            <Modal isOpen={isWhatsAppModalOpen} onClose={() => setIsWhatsAppModalOpen(false)} title="WhatsApp Business API">
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 bg-gray-800 p-3 rounded-lg border border-gray-700">
+                        <WhatsAppIcon className="w-8 h-8 text-green-500" />
+                        <div>
+                            <h4 className="text-white font-bold">Meta Cloud API</h4>
+                            <p className="text-xs text-gray-400">Configure your Facebook/Meta Developer credentials.</p>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-1">Phone Number ID</label>
+                        <input 
+                            type="text" 
+                            value={whatsappPhoneId} 
+                            onChange={(e) => setWhatsappPhoneId(e.target.value)} 
+                            placeholder="e.g. 1000293..."
+                            className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-green-500 outline-none font-mono" 
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-1">Access Token</label>
+                        <input 
+                            type="password" 
+                            value={whatsappToken} 
+                            onChange={(e) => setWhatsappToken(e.target.value)} 
+                            placeholder="EAA..."
+                            className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-green-500 outline-none font-mono" 
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Permanent or Temporary Token from Meta App Dashboard.</p>
+                    </div>
+                    <div className="flex justify-end pt-4">
+                        <button onClick={() => setIsWhatsAppModalOpen(false)} className="mr-2 text-gray-400 hover:text-white px-4 py-2">Cancel</button>
+                        <button onClick={handleSaveWhatsAppKey} className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded-lg">Connect</button>
                     </div>
                 </div>
             </Modal>

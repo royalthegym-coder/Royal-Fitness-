@@ -4,7 +4,8 @@ import Card from './common/Card';
 import { BrainCircuitIcon } from './icons/BrainCircuitIcon';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { BotIcon } from './icons/BotIcon';
-import { getComplexResponse } from '../../lib/gemini';
+import { scanGlobalTrends } from '../../lib/gemini';
+import { GoogleIcon } from './icons/GoogleIcon';
 
 interface NeuralNode {
     id: string;
@@ -67,13 +68,17 @@ const NeuralConnection: React.FC<{ start: NeuralNode; end: NeuralNode; active: b
 const NeuralSystemCore: React.FC = () => {
     const [nodes, setNodes] = useState(INITIAL_NODES);
     const [logs, setLogs] = useState<string[]>([]);
-    const [temperature, setTemperature] = useState(0.7);
-    const [maxTokens, setMaxTokens] = useState(1024);
-    const [prompt, setPrompt] = useState('');
+    const [prompt, setPrompt] = useState('Latest Bio-hacking tools 2025');
     const [response, setResponse] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
+    
+    // Future Log Data
+    const [futureLog, setFutureLog] = useState<{item: string, eta: string}[]>([
+        { item: 'Wearable Sync (Apple/Garmin)', eta: 'Q4 2024' },
+        { item: 'AR-Coaching Node (Smart Mirror)', eta: 'Q1 2025' },
+        { item: 'Predictive Logistics Engine', eta: 'Q2 2025' },
+    ]);
 
-    // Background idle animation
     useEffect(() => {
         if (isProcessing) return; 
 
@@ -94,39 +99,25 @@ const NeuralSystemCore: React.FC = () => {
         setLogs(prev => [`[${time}] ${msg}`, ...prev].slice(0, 50));
     };
 
-    const handleInjectPrompt = async () => {
+    const handleRunRDScan = async () => {
         if (!prompt.trim()) return;
         setIsProcessing(true);
         setResponse('');
-        addLog(`Injecting input payload: "${prompt.substring(0, 20)}..."`);
+        addLog(`Initiating R&D Scan: "${prompt}"...`);
         
-        // 1. Visualize Input Processing
-        setNodes(prev => prev.map(n => n.id === 'input_text' ? { ...n, status: 'processing' } : n));
-        await new Promise(r => setTimeout(r, 500));
+        // Visual effects
+        setNodes(prev => prev.map(n => n.id === 'input_text' || n.id === 'gemini' ? { ...n, status: 'processing' } : n));
         
-        // 2. Visualize Core Processing
-        setNodes(prev => prev.map(n => n.id === 'gemini' ? { ...n, status: 'processing' } : n));
-        addLog(`Gemini Core engaged. Temp: ${temperature}, Tokens: ${maxTokens}`);
-
         try {
-            // Use centralized function to ensure stability and auth
-            const responseText = await getComplexResponse(prompt);
-            setResponse(responseText);
-            addLog(`Output received. Response length: ${responseText.length} chars.`);
-
-            // 3. Visualize Output Distribution
-            setNodes(prev => prev.map(n => (n.type === 'output' ? { ...n, status: 'processing' } : n)));
-            await new Promise(r => setTimeout(r, 800));
-
+            const report = await scanGlobalTrends(prompt);
+            setResponse(report);
+            addLog("Trend Score Calculated. Dashboard Updated.");
         } catch (error: any) {
-            console.error(error);
             addLog(`ERROR: ${error.message}`);
             setResponse(`Error: ${error.message}`);
         } finally {
             setIsProcessing(false);
-            setTimeout(() => {
-                setNodes(INITIAL_NODES.map(n => ({...n, status: n.id === 'gemini' ? 'learning' : 'idle'})));
-            }, 1000);
+            setNodes(INITIAL_NODES.map(n => ({...n, status: n.id === 'gemini' ? 'learning' : 'idle'})));
         }
     };
 
@@ -136,11 +127,11 @@ const NeuralSystemCore: React.FC = () => {
                 <div>
                     <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500 flex items-center">
                         <BrainCircuitIcon className="w-8 h-8 mr-3 text-cyan-400" />
-                        Neural System Core
+                        Neural Evolution Core
                     </h1>
                     <p className="text-gray-400 text-sm mt-1 flex items-center">
                         <span className={`w-2 h-2 rounded-full mr-2 ${isProcessing ? 'bg-amber-500 animate-ping' : 'bg-green-500'}`}></span>
-                        STATUS: {isProcessing ? 'PROCESSING REQUEST...' : 'ONLINE (IDLE)'}
+                        STATUS: {isProcessing ? 'SCANNING GLOBAL NETWORK...' : 'LEVEL 5: SELF-AWARE'}
                     </p>
                 </div>
             </div>
@@ -151,37 +142,26 @@ const NeuralSystemCore: React.FC = () => {
                     <Card className="relative h-[450px] bg-gray-900 border-2 border-cyan-900/50 overflow-hidden shadow-2xl p-0">
                         <div className="absolute inset-0 bg-[linear-gradient(rgba(0,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,255,0.03)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
                         <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                            {/* Connections from Inputs to Core */}
                             {nodes.filter(n => n.type === 'input').map(input => (
                                 <NeuralConnection 
                                     key={`conn-${input.id}`} 
                                     start={input} 
                                     end={nodes.find(n => n.id === 'gemini')!} 
                                     active={input.status === 'active'}
-                                    processing={isProcessing && input.id === 'input_text'}
+                                    processing={isProcessing}
                                 />
                             ))}
-                            {/* Connections from Core to Outputs */}
                             {nodes.filter(n => n.type === 'output').map(output => (
                                 <NeuralConnection 
                                     key={`conn-${output.id}`} 
                                     start={nodes.find(n => n.id === 'gemini')!} 
                                     end={output} 
                                     active={output.status === 'active'}
-                                    processing={isProcessing && output.status === 'processing'}
+                                    processing={isProcessing}
                                 />
                             ))}
                         </svg>
                         {nodes.map(node => <NeuralNodeVisual key={node.id} node={node} />)}
-                        
-                        <div className="absolute top-4 left-4 text-[10px] font-mono text-cyan-500/80">
-                            <p>MODE: INTERACTIVE</p>
-                            <p>LATENCY: {isProcessing ? Math.floor(Math.random() * 50 + 20) : 12}ms</p>
-                        </div>
-                        <div className="absolute bottom-4 right-4 text-[10px] font-mono text-purple-500/80 text-right">
-                            <p>MODEL: GEMINI-3-FLASH</p>
-                            <p>TEMP: {temperature}</p>
-                        </div>
                     </Card>
 
                     {/* LIVE LOGS */}
@@ -198,63 +178,48 @@ const NeuralSystemCore: React.FC = () => {
                 </div>
 
                 <div className="space-y-6">
-                    {/* CONTROLS */}
-                    <Card title="Cognitive Parameters">
-                        <div className="space-y-6">
-                            <div>
-                                <div className="flex justify-between text-xs font-bold text-gray-400 mb-2">
-                                    <span>Creativity (Temperature)</span>
-                                    <span className="text-cyan-400">{temperature}</span>
-                                </div>
-                                <input 
-                                    type="range" min="0" max="2" step="0.1" 
-                                    value={temperature} onChange={e => setTemperature(parseFloat(e.target.value))}
-                                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                                />
-                                <div className="flex justify-between text-[10px] text-gray-600 mt-1">
-                                    <span>Logical</span>
-                                    <span>Balanced</span>
-                                    <span>Creative</span>
-                                </div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between text-xs font-bold text-gray-400 mb-2">
-                                    <span>Response Length (Max Tokens)</span>
-                                    <span className="text-purple-400">{maxTokens}</span>
-                                </div>
-                                <input 
-                                    type="range" min="100" max="8192" step="100" 
-                                    value={maxTokens} onChange={e => setMaxTokens(parseInt(e.target.value))}
-                                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
-                                />
-                            </div>
-                        </div>
-                    </Card>
-
-                    {/* INTERACTION AREA */}
-                    <Card title="Inject Neural Input">
+                    {/* R&D SCANNER */}
+                    <Card title="R&D Scanner (Google Grounding)">
                         <div className="space-y-3">
-                            <textarea 
+                            <div className="flex items-center text-xs text-gray-500 mb-2">
+                                <GoogleIcon className="w-4 h-4 mr-2" />
+                                <span>Search-Augmented Generation Active</span>
+                            </div>
+                            <input 
                                 value={prompt}
                                 onChange={(e) => setPrompt(e.target.value)}
-                                placeholder="Enter system prompt or user query..."
-                                className="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 text-xs font-mono text-white focus:outline-none focus:border-cyan-500 h-24"
+                                placeholder="Enter trend query..."
+                                className="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 text-xs font-mono text-white focus:outline-none focus:border-cyan-500"
                             />
                             <button 
-                                onClick={handleInjectPrompt}
+                                onClick={handleRunRDScan}
                                 disabled={isProcessing || !prompt.trim()}
-                                className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 rounded-lg text-sm flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 rounded-lg text-sm flex items-center justify-center transition-colors disabled:opacity-50"
                             >
                                 {isProcessing ? <BotIcon className="w-4 h-4 mr-2 animate-spin"/> : <SparkleIcon className="w-4 h-4 mr-2"/>}
-                                {isProcessing ? 'Processing...' : 'Process Request'}
+                                {isProcessing ? 'Analysing Trends...' : 'Scan Future Trends'}
                             </button>
                         </div>
                         {response && (
-                            <div className="mt-4 p-3 bg-gray-800 rounded border border-gray-700 max-h-40 overflow-y-auto">
-                                <p className="text-[10px] text-gray-500 uppercase mb-1">Output Layer</p>
-                                <div className="text-xs text-gray-300 whitespace-pre-wrap font-mono">{response}</div>
+                            <div className="mt-4 p-3 bg-gray-800 rounded border border-gray-700 max-h-60 overflow-y-auto custom-scrollbar">
+                                <div className="text-xs text-gray-300 prose dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: response }} />
                             </div>
                         )}
+                    </Card>
+                    
+                    {/* AUTONOMOUS FUTURE LOG */}
+                    <Card title="Evolution Roadmap">
+                        <div className="space-y-3">
+                            {futureLog.map((item, i) => (
+                                <div key={i} className="flex justify-between items-center bg-gray-900/50 p-2 rounded border border-gray-700">
+                                    <span className="text-xs text-gray-300">{item.item}</span>
+                                    <span className="text-[10px] text-cyan-400 font-bold bg-cyan-900/20 px-2 py-0.5 rounded">{item.eta}</span>
+                                </div>
+                            ))}
+                            <div className="mt-2 text-center">
+                                <span className="text-[10px] text-gray-500 animate-pulse">Calculating Churn Probability (P > 0.7)...</span>
+                            </div>
+                        </div>
                     </Card>
                 </div>
             </div>

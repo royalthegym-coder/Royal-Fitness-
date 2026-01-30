@@ -4,15 +4,17 @@ import Sidebar from './utils/components/Sidebar';
 import Header from './utils/components/Header';
 import { MenuIcon } from './utils/components/icons/MenuIcon';
 import LoginScreen from './utils/components/LoginScreen';
+import LandingPage from './utils/components/LandingPage';
 import { INITIAL_MEMBERS } from './constants';
 import { checkMembershipExpiryAndNotify } from './lib/whatsapp';
 import { ChatIcon } from './utils/components/icons/ChatIcon';
 import GeminiChat from './utils/components/GeminiChat';
 import { View, Theme } from './types';
 import { ToastProvider } from './utils/context/ToastProvider';
-import { DataProvider, useData } from './utils/context/DataProvider'; // Import DataProvider
+import { DataProvider, useData } from './utils/context/DataProvider';
+import AdminGeoGuard from './utils/components/admin/AdminGeoGuard';
 
-// Lazy load heavy components to improve initial load speed and performance
+// Lazy load heavy components
 const Dashboard = React.lazy(() => import('./utils/components/Dashboard'));
 const Members = React.lazy(() => import('./utils/components/Members'));
 const Packages = React.lazy(() => import('./utils/components/Packages'));
@@ -39,37 +41,70 @@ const FuturisticFeatures = React.lazy(() => import('./utils/components/Futuristi
 const HealthIntelligence = React.lazy(() => import('./utils/components/HealthIntelligence'));
 const BodySimulator = React.lazy(() => import('./utils/components/BodySimulator'));
 const RoyalBotIntegrations = React.lazy(() => import('./utils/components/RoyalBotIntegrations'));
-const AutoUpgrader = React.lazy(() => import('./utils/components/AutoUpgrader'));
-const SelfRepair = React.lazy(() => import('./utils/components/SelfRepair'));
+const AutoUpgrader = React.lazy(() => import('./utils/components/AutoUpgrader')); // New
+const SelfRepair = React.lazy(() => import('./utils/components/SelfRepair')); // New
 const NeuralSystemCore = React.lazy(() => import('./utils/components/NeuralSystemCore'));
 const DebugEngine = React.lazy(() => import('./utils/components/DebugEngine'));
 const PerformanceLayer = React.lazy(() => import('./utils/components/PerformanceLayer'));
 const SecurityLayer = React.lazy(() => import('./utils/components/SecurityLayer'));
 const ControlPanel = React.lazy(() => import('./utils/components/ControlPanel'));
+const StorkCollaboration = React.lazy(() => import('./utils/components/StorkCollaboration'));
 
 interface CurrentUser {
     type: 'admin' | 'member';
     id?: number;
     name: string;
     avatar: string;
+    token?: string; 
+    loginMethod?: 'password' | 'otp' | 'biometric';
 }
 
 const LoadingSpinner = () => (
-    <div className="flex items-center justify-center h-full w-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500"></div>
+    <div className="flex items-center justify-center h-full w-full bg-gray-900">
+        <div className="relative">
+             <div className="w-16 h-16 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+             <div className="absolute inset-0 flex items-center justify-center">
+                 <span className="text-amber-500 text-xs font-bold">AI</span>
+             </div>
+        </div>
     </div>
 );
 
-// Inner Component to use Data Hook if needed, or just keep structure clean
 const AppContent: React.FC = () => {
-    const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+    // Logic: Check for Token and Role first
+    const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => {
+        try {
+            const token = localStorage.getItem('token');
+            const role = localStorage.getItem('userRole');
+            const savedUser = localStorage.getItem('royal_user'); 
+            
+            if (token && role && savedUser) {
+                return JSON.parse(savedUser);
+            }
+            return null;
+        } catch {
+            return null;
+        }
+    });
+    
+    // Default to Landing Page if no user
+    const [showLanding, setShowLanding] = useState(!currentUser);
+    const [isAtLogin, setIsAtLogin] = useState(false);
+    
     const [currentView, setCurrentView] = useState<View>('dashboard');
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [theme, setTheme] = useState<Theme>('dark');
     const [isChatOpen, setChatOpen] = useState(false);
 
-    // Get Data from Context (Example: Ensure members are loaded for login check)
     const { members } = useData();
+
+    // Persist session
+    useEffect(() => {
+        if (currentUser) {
+            localStorage.setItem('royal_user', JSON.stringify(currentUser));
+            setShowLanding(false); // Ensure landing is hidden if user restored
+        }
+    }, [currentUser]);
 
     useEffect(() => {
         if (theme === 'dark') {
@@ -83,42 +118,62 @@ const AppContent: React.FC = () => {
         setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
     };
 
-    const handleLogin = (identifier: string, pass: string | null, role: 'admin' | 'member', method: 'password' | 'otp'): boolean => {
-        // --- ADMIN LOGIN ---
+    // --- INTEGRATED LOGIN LOGIC ---
+    const handleLogin = async (identifier: string, pass: string | null, role: 'admin' | 'member', method: 'password' | 'otp' | 'biometric'): Promise<boolean> => {
+        // Simulate Secure Handshake
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        let user: CurrentUser | null = null;
+
+        // 1. Validate Admin
         if (role === 'admin') {
             const authorizedAdmins = ['admin@royal.com', '9785300123', '+919785300123'];
-            const isAuthorized = authorizedAdmins.includes(identifier);
-
-            if (!isAuthorized) return false;
-
-            if (method === 'otp' || (method === 'password' && pass === 'admin123')) {
-                setCurrentUser({ type: 'admin', name: 'Super Admin', avatar: 'https://i.pravatar.cc/150?u=admin' });
-                return true;
+            if (authorizedAdmins.includes(identifier)) {
+                if (method === 'otp' || (method === 'password' && pass === 'admin123')) {
+                    user = { 
+                        type: 'admin', 
+                        name: 'Super Admin', 
+                        avatar: 'https://i.pravatar.cc/150?u=admin',
+                        token: 'admin-jwt-token-' + Date.now(),
+                        loginMethod: method
+                    };
+                }
             }
         }
 
-        // --- MEMBER LOGIN ---
+        // 2. Validate Member
         if (role === 'member') {
-            // Use 'members' from Context instead of static constant
             const member = members.find(m => 
                 m.email.toLowerCase() === identifier.toLowerCase() || 
                 m.phone.replace(/\D/g,'').slice(-10) === identifier.replace(/\D/g,'').slice(-10)
             );
 
-            if (!member) return false;
-
-            if (method === 'otp') {
-                 setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
-                 return true;
-            }
-
-            if (method === 'password') {
-                const expectedPass = `${member.name.split(' ')[0].toLowerCase()}123`;
-                if (pass === expectedPass) {
-                    setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
-                    return true;
+            if (member) {
+                // Biometric bypasses password check (assumed verified by device)
+                if (method === 'biometric' || method === 'otp' || (method === 'password' && pass === `${member.name.split(' ')[0].toLowerCase()}123`)) {
+                     user = { 
+                         type: 'member', 
+                         id: member.id, 
+                         name: member.name, 
+                         avatar: member.avatar,
+                         token: 'member-jwt-token-' + Date.now(),
+                         loginMethod: method
+                     };
                 }
             }
+        }
+
+        if (user) {
+            localStorage.setItem('token', user.token || '');
+            localStorage.setItem('userRole', user.type);
+            
+            setCurrentUser(user);
+            setShowLanding(false);
+            
+            if (user.type === 'admin') {
+                setCurrentView('dashboard');
+            }
+            return true;
         }
 
         return false;
@@ -126,51 +181,78 @@ const AppContent: React.FC = () => {
 
     const handleLogout = () => {
         sessionStorage.clear();
+        localStorage.removeItem('token');     
+        localStorage.removeItem('userRole');  
+        localStorage.removeItem('royal_user'); 
+        
         setChatOpen(false);
+        setIsAtLogin(false);
+        setShowLanding(true); // Return to Landing Page
         setCurrentView('dashboard');
         setCurrentUser(null);
     };
 
     const renderView = () => {
-        switch (currentView) {
-            case 'dashboard': return <Dashboard setCurrentView={setCurrentView} />;
-            case 'controlPanel': return <ControlPanel />;
-            case 'royalBots': return <RoyalBotIntegrations />;
-            case 'healthIntelligence': return <HealthIntelligence />;
-            case 'tasks': return <Tasks />;
-            case 'packages': return <Packages />;
-            case 'members': return <Members />;
-            case 'billing': return <Billing setCurrentView={setCurrentView} />;
-            case 'payment': return <Payment />;
-            case 'memberships': return <Memberships />;
-            case 'leads': return <Leads />;
-            case 'crm': return <CRMSystem />;
-            case 'workouts': return <Workouts />;
-            case 'diet': return <DietPlans />;
-            case 'staff': return <Staff />;
-            case 'expenses': return <Expenses />;
-            case 'settings': return <Settings setCurrentView={setCurrentView} />;
-            case 'whatsapp': return <WhatsAppIntegration />;
-            case 'automation': return <AutomationDashboard />;
-            case 'geminiHub': return <GeminiHub />;
-            case 'voiceAssistant': return <VoiceAssistant setCurrentView={setCurrentView} />;
-            case 'aiTracker': return <AIFitnessTracker />;
-            case 'healthEngine': return <HealthEngine />;
-            case 'geniusMode': return <GeniusMode />;
-            case 'futureOps': return <FuturisticFeatures />;
-            case 'simulator': return <BodySimulator />;
-            case 'autoUpgrader': return <AutoUpgrader />;
-            case 'selfRepair': return <SelfRepair />;
-            case 'neuralCore': return <NeuralSystemCore />;
-            case 'debugEngine': return <DebugEngine />;
-            case 'performance': return <PerformanceLayer />;
-            case 'security': return <SecurityLayer />;
-            default: return <Dashboard setCurrentView={setCurrentView} />;
+        const view = (() => {
+            switch (currentView) {
+                case 'dashboard': return <Dashboard setCurrentView={setCurrentView} />;
+                case 'controlPanel': return <ControlPanel />;
+                case 'royalBots': return <RoyalBotIntegrations />;
+                case 'healthIntelligence': return <HealthIntelligence />;
+                case 'tasks': return <Tasks />;
+                case 'packages': return <Packages />;
+                case 'members': return <Members />;
+                case 'stork': return <StorkCollaboration />;
+                case 'billing': return <Billing setCurrentView={setCurrentView} />;
+                case 'payment': return <Payment />;
+                case 'memberships': return <Memberships />;
+                case 'leads': return <Leads />;
+                case 'crm': return <CRMSystem />;
+                case 'workouts': return <Workouts />;
+                case 'diet': return <DietPlans />;
+                case 'staff': return <Staff />;
+                case 'expenses': return <Expenses />;
+                case 'settings': return <Settings setCurrentView={setCurrentView} theme={theme} toggleTheme={toggleTheme} currentUser={currentUser} />;
+                case 'whatsapp': return <WhatsAppIntegration />;
+                case 'automation': return <AutomationDashboard />;
+                case 'geminiHub': return <GeminiHub />;
+                case 'voiceAssistant': return <VoiceAssistant setCurrentView={setCurrentView} />;
+                case 'aiTracker': return <AIFitnessTracker />;
+                case 'healthEngine': return <HealthEngine />;
+                case 'geniusMode': return <GeniusMode />;
+                case 'futureOps': return <FuturisticFeatures />;
+                case 'simulator': return <BodySimulator />;
+                case 'autoUpgrader': return <AutoUpgrader />; // New
+                case 'selfRepair': return <SelfRepair />; // New
+                case 'neuralCore': return <NeuralSystemCore />;
+                case 'debugEngine': return <DebugEngine />;
+                case 'performance': return <PerformanceLayer />;
+                case 'security': return <SecurityLayer />;
+                default: return <Dashboard setCurrentView={setCurrentView} />;
+            }
+        })();
+
+        // Wrap sensitive admin views in GeoGuard
+        const geoProtectedViews = ['dashboard', 'controlPanel', 'billing', 'payment', 'staff', 'expenses'];
+        if (currentUser?.type === 'admin' && geoProtectedViews.includes(currentView)) {
+            return <AdminGeoGuard>{view}</AdminGeoGuard>;
         }
+        return view;
     };
 
     if (!currentUser) {
-        return <LoginScreen onLogin={handleLogin} />;
+        if (showLanding && !isAtLogin) {
+            return (
+                <Suspense fallback={<LoadingSpinner />}>
+                    <LandingPage onEnter={() => setIsAtLogin(true)} />
+                </Suspense>
+            );
+        }
+        return (
+            <React.Suspense fallback={<LoadingSpinner />}>
+                <LoginScreen onLogin={handleLogin} onBack={() => { setIsAtLogin(false); setShowLanding(true); }} /> 
+            </React.Suspense>
+        ); 
     }
 
     if (currentUser.type === 'member' && currentUser.id) {
@@ -226,7 +308,6 @@ const AppContent: React.FC = () => {
         </div>
     );
 };
-
 
 const App: React.FC = () => (
     <ToastProvider>

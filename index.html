@@ -14,6 +14,7 @@
   "imports": {
     "@google/genai": "https://esm.sh/@google/genai",
     "openai": "https://esm.sh/openai@4.52.0",
+    "@react-google-maps/api": "https://esm.sh/@react-google-maps/api?external=react,react-dom",
     "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
     "react-dom": "https://esm.sh/react-dom@18.2.0",
     "react": "https://esm.sh/react@18.2.0",
@@ -26,7 +27,7 @@
     "qrcode": "https://esm.sh/qrcode@1.5.3",
     "clsx": "https://esm.sh/clsx@2.1.0",
     "tailwind-merge": "https://esm.sh/tailwind-merge@2.2.1",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+    "react-dom/": "https://esm.sh/react-dom@18.2.0/"
   }
 }
 </script>
@@ -43,14 +44,17 @@
         document.body.classList.add('turbo-mode');
       }
 
-      // Inject API Keys for Royal The Gym AI Features
-      window.process = {
-        env: {
-          API_KEY: '', // This will be populated by the environment.
-          OPENAI_API_KEY: '' 
-        },
-        cwd: () => '/'
-      };
+      // ROBUST PROCESS POLYFILL & KEY INJECTION
+      window.process = window.process || {};
+      window.process.env = window.process.env || {};
+      
+      // Inject API Keys
+      window.process.env.API_KEY = 'AIzaSyDEFXd4jSoKsSsZlnwRQhES8EvFL6kjuAE';
+      window.process.env.OPENAI_API_KEY = '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';
+
+      // Global variable for modules that might access 'process' directly
+      // This is crucial for some libraries that expect 'process' to be global
+      var process = window.process;
     </script>
     <style>
       ::-webkit-scrollbar {

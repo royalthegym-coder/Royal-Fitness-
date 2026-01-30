@@ -1,7 +1,18 @@
 
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import { Member, Invoice, Package, Lead, Transaction } from '../../types';
-import { INITIAL_MEMBERS, INITIAL_INVOICES, INITIAL_PACKAGES, INITIAL_LEADS, INITIAL_TRANSACTIONS } from '../../constants';
+import { Member, Invoice, Package, Lead, Transaction, HealthData } from '../../types';
+import { INITIAL_MEMBERS, INITIAL_INVOICES, INITIAL_PACKAGES, INITIAL_LEADS, INITIAL_TRANSACTIONS, INITIAL_HEALTH_DATA } from '../../constants';
+
+// Device Interface
+export interface ConnectedDevice {
+    id: string;
+    name: string;
+    type: 'Watch' | 'Band' | 'Ring';
+    platform: 'Apple Health' | 'Samsung Health' | 'Google Fit' | 'Proprietary';
+    battery: number;
+    status: 'Syncing' | 'Connected' | 'Disconnected';
+    lastSync: string;
+}
 
 interface DataContextType {
     members: Member[];
@@ -10,6 +21,12 @@ interface DataContextType {
     leads: Lead[];
     transactions: Transaction[];
     
+    // Wearable Integration
+    connectedDevice: ConnectedDevice | null;
+    setConnectedDevice: (device: ConnectedDevice | null) => void;
+    liveHealthData: HealthData;
+    updateLiveHealthData: (data: Partial<HealthData>) => void;
+
     // Actions
     addMember: (member: Member) => void;
     updateMember: (member: Member) => void;
@@ -33,36 +50,101 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     // --- Initialize State from LocalStorage or Fallback to Constants ---
     const [members, setMembers] = useState<Member[]>(() => {
-        const saved = localStorage.getItem('royal_members');
-        return saved ? JSON.parse(saved) : INITIAL_MEMBERS;
+        try {
+            const saved = localStorage.getItem('royal_members');
+            return saved ? JSON.parse(saved) : INITIAL_MEMBERS;
+        } catch (e) {
+            return INITIAL_MEMBERS;
+        }
     });
 
     const [invoices, setInvoices] = useState<Invoice[]>(() => {
-        const saved = localStorage.getItem('royal_invoices');
-        return saved ? JSON.parse(saved) : INITIAL_INVOICES;
+        try {
+            const saved = localStorage.getItem('royal_invoices');
+            return saved ? JSON.parse(saved) : INITIAL_INVOICES;
+        } catch (e) {
+            return INITIAL_INVOICES;
+        }
     });
 
     const [packages, setPackages] = useState<Package[]>(() => {
-        const saved = localStorage.getItem('royal_packages');
-        return saved ? JSON.parse(saved) : INITIAL_PACKAGES;
+        try {
+            const saved = localStorage.getItem('royal_packages');
+            return saved ? JSON.parse(saved) : INITIAL_PACKAGES;
+        } catch (e) {
+            return INITIAL_PACKAGES;
+        }
     });
 
     const [leads, setLeads] = useState<Lead[]>(() => {
-        const saved = localStorage.getItem('royal_leads');
-        return saved ? JSON.parse(saved) : INITIAL_LEADS;
+        try {
+            const saved = localStorage.getItem('royal_leads');
+            return saved ? JSON.parse(saved) : INITIAL_LEADS;
+        } catch (e) {
+            return INITIAL_LEADS;
+        }
     });
 
     const [transactions, setTransactions] = useState<Transaction[]>(() => {
-        const saved = localStorage.getItem('royal_transactions');
-        return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
+        try {
+            const saved = localStorage.getItem('royal_transactions');
+            return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
+        } catch (e) {
+            return INITIAL_TRANSACTIONS;
+        }
     });
 
+    // --- Wearable State ---
+    const [connectedDevice, setConnectedDevice] = useState<ConnectedDevice | null>(null);
+    const [liveHealthData, setLiveHealthData] = useState<HealthData>(INITIAL_HEALTH_DATA);
+
+    const updateLiveHealthData = (data: Partial<HealthData>) => {
+        setLiveHealthData(prev => ({ ...prev, ...data }));
+    };
+
     // --- Persistence Effects ---
-    useEffect(() => localStorage.setItem('royal_members', JSON.stringify(members)), [members]);
-    useEffect(() => localStorage.setItem('royal_invoices', JSON.stringify(invoices)), [invoices]);
-    useEffect(() => localStorage.setItem('royal_packages', JSON.stringify(packages)), [packages]);
-    useEffect(() => localStorage.setItem('royal_leads', JSON.stringify(leads)), [leads]);
-    useEffect(() => localStorage.setItem('royal_transactions', JSON.stringify(transactions)), [transactions]);
+    useEffect(() => {
+        try {
+            localStorage.setItem('royal_members', JSON.stringify(members));
+        } catch (e) {
+            console.warn("LocalStorage Quota Exceeded for Members. Attempting optimization...");
+            const optimizedMembers = members.map(m => ({
+                ...m,
+                avatar: m.avatar && m.avatar.startsWith('data:') 
+                    ? `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random` 
+                    : m.avatar
+            }));
+            try {
+                localStorage.setItem('royal_members', JSON.stringify(optimizedMembers));
+            } catch (retryError) {
+                console.error("Critical: Failed to save members data even after optimization.", retryError);
+            }
+        }
+    }, [members]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('royal_invoices', JSON.stringify(invoices));
+        } catch (e) { console.error("Failed to save invoices", e); }
+    }, [invoices]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('royal_packages', JSON.stringify(packages));
+        } catch (e) { console.error("Failed to save packages", e); }
+    }, [packages]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('royal_leads', JSON.stringify(leads));
+        } catch (e) { console.error("Failed to save leads", e); }
+    }, [leads]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('royal_transactions', JSON.stringify(transactions));
+        } catch (e) { console.error("Failed to save transactions", e); }
+    }, [transactions]);
 
     // --- Actions ---
 
@@ -101,7 +183,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // --- Derived Data ---
     const activeMemberCount = members.filter(m => m.status === 'Active').length;
     
-    // Calculate total revenue from PAID invoices + Cash Transactions
     const totalRevenue = invoices
         .filter(i => i.status === 'Paid')
         .reduce((sum, i) => sum + i.amount, 0);
@@ -109,6 +190,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return (
         <DataContext.Provider value={{
             members, invoices, packages, leads, transactions,
+            connectedDevice, setConnectedDevice, liveHealthData, updateLiveHealthData,
             addMember, updateMember, deleteMember,
             addInvoice, updateInvoiceStatus,
             addLead, updateLead,

@@ -151,6 +151,44 @@ const AutomationDashboard: React.FC = () => {
         </div>
     );
 
+    const renderReportsTab = () => (
+        <div className="space-y-4">
+            <Card title="Message Logs">
+                <table className="w-full text-left text-sm">
+                    <thead>
+                        <tr className="border-b border-gray-700 text-gray-400">
+                            <th className="p-2">Recipient</th>
+                            <th className="p-2">Template</th>
+                            <th className="p-2">Sent At</th>
+                            <th className="p-2">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {logs.map(log => (
+                            <tr key={log.id} className="border-b border-gray-700 last:border-0 hover:bg-gray-800/50">
+                                <td className="p-2 font-medium">
+                                    {log.recipientName}
+                                    <div className="text-xs text-gray-500">{log.recipientPhone}</div>
+                                </td>
+                                <td className="p-2">{log.templateName}</td>
+                                <td className="p-2 text-gray-400">{log.sentAt}</td>
+                                <td className="p-2">
+                                    <span className={`px-2 py-1 rounded text-xs ${
+                                        log.status === 'Read' ? 'bg-blue-900 text-blue-400' :
+                                        log.status === 'Delivered' ? 'bg-green-900 text-green-400' :
+                                        log.status === 'Failed' ? 'bg-red-900 text-red-400' : 'bg-gray-700 text-gray-300'
+                                    }`}>
+                                        {log.status}
+                                    </span>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </Card>
+        </div>
+    );
+
     const handleBotTest = async () => {
         if(!testQuery.trim()) return;
         setIsThinking(true);
@@ -176,7 +214,7 @@ const AutomationDashboard: React.FC = () => {
             </div>
 
             <div className="flex space-x-1 bg-gray-800 p-1 rounded-lg w-full md:w-auto inline-flex overflow-x-auto">
-                {['rules', 'templates', 'campaigns'].map((tab) => (
+                {['rules', 'templates', 'campaigns', 'reports'].map((tab) => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab as any)}
@@ -190,6 +228,7 @@ const AutomationDashboard: React.FC = () => {
             {activeTab === 'rules' && renderRulesTab()}
             {activeTab === 'templates' && renderTemplatesTab()}
             {activeTab === 'campaigns' && renderCampaignsTab()}
+            {activeTab === 'reports' && renderReportsTab()}
 
             <div className="mt-8 border-t border-gray-700 pt-6">
                 <h3 className="text-lg font-bold text-gray-300 mb-4 flex items-center">

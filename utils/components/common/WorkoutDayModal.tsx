@@ -112,9 +112,9 @@ const WorkoutDayModal: React.FC<WorkoutDayModalProps> = ({ isOpen, onClose, date
                         {exercises.map((ex, index) => (
                             <div key={index} className="flex items-center gap-2 bg-gray-800 p-2 rounded-lg border border-gray-700">
                                 <div 
-                                    className="w-12 h-12 bg-black rounded flex-shrink-0 overflow-hidden border border-gray-600 group relative cursor-pointer"
+                                    className="w-12 h-12 bg-black rounded flex-shrink-0 overflow-hidden border border-gray-600 group relative cursor-pointer hover:border-amber-500"
                                     onClick={() => setDemoModalExercise(ex.name)}
-                                    title="View Form Demo"
+                                    title="View AI Form Guide"
                                 >
                                     <img 
                                         src={getMediaForExercise(ex.name)} 
@@ -123,7 +123,7 @@ const WorkoutDayModal: React.FC<WorkoutDayModalProps> = ({ isOpen, onClose, date
                                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                                     />
                                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <VideoCameraIcon className="w-5 h-5 text-white" />
+                                        <VideoCameraIcon className="w-5 h-5 text-amber-400" />
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-12 gap-2 flex-grow">

@@ -23,8 +23,8 @@ const RoyalGradient = () => (
     </defs>
 );
 
-const IconWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <span className="w-6 h-6">
+const IconWrapper: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
+  <span className={`w-6 h-6 ${className || ''}`}>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="url(#royal-gold)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <RoyalGradient />
         {children}
@@ -80,8 +80,8 @@ export const WorkoutIcon = () => (
   </IconWrapper>
 );
 
-export const DietIcon = () => (
-  <IconWrapper>
+export const DietIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <IconWrapper className={className}>
     <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-12v4m-2-2h4m5 4v4m-2-2h4M17 3l-4.5 4.5M17 3h-2M17 3v2" />
   </IconWrapper>
 );

@@ -11,6 +11,8 @@ import { SparkleIcon } from './icons/SparkleIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { AutoUpdateIcon } from './icons/AutoUpdateIcon';
 import { useData } from '../context/DataProvider'; // Import Context
+import { DumbbellIcon } from './icons/DumbbellIcon';
+import { UserIcon } from './icons/UserIcon';
 
 interface BillingProps {
     setCurrentView: (view: View) => void;
@@ -36,7 +38,10 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
     const [selectedMemberId, setSelectedMemberId] = useState<number | ''>('');
     const [includeMembership, setIncludeMembership] = useState(true);
     const [includeTraining, setIncludeTraining] = useState(false);
-    const [customItem, setCustomItem] = useState({ desc: '', amount: 0 });
+    
+    // Custom Items for Accessories/Admission
+    const [customItem, setCustomItem] = useState({ desc: '', amount: 0, type: 'product' as const });
+    
     const [generatedInvoice, setGeneratedInvoice] = useState<Invoice | null>(null);
 
     // Derived Wizard Data (Using Live Context Data)
@@ -62,14 +67,14 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
     const handleGeneratePreview = async () => {
         setIsAiProcessing(true);
         // Simulate AI Thinking
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 1000));
         
         const items: InvoiceItem[] = [];
         let total = 0;
 
         if (includeMembership && memberPackage) {
             items.push({
-                description: `${memberPackage.name} (${memberPackage.duration})`,
+                description: `Membership Due: ${memberPackage.name}`,
                 amount: memberPackage.price,
                 type: 'membership'
             });
@@ -90,7 +95,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
             items.push({
                 description: customItem.desc,
                 amount: customItem.amount,
-                type: 'product'
+                type: customItem.type as any
             });
             total += customItem.amount;
         }
@@ -117,12 +122,11 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
             // Use Context to add invoice globally
             addInvoice(generatedInvoice);
             
-            // Store ID in session for Payment Page to pick up
-            sessionStorage.setItem('latest_invoice_id', generatedInvoice.id.toString());
             setIsWizardOpen(false);
-            
-            // Redirect to Payment
-            setCurrentView('payment');
+            // Don't redirect, just close so Admin can create more
+            alert(`Payment Barcode Generated for ${generatedInvoice.memberName}. It is now visible on their Member Panel.`);
+            setWizardStep(1);
+            setGeneratedInvoice(null);
         }
     };
 
@@ -134,13 +138,18 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
             default: return 'bg-gray-500';
         }
     };
+
+    // Quick add helpers
+    const setQuickItem = (desc: string, amt: number, type: 'product' | 'membership' | 'other') => {
+        setCustomItem({ desc, amount: amt, type: type as any });
+    };
     
     return (
         <div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-amber-400">Smart Billing</h1>
-                    <p className="text-gray-400 text-sm">AI-Automated Invoicing & Collections</p>
+                    <h1 className="text-3xl font-bold text-amber-400">Smart Billing & Barcode Gen</h1>
+                    <p className="text-gray-400 text-sm">Generate Payment Requests for Admission, Fees & Accessories</p>
                 </div>
                 <div className="flex items-center gap-2">
                      <button onClick={() => { 
@@ -149,8 +158,8 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                          setSelectedMemberId('');
                          setIsWizardOpen(true); 
                      }} className="bg-amber-500 text-gray-900 font-bold py-2 px-6 rounded-lg hover:bg-amber-400 transition-colors shadow-lg flex items-center">
-                        <SparkleIcon className="w-5 h-5 mr-2" />
-                        Create Smart Bill
+                        <QrCodeIcon className="w-5 h-5 mr-2" />
+                        Generate Member Bill
                     </button>
                 </div>
             </div>
@@ -202,7 +211,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                                                 }}
                                                 className="text-blue-400 hover:text-blue-300 font-semibold text-xs flex items-center bg-blue-400/10 px-3 py-1.5 rounded transition-colors"
                                             >
-                                                <QrCodeIcon className="w-3 h-3 mr-1" /> Pay Now
+                                                <QrCodeIcon className="w-3 h-3 mr-1" /> View Code
                                             </button>
                                         )}
                                     </td>
@@ -214,7 +223,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
             </Card>
             
             {/* SMART BILLING WIZARD MODAL */}
-            <Modal isOpen={isWizardOpen} onClose={() => setIsWizardOpen(false)} title="AI Billing Wizard">
+            <Modal isOpen={isWizardOpen} onClose={() => setIsWizardOpen(false)} title="Generate Payment Barcode">
                 {wizardStep === 1 && (
                     <div className="space-y-6">
                         {/* Member Select */}
@@ -237,8 +246,8 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                                         <BotIcon className="w-5 h-5"/>
                                     </div>
                                     <div>
-                                        <p className="text-sm font-bold text-white">Context Detected</p>
-                                        <p className="text-xs text-gray-400">Auto-filled based on member profile.</p>
+                                        <p className="text-sm font-bold text-white">Create Bill For:</p>
+                                        <p className="text-xs text-gray-400">Select categories to include in QR Code.</p>
                                     </div>
                                 </div>
 
@@ -248,32 +257,26 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                                         <div className="flex items-center gap-3">
                                             <input type="checkbox" checked={includeMembership} onChange={e => setIncludeMembership(e.target.checked)} className="w-5 h-5 text-amber-500 rounded focus:ring-amber-500 bg-gray-700 border-gray-600" />
                                             <div>
-                                                <p className="text-sm font-bold text-gray-200">Membership Fee</p>
+                                                <p className="text-sm font-bold text-gray-200">Admission / Due Fees</p>
                                                 <p className="text-xs text-gray-400">{memberPackage?.name} ({memberPackage?.duration})</p>
                                             </div>
                                         </div>
                                         <span className="font-mono text-amber-400 font-bold">₹{memberPackage?.price}</span>
                                     </label>
 
-                                    {/* PT Fee Toggle */}
-                                    <label className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${includeTraining ? 'bg-green-900/20 border-green-500/50' : 'bg-gray-900 border-gray-700'}`}>
-                                        <div className="flex items-center gap-3">
-                                            <input type="checkbox" checked={includeTraining} onChange={e => setIncludeTraining(e.target.checked)} className="w-5 h-5 text-green-500 rounded focus:ring-green-500 bg-gray-700 border-gray-600" />
-                                            <div>
-                                                <p className="text-sm font-bold text-gray-200">Personal Training</p>
-                                                <p className="text-xs text-gray-400">{memberTrainer ? `Trainer: ${memberTrainer.name}` : 'No Trainer Assigned'}</p>
-                                            </div>
+                                    {/* Accessory / Other */}
+                                    <div className="pt-2 border-t border-gray-700">
+                                        <p className="text-xs text-gray-500 mb-2 uppercase font-bold">Add Accessories / One-time Charge</p>
+                                        
+                                        <div className="flex gap-2 mb-3">
+                                            <button type="button" onClick={() => setQuickItem('Protein Shake', 150, 'product')} className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-gray-300">Protein</button>
+                                            <button type="button" onClick={() => setQuickItem('Gym Belt', 500, 'product')} className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-gray-300">Belt</button>
+                                            <button type="button" onClick={() => setQuickItem('Water Bottle', 200, 'product')} className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-gray-300">Bottle</button>
+                                            <button type="button" onClick={() => setQuickItem('Admission Fee', 1000, 'membership')} className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-amber-400 border border-amber-500/30">Admission</button>
                                         </div>
-                                        <span className="font-mono text-green-400 font-bold">
-                                            {memberTrainer ? `₹${selectedMember?.trainerFees || 5000}` : '₹0'}
-                                        </span>
-                                    </label>
 
-                                    {/* Custom Item */}
-                                    <div className="pt-2">
-                                        <p className="text-xs text-gray-500 mb-2 uppercase font-bold">Add Custom Item (Supplements/Misc)</p>
                                         <div className="flex gap-2">
-                                            <input type="text" placeholder="Description" value={customItem.desc} onChange={e => setCustomItem({...customItem, desc: e.target.value})} className="flex-grow bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-white" />
+                                            <input type="text" placeholder="Item Name (e.g. Protein, Belt)" value={customItem.desc} onChange={e => setCustomItem({...customItem, desc: e.target.value})} className="flex-grow bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-white" />
                                             <input type="number" placeholder="₹" value={customItem.amount || ''} onChange={e => setCustomItem({...customItem, amount: parseFloat(e.target.value)})} className="w-24 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-white" />
                                         </div>
                                     </div>
@@ -289,10 +292,10 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                             >
                                 {isAiProcessing ? (
                                     <>
-                                        <AutoUpdateIcon className="w-5 h-5 mr-2 animate-spin" /> Calculating Total...
+                                        <AutoUpdateIcon className="w-5 h-5 mr-2 animate-spin" /> Generating Code...
                                     </>
                                 ) : (
-                                    'Generate Invoice'
+                                    'Create & Send to Member'
                                 )}
                             </button>
                         </div>
@@ -305,8 +308,8 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                             <div className="inline-block p-3 bg-green-500/20 rounded-full mb-2">
                                 <CheckCircleIcon className="w-10 h-10 text-green-500" />
                             </div>
-                            <h3 className="text-xl font-bold text-white">Invoice Ready</h3>
-                            <p className="text-gray-400 text-sm">Review details before finalizing.</p>
+                            <h3 className="text-xl font-bold text-white">Bill Created Successfully</h3>
+                            <p className="text-gray-400 text-sm">The payment barcode is now available on the Member's Panel.</p>
                         </div>
 
                         <div className="bg-gray-900 p-4 rounded-xl border border-gray-700">
@@ -316,8 +319,10 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                                     <p className="font-bold text-white">{generatedInvoice.memberName}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-xs text-gray-500 uppercase">Date</p>
-                                    <p className="text-white">{generatedInvoice.date}</p>
+                                    <p className="text-xs text-gray-500 uppercase">Type</p>
+                                    <p className="text-white">
+                                        {generatedInvoice.items?.some(i => i.type === 'product') ? 'Accessories' : 'Fees/Admission'}
+                                    </p>
                                 </div>
                             </div>
                             
@@ -341,8 +346,8 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                                 Edit
                             </button>
                             <button onClick={handleFinalizeInvoice} className="py-3 rounded-lg bg-green-600 hover:bg-green-500 text-white font-bold transition-colors shadow-lg shadow-green-900/20 flex items-center justify-center">
-                                <QrCodeIcon className="w-5 h-5 mr-2" />
-                                Proceed to Payment
+                                <CheckCircleIcon className="w-5 h-5 mr-2" />
+                                Confirm & Publish
                             </button>
                         </div>
                     </div>

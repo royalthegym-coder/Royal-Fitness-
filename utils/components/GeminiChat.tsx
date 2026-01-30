@@ -307,6 +307,7 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, onNavigate, co
 
                 const resultStream = await chat.sendMessageStream({ message: textToSend });
                 let accumulatedText = '';
+                const functionCalls: any[] = [];
 
                 for await (const chunk of resultStream) {
                     const text = chunk.text;
@@ -319,10 +320,10 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, onNavigate, co
                             return newHistory;
                         });
                     }
+                    if (chunk.functionCalls) {
+                        functionCalls.push(...chunk.functionCalls);
+                    }
                 }
-
-                const response = await resultStream.response;
-                const functionCalls = response.functionCalls;
                 
                 if (functionCalls && functionCalls.length > 0) {
                     const call = functionCalls[0];

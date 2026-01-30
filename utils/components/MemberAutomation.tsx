@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Card from './common/Card';
 import { INITIAL_MEMBERS, INITIAL_PACKAGES, GYM_INFO, INITIAL_MEMBER_FITNESS_DATA } from '../../constants';
-import { getComplexResponse } from '../../lib/gemini';
+import { getComplexResponse, getContextualRetentionMessage } from '../../lib/gemini';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { BotIcon } from './icons/BotIcon';
@@ -36,12 +36,12 @@ const SmartAutomationCenter: React.FC = () => {
     const [agents, setAgents] = useState<AgentConfig[]>([
         {
             id: 'retention',
-            name: 'Retention Guard',
+            name: 'Retention Bot V3',
             icon: <UserGroupIcon className="w-6 h-6" />,
-            description: 'Identifies members with low attendance (< 2/week) and sends re-engagement offers.',
+            description: 'Contextual empathy engine. Checks weather/events before sending "Miss You" alerts.',
             isActive: true,
             isOnline: true,
-            stats: { label: 'At-Risk Saved', value: 12 },
+            stats: { label: 'Empathy Score', value: 98 },
             color: 'text-blue-400 bg-blue-400/10 border-blue-400/20'
         },
         {
@@ -92,8 +92,10 @@ const SmartAutomationCenter: React.FC = () => {
         const randomMember = INITIAL_MEMBERS[Math.floor(Math.random() * INITIAL_MEMBERS.length)];
 
         if (randomAgent.id === 'retention') {
-            logEntry.action = 'Re-engagement Triggered';
-            logEntry.details = `Detected low attendance for ${randomMember.name}. Scheduled "Miss You" WhatsApp sequence.`;
+            logEntry.action = 'Contextual Logic Active';
+            // Simulate calling the new function
+            const msg = await getContextualRetentionMessage(randomMember.name, "Jhunjhunu, Rajasthan");
+            logEntry.details = `Analyzed Weather. Sent: "${msg}"`;
         } else if (randomAgent.id === 'revenue') {
             logEntry.action = 'Renewal Opportunity';
             logEntry.details = `Membership for ${randomMember.name} expires soon. Generated 15% discount offer code.`;

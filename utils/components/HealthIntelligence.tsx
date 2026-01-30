@@ -7,7 +7,11 @@ import { SparkleIcon } from './icons/SparkleIcon';
 import { ChatIcon } from './icons/ChatIcon';
 import { LockIcon } from './icons/LockIcon';
 import { UploadIcon } from './icons/UploadIcon';
+import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { AutoUpdateIcon } from './icons/AutoUpdateIcon';
 
+// --- ICONS ---
 const MedicalIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
@@ -32,14 +36,38 @@ const DocumentIcon = () => (
     </svg>
 );
 
+const DnaIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+    </svg>
+);
+
+// --- TYPES & HELPERS ---
+interface Biomarker {
+    name: string;
+    value: number;
+    unit: string;
+    range: [number, number]; // [min, max]
+    category: 'Hormone' | 'Vitamin' | 'General';
+    lastUpdated: string;
+}
+
 const HealthIntelligence: React.FC = () => {
     const [activeMemberId, setActiveMemberId] = useState<number>(INITIAL_MEMBERS[0].id);
-    const [activeTab, setActiveTab] = useState<'chat' | 'research' | 'logic' | 'records'>('chat');
+    const [activeTab, setActiveTab] = useState<'vault' | 'chat' | 'research' | 'logic' | 'records'>('vault');
     
     // Member Data
-    const member = INITIAL_MEMBERS.find(m => m.id === activeMemberId);
     const healthData = INITIAL_HEALTH_DATA; 
     const fitnessData = INITIAL_MEMBER_FITNESS_DATA[activeMemberId] || { metrics: [], logs: [] };
+
+    // --- BIOMARKER VAULT STATE ---
+    const [biomarkers, setBiomarkers] = useState<Biomarker[]>([
+        { name: 'Testosterone (Total)', value: 650, unit: 'ng/dL', range: [300, 1000], category: 'Hormone', lastUpdated: '2024-07-15' },
+        { name: 'Cortisol', value: 22, unit: 'ug/dL', range: [5, 20], category: 'Hormone', lastUpdated: '2024-07-15' }, // Deliberately High for Demo
+        { name: 'Vitamin D3', value: 25, unit: 'ng/mL', range: [30, 100], category: 'Vitamin', lastUpdated: '2024-07-15' }, // Deliberately Low
+        { name: 'Vitamin B12', value: 400, unit: 'pg/mL', range: [200, 900], category: 'Vitamin', lastUpdated: '2024-07-15' },
+    ]);
+    const [isScanningVault, setIsScanningVault] = useState(false);
 
     // Chat State (ChatGPT Style)
     const [chatHistory, setChatHistory] = useState<{ role: 'user' | 'model'; text: string }[]>([
@@ -112,10 +140,10 @@ const HealthIntelligence: React.FC = () => {
         try {
             // Use Complex Response (Gemini 3 Pro) for reasoning
             const response = await getComplexResponse(`
-                You are a sophisticated biomechanics and physiology reasoning engine (behaving like DeepSeek R1).
+                You are DeepSeek R1, a sophisticated biomechanics and physiology reasoning engine.
                 Solve this complex health problem: "${logicQuery}".
                 
-                Think step-by-step. Break down the variables. Provide a reasoned conclusion.
+                Think step-by-step using Chain-of-Thought reasoning. Break down the variables. Provide a reasoned conclusion.
             `);
             setLogicResult(response);
         } catch(e) {
@@ -145,6 +173,58 @@ const HealthIntelligence: React.FC = () => {
         }
     };
 
+    // --- BIOMARKER VAULT LOGIC ---
+    const updateBiomarkersFromScan = () => {
+        setIsScanningVault(true);
+        // Simulate Scan Delay
+        setTimeout(() => {
+            // Randomize slightly for demo
+            setBiomarkers(prev => prev.map(b => ({
+                ...b,
+                value: b.name === 'Cortisol' ? 22 : b.value, // Force High Cortisol for demo
+                lastUpdated: new Date().toISOString().split('T')[0]
+            })));
+            setIsScanningVault(false);
+        }, 1500);
+    };
+
+    const getStatusColor = (val: number, range: [number, number], name: string) => {
+        // Special case for Cortisol (Lower is better generally, but not too low)
+        if (name === 'Cortisol') {
+            if (val > range[1]) return 'text-red-500'; // High Stress
+            return 'text-green-400';
+        }
+        if (val < range[0]) return 'text-amber-500'; // Low
+        if (val > range[1]) return 'text-amber-500'; // High
+        return 'text-green-400'; // Optimal
+    };
+
+    const getRecommendation = () => {
+        const cortisol = biomarkers.find(b => b.name === 'Cortisol');
+        const vitD = biomarkers.find(b => b.name === 'Vitamin D3');
+        const recs = [];
+
+        if (cortisol && cortisol.value > cortisol.range[1]) {
+            recs.push({
+                type: 'Load', 
+                title: 'Predictive Loading Alert', 
+                desc: `Cortisol (${cortisol.value}) is elevated. Switching to "De-load Week" to prevent burnout.`,
+                action: 'Reduce Volume 40%',
+                urgent: true
+            });
+        }
+        if (vitD && vitD.value < vitD.range[0]) {
+            recs.push({
+                type: 'Supp', 
+                title: 'Supplement Optimization', 
+                desc: `Vitamin D3 (${vitD.value}) is suboptimal.`,
+                action: 'Add 5000IU D3 + K2',
+                urgent: false
+            });
+        }
+        return recs;
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-teal-900/20 p-6 rounded-xl border border-teal-500/30">
@@ -155,7 +235,7 @@ const HealthIntelligence: React.FC = () => {
                     </h1>
                     <p className="text-teal-200/70 mt-1 flex items-center text-sm">
                         <LockIcon className="w-3 h-3 mr-1" />
-                        Secure Multi-Model AI Engine (Gemini 3 + Reasoning + Vision)
+                        Secure Multi-Model AI Engine (Gemini, DeepSeek, Perplexity)
                     </p>
                 </div>
             </div>
@@ -164,24 +244,31 @@ const HealthIntelligence: React.FC = () => {
                 {/* Navigation Sidebar */}
                 <div className="lg:col-span-1 space-y-2">
                     <button 
+                        onClick={() => setActiveTab('vault')}
+                        className={`w-full p-4 rounded-xl flex items-center justify-between transition-all ${activeTab === 'vault' ? 'bg-red-600 text-white shadow-lg shadow-red-900/50 border border-red-400' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                    >
+                        <span className="flex items-center"><ShieldCheckIcon className="w-5 h-5 mr-3"/> Biomarker Vault</span>
+                    </button>
+
+                    <button 
                         onClick={() => setActiveTab('chat')}
                         className={`w-full p-4 rounded-xl flex items-center justify-between transition-all ${activeTab === 'chat' ? 'bg-teal-600 text-white shadow-lg shadow-teal-900/50' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
                     >
-                        <span className="flex items-center"><ChatIcon className="w-5 h-5 mr-3"/> Personal Assistant</span>
+                        <span className="flex items-center"><ChatIcon className="w-5 h-5 mr-3"/> Assistant (Gemini)</span>
                     </button>
                     
                     <button 
                         onClick={() => setActiveTab('research')}
                         className={`w-full p-4 rounded-xl flex items-center justify-between transition-all ${activeTab === 'research' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
                     >
-                        <span className="flex items-center"><SearchIcon /> <span className="ml-3">Deep Research</span></span>
+                        <span className="flex items-center"><SearchIcon /> <span className="ml-3">Perplexity Research</span></span>
                     </button>
 
                     <button 
                         onClick={() => setActiveTab('logic')}
                         className={`w-full p-4 rounded-xl flex items-center justify-between transition-all ${activeTab === 'logic' ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/50' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
                     >
-                        <span className="flex items-center"><BrainIcon /> <span className="ml-3">Logic Engine</span></span>
+                        <span className="flex items-center"><BrainIcon /> <span className="ml-3">DeepSeek Logic</span></span>
                     </button>
 
                     <button 
@@ -190,30 +277,93 @@ const HealthIntelligence: React.FC = () => {
                     >
                         <span className="flex items-center"><DocumentIcon /> <span className="ml-3">Lab Analyzer</span></span>
                     </button>
-
-                    <Card className="mt-6 bg-gray-900/50 border-teal-500/20">
-                        <div className="space-y-3 text-sm">
-                            <p className="text-xs font-bold text-teal-400 uppercase tracking-wider">Secure Context</p>
-                            <div className="flex justify-between items-center py-1 border-b border-gray-700">
-                                <span className="text-gray-400">Heart Rate</span>
-                                <span className="font-bold text-white">{healthData.heartRate.avg} bpm</span>
-                            </div>
-                            <div className="flex justify-between items-center py-1 border-b border-gray-700">
-                                <span className="text-gray-400">Sleep</span>
-                                <span className="font-bold text-white">{healthData.sleep.totalHours} hrs</span>
-                            </div>
-                            <div className="flex justify-between items-center py-1">
-                                <span className="text-gray-400">Latest Wgt</span>
-                                <span className="font-bold text-white">{fitnessData.metrics.slice(-1)[0]?.weight || 'N/A'} kg</span>
-                            </div>
-                        </div>
-                    </Card>
                 </div>
 
                 {/* Main Content Area */}
                 <div className="lg:col-span-3">
                     
-                    {/* MODE 1: CHAT ASSISTANT (ChatGPT Health Style) */}
+                    {/* MODE 0: BIOMARKER VAULT */}
+                    {activeTab === 'vault' && (
+                        <div className="space-y-6 animate-fade-in">
+                            {/* Actionable Insights */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {getRecommendation().map((rec, idx) => (
+                                    <Card key={idx} className={`border-l-4 ${rec.urgent ? 'border-red-500 bg-red-900/20' : 'border-blue-500 bg-blue-900/20'}`}>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h4 className={`text-sm font-bold uppercase tracking-wider ${rec.urgent ? 'text-red-400' : 'text-blue-400'}`}>{rec.title}</h4>
+                                                <p className="text-white font-medium mt-1">{rec.desc}</p>
+                                            </div>
+                                            <div className={`p-2 rounded-lg ${rec.urgent ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'}`}>
+                                                <span className="text-xs font-black">{rec.action}</span>
+                                            </div>
+                                        </div>
+                                    </Card>
+                                ))}
+                            </div>
+
+                            {/* Biomarker Grid */}
+                            <Card title="Internal Blood Chemistry">
+                                <div className="flex justify-between items-center mb-6">
+                                    <p className="text-sm text-gray-400">Synced from recent Lab Corp report.</p>
+                                    <button 
+                                        onClick={updateBiomarkersFromScan}
+                                        className="text-xs flex items-center bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded transition-colors text-white"
+                                    >
+                                        {isScanningVault ? <AutoUpdateIcon className="w-3 h-3 mr-1 animate-spin"/> : <UploadIcon className="w-3 h-3 mr-1"/>}
+                                        {isScanningVault ? 'Analyzing Report...' : 'Scan New Report'}
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {biomarkers.map((b, i) => {
+                                        // Calculate percentage for bar position
+                                        // Normalize value within range padded by 20%
+                                        const min = b.range[0] * 0.8;
+                                        const max = b.range[1] * 1.2;
+                                        const percent = Math.min(100, Math.max(0, ((b.value - min) / (max - min)) * 100));
+                                        const color = getStatusColor(b.value, b.range, b.name);
+
+                                        return (
+                                            <div key={i} className="bg-gray-800 p-4 rounded-xl border border-gray-700">
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <DnaIcon />
+                                                        <span className="font-bold text-white text-sm">{b.name}</span>
+                                                    </div>
+                                                    <span className={`text-lg font-black ${color}`}>{b.value} <span className="text-xs font-normal text-gray-500">{b.unit}</span></span>
+                                                </div>
+                                                
+                                                {/* Range Bar */}
+                                                <div className="relative h-2 bg-gray-700 rounded-full mt-2 overflow-hidden">
+                                                    {/* Optimal Zone Marker (Green area) */}
+                                                    <div 
+                                                        className="absolute top-0 bottom-0 bg-green-900/50"
+                                                        style={{
+                                                            left: `${((b.range[0] - min) / (max - min)) * 100}%`,
+                                                            width: `${((b.range[1] - b.range[0]) / (max - min)) * 100}%`
+                                                        }}
+                                                    ></div>
+                                                    {/* Value Marker */}
+                                                    <div 
+                                                        className={`absolute top-0 bottom-0 w-2 rounded-full ${color.replace('text-', 'bg-')} shadow-[0_0_10px_currentColor]`}
+                                                        style={{ left: `${percent}%` }}
+                                                    ></div>
+                                                </div>
+                                                <div className="flex justify-between text-[10px] text-gray-500 mt-1 font-mono">
+                                                    <span>{b.range[0]}</span>
+                                                    <span className="text-green-500/50">OPTIMAL ZONE</span>
+                                                    <span>{b.range[1]}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </Card>
+                        </div>
+                    )}
+
+                    {/* MODE 1: CHAT ASSISTANT */}
                     {activeTab === 'chat' && (
                         <Card className="h-[600px] flex flex-col border-teal-500/30">
                             <div className="flex-1 overflow-y-auto space-y-4 pr-2 mb-4">
@@ -228,7 +378,7 @@ const HealthIntelligence: React.FC = () => {
                                     <div className="flex justify-start">
                                         <div className="bg-gray-700 p-4 rounded-xl rounded-bl-none flex items-center gap-2">
                                             <SparkleIcon className="w-4 h-4 text-teal-400 animate-spin" />
-                                            <span className="text-xs text-gray-400">Processing health context...</span>
+                                            <span className="text-xs text-gray-400">Gemini is thinking...</span>
                                         </div>
                                     </div>
                                 )}
@@ -250,11 +400,11 @@ const HealthIntelligence: React.FC = () => {
                         </Card>
                     )}
 
-                    {/* MODE 2: DEEP RESEARCH (Perplexity Style) */}
+                    {/* MODE 2: DEEP RESEARCH (Perplexity) */}
                     {activeTab === 'research' && (
                         <Card className="h-[600px] flex flex-col border-blue-500/30">
                             <div className="text-center mb-8">
-                                <h2 className="text-2xl font-bold text-blue-400">Deep Research</h2>
+                                <h2 className="text-2xl font-bold text-blue-400">Perplexity Research Engine</h2>
                                 <p className="text-gray-400 text-sm">Grounded in real-time medical journals and fitness studies.</p>
                             </div>
                             
@@ -298,23 +448,16 @@ const HealthIntelligence: React.FC = () => {
                                         <p className="mt-2">Enter a query to search grounded medical knowledge.</p>
                                     </div>
                                 )}
-                                {isSearching && (
-                                    <div className="space-y-4">
-                                        <div className="h-4 bg-gray-700 rounded w-3/4 animate-pulse"></div>
-                                        <div className="h-4 bg-gray-700 rounded w-full animate-pulse"></div>
-                                        <div className="h-4 bg-gray-700 rounded w-5/6 animate-pulse"></div>
-                                    </div>
-                                )}
                             </div>
                         </Card>
                     )}
 
-                    {/* MODE 3: LOGIC ENGINE (DeepSeek/Grok Style) */}
+                    {/* MODE 3: LOGIC ENGINE (DeepSeek) */}
                     {activeTab === 'logic' && (
                         <Card className="h-[600px] flex flex-col border-purple-500/30">
                             <div className="text-center mb-8">
-                                <h2 className="text-2xl font-bold text-purple-400">Logic & Reasoning Engine</h2>
-                                <p className="text-gray-400 text-sm">Complex problem solving for biomechanics and periodization.</p>
+                                <h2 className="text-2xl font-bold text-purple-400">DeepSeek R1 Logic Engine</h2>
+                                <p className="text-gray-400 text-sm">Complex problem solving using Chain-of-Thought reasoning.</p>
                             </div>
 
                             <textarea 
@@ -331,6 +474,7 @@ const HealthIntelligence: React.FC = () => {
                             <div className="flex-1 overflow-y-auto pr-2 bg-gray-900/50 rounded-xl p-4 border border-gray-700">
                                 {isReasoning && (
                                     <div className="text-purple-400 animate-pulse text-sm font-mono">
+                                        &gt; DeepSeek R1 Thinking...<br/>
                                         &gt; Analyzing biomechanical variables...<br/>
                                         &gt; Checking leverage factors...<br/>
                                         &gt; Formulating corrective strategy...
@@ -347,10 +491,10 @@ const HealthIntelligence: React.FC = () => {
 
                     {/* MODE 4: MEDICAL RECORDS */}
                     {activeTab === 'records' && (
-                        <Card title="Medical Record Analyzer" className="border-amber-500/30">
+                        <Card title="Medical Record Analyzer (Vision)" className="border-amber-500/30">
                             <p className="text-gray-400 mb-6">
                                 Upload a photo of your blood test results, clinical notes, or prescription. 
-                                Our AI will digitize the data, identify key biomarkers, and explain them in plain English relative to your fitness goals.
+                                Our AI will digitize the data, identify key biomarkers, and explain them in plain English.
                             </p>
                             
                             {!analysisResult && !isAnalyzing && (

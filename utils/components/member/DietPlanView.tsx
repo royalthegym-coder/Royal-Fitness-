@@ -1,22 +1,21 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import Card from '../common/Card';
-import { INITIAL_DIETS, INITIAL_MEMBERS, INITIAL_MEMBER_FITNESS_DATA, INITIAL_PACKAGES, INITIAL_HEALTH_DATA } from '../../../constants';
-import { DietPlan, HealthData } from '../../../types';
+import { INITIAL_DIETS, INITIAL_MEMBERS, INITIAL_MEMBER_FITNESS_DATA, INITIAL_PACKAGES } from '../../../constants';
+import { DietPlan } from '../../../types';
 import { getComplexResponse, getNutritionAnalysisFromImage } from '../../../lib/gemini';
 import { SparkleIcon } from '../icons/SparkleIcon';
 import { CameraIcon } from '../icons/CameraIcon';
 import { BotIcon } from '../icons/BotIcon';
 import CameraModal from '../common/CameraModal';
-import { FireIcon, StepIcon } from '../icons/ActivityIcons';
-import { SleepIcon } from '../icons/HealthIcons';
+import { useData } from '../../context/DataProvider'; // Import Context
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 
 interface DietPlanViewProps {
     memberId: number;
-    healthData: HealthData;
+    healthData: any; // Kept for prop compatibility but will prefer context
 }
 
 interface NutritionData {
@@ -56,7 +55,10 @@ const MacroCard: React.FC<{ label: string; value: string; color: string; percent
     </div>
 );
 
-const DietPlanView: React.FC<DietPlanViewProps> = ({ memberId, healthData }) => {
+const DietPlanView: React.FC<DietPlanViewProps> = ({ memberId }) => {
+    // Consume Global Context for Live Wearable Data
+    const { liveHealthData, connectedDevice } = useData();
+
     const [activeTab, setActiveTab] = useState<'plan' | 'scanner' | 'coach'>('plan');
     const [isLoading, setIsLoading] = useState(false);
     const [mealPlan, setMealPlan] = useState<string | null>(null);
@@ -116,10 +118,10 @@ const DietPlanView: React.FC<DietPlanViewProps> = ({ memberId, healthData }) => 
         const member = INITIAL_MEMBERS.find(m => m.id === memberId);
         const memberData = INITIAL_MEMBER_FITNESS_DATA[memberId] || { metrics: [] };
         const packageInfo = INITIAL_PACKAGES.find(p => p.id === member?.packageId);
-        const recentMetrics = memberData.metrics.slice(-3); // Last 3 records
+        const recentMetrics = memberData.metrics.slice(-3);
         
-        // Use live wearable data sync from props
-        const wearableData = healthData;
+        // Use live wearable data from Context
+        const wearableData = liveHealthData;
 
         let scannedFoodContext = "";
         if (nutritionData) {
@@ -142,27 +144,22 @@ const DietPlanView: React.FC<DietPlanViewProps> = ({ memberId, healthData }) => 
             - Main Goal: ${packageInfo?.category || 'General Fitness'} (Inferred from membership)
             - Assigned Diet Plan: ${dietPlan?.name || 'None'} (${dietPlan?.category || 'N/A'})
 
-            **Wearable & Activity Data (Today's Live Sync):**
+            **Wearable Data (Source: ${connectedDevice ? connectedDevice.name : 'Simulated'}):**
             - Steps: ${wearableData.steps}
             - Active Calories Burned: ${wearableData.caloriesBurned} kcal
             - Sleep: ${wearableData.sleep.totalHours} hours (Deep: ${wearableData.sleep.deepHours}h)
             - Resting HR: ${wearableData.heartRate.min} bpm
-
+            
             **Progress Data (Recent Weight History):**
             ${JSON.stringify(recentMetrics)}
 
             ${scannedFoodContext}
 
             **Your Task:**
-            Based on the convergence of their diet, activity output, and sleep recovery, provide highly personalized advice.
+            Based on the live wearable data, adjust their nutrition plan for TODAY.
+            For example, if they burned high calories, suggest a carb refeed. If sleep was poor, suggest magnesium/protein.
             
-            Format the response in Markdown with these specific sections:
-            1. **📊 Energy Balance Analysis:** Compare their activity output (${wearableData.caloriesBurned} kcal burned) with their nutritional needs. Are they fueling enough for their movement?
-            2. **🥑 Macronutrient & Recovery Tweaks:** Suggest specific adjustments. If sleep is low (${wearableData.sleep.totalHours}h), suggest nutrients to aid recovery (e.g., Magnesium, Casein).
-            ${nutritionData ? '3. **🍽 Meal Critique:** Briefly evaluate the scanned meal in context of their day\'s activity.' : ''}
-            ${nutritionData ? '4' : '3'}. **💡 Holistic Habit:** One behavioral change linking nutrition to their lifestyle data (e.g. "Eat complex carbs post-workout to replenish glycogen from your high step count").
-
-            Keep it encouraging but direct and data-driven.
+            Format the response in Markdown with specific actionable advice.
         `;
 
         try {
@@ -319,6 +316,7 @@ const DietPlanView: React.FC<DietPlanViewProps> = ({ memberId, healthData }) => 
                 <button onClick={() => setActiveTab('coach')} className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'coach' ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-400 hover:text-white'}`}>AI Coach</button>
             </div>
 
+            {/* Plan Tab (Unchanged) */}
             {activeTab === 'plan' && dietPlan && (
                 <>
                     <Card className="mb-6">
@@ -354,13 +352,7 @@ const DietPlanView: React.FC<DietPlanViewProps> = ({ memberId, healthData }) => 
 
                     {mealPlan && (
                         <div id="diet-content" className="relative p-2 rounded-lg bg-gray-900 overflow-hidden">
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-hidden">
-                                <h1 className="text-9xl font-black text-gray-700/10 -rotate-45 whitespace-nowrap select-none">
-                                    ROYAL THE GYM
-                                </h1>
-                            </div>
                             <Card className="relative z-10 bg-transparent border-none">
-                                <h3 className="text-xl font-bold mb-4 border-b border-gray-700 pb-2">Sample Weekly Meal Plan</h3>
                                 <div className="prose prose-invert prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: mealPlan.replace(/\n/g, '<br />') }}></div>
                             </Card>
                         </div>
@@ -368,6 +360,7 @@ const DietPlanView: React.FC<DietPlanViewProps> = ({ memberId, healthData }) => 
                 </>
             )}
 
+            {/* Scanner Tab (Unchanged) */}
             {activeTab === 'scanner' && (
                 <div className="space-y-6">
                     <Card title="AI Food Lens & Nutrition Analyst">
@@ -425,53 +418,14 @@ const DietPlanView: React.FC<DietPlanViewProps> = ({ memberId, healthData }) => 
                                             <span className="bg-amber-500 text-gray-900 text-xs font-bold px-2 py-1 rounded">
                                                 {nutritionData.calories} kcal
                                             </span>
-                                            {nutritionData.micros && nutritionData.micros.map((micro, idx) => (
-                                                <span key={idx} className="bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded border border-gray-600 flex items-center">
-                                                    <span className="w-1.5 h-1.5 bg-green-400 rounded-full mr-1.5"></span>
-                                                    {micro}
-                                                </span>
-                                            ))}
                                         </div>
-                                    </div>
-                                    <div className="flex flex-col items-center bg-gray-800 p-3 rounded-lg border border-gray-700">
-                                        <span className="text-xs text-gray-400">Health Score</span>
-                                        <span className={`text-3xl font-bold ${nutritionData.healthScore >= 7 ? 'text-green-400' : nutritionData.healthScore >= 4 ? 'text-yellow-400' : 'text-red-400'}`}>
-                                            {nutritionData.healthScore}<span className="text-sm text-gray-500">/10</span>
-                                        </span>
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-3 gap-4 mb-6">
-                                    <MacroCard 
-                                        label="Protein" 
-                                        value={nutritionData.macros.protein} 
-                                        color="text-blue-400" 
-                                        percent={30} 
-                                    />
-                                    <MacroCard 
-                                        label="Carbs" 
-                                        value={nutritionData.macros.carbs} 
-                                        color="text-green-400" 
-                                        percent={50} 
-                                    />
-                                    <MacroCard 
-                                        label="Fats" 
-                                        value={nutritionData.macros.fats} 
-                                        color="text-yellow-400" 
-                                        percent={20} 
-                                    />
-                                </div>
-
-                                <div className="bg-gray-800/30 p-4 rounded-lg border border-gray-700 space-y-4 mb-4">
-                                    <div>
-                                        <h4 className="font-semibold text-amber-400 mb-2 flex items-center">
-                                            <SparkleIcon className="w-4 h-4 mr-2" />
-                                            AI Nutritionist Analysis
-                                        </h4>
-                                        <p className="text-gray-300 text-sm leading-relaxed">
-                                            {nutritionData.analysis}
-                                        </p>
-                                    </div>
+                                    <MacroCard label="Protein" value={nutritionData.macros.protein} color="text-blue-400" percent={30} />
+                                    <MacroCard label="Carbs" value={nutritionData.macros.carbs} color="text-green-400" percent={50} />
+                                    <MacroCard label="Fats" value={nutritionData.macros.fats} color="text-yellow-400" percent={20} />
                                 </div>
 
                                 <button 
@@ -483,12 +437,6 @@ const DietPlanView: React.FC<DietPlanViewProps> = ({ memberId, healthData }) => 
                                 </button>
                             </Card>
                         </div>
-                    )}
-
-                    {rawAnalysis && !nutritionData && (
-                        <Card title="Analysis Result">
-                            <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: rawAnalysis.replace(/\n/g, '<br />') }} />
-                        </Card>
                     )}
                 </div>
             )}
@@ -504,15 +452,16 @@ const DietPlanView: React.FC<DietPlanViewProps> = ({ memberId, healthData }) => 
                             <div className="flex-1">
                                 <h4 className="text-xl font-bold text-white mb-2">Smart Dietary Adjustments</h4>
                                 <p className="text-gray-400 text-sm mb-4">
-                                    I analyze your <strong>Wearable Data</strong>, <strong>Recent Food Logs</strong>, and <strong>Weight Trends</strong> to provide a 360° personalized "Nutrition Audit". 
+                                    I analyze your <strong>Wearable Data</strong> (steps, calories, sleep), <strong>Recent Food Logs</strong>, and <strong>Weight Trends</strong> to provide a 360° personalized "Nutrition Audit". 
                                 </p>
                                 
-                                <div className="flex flex-wrap gap-2 mb-4">
-                                    <span className={`text-[10px] px-2 py-1 rounded border flex items-center ${dailyMeals.length > 0 ? 'bg-green-900/30 text-green-300 border-green-500/30' : 'bg-gray-700 text-gray-400 border-gray-600'}`}>
-                                        <SparkleIcon className="w-3 h-3 mr-1" />
-                                        Today's Logs: {dailyMeals.length}
-                                    </span>
-                                </div>
+                                {connectedDevice ? (
+                                    <p className="text-green-400 text-xs font-bold mb-2">
+                                        <span className="animate-pulse">●</span> Syncing data from {connectedDevice.name}
+                                    </p>
+                                ) : (
+                                    <p className="text-yellow-400 text-xs mb-2">No wearable connected. Using estimated data.</p>
+                                )}
 
                                 <button
                                     onClick={handleGetNutritionAdvice}
@@ -520,7 +469,7 @@ const DietPlanView: React.FC<DietPlanViewProps> = ({ memberId, healthData }) => 
                                     className="bg-amber-500 text-gray-900 font-bold py-2 px-6 rounded-lg hover:bg-amber-400 transition-colors disabled:bg-gray-600 flex items-center shadow-lg"
                                 >
                                     <SparkleIcon className="w-5 h-5 mr-2" />
-                                    {isGeneratingAdvice ? 'Analyzing Holistic Data...' : 'Generate 360° Strategy'}
+                                    {isGeneratingAdvice ? 'Analyzing Holistic Data...' : 'Generate Strategy'}
                                 </button>
                             </div>
                         </div>

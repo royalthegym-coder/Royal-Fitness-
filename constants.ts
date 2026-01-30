@@ -3,12 +3,13 @@ import { Package, Member, Invoice, Staff, Expense, DietPlan, Lead, GoogleReview,
 
 export const GYM_INFO = {
   name: 'Royal The Gym',
-  logo: 'https://i.ibb.co/6800735/Royal-The-Gym.png',
+  // Updated to a transparent Royal Lion Crest logo. 
+  logo: 'https://cdn-icons-png.flaticon.com/512/12308/12308633.png', 
   contact: '+91 9785300123',
   email: 'royalthegym@gmail.com',
   address: '2nd floor, Vishwakarma Complex, Gandhi Chowk, Khemi Sati Road, Jhunjhunu, Rajasthan- 333001',
   website: 'https://royal-the-gym.grexa.site',
-  // EXACT COORDINATES FOR GEOFENCING
+  // EXACT COORDINATES FOR GEOFENCING (10m accuracy depends on these)
   coordinates: {
     latitude: 28.1289, 
     longitude: 75.3995
@@ -124,15 +125,15 @@ export const INITIAL_PACKAGES: Package[] = [
 ];
 
 export const INITIAL_MEMBERS: Member[] = [
-  { id: 1, name: 'Aarav Sharma', email: 'aarav.s@example.com', phone: '9876543210', joinDate: '2023-05-15', packageId: 3, trainerId: 2, status: 'Active', avatar: 'https://picsum.photos/seed/aarav/200', whatsappConsent: true },
-  { id: 2, name: 'Priya Patel', email: 'priya.p@example.com', phone: '9876543211', joinDate: '2023-06-01', packageId: 2, status: 'Active', avatar: 'https://picsum.photos/seed/priya/200', whatsappConsent: true },
-  { id: 3, name: 'Rohan Kumar', email: 'rohan.k@example.com', phone: '9876543212', joinDate: '2022-12-20', packageId: 1, status: 'Expired', avatar: 'https://picsum.photos/seed/rohan/200', whatsappConsent: true },
-  { id: 4, name: 'Anika Singh', email: 'anika.s@example.com', phone: '9876543213', joinDate: '2024-07-05', packageId: 6, trainerId: 3, status: 'Active', avatar: 'https://picsum.photos/seed/anika/200', whatsappConsent: true },
-  { id: 5, name: 'Vikram Mehta', email: 'vikram.m@example.com', phone: '9876543214', joinDate: '2023-02-11', packageId: 5, status: 'Inactive', avatar: 'https://picsum.photos/seed/vikram/200', whatsappConsent: false },
+  { id: 1, name: 'Aarav Sharma', email: 'aarav.s@example.com', phone: '9876543210', joinDate: '2023-05-15', packageId: 3, trainerId: 2, status: 'Active', avatar: 'https://picsum.photos/seed/aarav/200', whatsappConsent: true, lastWorkoutDate: '2024-08-01' },
+  { id: 2, name: 'Priya Patel', email: 'priya.p@example.com', phone: '9876543211', joinDate: '2023-06-01', packageId: 2, status: 'Active', avatar: 'https://picsum.photos/seed/priya/200', whatsappConsent: true, lastWorkoutDate: '2024-08-04' },
+  { id: 3, name: 'Rohan Kumar', email: 'rohan.k@example.com', phone: '9876543212', joinDate: '2022-12-20', packageId: 1, status: 'Expired', avatar: 'https://picsum.photos/seed/rohan/200', whatsappConsent: true, lastWorkoutDate: '2024-07-20' },
+  { id: 4, name: 'Anika Singh', email: 'anika.s@example.com', phone: '9876543213', joinDate: '2024-07-05', packageId: 6, trainerId: 3, status: 'Active', avatar: 'https://picsum.photos/seed/anika/200', whatsappConsent: true, lastWorkoutDate: '2024-08-05' },
+  { id: 5, name: 'Vikram Mehta', email: 'vikram.m@example.com', phone: '9876543214', joinDate: '2023-02-11', packageId: 5, status: 'Inactive', avatar: 'https://picsum.photos/seed/vikram/200', whatsappConsent: false, lastWorkoutDate: '2024-06-15' },
 ];
 
 export const INITIAL_INVOICES: Invoice[] = [
-  { id: 1, memberId: 1, memberName: 'Aarav Sharma', packageId: 3, packageName: 'Standard Gym Package', amount: 3000, date: '2024-07-01', status: 'Paid' },
+  { id: 1, memberId: 1, memberName: 'Aarav Sharma', packageId: 3, packageName: 'Standard Gym Package', amount: 3000, date: '2024-07-01', status: 'Pending' }, // Changed to Pending for Demo
   { id: 2, memberId: 2, memberName: 'Priya Patel', packageId: 2, packageName: 'Basic Gym Membership', amount: 1500, date: '2024-07-05', status: 'Paid' },
   { id: 3, memberId: 4, memberName: 'Anika Singh', packageId: 6, packageName: 'Basic Cardio Membership', amount: 2000, date: '2024-07-10', status: 'Pending' },
   { id: 4, memberId: 3, memberName: 'Rohan Kumar', packageId: 1, packageName: 'Temporary Membership', amount: 1200, date: '2024-01-20', status: 'Overdue' },
@@ -310,15 +311,15 @@ export const INITIAL_DIETS: DietPlan[] = [
 ];
 
 export const INITIAL_MEMBER_FITNESS_DATA: MemberFitnessData = {
-    1: { // Aarav Sharma
+    1: { // Aarav Sharma (Data updated for Neural Motivation Engine Demo)
         logs: [
             { 
-                date: '2024-07-01', 
-                templateName: 'Push Day', 
+                date: '2024-07-28', 
+                templateName: 'Leg Day', 
                 completedExercises: INITIAL_WORKOUT_TEMPLATES[0].sections![1].exercises,
                 performance: [
-                    { exercise: 'Bench Press', sets: [{ reps: 10, weight: 60 }, { reps: 8, weight: 65 }, { reps: 6, weight: 70 }] },
-                    { exercise: 'Squats', sets: [{ reps: 10, weight: 80 }, { reps: 8, weight: 85 }, { reps: 8, weight: 85 }] },
+                    { exercise: 'Barbell Squats', sets: [{ reps: 5, weight: 100 }, { reps: 5, weight: 100 }, { reps: 5, weight: 100 }] },
+                    { exercise: 'Leg Press', sets: [{ reps: 10, weight: 150 }, { reps: 10, weight: 160 }] },
                 ]
             }
         ],
