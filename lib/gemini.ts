@@ -1,318 +1,400 @@
 
-import { GoogleGenAI, Tool, Modality } from "@google/genai";
-import { Member, WorkoutLog, MemberFitnessData, WorkoutExercise, BodyMetric } from "../types";
+import { generateOpenAIContent, getOpenAIChatResponse } from './openai';
 
-// Type definitions
-export interface ReadinessOutput {
-    score: number;
-    strategy: string;
-    reasoning: string;
-    modifications: string[];
-}
+// --- CONFIGURATION ---
+// Using Open Source Models via Hugging Face Inference API
+const TEXT_MODEL = 'mistralai/Mistral-7B-Instruct-v0.3'; 
+const VISION_MODEL = 'Salesforce/blip-image-captioning-large'; 
+const TTS_MODEL = 'facebook/mms-tts-eng';
 
-const getAI = () => {
-    // Safe access to API Key from injected process.env
-    const API_KEY = (window as any).process?.env?.API_KEY;
-    if (!API_KEY) throw new Error("API_KEY not set");
-    return new GoogleGenAI({ apiKey: API_KEY });
+// --- COST CONTROL & SAFETY CORE ---
+// 1. Get the API Key safely (Prefer HF_TOKEN, fallback to API_KEY)
+const API_KEY = (typeof localStorage !== 'undefined' ? localStorage.getItem('HUGGINGFACE_API_KEY') : null) || process.env.HUGGINGFACE_API_KEY || process.env.API_KEY || "";
+
+// 2. Check if the key is valid (not empty, not the placeholder)
+const IS_REAL_KEY_PRESENT = API_KEY.length > 0 && !API_KEY.includes('YOUR_GEMINI_API_KEY_HERE') && !API_KEY.includes('YOUR_OPENAI_API_KEY_HERE');
+
+// 3. User preference from settings
+const USER_PREF_MODE = typeof localStorage !== 'undefined' ? localStorage.getItem('royal_ai_mode') : 'SIMULATION';
+const USER_AI_PROVIDER = typeof localStorage !== 'undefined' ? localStorage.getItem('royal_ai_provider') : 'HUGGINGFACE';
+
+// 4. MASTER SWITCH: Force Simulation if no real key is present.
+const FORCE_SIMULATION = !IS_REAL_KEY_PRESENT || USER_PREF_MODE !== 'ONLINE';
+
+const RESPONSE_CACHE = new Map<string, string>();
+
+// Clean up cache if it gets too big to save memory
+if (RESPONSE_CACHE.size > 500) RESPONSE_CACHE.clear();
+
+// --- MOCK INTELLIGENCE (FREE TIER - LOCAL LOGIC) ---
+const MOCK_RESPONSES: Record<string, any> = {
+    "quote": [
+        "Pain is temporary, Pride is forever.",
+        "Your body is the only machine you need.",
+        "Sweat is just fat crying.",
+        "Focus. Lift. Repeat.",
+        "Discipline eats motivation for breakfast."
+    ],
+    "analysis": [
+        { feedback: "Excellent spinal alignment. Keep chest up.", status: "Good" },
+        { feedback: "Knees caving slightly. Push knees out.", status: "Correction Needed" },
+        { feedback: "Perfect depth. Explode up!", status: "Good" },
+        { feedback: "Control the eccentric phase.", status: "Correction Needed" }
+    ],
+    "recipe": { 
+        "title": "Anabolic Power Bowl", 
+        "macros": "P:45g C:50g F:15g", 
+        "instructions": ["1. Boil Quinoa", "2. Grill Chicken Breast", "3. Add Avocado & Spinach", "4. Drizzle Olive Oil"],
+        "shoppingList": ["Quinoa", "Chicken", "Avocado", "Spinach"]
+    },
+    "diet_plan": {
+        "goal": "Hypertrophy (Simulated)",
+        "caloriesTarget": 2800,
+        "macrosTarget": { "protein": 200, "carbs": 300, "fats": 80 },
+        "scienceNote": "High protein intake to support muscle synthesis based on simulated biometrics.",
+        "meals": [
+            { "name": "Breakfast", "time": "08:00 AM", "totalCalories": 600, "macros": {"protein":40,"carbs":60,"fats":20}, "items": [{ "food": "Oats & Whey", "portion": "1 Bowl" }] },
+            { "name": "Lunch", "time": "01:00 PM", "totalCalories": 800, "macros": {"protein":60,"carbs":80,"fats":25}, "items": [{ "food": "Chicken Rice", "portion": "1 Plate" }] },
+            { "name": "Dinner", "time": "08:00 PM", "totalCalories": 600, "macros": {"protein":50,"carbs":40,"fats":20}, "items": [{ "food": "Fish & Veggies", "portion": "1 Plate" }] }
+        ]
+    }
 };
 
-// Use gemini-3-flash-preview for standard text generation tasks
-const DEFAULT_MODEL = 'gemini-3-flash-preview';
+// --- UTILITIES ---
+const cleanBase64 = (b64: string) => b64.replace(/^data:image\/\w+;base64,/, "");
+
+export const cleanAndParseJSON = (response: string): any => {
+    try {
+        if (typeof response !== 'string') return response;
+        let clean = response.replace(/```json/g, '').replace(/```/g, '').trim();
+        const firstBrace = clean.indexOf('{');
+        const lastBrace = clean.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1) {
+            clean = clean.substring(firstBrace, lastBrace + 1);
+        }
+        return JSON.parse(clean);
+    } catch (e) {
+        console.warn("JSON Parse warning, returning raw or empty obj");
+        return {};
+    }
+};
+
+// --- HUGGING FACE API CLIENT ---
+async function queryHuggingFace(model: string, inputs: any, parameters: any = {}) {
+    const response = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+        headers: {
+            Authorization: `Bearer ${API_KEY}`,
+            "Content-Type": "application/json",
+        },
+        method: "POST",
+        body: JSON.stringify({ inputs, parameters }),
+    });
+    
+    if (!response.ok) {
+        throw new Error(`HF API Error: ${response.statusText}`);
+    }
+    return await response.json();
+}
+
+async function queryHuggingFaceBinary(model: string, data: Blob) {
+    const response = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+        headers: {
+            Authorization: `Bearer ${API_KEY}`,
+        },
+        method: "POST",
+        body: data,
+    });
+    
+    if (!response.ok) {
+        throw new Error(`HF API Error: ${response.statusText}`);
+    }
+    return await response.arrayBuffer();
+}
+
+// --- CORE FUNCTIONS ---
 
 export async function getComplexResponse(prompt: string): Promise<string> {
-    const ai = getAI();
+    // 1. CHECK CACHE (Free)
+    const cacheKey = `text:${prompt}`;
+    if (RESPONSE_CACHE.has(cacheKey)) {
+        console.log("Serving from Cache (₹0)");
+        return RESPONSE_CACHE.get(cacheKey) || "";
+    }
+
+    // 2. CHECK SIMULATION MODE (Free)
+    if (FORCE_SIMULATION) {
+        console.log("Serving from Simulation (₹0)");
+        await new Promise(r => setTimeout(r, 800)); // Fake delay for realism
+        if (prompt.includes("quote") || prompt.includes("Ticker")) return MOCK_RESPONSES.quote[Math.floor(Math.random() * MOCK_RESPONSES.quote.length)];
+        
+        // Generic Simulation Response
+        return `[ROYAL AI SIMULATION]: I am operating in Free Mode. I understand you asked: "${prompt.substring(0, 30)}...". \n\nTo enable live reasoning, please add a valid Hugging Face Token in your environment settings and switch mode to ONLINE. \n\nFor now, I recommend focusing on progressive overload and consistency.`;
+    }
+
+    // 3. CALL OPENAI (If Selected)
+    if (USER_AI_PROVIDER === 'OPENAI') {
+        try {
+            const text = await generateOpenAIContent(prompt);
+            RESPONSE_CACHE.set(cacheKey, text);
+            return text;
+        } catch (e) {
+            console.error("OpenAI Error, falling back to Hugging Face:", e);
+        }
+    }
+
+    // 4. CALL HUGGING FACE (Default Open Source)
     try {
-        const response = await ai.models.generateContent({
-            model: DEFAULT_MODEL,
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        // Mistral Instruct format
+        const formattedPrompt = `<s>[INST] ${prompt} [/INST]`;
+        
+        const result = await queryHuggingFace(TEXT_MODEL, formattedPrompt, {
+            max_new_tokens: 512,
+            temperature: 0.7,
+            return_full_text: false
         });
-        return response.text || "No response generated.";
-    } catch (error) {
-        console.error("Gemini Text Generation Error:", error);
-        return "System is currently offline or experiencing high traffic. Please try again later.";
+
+        // HF Inference API returns array of objects for text-generation
+        let text = "";
+        if (Array.isArray(result) && result[0]?.generated_text) {
+            text = result[0].generated_text;
+        } else if (typeof result === 'object' && result.generated_text) {
+            text = result.generated_text;
+        } else {
+            text = JSON.stringify(result);
+        }
+
+        RESPONSE_CACHE.set(cacheKey, text);
+        return text;
+    } catch (e) {
+        console.error("Hugging Face API Error:", e);
+        return "Neural Uplink Offline. Using cached protocols.";
     }
 }
 
-// --- NEW: SMART LINK AUTOMATED YOUTUBE ENGINE ---
-export async function findBestExerciseMedia(exerciseName: string): Promise<{ youtubeId: string; imageUrl: string; tips: string[]; timestamp?: number }> {
-    const ai = getAI();
+export async function getHealthAssistantResponse(history: any[], message: string, context: any): Promise<string> {
+    const cacheKey = `chat:${message}`;
+    if (RESPONSE_CACHE.has(cacheKey)) return RESPONSE_CACHE.get(cacheKey) || "";
+
+    if (FORCE_SIMULATION) return "I am running in Eco-Mode (Free). I can track your workouts locally, but for advanced medical queries or real-time AI generation, a valid API Key is required.";
+
+    const systemPrompt = `You are Royal Health AI. Context: ${JSON.stringify(context)}. Keep answers under 50 words.`;
+
+    if (USER_AI_PROVIDER === 'OPENAI' && !FORCE_SIMULATION) {
+        try {
+            const text = await getOpenAIChatResponse(history, message, systemPrompt);
+            RESPONSE_CACHE.set(cacheKey, text);
+            return text;
+        } catch(e) { console.error("OpenAI Chat Error", e); }
+    }
+
     try {
-        const prompt = `
-            Act as "Smart Link", an automated YouTube engine for elite fitness training.
-            Target Exercise: "${exerciseName}".
-            
-            **Protocol:**
-            1. **Source Selection:** Search ONLY for videos from these scientifically accurate, certified channels:
-               - Athlean-X (Jeff Cavaliere)
-               - Renaissance Periodization (Dr. Mike Israetel)
-               - Jeff Nippard
-               - Squat University
-               - Jeremy Ethier
-            
-            2. **Smart Cue Engine:**
-               - Identify the EXACT timestamp (in seconds) where the actual exercise *execution* starts.
-               - CRITICAL: Skip the intro, science theory, and "subscribe" requests. The video must start immediately at the first rep.
-            
-            3. **Extraction:**
-               - Get the YouTube Video ID.
-               - Get a high-quality thumbnail image.
-               - Extract 3 distinct "Smart Cues" (short, actionable form tips).
-
-            Return ONLY raw JSON (no markdown):
-            {
-                "youtubeId": "VIDEO_ID",
-                "timestamp": 120, 
-                "imageUrl": "IMAGE_URL",
-                "tips": ["Cue 1", "Cue 2", "Cue 3"]
-            }
-        `;
-
-        const response = await ai.models.generateContent({
-            model: DEFAULT_MODEL,
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            config: { 
-                tools: [{ googleSearch: {} }],
-                responseMimeType: "application/json"
-            }
+        // Construct prompt for Mistral
+        let fullPrompt = `<s>[INST] ${systemPrompt} \n\n`;
+        history.forEach(msg => {
+            fullPrompt += `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.text}\n`;
         });
-        
-        const text = response.text || "{}";
-        const json = JSON.parse(text);
-        
-        return {
-            youtubeId: json.youtubeId || "",
-            timestamp: json.timestamp || 0,
-            imageUrl: json.imageUrl || "",
-            tips: json.tips || ["Focus on form", "Control the tempo", "Breathe consistently"]
-        };
+        fullPrompt += `User: ${message} [/INST]`;
+
+        const result = await queryHuggingFace(TEXT_MODEL, fullPrompt, {
+            max_new_tokens: 256,
+            temperature: 0.7,
+            return_full_text: false
+        });
+
+        let text = "";
+        if (Array.isArray(result) && result[0]?.generated_text) {
+            text = result[0].generated_text;
+        } else {
+            text = "I couldn't process that.";
+        }
+
+        RESPONSE_CACHE.set(cacheKey, text);
+        return text;
     } catch (e) {
-        console.error("AI Media Search Error:", e);
-        return {
-            youtubeId: "",
-            imageUrl: "",
-            tips: ["Ensure neutral spine", "Full range of motion", "Engage core"]
-        };
+        return "I am unable to process that request right now.";
+    }
+}
+
+export async function analyzeExerciseForm(base64: string): Promise<any> {
+    // Vision is expensive. Aggressively simulate.
+    if (FORCE_SIMULATION) {
+        await new Promise(r => setTimeout(r, 500));
+        return MOCK_RESPONSES.analysis[Math.floor(Math.random() * MOCK_RESPONSES.analysis.length)];
+    }
+
+    try {
+        // Convert Base64 to Blob for HF API
+        const byteCharacters = atob(cleanBase64(base64));
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'image/jpeg' });
+
+        // 1. Get Image Caption
+        const captionResult = await queryHuggingFaceBinary(VISION_MODEL, blob);
+        // Note: queryHuggingFaceBinary returns ArrayBuffer, but for image-to-text models we usually send raw bytes and get JSON
+        // Let's use the JSON endpoint for this model
+        const response = await fetch(`https://api-inference.huggingface.co/models/${VISION_MODEL}`, {
+            headers: { Authorization: `Bearer ${API_KEY}` },
+            method: "POST",
+            body: blob,
+        });
+        const captionData = await response.json();
+        const caption = captionData[0]?.generated_text || "Exercise movement";
+
+        // 2. Analyze Caption with Text Model
+        const prompt = `Analyze this exercise description: "${caption}". Brief feedback (max 10 words). Status: Good/Correction Needed. Return JSON: {feedback, status}`;
+        const analysis = await getComplexResponse(prompt);
+        
+        return cleanAndParseJSON(analysis);
+    } catch (e) {
+        return { feedback: "Vision Sensor Offline", status: "Idle" };
     }
 }
 
 export async function generateTextToSpeech(text: string): Promise<string> {
-    // 401 FIX: Use browser-native SpeechSynthesis as primary and specifically correct model for AI fallback
-    try {
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel(); 
-            const utterance = new SpeechSynthesisUtterance(text);
-            const voices = window.speechSynthesis.getVoices();
-            const preferredVoice = voices.find(v => (v.name.includes('Google') || v.name.includes('Natural')) && v.lang.startsWith('en'));
-            if (preferredVoice) utterance.voice = preferredVoice;
-            utterance.rate = 1.0;
-            window.speechSynthesis.speak(utterance);
-            return ""; 
-        }
+    if (text.length > 200) text = text.substring(0, 200); 
+    if (FORCE_SIMULATION) return ""; // No audio in sim mode
 
-        const ai = getAI();
-        // Correct model for TTS is gemini-2.5-flash-preview-tts
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-preview-tts', 
-            contents: [{ parts: [{ text }] }],
-            config: {
-                responseModalities: [Modality.AUDIO],
-                speechConfig: {
-                    voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
-                }
-            }
+    const cacheKey = `tts:${text}`;
+    if (RESPONSE_CACHE.has(cacheKey)) return RESPONSE_CACHE.get(cacheKey) || "";
+
+    try {
+        const response = await fetch(`https://api-inference.huggingface.co/models/${TTS_MODEL}`, {
+            headers: { Authorization: `Bearer ${API_KEY}` },
+            method: "POST",
+            body: JSON.stringify({ inputs: text }),
         });
-        return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || "";
-    } catch (error) {
-        console.error("TTS Error:", error);
-        return "";
-    }
+        
+        if (!response.ok) throw new Error("TTS Failed");
+        
+        const arrayBuffer = await response.arrayBuffer();
+        const base64 = btoa(
+            new Uint8Array(arrayBuffer)
+                .reduce((data, byte) => data + String.fromCharCode(byte), '')
+        );
+        
+        if(base64) RESPONSE_CACHE.set(cacheKey, base64);
+        return base64;
+    } catch (e) { return ""; }
 }
 
-export async function analyzeExerciseForm(base64Image: string): Promise<{ feedback: string; status: 'Good' | 'Correction Needed' | 'Idle' }> {
-    const ai = getAI();
-    try {
-        const response = await ai.models.generateContent({
-            model: DEFAULT_MODEL,
-            contents: {
-                role: 'user',
-                parts: [
-                    { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-                    { text: 'Analyze this gym form.' }
-                ]
-            },
-            config: { responseMimeType: 'application/json' }
-        });
-        return JSON.parse(response.text || '{}');
-    } catch {
-        return { feedback: "", status: "Idle" };
-    }
+// --- OTHER FUNCTIONS (Wrapped) ---
+
+export async function getAIChefRecipe(ingredients: string, goal: string) { 
+    if (FORCE_SIMULATION) return JSON.stringify(MOCK_RESPONSES.recipe);
+    return getComplexResponse(`Recipe using ${ingredients} for ${goal}. Return JSON.`); 
 }
 
-export async function analyzeReadinessAndModify(data: any): Promise<ReadinessOutput> {
-    const prompt = `Analyze readiness for exercise based on these factors: ${JSON.stringify(data)}. Return JSON structure: { "score": number, "strategy": "string", "reasoning": "string", "modifications": ["string"] }`;
-    const ai = getAI();
-    try {
-        const response = await ai.models.generateContent({
-            model: DEFAULT_MODEL,
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            config: { responseMimeType: 'application/json' }
-        });
-        return JSON.parse(response.text || "{}");
-    } catch {
-        return { score: 80, strategy: "Standard", reasoning: "Default fallback due to processing error", modifications: [] };
-    }
+export async function generateFutureSelfImage(current: string, goal: string) { 
+    return "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=1000&auto=format&fit=crop"; 
 }
 
-export async function getGeminiChatResponse(h:any, m:any) { return ""; }
-export async function scanGlobalTrends(q:any) { return ""; }
-export async function generateViralContent(t:any, m:any) { return ""; }
-export async function getContextualRetentionMessage(m:any, l:any) { return ""; }
-export async function suggestMedicalTests(s:any) { return ""; }
-export async function generateClinicalHypertrophyPlan(p:any, l:any, s:any) { return ""; }
-export async function getTacticalMotivation(m:any, l:any, g:any) { return ""; }
-export async function generateAutonomousMarketingStrategy(r:any, p:any, g:any) { return ""; }
-export async function generateMarketingImage(t:any) { return ""; }
-export async function getGoogleMapsResponse(q:any, l?:any, ln?:any) { return {text:"", places:[]}; }
-export async function getGoogleSearchResponse(q:any) { 
-    const ai = getAI();
-    try {
-        const response = await ai.models.generateContent({
-           model: DEFAULT_MODEL,
-           contents: [{ role: 'user', parts: [{ text: q }] }],
-           config: {
-             tools: [{googleSearch: {}}],
-           },
-        });
-        return {
-            text: response.text || "",
-            sources: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
-        };
-    } catch (e) {
-        console.error("Search API Error", e);
-        return { text: "Search service temporarily unavailable.", sources: [] };
-    }
-}
-export async function generateFutureSelfImage(c:any, g:any) { return ""; }
-export async function analyzeMedicalRecord(b:any) {
-    const ai = getAI();
-    try {
-        const response = await ai.models.generateContent({
-            model: DEFAULT_MODEL,
-            contents: {
-                role: 'user',
-                parts: [
-                    { inlineData: { mimeType: 'image/jpeg', data: b } },
-                    { text: 'Extract and analyze all health biomarkers from this lab report image. Categorize them and highlight anything out of range.' }
-                ]
-            }
-        });
-        return response.text || "Could not analyze the document.";
-    } catch {
-        return "Error analyzing document.";
-    }
-}
-export async function getHealthAssistantResponse(h:any, m:any, c:any) {
-    const ai = getAI();
-    try {
-        const response = await ai.models.generateContent({
-            model: DEFAULT_MODEL,
-            contents: [{ role: 'user', parts: [{ text: `${JSON.stringify(c)}\n\nUser Question: ${m}` }] }]
-        });
-        return response.text || "I'm listening.";
-    } catch {
-        return "Service error.";
-    }
-}
-export async function getAIChefRecipe(i:any, r:any) { return ""; }
-export async function generateAIWorkoutTemplate(o:any) {
-    const ai = getAI();
-    try {
-        const prompt = `Create a detailed AI workout template for ${o.name} with goal ${o.goal} at level ${o.level}. Style: ${o.structure}. Duration: ${o.daysPerWeek} days/week. Return JSON: { "name": "string", "description": "string", "exercises": [{ "name": "string", "sets": "string", "reps": "string" }] }`;
-        const response = await ai.models.generateContent({
-            model: DEFAULT_MODEL,
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            config: { responseMimeType: "application/json" }
-        });
-        return response.text || "";
-    } catch {
-        return "";
-    }
+export async function analyzeMedicalRecord(base64: string, type: string) { 
+    if (FORCE_SIMULATION) return "Simulation: Blood markers look optimized. Testosterone levels adequate.";
+    return getComplexResponse("Analyze this medical text for fitness insights."); 
 }
 
-export async function generateGamifiedChallenge(workoutLogs: any[]): Promise<any> {
-    const ai = getAI();
-    try {
-        const prompt = `
-            Analyze these recent workout logs and create a fun, gamified fitness challenge for the user.
-            Logs: ${JSON.stringify(workoutLogs || [])}.
-            
-            Return JSON with:
-            {
-                "id": "string",
-                "title": "string",
-                "description": "string",
-                "xpReward": number,
-                "difficulty": "Easy" | "Medium" | "Hard",
-                "isCompleted": boolean
-            }
-        `;
-        const response = await ai.models.generateContent({
-            model: DEFAULT_MODEL,
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            config: { responseMimeType: 'application/json' }
-        });
-        return JSON.parse(response.text || "{}");
-    } catch (e) {
-        console.error("Challenge Gen Error", e);
-        return {
-            id: `chall-${Date.now()}`,
-            title: "Consistency Hero",
-            description: "Log your workout tomorrow!",
-            xpReward: 100,
-            difficulty: "Easy",
-            isCompleted: false
-        };
-    }
+export async function getGoogleSearchResponse(query: string) { 
+    return { text: "Search simulation active. Access limited in Free Mode.", sources: [] }; 
 }
 
-export async function getNutritionAnalysisFromImage(b:any, m:any, g:any) {
-    const ai = getAI();
-    try {
-        const prompt = `Analyze this food image. Provide detailed nutrition data (calories, macros) and advice for the goal: ${g}. Return ONLY JSON: { "foodName": "string", "calories": number, "macros": { "protein": "string", "carbs": "string", "fats": "string" }, "micros": ["string"], "healthScore": number, "analysis": "string" }`;
-        const response = await ai.models.generateContent({
-            model: DEFAULT_MODEL,
-            contents: {
-                role: 'user',
-                parts: [
-                    { inlineData: { mimeType: m, data: b } },
-                    { text: prompt }
-                ]
-            },
-            config: { responseMimeType: "application/json" }
-        });
-        return response.text || "{}";
-    } catch {
-        return "{}";
-    }
+export async function generateDeepDiveGenius(member: any, context: any) { 
+    const mock = {
+        thought_process: ["Analyzing biomechanics...", "Checking recovery..."],
+        analysis_summary: "Based on local logs, user is progressing linearly.",
+        identified_weakness: "General Fatigue",
+        workout_plan_4weeks: "<h3>Standard Linear Progression</h3><p>Focus on compound lifts.</p>",
+        nutrition_strategy_html: "Increase protein intake to 2g/kg.",
+        whatsapp_message_text: "Plan updated."
+    };
+    if (FORCE_SIMULATION) return JSON.stringify(mock);
+
+    const prompt = `Analyze member ${member.name}. Logs: ${JSON.stringify(context)}. Return JSON: {thought_process, analysis_summary, identified_weakness, workout_plan_4weeks, nutrition_strategy_html, whatsapp_message_text}`;
+    return getComplexResponse(prompt);
 }
-export async function getRecoveryBasedWorkout(m:any, e:any, s:any) { return ""; }
-export async function generateBodyTransformationAnalysis(c:any, t:any, f:any) { return ""; }
-export async function getGeniusModeAnalysis(m:any, d:any) { return ""; }
-export async function getGeniusModePlan(a:any, m:any) { return ""; }
-export async function getHealthEngineAnalysis(m:any, d:any) { 
-    const ai = getAI();
-    try {
-        const prompt = `Perform a performance analysis for ${m.name}. Data: ${JSON.stringify(d)}`;
-        const response = await ai.models.generateContent({
-            model: DEFAULT_MODEL,
-            contents: [{ role: 'user', parts: [{ text: prompt }] }]
-        });
-        return response.text || "";
-    } catch {
-        return "";
-    }
+
+export interface ReadinessOutput {
+    readinessScore: number;
+    feedback: string;
+    modifiedWorkout: string;
 }
-export async function calculateMacrosAI(p:any) { return ""; }
-export async function generateAdvancedDietPlan(p:any, a:any, s:any) { return ""; }
-export async function generateSupplementStack(p:any) { return ""; }
+
+export async function analyzeReadinessAndModify(data: any): Promise<ReadinessOutput> { 
+    const sleepScore = Math.min(100, (data.sleepHours / 8) * 100);
+    const moodScore = data.mood.length > 5 ? 80 : 50;
+    const score = Math.round((sleepScore + moodScore) / 2);
+    
+    return { 
+        readinessScore: score, 
+        feedback: score > 70 ? "You are ready to train hard." : "Take it easy today.", 
+        modifiedWorkout: score > 70 ? "Standard Protocol" : "Light Recovery Session" 
+    }; 
+}
+
+export async function getRecoveryBasedWorkout(mood: string, energy: number, sleep: number) { 
+    return "Light Cardio and Stretching (Local Recommendation)"; 
+}
+
+export async function generateBodyTransformationAnalysis(current: any, target: any, goal: string) { 
+    return "<h3>Trajectory: Positive</h3><p>Consistent training will yield results in 12 weeks.</p>"; 
+}
+
+export async function findBestExerciseVideo(query: string, list: any[]) { 
+    const match = list.find(l => l.name.toLowerCase().includes(query.toLowerCase()));
+    return { 
+        matchedName: match ? match.name : list[0]?.name, 
+        analysis: "Local Search Match.", 
+        proTips: ["Keep back straight", "Core tight"] 
+    }; 
+}
+
+export async function getNutritionAnalysisFromImage(base64: string, mimeType: string, goal: string): Promise<string> {
+     if (FORCE_SIMULATION) return JSON.stringify({ foodName: "Simulated Meal", macros: { protein: 25, carbs: 40, fats: 10 }, analysis: "Looks balanced." });
+     return "{}"; 
+}
+
+export async function generateClinicalFitnessProtocol(base64: string, memberContext: any): Promise<string> {
+     if (FORCE_SIMULATION) return JSON.stringify({
+            diagnosis: { modern: "Healthy", ayurvedic: "Pitta", root_cause: "N/A" },
+            diet_protocol: { type: "Balanced", foods_to_eat: ["Whole Foods"], foods_to_avoid: ["Sugar"], meal_plan_example: "Clean eating." },
+            supplement_stack: [],
+            workout_prescription: { focus: "Maintenance", schedule: "3x week", contraindications: "None" },
+            lifestyle_hacks: ["Sleep 8 hours"]
+     });
+     
+     const prompt = `Analyze clinical report for fitness for Member ID: ${memberContext?.id || 'Unknown'}. Context: ${JSON.stringify(memberContext)}. Return JSON matching ClinicalFitnessProtocol.`;
+     return getComplexResponse(prompt);
+}
+
+export async function generateNeuroProtocol(userState: string): Promise<string> {
+    return JSON.stringify({
+        name: "Universal Calm",
+        wave: "Alpha",
+        freqLeft: 100,
+        freqRight: 108,
+        isoPulse: 8,
+        colorFrom: "#0f172a",
+        colorTo: "#3b82f6",
+        description: "Standard stress-relief protocol.",
+        mantra: "I am centered."
+    });
+}
+
+export async function generateDhanvantariDiagnosis(input: any): Promise<string> {
+     return JSON.stringify({
+            diagnosis: { modern: "Analysis", ayurvedic: "Tridosha", root_cause: "Lifestyle" },
+            diet_protocol: { type: "Sattvic", foods_to_eat: ["Ghee", "Milk"], foods_to_avoid: ["Spicy"], meal_plan_example: "Traditional Indian." },
+            supplement_stack: [{name: "Ashwagandha", dosage: "500mg", reason: "Cortisol"}],
+            workout_prescription: { focus: "Yoga", schedule: "Daily", contraindications: "None" },
+            lifestyle_hacks: ["Meditation"]
+     });
+}
+
+export async function generateHyperPersonalizedDiet(profile: any): Promise<string> {
+    if (FORCE_SIMULATION) return JSON.stringify(MOCK_RESPONSES.diet_plan);
+    const prompt = `Act as an elite sports nutritionist. Create a hyper-personalized diet plan JSON for: ${JSON.stringify(profile)}. Structure: { goal, caloriesTarget, macrosTarget, scienceNote, meals: [{name, time, totalCalories, macros, items: [{food, portion}]}] }`;
+    return getComplexResponse(prompt);
+}

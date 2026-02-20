@@ -2,8 +2,7 @@
 import OpenAI from 'openai';
 
 export const getOpenAIClient = () => {
-    // Safe env access
-    const key = localStorage.getItem('OPENAI_API_KEY') || (window as any).process?.env?.OPENAI_API_KEY;
+    const key = localStorage.getItem('OPENAI_API_KEY') || process.env.OPENAI_API_KEY;
     if (!key) return null;
     return new OpenAI({
         apiKey: key,

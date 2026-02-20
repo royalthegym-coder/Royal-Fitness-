@@ -4,6 +4,7 @@ import { GYM_INFO } from '../../../constants';
 import { SignalIcon } from '../icons/SignalIcon';
 import { LockIcon } from '../icons/LockIcon';
 import { BotIcon } from '../icons/BotIcon';
+import { RefreshCw, MapPin } from 'lucide-react';
 
 interface AdminGeoGuardProps {
     children: React.ReactNode;
@@ -16,9 +17,7 @@ const AdminGeoGuard: React.FC<AdminGeoGuardProps> = ({ children }) => {
     const [distance, setDistance] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isChecking, setIsChecking] = useState(true);
-    
-    // UNLOCKED BY DEFAULT FOR TESTING AS REQUESTED
-    const [isBypassed, setIsBypassed] = useState(true); 
+    const [isBypassed, setIsBypassed] = useState(false); // Manual Override state
 
     // Helper to get distance
     const getDistanceFromLatLonInKm = useCallback((lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -33,19 +32,12 @@ const AdminGeoGuard: React.FC<AdminGeoGuardProps> = ({ children }) => {
         return R * c; 
     }, []);
 
-    useEffect(() => {
-        // Check local setting
-        const isGeoLockEnabled = localStorage.getItem('royal_geo_lock') === 'true';
-        
-        // If bypassed (Testing mode) or lock disabled in settings, authorize immediately
-        if (!isGeoLockEnabled || isBypassed) {
-            setIsAuthorized(true);
-            setIsChecking(false);
-            return;
-        }
+    const startCheck = useCallback(() => {
+        setError(null);
+        setIsChecking(true);
 
         if (!navigator.geolocation) {
-            setError('Hardware Geolocation is disabled.');
+            setError('Hardware Geolocation is disabled or not supported.');
             setIsChecking(false);
             return;
         }
@@ -62,7 +54,7 @@ const AdminGeoGuard: React.FC<AdminGeoGuardProps> = ({ children }) => {
             targetLng = parseFloat(storedLng);
         }
 
-        const watcher = navigator.geolocation.watchPosition(
+        navigator.geolocation.getCurrentPosition(
             (position) => {
                 const dist = getDistanceFromLatLonInKm(
                     targetLat,
@@ -85,14 +77,26 @@ const AdminGeoGuard: React.FC<AdminGeoGuardProps> = ({ children }) => {
                 setIsChecking(false);
             },
             (err) => {
-                setError('GPS Signal required for secure access.');
+                if(err.code === 1) setError('Location Access Denied. Please enable GPS permissions.');
+                else if(err.code === 2) setError('Position Unavailable. Check network/GPS.');
+                else setError('GPS Timeout. Retry signal.');
                 setIsChecking(false);
             },
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
+    }, [getDistanceFromLatLonInKm]);
 
-        return () => navigator.geolocation.clearWatch(watcher);
-    }, [getDistanceFromLatLonInKm, isBypassed]);
+    useEffect(() => {
+        // Check local setting
+        const isGeoLockEnabled = localStorage.getItem('royal_geo_lock') === 'true';
+        if (!isGeoLockEnabled || isBypassed) {
+            setIsAuthorized(true);
+            setIsChecking(false);
+            return;
+        }
+
+        startCheck();
+    }, [startCheck, isBypassed]);
 
     const handleManualOverride = () => {
         // In a real app, this would require 2FA
@@ -104,8 +108,12 @@ const AdminGeoGuard: React.FC<AdminGeoGuardProps> = ({ children }) => {
     if (isChecking) {
         return (
             <div className="h-full w-full flex flex-col items-center justify-center bg-gray-950 p-6">
-                <div className="w-16 h-16 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <div className="relative mb-6">
+                    <div className="w-16 h-16 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                    <MapPin className="absolute inset-0 m-auto w-6 h-6 text-amber-500 animate-bounce" />
+                </div>
                 <p className="text-amber-500 font-mono text-sm tracking-widest animate-pulse">ESTABLISHING SECURE UPLINK...</p>
+                <p className="text-gray-600 text-xs mt-2">Triangulating Coordinates</p>
             </div>
         );
     }
@@ -114,7 +122,7 @@ const AdminGeoGuard: React.FC<AdminGeoGuardProps> = ({ children }) => {
         const meters = distance ? (distance * 1000).toFixed(1) : '---';
         return (
             <div className="h-[calc(100vh-100px)] w-full flex items-center justify-center p-4">
-                <div className="max-w-md w-full bg-red-950/20 border-2 border-red-500/30 rounded-[2rem] p-10 text-center backdrop-blur-xl relative overflow-hidden">
+                <div className="max-w-md w-full bg-red-950/20 border-2 border-red-500/30 rounded-[2rem] p-10 text-center backdrop-blur-xl relative overflow-hidden shadow-2xl">
                     {/* Background Visual */}
                     <div className="absolute top-0 left-0 w-full h-1 bg-red-500 animate-pulse"></div>
                     
@@ -123,9 +131,17 @@ const AdminGeoGuard: React.FC<AdminGeoGuardProps> = ({ children }) => {
                     </div>
                     
                     <h2 className="text-3xl font-black text-white uppercase italic tracking-tight mb-4">Geo-Lock Active</h2>
-                    <p className="text-gray-400 text-sm mb-8 leading-relaxed">
-                        Security Protocol <span className="text-red-400 font-bold">R-OS 4.2</span> requires proximity to Royal Gym HQ for Admin access.
-                    </p>
+                    
+                    {error ? (
+                        <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/30 mb-8">
+                            <p className="text-red-400 font-bold text-sm mb-1">Signal Error</p>
+                            <p className="text-red-300 text-xs">{error}</p>
+                        </div>
+                    ) : (
+                        <p className="text-gray-400 text-sm mb-8 leading-relaxed">
+                            Security Protocol <span className="text-red-400 font-bold">R-OS 4.2</span> requires proximity to Royal Gym HQ for Admin access.
+                        </p>
+                    )}
                     
                     <div className="bg-black/40 rounded-2xl p-6 border border-white/5 mb-8">
                         <div className="flex justify-between items-center mb-4">
@@ -142,13 +158,20 @@ const AdminGeoGuard: React.FC<AdminGeoGuardProps> = ({ children }) => {
                     </div>
 
                     <div className="flex flex-col gap-3">
-                        <div className="flex items-center justify-center gap-3 text-red-400 font-mono text-[10px] animate-pulse">
+                        <button 
+                            onClick={startCheck}
+                            className="w-full py-4 bg-white text-black font-black uppercase tracking-widest text-xs rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
+                        >
+                            <RefreshCw className="w-4 h-4"/> Retry Signal
+                        </button>
+                        
+                        <div className="flex items-center justify-center gap-3 text-red-400 font-mono text-[10px] animate-pulse mt-4">
                             <BotIcon className="w-4 h-4" />
                             <span>RESTRICTED ACCESS ZONE</span>
                         </div>
                         <button 
                             onClick={handleManualOverride}
-                            className="mt-4 text-[10px] text-gray-500 hover:text-white underline decoration-dashed uppercase tracking-widest"
+                            className="mt-2 text-[10px] text-gray-500 hover:text-white underline decoration-dashed uppercase tracking-widest"
                         >
                             Developer Override
                         </button>

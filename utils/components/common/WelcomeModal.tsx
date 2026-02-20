@@ -34,7 +34,8 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ isOpen, onClose, member, we
         if (audioBase64) {
             const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
             const audioBytes = decode(audioBase64);
-            const buffer = await decodeAudioData(audioBytes, ctx, 24000);
+            // BUG FIX: Add missing numChannels argument (1 for single speaker TTS)
+            const buffer = await decodeAudioData(audioBytes, ctx, 24000, 1);
             
             const source = ctx.createBufferSource();
             source.buffer = buffer;

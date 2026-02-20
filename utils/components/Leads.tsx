@@ -1,16 +1,16 @@
 
 import React, { useState, useMemo } from 'react';
-import { INITIAL_LEADS } from '../../constants';
-import { Lead, LeadSource } from '../../types';
-import Card from './common/Card';
-import Modal from './common/Modal';
+import { Lead, LeadSource, LeadStage } from '../../types';
+import { useData } from '../context/DataProvider';
+import { useToast } from '../hooks/useToast';
+import { getComplexResponse, cleanAndParseJSON } from '../../lib/gemini';
+import { 
+    Target, Search, BrainCircuit, RefreshCw, 
+    UserPlus, Edit3, Trash2, 
+    MessageSquare, CheckCircle, ArrowRight, ChevronRight
+} from 'lucide-react';
 import { FacebookIcon, InstagramIcon, WalkInIcon, WebIcon, OtherSourceIcon } from './icons/SocialIcons';
-import { UserGroupIcon } from './icons/UserGroupIcon';
-import { SparkleIcon } from './icons/SparkleIcon';
-import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { BotIcon } from './icons/BotIcon';
-import { getComplexResponse } from '../../lib/gemini';
-import { EditIcon } from './icons/EditIcon';
 
 const SourceIcon: React.FC<{ source: LeadSource, className?: string }> = ({ source, className = "w-5 h-5" }) => {
     switch (source) {
@@ -18,396 +18,127 @@ const SourceIcon: React.FC<{ source: LeadSource, className?: string }> = ({ sour
         case 'Instagram': return <InstagramIcon className={className} />;
         case 'Website': return <WebIcon className={className} />;
         case 'Walk-in': return <WalkInIcon className={className} />;
-        case 'Other': return <OtherSourceIcon className={className} />;
-        default: return null;
+        default: return <OtherSourceIcon className={className} />;
     }
 };
 
-const StatCard: React.FC<{ icon: React.ReactNode; title: string; value: string | number; }> = ({ icon, title, value }) => (
-  <div className="bg-gray-700/50 p-4 rounded-lg flex items-center">
-    <div className="p-3 bg-gray-800 rounded-full mr-4">{icon}</div>
-    <div>
-      <p className="text-sm text-gray-400">{title}</p>
-      <p className="text-2xl font-bold">{value}</p>
-    </div>
-  </div>
-);
+const getScoreColor = (score: number) => {
+    if (score >= 80) return 'text-green-400 border-green-500/50 bg-green-500/10 shadow-[0_0_10px_rgba(34,197,94,0.2)]';
+    if (score >= 50) return 'text-amber-400 border-amber-500/50 bg-amber-500/10';
+    return 'text-red-400 border-red-500/50 bg-red-500/10';
+};
 
 const Leads: React.FC = () => {
-    const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
-    const [isModalOpen, setModalOpen] = useState(false);
-    const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filterSource, setFilterSource] = useState<LeadSource | 'All'>('All');
+    const { addToast } = useToast();
+    const { leads = [], updateLead } = useData();
+    const [isScoring, setIsScoring] = useState(false);
 
-    // AI Modal State
-    const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-    const [selectedLeadForAi, setSelectedLeadForAi] = useState<Lead | null>(null);
-    const [aiOptions, setAiOptions] = useState<string[]>([]);
-    const [selectedMessage, setSelectedMessage] = useState('');
-    const [isGenerating, setIsGenerating] = useState(false);
-
-    const leadStats = useMemo(() => {
-        const stats = {
-            'Facebook': 0, 'Instagram': 0, 'Website': 0, 'Walk-in': 0, 'Other': 0,
-        };
+    const pipelineData = useMemo<Record<LeadStage, Lead[]>>(() => {
+        const stages: LeadStage[] = ['New', 'Contacted', 'Trial', 'Converted', 'Lost'];
+        const grouped = {} as Record<LeadStage, Lead[]>;
+        stages.forEach(stage => grouped[stage] = []);
         leads.forEach(lead => {
-            if (stats.hasOwnProperty(lead.source)) {
-                stats[lead.source as LeadSource]++;
-            }
+            if (grouped[lead.status]) grouped[lead.status].push(lead);
         });
-        return stats;
+        return grouped;
     }, [leads]);
 
-    const filteredLeads = useMemo(() =>
-        leads.filter(lead => {
-            const matchesSearch = lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                  lead.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                  lead.phone.includes(searchTerm);
-            const matchesFilter = filterSource === 'All' || lead.source === filterSource;
-            return matchesSearch && matchesFilter;
-        }),
-    [leads, searchTerm, filterSource]);
-
-    const handleAddLead = () => {
-        setSelectedLead(null);
-        setModalOpen(true);
-    };
-
-    const handleEditLead = (lead: Lead) => {
-        setSelectedLead(lead);
-        setModalOpen(true);
-    };
-
-    const handleSaveLead = (leadData: Omit<Lead, 'id'>) => {
-        if (selectedLead) {
-            setLeads(leads.map(l => l.id === selectedLead.id ? { ...selectedLead, ...leadData } : l));
-        } else {
-            const newId = leads.length > 0 ? Math.max(...leads.map(l => l.id)) + 1 : 1;
-            setLeads([...leads, { ...leadData, id: newId }]);
+    const handleRunScoring = async () => {
+        setIsScoring(true);
+        addToast("Hunter Alpha: Analyzing lead vectors...", "info");
+        
+        const unscoredLeads = leads.filter(l => !l.aiScore);
+        if(unscoredLeads.length === 0) {
+            addToast("All leads are already scored.", "success");
+            setIsScoring(false);
+            return;
         }
-        setModalOpen(false);
-    };
-
-    const handleOpenAiAssistant = async (lead: Lead) => {
-        setSelectedLeadForAi(lead);
-        setIsAiModalOpen(true);
-        setIsGenerating(true);
-        setAiOptions([]);
-        setSelectedMessage('');
 
         const prompt = `
-            Act as a senior sales representative for "Royal The Gym".
-            Generate 3 distinct, high-converting WhatsApp follow-up messages for a potential member (lead) with these details:
-            
-            Name: ${lead.name}
-            Source: ${lead.source}
-            Current Status: ${lead.status}
-            Inquiry Date: ${lead.inquiryDate}
-            
-            Variations needed:
-            1. Friendly check-in: Warm tone, asking if they have questions.
-            2. Benefit/Result focused: Highlight gym features or success stories relevant to typical gym goers.
-            3. A limited-time offer hook: Create urgency with a special sign-up offer valid for 48 hours.
-
-            Return ONLY a JSON array of strings. Example: ["Message 1", "Message 2", "Message 3"].
-            Do not include markdown blocks or explanations in the output.
+            Analyze these gym leads: ${JSON.stringify(unscoredLeads.map(l => ({id: l.id, name: l.name, source: l.source})))}.
+            Score each from 0-100 on conversion probability. Instagram/Website = high intent.
+            Return ONLY a JSON array: [{"id": number, "score": number}].
         `;
 
         try {
-            let response = await getComplexResponse(prompt);
-            response = response.replace(/```json/g, '').replace(/```/g, '').trim();
+            const res = await getComplexResponse(prompt);
+            const scores = cleanAndParseJSON(res);
             
-            let options: string[] = [];
-            try {
-                options = JSON.parse(response);
-            } catch (e) {
-                // Try to split by newlines if JSON parse fails
-                options = response.split('\n').filter(line => line.length > 10);
-            }
-
-            if (Array.isArray(options) && options.length > 0) {
-                setAiOptions(options);
-                setSelectedMessage(options[0]);
-            } else {
-                setSelectedMessage(response); // Fallback
-            }
-        } catch (error) {
-            console.error("AI Generation Error", error);
-            setSelectedMessage("Could not generate messages. Please try again.");
+            scores.forEach((s: {id: number, score: number}) => {
+                const lead = leads.find(l => l.id === s.id);
+                if (lead) updateLead({ ...lead, aiScore: s.score });
+            });
+            addToast("Neural Scoring Complete.", "success");
+        } catch (e) {
+            addToast("Scoring failed.", "error");
         } finally {
-            setIsGenerating(false);
+            setIsScoring(false);
         }
     };
-
-    const handleSendWhatsApp = () => {
-        if (!selectedLeadForAi) return;
-        // Simulate API call
-        const mobileNumber = selectedLeadForAi.phone;
-        const url = `https://wa.me/${mobileNumber}?text=${encodeURIComponent(selectedMessage)}`;
-        window.open(url, '_blank');
-        
-        setIsAiModalOpen(false);
-        
-        // Update status to 'Contacted' if it was 'New'
-        if (selectedLeadForAi.status === 'New') {
-            setLeads(leads.map(l => l.id === selectedLeadForAi.id ? { ...l, status: 'Contacted' } : l));
-        }
-    };
-
-    const getStatusColor = (status: Lead['status']) => {
-        switch (status) {
-            case 'New': return 'bg-blue-500';
-            case 'Contacted': return 'bg-yellow-500';
-            case 'Trial': return 'bg-purple-500';
-            case 'Converted': return 'bg-green-500';
-            case 'Lost': return 'bg-red-500';
-            default: return 'bg-gray-500';
-        }
-    };
-    
-    const filterSources: (LeadSource | 'All')[] = ['All', 'Facebook', 'Instagram', 'Website', 'Walk-in', 'Other'];
 
     return (
-        <div>
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold text-amber-400">Leads Management</h1>
-                <button onClick={handleAddLead} className="bg-amber-500 text-gray-900 font-bold py-2 px-4 rounded-lg hover:bg-amber-400 transition-colors">
-                    Add Lead
+        <div className="space-y-8 animate-fade-in pb-24 h-full flex flex-col">
+            <div className="bg-black/80 p-8 rounded-[3.5rem] border border-amber-500/20 relative overflow-hidden shadow-2xl group">
+                <div className="flex items-center gap-8">
+                    <div className="p-8 bg-amber-600 text-black rounded-[3rem] shadow-[0_0_60px_rgba(245,158,11,0.5)] border border-amber-400">
+                        <Target className="w-16 h-16" />
+                    </div>
+                    <div>
+                        <h1 className="text-6xl font-black text-white italic uppercase tracking-tighter">Future Streams</h1>
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-gray-900/50 p-6 rounded-[2.5rem] border border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
+                <div className="flex items-center gap-4">
+                    <BotIcon className="w-10 h-10 text-amber-500" />
+                    <div>
+                        <h3 className="text-lg font-black text-white uppercase italic">Hunter Alpha AI</h3>
+                        <p className="text-xs text-gray-500">Predictive Lead Qualification Engine</p>
+                    </div>
+                </div>
+                <button onClick={handleRunScoring} disabled={isScoring} className="bg-white text-black font-black px-10 py-4 rounded-2xl text-xs uppercase tracking-widest shadow-lg flex items-center gap-3 active:scale-95 disabled:opacity-50">
+                    {isScoring ? <RefreshCw className="animate-spin w-4 h-4"/> : <BrainCircuit className="w-4 h-4"/>}
+                    {isScoring ? 'SCORING...' : 'RUN AI SCORING'}
                 </button>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-                <StatCard icon={<UserGroupIcon className="w-6 h-6 text-blue-400" />} title="Total Leads" value={leads.length} />
-                <StatCard icon={<FacebookIcon className="w-6 h-6" />} title="Facebook" value={leadStats.Facebook} />
-                <StatCard icon={<InstagramIcon className="w-6 h-6" />} title="Instagram" value={leadStats.Instagram} />
-                <StatCard icon={<WebIcon className="w-6 h-6" />} title="Website" value={leadStats.Website} />
-                <StatCard icon={<WalkInIcon className="w-6 h-6" />} title="Walk-in" value={leadStats['Walk-in']} />
-                <StatCard icon={<OtherSourceIcon className="w-6 h-6" />} title="Other" value={leadStats.Other} />
-            </div>
-
-            <Card>
-                 <div className="flex flex-col md:flex-row gap-4 mb-4">
-                     <input
-                        type="text"
-                        placeholder="Search leads..."
-                        className="w-full md:flex-grow bg-gray-700 text-white p-2 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                    <div className="flex items-center bg-gray-700 rounded-lg border border-gray-600 p-1 overflow-x-auto">
-                        {filterSources.map(source => (
-                            <button
-                                key={source}
-                                onClick={() => setFilterSource(source)}
-                                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${filterSource === source ? 'bg-amber-500 text-gray-900' : 'text-gray-300 hover:bg-gray-600'}`}
-                            >
-                                {source}
-                            </button>
-                        ))}
-                    </div>
-                 </div>
-
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead>
-                            <tr className="border-b border-gray-700 text-gray-400">
-                                <th className="p-3">Name</th>
-                                <th className="p-3 hidden md:table-cell">Contact</th>
-                                <th className="p-3">Source</th>
-                                <th className="p-3 hidden sm:table-cell">Inquiry Date</th>
-                                <th className="p-3">Status</th>
-                                <th className="p-3">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredLeads.map(lead => (
-                                <tr key={lead.id} className="border-b border-gray-700 hover:bg-gray-700/50">
-                                    <td className="p-3 font-medium">{lead.name}</td>
-                                    <td className="p-3 hidden md:table-cell">
-                                        <p>{lead.email}</p>
-                                        <p className="text-gray-400">{lead.phone}</p>
-                                    </td>
-                                    <td className="p-3">
-                                        <div className="flex items-center">
-                                            <SourceIcon source={lead.source} />
-                                            <span className="ml-2 hidden lg:inline">{lead.source}</span>
-                                        </div>
-                                    </td>
-                                    <td className="p-3 hidden sm:table-cell">{lead.inquiryDate}</td>
-                                    <td className="p-3">
-                                        <span className={`px-2 py-1 text-xs font-semibold rounded-full text-white ${getStatusColor(lead.status)}`}>
-                                            {lead.status}
-                                        </span>
-                                    </td>
-                                    <td className="p-3">
-                                        <div className="flex items-center gap-2">
-                                            <button 
-                                                onClick={() => handleOpenAiAssistant(lead)} 
-                                                className="bg-purple-900/30 hover:bg-purple-600 hover:text-white text-purple-400 border border-purple-500/30 px-3 py-1.5 rounded-md flex items-center gap-1 transition-all text-xs font-bold"
-                                                title="Generate AI Follow-up"
-                                            >
-                                                <SparkleIcon className="w-3 h-3" />
-                                                <span className="hidden xl:inline">AI Follow-up</span>
-                                            </button>
-                                            <button onClick={() => handleEditLead(lead)} className="text-gray-400 hover:text-white p-1.5 rounded bg-gray-800 hover:bg-gray-600 transition-colors">
-                                                <EditIcon className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </Card>
-
-            {/* AI Assistant Modal */}
-            <Modal isOpen={isAiModalOpen} onClose={() => setIsAiModalOpen(false)} title={`AI Assistant: ${selectedLeadForAi?.name}`}>
-                <div className="space-y-4">
-                    {isGenerating ? (
-                        <div className="flex flex-col items-center justify-center py-10">
-                            <BotIcon className="w-12 h-12 text-amber-400 animate-bounce mb-4" />
-                            <p className="text-gray-300 animate-pulse">Drafting personalized messages...</p>
+            <div className="flex-1 flex gap-6 overflow-x-auto pb-10 min-h-[650px] snap-x custom-scrollbar">
+                {(Object.entries(pipelineData) as [LeadStage, Lead[]][]).map(([stage, leads]) => (
+                    <div key={stage} className="min-w-[340px] w-[340px] flex flex-col bg-[#050505] rounded-[3rem] border border-white/5 backdrop-blur-sm relative overflow-hidden shadow-2xl">
+                        <div className="p-8 border-b border-white/5 flex justify-between items-center bg-gray-900/30">
+                            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-300">{stage}</h3>
+                            <span className="bg-white/5 text-white text-[10px] font-black px-3 py-1 rounded-full border border-white/10">{leads.length}</span>
                         </div>
-                    ) : (
-                        <>
-                            {aiOptions.length > 0 && (
-                                <div className="space-y-2">
-                                    <label className="text-sm text-gray-400 font-bold uppercase">Select a Strategy:</label>
-                                    {aiOptions.map((opt, idx) => (
-                                        <div 
-                                            key={idx}
-                                            onClick={() => setSelectedMessage(opt)}
-                                            className={`p-3 rounded-lg border cursor-pointer text-sm transition-all ${
-                                                selectedMessage === opt 
-                                                ? 'bg-purple-900/30 border-purple-500 text-white' 
-                                                : 'bg-gray-700/50 border-gray-600 text-gray-400 hover:bg-gray-700'
-                                            }`}
-                                        >
-                                            {opt}
+                        
+                        <div className="flex-1 p-4 space-y-4 overflow-y-auto custom-scrollbar bg-black/20">
+                            {leads.map((lead) => (
+                                <div key={lead.id} className="bg-[#0c0c0c] p-6 rounded-[2.5rem] border border-white/5 hover:border-amber-500/50 transition-all group shadow-lg relative cursor-pointer hover:-translate-y-1">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="p-3 bg-gray-900 rounded-2xl border border-white/10 text-gray-400 group-hover:text-amber-500 transition-colors shadow-inner">
+                                                <SourceIcon source={lead.source} className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-white text-lg uppercase italic tracking-tight leading-none">{lead.name}</h4>
+                                                <p className="text-[9px] text-gray-500 font-mono mt-1 tracking-wider">{lead.phone}</p>
+                                            </div>
                                         </div>
-                                    ))}
+                                    </div>
+                                    
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className={`px-3 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest ${getScoreColor(lead.aiScore || 0)}`}>
+                                            {lead.aiScore ? `${lead.aiScore}% Prob.` : 'Unscored'}
+                                        </div>
+                                        <span className="text-[9px] text-gray-600 font-mono">{lead.inquiryDate}</span>
+                                    </div>
                                 </div>
-                            )}
-                            
-                            <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Edit Message</label>
-                                <textarea
-                                    className="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-purple-500 outline-none"
-                                    rows={4}
-                                    value={selectedMessage}
-                                    onChange={(e) => setSelectedMessage(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="flex justify-end gap-3 pt-2">
-                                <button 
-                                    onClick={() => setIsAiModalOpen(false)}
-                                    className="px-4 py-2 text-sm text-gray-400 hover:text-white"
-                                >
-                                    Cancel
-                                </button>
-                                <button 
-                                    onClick={handleSendWhatsApp}
-                                    className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold flex items-center transition-colors"
-                                >
-                                    <WhatsAppIcon className="w-4 h-4 mr-2" /> Open WhatsApp
-                                </button>
-                            </div>
-                        </>
-                    )}
-                </div>
-            </Modal>
-
-            {/* Edit/Add Modal */}
-            {isModalOpen && (
-                <LeadFormModal
-                    isOpen={isModalOpen}
-                    onClose={() => setModalOpen(false)}
-                    onSave={handleSaveLead}
-                    lead={selectedLead}
-                />
-            )}
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
-    );
-};
-
-
-interface LeadFormModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (lead: Omit<Lead, 'id'>) => void;
-    lead: Lead | null;
-}
-
-const LeadFormModal: React.FC<LeadFormModalProps> = ({ isOpen, onClose, onSave, lead }) => {
-    const [formData, setFormData] = useState({
-        name: lead?.name || '',
-        email: lead?.email || '',
-        phone: lead?.phone || '',
-        inquiryDate: lead?.inquiryDate || new Date().toISOString().split('T')[0],
-        status: lead?.status || 'New',
-        source: lead?.source || 'Other',
-    });
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        onSave(formData as Omit<Lead, 'id'>);
-    };
-
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title={lead ? 'Edit Lead' : 'Add New Lead'}>
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                    <label className="block text-sm font-medium text-gray-300">Full Name</label>
-                    <input type="text" name="name" value={formData.name} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" required />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-300">Email</label>
-                    <input type="email" name="email" value={formData.email} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" required />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-300">Phone</label>
-                    <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" required />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300">Inquiry Date</label>
-                        <input type="date" name="inquiryDate" value={formData.inquiryDate} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" required />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300">Status</label>
-                        <select name="status" value={formData.status} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm">
-                            <option>New</option>
-                            <option>Contacted</option>
-                            <option>Trial</option>
-                            <option>Converted</option>
-                            <option>Lost</option>
-                        </select>
-                    </div>
-                </div>
-                 <div>
-                    <label className="block text-sm font-medium text-gray-300">Source</label>
-                    <select name="source" value={formData.source} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm">
-                        <option>Facebook</option>
-                        <option>Instagram</option>
-                        <option>Website</option>
-                        <option>Walk-in</option>
-                        <option>Other</option>
-                    </select>
-                </div>
-                <div className="flex justify-end pt-4 border-t border-gray-700 mt-6">
-                    <button type="button" onClick={onClose} className="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-500 transition-colors mr-2">Cancel</button>
-                    <button type="submit" className="bg-amber-500 text-gray-900 font-bold py-2 px-4 rounded-lg hover:bg-amber-400 transition-colors">Save Lead</button>
-                </div>
-            </form>
-        </Modal>
     );
 };
 

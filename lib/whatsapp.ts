@@ -2,6 +2,10 @@
 import { Member } from '../types';
 import { GYM_INFO, INITIAL_MEMBERS, INITIAL_PACKAGES } from '../constants';
 
+// Credentials from environment variables or fallbacks
+const ENV_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_ID;
+const ENV_ACCESS_TOKEN = process.env.WHATSAPP_TOKEN;
+
 // Helper to get credentials dynamically (from LocalStorage or Env)
 const getWhatsAppCredentials = () => {
     // Check localStorage first (User configured in Settings)
@@ -12,10 +16,7 @@ const getWhatsAppCredentials = () => {
         return { token: storedToken, phoneId: storedPhoneId, isMock: false };
     }
 
-    // Fallback to Env safely using window.process
-    const ENV_PHONE_NUMBER_ID = (window as any).process?.env?.WHATSAPP_PHONE_ID;
-    const ENV_ACCESS_TOKEN = (window as any).process?.env?.WHATSAPP_TOKEN;
-
+    // Fallback to Env
     if (ENV_ACCESS_TOKEN && ENV_PHONE_NUMBER_ID) {
         return { token: ENV_ACCESS_TOKEN, phoneId: ENV_PHONE_NUMBER_ID, isMock: false };
     }
@@ -41,20 +42,24 @@ export async function sendWhatsAppMessage({
     parameters 
 }: WhatsAppMessageParams): Promise<boolean> {
     const { token, phoneId, isMock } = getWhatsAppCredentials();
+    
+    // Sanitize number
+    const sanitizedNumber = mobileNumber.replace(/\D/g, '');
+    const finalNumber = sanitizedNumber.length === 10 ? `91${sanitizedNumber}` : sanitizedNumber;
 
     const url = `https://graph.facebook.com/v17.0/${phoneId}/messages`;
     
     // Check if we are in a mock environment
     if (isMock) {
-        console.log(`[Neural Guardian] Sending template "${templateName}" to ${mobileNumber}`);
-        console.log(`[Neural Guardian] Content Params:`, JSON.stringify(parameters));
-        return new Promise(resolve => setTimeout(() => resolve(true), 1000));
+        console.log(`%c[WhatsApp Bot] 🚀 Sending to ${finalNumber} | Template: ${templateName}`, "color: #25D366; font-weight: bold;");
+        console.log(`%c[Payload]`, "color: #aaa;", JSON.stringify(parameters));
+        return new Promise(resolve => setTimeout(() => resolve(true), 800));
     }
 
     try {
         const payload = {
             messaging_product: "whatsapp",
-            to: mobileNumber,
+            to: finalNumber,
             type: "template",
             template: {
                 name: templateName,
@@ -90,81 +95,106 @@ export async function sendWhatsAppMessage({
 }
 
 /**
- * Generates a UPI Payment Link for the message.
- * This acts as a clickable QR Code.
- */
-const generateUPILink = (amount: number, memberName: string): string => {
-    // Format: upi://pay?pa=UPI_ID&pn=NAME&am=AMOUNT&tn=NOTE
-    const upiId = GYM_INFO.upiIds.gpay1;
-    const name = encodeURIComponent(GYM_INFO.name);
-    const note = encodeURIComponent(`Fees for ${memberName}`);
-    return `upi://pay?pa=${upiId}&pn=${name}&am=${amount}&tn=${note}&cu=INR`;
-};
-
-/**
- * Sends a welcome message to a new member.
+ * 1. AUTO-WELCOME BOT
+ * Sends a welcome message to a new member immediately upon admission.
  */
 export async function sendWhatsAppWelcomeMessage(member: Member): Promise<boolean> {
-    const mobileNumber = `91${member.phone.replace(/\D/g, '')}`;
-    
     return sendWhatsAppMessage({
-        mobileNumber,
-        templateName: "royal_welcome_protocol", 
+        mobileNumber: member.phone,
+        templateName: "royal_welcome_v27", 
         languageCode: "en", 
         parameters: [
             { type: "text", text: member.name },
-            { type: "text", text: "Protocol v2.5" },
-            { type: "text", text: member.id.toString() }
+            { type: "text", text: "Royal The Gym" },
+            { type: "text", text: `ID: #${member.id}` }
         ]
     });
 }
 
 /**
- * Sends a Payment Receipt via WhatsApp.
+ * 2. PAYMENT REQUEST BOT (With UPI Link)
+ * Sends the Total Bill Amount + a Clickable Payment Link to the user.
+ * Supports breakdown description.
  */
-export async function sendPaymentReceipt(memberName: string, phone: string, amount: number, invoiceId: string): Promise<boolean> {
-    const mobileNumber = `91${phone.replace(/\D/g, '')}`;
+export async function sendPaymentRequest(member: Member, amount: number, breakdown: string): Promise<boolean> {
+    // Generate UPI Link
+    const upiLink = `upi://pay?pa=${GYM_INFO.upiIds.gpay1}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${amount.toFixed(2)}&cu=INR&tn=Royal_Fee_${member.id}`;
     
-    // Victory Gratitude Message
+    // In template, {{1}} is Name, {{2}} is Amount, {{3}} is Breakdown, {{4}} is Link
     return sendWhatsAppMessage({
-        mobileNumber,
-        templateName: "payment_victory_receipt", 
+        mobileNumber: member.phone,
+        templateName: "royal_payment_request",
+        languageCode: "en",
+        parameters: [
+            { type: "text", text: member.name },
+            { type: "text", text: `₹${amount}` },
+            { type: "text", text: breakdown || "Gym Services" }, // e.g., "Plan + Training + Gear"
+            { type: "text", text: upiLink }
+        ]
+    });
+}
+
+/**
+ * 3. AUTO-RECEIPT BOT
+ * Sends a confirmation after successful payment verification.
+ */
+export async function sendPaymentReceipt(memberName: string, phone: string, amount: number, txnId: string, itemsDesc?: string): Promise<boolean> {
+    return sendWhatsAppMessage({
+        mobileNumber: phone,
+        templateName: "royal_payment_receipt", 
         languageCode: "en", 
         parameters: [
             { type: "text", text: memberName },
-            { type: "text", text: amount.toString() },
-            { type: "text", text: invoiceId }
+            { type: "text", text: `₹${amount}` },
+            { type: "text", text: txnId },
+            { type: "text", text: itemsDesc || "Gym Services" }
+        ]
+    });
+}
+
+
+/**
+ * 4. FEE REMINDER BOT (NEW)
+ * Sends a reminder that payment is due soon.
+ */
+export async function sendPaymentReminder(member: Member, amount: number, dueDate: string): Promise<boolean> {
+    const upiLink = `upi://pay?pa=${GYM_INFO.upiIds.gpay1}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${amount.toFixed(2)}&cu=INR&tn=Royal_Fee_${member.id}`;
+
+    return sendWhatsAppMessage({
+        mobileNumber: member.phone,
+        templateName: "royal_fee_reminder_v3", // Assuming this new template exists
+        languageCode: "en",
+        parameters: [
+            { type: "text", text: member.name },
+            { type: "text", text: `₹${amount}` },
+            { type: "text", text: dueDate },
+            { type: "text", text: upiLink }
         ]
     });
 }
 
 /**
- * Helper to calculate expiry date.
+ * 5. THANK YOU BOT (NEW)
+ * Sends a professional thank you message after payment.
  */
-export function calculateExpiryDate(joinDateStr: string, packageId: number): Date | null {
-    const pkg = INITIAL_PACKAGES.find(p => p.id === packageId);
-    if (!pkg) return null;
-
-    const joinDate = new Date(joinDateStr);
-    let monthsToAdd = 0;
-    const durationParts = pkg.duration.split(' ');
-    
-    if (durationParts[0].toLowerCase() === 'first') monthsToAdd = 1;
-    else monthsToAdd = parseInt(durationParts[0], 10);
-
-    if (isNaN(monthsToAdd)) return null;
-
-    joinDate.setMonth(joinDate.getMonth() + monthsToAdd);
-    return joinDate;
+export async function sendThankYouForPayment(member: Member): Promise<boolean> {
+    return sendWhatsAppMessage({
+        mobileNumber: member.phone,
+        templateName: "royal_payment_thankyou", // Assuming this new template exists
+        languageCode: "en",
+        parameters: [
+            { type: "text", text: member.name },
+            { type: "text", text: "all features are now unlocked" }
+        ]
+    });
 }
 
+
 /**
- * AUTOMATION: PERSISTENT FINANCIAL GUARDIAN
- * Checks for members expiring in the next 3 days OR already expired.
- * Uses an "Escalation Matrix" for message tone.
+ * AUTOMATION: Checks for members expiring in the next 3 days (Inclusive) OR already expired.
  */
 export async function checkMembershipExpiryAndNotify(): Promise<number> {
-    console.log("[Neural Guardian] Initiating Financial Scan...");
+    console.log("[Automation] Running Daily Fee Reminder Check...");
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -180,52 +210,61 @@ export async function checkMembershipExpiryAndNotify(): Promise<number> {
         const diffTime = expiryDate.getTime() - today.getTime();
         const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-        const pkg = INITIAL_PACKAGES.find(p => p.id === member.packageId);
-        const amount = pkg ? pkg.price : 0;
-        const mobileNumber = `91${member.phone.replace(/\D/g, '')}`;
-        const payLink = generateUPILink(amount, member.name);
+        const isApproachingExpiry = daysRemaining >= 0 && daysRemaining <= 3;
+        
+        if (isApproachingExpiry) {
+            const pkg = INITIAL_PACKAGES.find(p => p.id === member.packageId);
+            if (!pkg) continue;
 
-        let templateName = "";
-        let headerText = "";
-        let bodyText = "";
-
-        // ESCALATION MATRIX
-        if (daysRemaining === 3) {
-            templateName = "fee_reminder_tactical";
-            headerText = "TACTICAL ADVISORY";
-            bodyText = `Agent ${member.name}, your resource allocation expires in 72 hours. Maintain your streak.`;
-        } else if (daysRemaining === 1) {
-            templateName = "fee_reminder_tactical";
-            headerText = "URGENT DEPLOYMENT";
-            bodyText = `CRITICAL: 24 hours remaining. Renew now to avoid account suspension.`;
-        } else if (daysRemaining === 0) {
-            templateName = "fee_reminder_critical";
-            headerText = "FINAL NOTICE";
-            bodyText = `Your access terminates at midnight. Immediate action required. Amount: ₹${amount}`;
-        } else if (daysRemaining < 0 && member.status === 'Expired') {
-            templateName = "fee_reminder_breach"; // A stricter template
-            headerText = "PROTOCOL BREACH";
-            bodyText = `Access Denied. Account Frozen. Settle ₹${amount} to reactivate your Neural Profile.`;
-        }
-
-        if (templateName) {
-            console.log(`[Neural Guardian] Targeting ${member.name}. Threat Level: ${daysRemaining < 0 ? 'HIGH' : 'MODERATE'}`);
+            // Simplified: Find any pending invoice for this member matching the package price
+            // A more robust system would link invoices to specific renewal periods.
+            const dueInvoiceAmount = pkg.price;
             
-            await sendWhatsAppMessage({
-                mobileNumber,
-                templateName: templateName, 
-                languageCode: "en",
-                parameters: [
-                    { type: "text", text: headerText }, 
-                    { type: "text", text: bodyText }, 
-                    { type: "text", text: payLink }      
-                ]
-            });
-            sentCount++;
+            // This is a simulation. A real app would check a database for an actual pending invoice.
+            if (member.status !== 'Active') { // Assume if not active, they have a due payment
+                 await sendPaymentReminder(member, dueInvoiceAmount, expiryDate.toLocaleDateString());
+                 sentCount++;
+            }
         }
     }
     
     return sentCount;
+}
+
+/**
+ * SEND GENIUS PROTOCOL (NEW)
+ */
+export async function sendGeniusProtocol(member: Member, reportText: string): Promise<boolean> {
+    const mobileNumber = `91${member.phone.replace(/\D/g, '')}`;
+    const safeText = reportText.length > 1000 ? reportText.substring(0, 990) + "..." : reportText;
+
+    return sendWhatsAppMessage({
+        mobileNumber,
+        templateName: "genius_report_royal",
+        languageCode: "en",
+        parameters: [
+            { type: "text", text: member.name },
+            { type: "text", text: safeText }
+        ]
+    });
+}
+
+// Helpers
+export function calculateExpiryDate(joinDateStr: string, packageId: number): Date | null {
+    const pkg = INITIAL_PACKAGES.find(p => p.id === packageId);
+    if (!pkg) return null;
+
+    const joinDate = new Date(joinDateStr);
+    let monthsToAdd = 0;
+    const durationParts = pkg.duration.split(' ');
+    
+    if (durationParts[0].toLowerCase() === 'first') monthsToAdd = 1;
+    else monthsToAdd = parseInt(durationParts[0], 10);
+
+    if (isNaN(monthsToAdd)) return null;
+
+    joinDate.setMonth(joinDate.getMonth() + monthsToAdd);
+    return joinDate;
 }
 
 export async function sendWorkoutPlanNotification(member: Member, planName: string): Promise<boolean> {
@@ -256,5 +295,5 @@ export async function checkBirthdaysAndNotify(): Promise<number> { return 0; }
 export async function checkAttendanceAndNotify(): Promise<number> { return 0; }
 export async function runDailyAutomations(): Promise<string> {
     const fees = await checkMembershipExpiryAndNotify();
-    return `Neural Guardian Report: ${fees} tactical reminders deployed.`;
+    return `Automations Run: Sent ${fees} fee reminders.`;
 }

@@ -1,11 +1,17 @@
 
 import React from 'react';
 
+const IconWrapper: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
+  <span className={`w-6 h-6 ${className || ''}`}>{children}</span>
+);
+
 export const SmartBandIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
-        <rect x="8" y="2" width="8" height="20" rx="3" />
-        <path d="M12 6v2" />
-        <path d="M12 16v2" />
-        <rect x="9.5" y="9" width="5" height="6" rx="1" fill="currentColor" fillOpacity="0.1" />
-    </svg>
+    <IconWrapper className={className}>
+         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <rect x="6" y="4" width="12" height="16" rx="3" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 10h6" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v2" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v2" />
+        </svg>
+    </IconWrapper>
 );

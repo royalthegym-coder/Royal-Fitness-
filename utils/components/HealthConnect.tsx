@@ -7,414 +7,378 @@ import { SamsungHealthIcon } from './icons/SamsungHealthIcon';
 import { SmartWatchIcon } from './icons/SmartWatchIcon'; 
 import { AppleHealthIcon } from './icons/AppleHealthIcon';
 import { HealthData } from '../../types';
-import { CaloriesIcon, HeartRateIcon, SleepIcon, StepsIcon, HealthIcon } from './icons/HealthIcons';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { CaloriesIcon, HeartRateIcon, SleepIcon, StepsIcon } from './icons/HealthIcons';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { getComplexResponse } from '../../lib/gemini';
 import { SparkleIcon } from './icons/SparkleIcon';
 import CustomTooltip from './common/CustomTooltip';
 import { WatchOSIcon } from './icons/WatchOSIcon'; 
 import { LockIcon } from './icons/LockIcon';
-import { CheckCircleIcon } from './icons/CheckCircleIcon';
-import { AutoUpdateIcon } from './icons/AutoUpdateIcon';
-import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
-import { VideoCameraIcon } from './icons/VideoCameraIcon';
-import { FireIcon } from './icons/ActivityIcons';
-import Modal from './common/Modal';
-
-// --- TYPES & INTERFACES ---
-
-interface PermissionSet {
-    steps: boolean;
-    heartRate: boolean;
-    sleep: boolean;
-    bloodOxygen: boolean;
-    glucose: boolean; // CGM
-    hrv: boolean;
-}
-
-interface ExtendedHealthData extends HealthData {
-    hrv: number; // ms
-    stress: number; // 0-100
-    spo2: number; // %
-    glucose: number; // mg/dL
-    recoveryScore: number; // 0-100
-}
-
-const DEFAULT_PERMISSIONS: PermissionSet = {
-    steps: true, heartRate: true, sleep: true, bloodOxygen: false, glucose: false, hrv: true
-};
+import { RefreshCw, Heart, Moon, Footprints, Flame, ChevronRight, BrainCircuit } from 'lucide-react';
+import { useToast } from '../hooks/useToast';
 
 // --- SUB-COMPONENTS ---
 
-const PermissionModal: React.FC<{ isOpen: boolean; onClose: () => void; onSave: (perms: PermissionSet) => void }> = ({ isOpen, onClose, onSave }) => {
-    const [perms, setPerms] = useState<PermissionSet>(DEFAULT_PERMISSIONS);
-
-    const toggle = (key: keyof PermissionSet) => setPerms(p => ({ ...p, [key]: !p[key] }));
-
+const HeartBeat: React.FC<{ bpm: number }> = ({ bpm }) => {
+    // Calculate animation duration in seconds based on BPM (60 / bpm)
+    const duration = bpm > 0 ? 60 / bpm : 0;
+    
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Data Access Permissions">
-            <div className="space-y-4">
-                <p className="text-sm text-gray-400">
-                    Select which health metrics the <strong>Health Intelligence System</strong> can access. 
-                    Your data is encrypted (AES-256) and stored locally.
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                    {Object.keys(perms).map((key) => (
-                        <div key={key} onClick={() => toggle(key as keyof PermissionSet)} className={`p-3 rounded-lg border cursor-pointer flex items-center justify-between transition-all ${perms[key as keyof PermissionSet] ? 'bg-green-900/20 border-green-500/50' : 'bg-gray-800 border-gray-700'}`}>
-                            <span className="text-sm text-white capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-                            <div className={`w-4 h-4 rounded-full border ${perms[key as keyof PermissionSet] ? 'bg-green-500 border-green-500' : 'border-gray-500'}`}></div>
-                        </div>
-                    ))}
-                </div>
-                <div className="flex justify-end pt-4">
-                    <button onClick={() => onSave(perms)} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg">
-                        Confirm & Sync
-                    </button>
-                </div>
-            </div>
-        </Modal>
+        <div className="relative flex items-center justify-center w-24 h-24">
+            <div 
+                className="absolute inset-0 bg-red-500/20 rounded-full blur-xl"
+                style={{ animation: `pulse ${duration}s infinite` }}
+            ></div>
+            <Heart 
+                className="w-12 h-12 text-red-500 fill-current relative z-10" 
+                style={{ animation: `pulse ${duration}s infinite` }}
+            />
+            <style>{`
+                @keyframes pulse {
+                    0% { transform: scale(1); opacity: 1; }
+                    50% { transform: scale(1.15); opacity: 0.8; }
+                    100% { transform: scale(1); opacity: 1; }
+                }
+            `}</style>
+        </div>
     );
 };
 
-const AnomalyAlert: React.FC<{ message: string; type: 'critical' | 'warning' }> = ({ message, type }) => (
-    <div className={`mb-4 p-4 rounded-xl border flex items-start gap-3 animate-pulse ${type === 'critical' ? 'bg-red-900/30 border-red-500/50' : 'bg-amber-900/30 border-amber-500/50'}`}>
-        <div className={`p-2 rounded-full ${type === 'critical' ? 'bg-red-500/20 text-red-500' : 'bg-amber-500/20 text-amber-500'}`}>
-            <ShieldCheckIcon className="w-6 h-6" />
-        </div>
-        <div>
-            <h4 className={`font-bold text-sm uppercase tracking-wider ${type === 'critical' ? 'text-red-400' : 'text-amber-400'}`}>
-                {type === 'critical' ? 'Medical Anomaly Detected' : 'Recovery Warning'}
-            </h4>
-            <p className="text-white text-sm font-medium mt-1">{message}</p>
-        </div>
-    </div>
-);
+const StepProgress: React.FC<{ current: number; goal: number }> = ({ current, goal }) => {
+    const percentage = Math.min(100, Math.round((current / goal) * 100));
+    const radius = 30;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
-const MetricCard: React.FC<{ title: string; value: string; unit: string; icon: React.ReactNode; color?: string }> = ({ title, value, unit, icon, color = 'text-white' }) => (
-    <div className="bg-gray-800/50 border border-gray-700 p-4 rounded-xl flex items-center justify-between">
-        <div className="flex items-center gap-3">
-            <div className="text-gray-400">{icon}</div>
-            <div>
-                <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">{title}</p>
-                <p className={`text-xl font-black ${color}`}>{value} <span className="text-xs text-gray-500 font-normal">{unit}</span></p>
-            </div>
+    return (
+        <div className="relative flex items-center justify-center w-20 h-20">
+            <svg className="w-full h-full transform -rotate-90">
+                <circle cx="40" cy="40" r={radius} stroke="#1f2937" strokeWidth="6" fill="none" />
+                <circle 
+                    cx="40" cy="40" r={radius} 
+                    stroke={percentage >= 100 ? '#22c55e' : '#3b82f6'} 
+                    strokeWidth="6" fill="none" 
+                    strokeDasharray={circumference} 
+                    strokeDashoffset={strokeDashoffset} 
+                    strokeLinecap="round"
+                    className="transition-all duration-1000 ease-out"
+                />
+            </svg>
+            <div className="absolute text-[10px] font-black text-white">{percentage}%</div>
         </div>
-    </div>
-);
+    );
+};
 
-// --- MAIN COMPONENT ---
+const SleepBar: React.FC<{ deep: number, light: number, rem: number }> = ({ deep, light, rem }) => {
+    const total = deep + light + rem;
+    return (
+        <div className="w-full h-4 bg-gray-800 rounded-full overflow-hidden flex mt-2">
+            <div className="bg-indigo-600 h-full" style={{ width: `${(deep/total)*100}%` }} title="Deep"></div>
+            <div className="bg-blue-500 h-full" style={{ width: `${(light/total)*100}%` }} title="Light"></div>
+            <div className="bg-purple-400 h-full" style={{ width: `${(rem/total)*100}%` }} title="REM"></div>
+        </div>
+    );
+};
 
-const HealthConnectHub: React.FC = () => {
-    // --- STATE ---
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'sources' | 'logs'>('dashboard');
-    const [permissionsOpen, setPermissionsOpen] = useState(false);
-    const [permissions, setPermissions] = useState<PermissionSet>(DEFAULT_PERMISSIONS);
+const HealthConnect: React.FC = () => {
+    const { addToast } = useToast();
+    const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'scanning' | 'connected'>('disconnected');
+    const [sourceType, setSourceType] = useState<'google_fit' | 'samsung_health' | 'apple_health' | 'smartwatch' | null>(null);
+    
+    // Live Data State
+    const [healthData, setHealthData] = useState<HealthData>(INITIAL_HEALTH_DATA);
+    const [dailyStepGoal, setDailyStepGoal] = useState(10000);
     const [isSyncing, setIsSyncing] = useState(false);
     
-    // Advanced Health State
-    const [data, setData] = useState<ExtendedHealthData>({
-        ...INITIAL_HEALTH_DATA,
-        hrv: 45, // ms
-        stress: 40,
-        spo2: 98,
-        glucose: 105,
-        recoveryScore: 75
-    });
+    // AI Coach State
+    const [aiSummary, setAiSummary] = useState<string>('');
+    const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+    
+    // Device specific state
+    const [deviceName, setDeviceName] = useState('');
+    const [batteryLevel, setBatteryLevel] = useState(100);
 
-    const [normalizationLogs, setNormalizationLogs] = useState<string[]>([]);
-    const [anomaly, setAnomaly] = useState<{ msg: string, type: 'critical' | 'warning' } | null>(null);
-    const [aiInsight, setAiInsight] = useState<string | null>(null);
-
-    // --- SIMULATION ENGINE ---
+    // --- LIVE SIMULATION ENGINE ---
     useEffect(() => {
+        if (connectionStatus !== 'connected') return;
+
+        let tick = 0;
         const interval = setInterval(() => {
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-            setData(prev => {
-                // 1. Simulate Biometrics with "Realism" Noise
-                const hrNoise = Math.random() * 4 - 2;
-                const newHr = Math.floor(72 + Math.sin(now.getTime() / 3000) * 10 + hrNoise);
+            tick += 0.2;
+            setHealthData(prev => {
+                // Heart Rate Simulation (Sin wave for realism)
+                const noise = Math.random() * 4 - 2; 
+                const activityWave = Math.sin(tick) * 15; 
+                const newHeartRate = Math.floor(75 + Math.abs(activityWave) + noise); 
                 
-                // 2. Anomaly Trigger (Random rare event)
-                if (Math.random() > 0.995) {
-                    setAnomaly({ msg: `Resting Heart Rate Spike detected (${newHr} bpm). Potential fatigue or illness.`, type: 'critical' });
-                } else if (Math.random() > 0.99 && prev.hrv < 30) {
-                    setAnomaly({ msg: `HRV critically low (${prev.hrv}ms). CNS Overload.`, type: 'warning' });
-                }
+                // Steps Simulation (Increment occasionally)
+                const stepIncrement = newHeartRate > 90 ? Math.floor(Math.random() * 5) : 0;
+                
+                // Calories Simulation
+                const calorieIncrement = (newHeartRate / 2000) * 0.5;
 
-                // 3. Glucose Dynamics (Generative Nutrition Sync)
-                let newGlucose = prev.glucose + (Math.random() * 2 - 1);
-                newGlucose = Math.max(70, Math.min(160, newGlucose));
-
-                // 4. Data Normalization Logging
-                if (Math.random() > 0.7) {
-                    const sources = ['Health Connect', 'HealthKit', 'Oura Cloud'];
-                    const src = sources[Math.floor(Math.random() * sources.length)];
-                    const log = `[${timeStr}] ${src} -> NORMALIZED: { hr: ${newHr}, spo2: ${prev.spo2} } -> JSON`;
-                    setNormalizationLogs(l => [log, ...l].slice(0, 6));
-                }
-
-                // 5. Predictive Recovery Calculation
-                // Logic: Baseline HRV = 50. If current < 40 (0.8 * 50), score drops.
-                const hrvFactor = Math.min(100, (prev.hrv / 50) * 100);
-                const sleepFactor = Math.min(100, (prev.sleep.totalHours / 8) * 100);
-                const newRecovery = Math.floor((hrvFactor * 0.6) + (sleepFactor * 0.4));
+                const newHistoryPoint = { 
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), 
+                    value: newHeartRate 
+                };
 
                 return {
                     ...prev,
-                    heartRate: { ...prev.heartRate, avg: newHr, history: [...prev.heartRate.history.slice(-29), { time: timeStr, value: newHr }] },
-                    glucose: parseFloat(newGlucose.toFixed(1)),
-                    recoveryScore: newRecovery,
-                    hrv: Math.max(20, Math.min(100, prev.hrv + (Math.random() * 2 - 1))) // Slow drift
+                    steps: prev.steps + stepIncrement,
+                    caloriesBurned: parseFloat((prev.caloriesBurned + calorieIncrement).toFixed(2)),
+                    heartRate: {
+                        ...prev.heartRate,
+                        avg: newHeartRate,
+                        history: [...prev.heartRate.history.slice(-19), newHistoryPoint]
+                    }
                 };
             });
-        }, 1000);
+            
+            // Battery Drain
+            if (Math.random() > 0.98) setBatteryLevel(b => Math.max(0, b - 1));
+
+        }, 1000); 
 
         return () => clearInterval(interval);
-    }, []);
+    }, [connectionStatus]);
 
-    // --- HANDLERS ---
+    const handleConnect = (type: 'google_fit' | 'samsung_health' | 'apple_health' | 'smartwatch') => {
+        setSourceType(type);
+        setConnectionStatus('scanning');
+        
+        setTimeout(() => {
+            setConnectionStatus('connected');
+            if (type === 'smartwatch') setDeviceName('Galaxy Watch 6 Classic');
+            else if (type === 'samsung_health') setDeviceName('Samsung Health (Galaxy S24)');
+            else if (type === 'apple_health') setDeviceName('Apple Health (iPhone 15 Pro)');
+            else setDeviceName('Google Fit (Pixel 8)');
+            addToast("Secure Health Uplink Established.", "success");
+        }, 2000);
+    };
 
-    const handleSync = (platform: 'Android' | 'iOS') => {
+    const handleDisconnect = () => {
+        setConnectionStatus('disconnected');
+        setSourceType(null);
+        setHealthData(INITIAL_HEALTH_DATA);
+        setAiSummary('');
+    };
+
+    const handleSync = () => {
         setIsSyncing(true);
         setTimeout(() => {
             setIsSyncing(false);
-            setPermissionsOpen(true); // Open permissions on first sync
+            addToast("Data Synced with Cloud.", "success");
         }, 1500);
     };
 
-    const handleGenerateAiInsight = async () => {
-        setAiInsight("Analyzing bio-signals...");
-        // Simulation of Agentic AI
-        setTimeout(async () => {
-            const prompt = `
-                Act as a Proactive Health Intelligence Agent.
-                User Stats:
-                - Recovery: ${data.recoveryScore}%
-                - HRV: ${data.hrv.toFixed(0)} ms
-                - Glucose: ${data.glucose} mg/dL
-                - Sleep: ${data.sleep.totalHours} hrs
-                
-                Generate 1 specific, actionable piece of advice for today's training intensity and nutrition.
-            `;
-            try {
-                const res = await getComplexResponse(prompt);
-                setAiInsight(res);
-            } catch (e) {
-                setAiInsight("Based on your low HRV, I recommend an 'Active Recovery' day. Focus on Zone 2 cardio and increase magnesium intake.");
-            }
-        }, 1500);
+    const handleGenerateCoach = async () => {
+        setIsGeneratingSummary(true);
+        setAiSummary('');
+        
+        const prompt = `
+            Act as an elite personal fitness coach AI. Analyze this user's daily stats:
+            - Steps: ${healthData.steps} / ${dailyStepGoal} Goal
+            - Avg HR: ${healthData.heartRate.avg} BPM
+            - Sleep: ${healthData.sleep.totalHours}h (Deep: ${healthData.sleep.deepHours}h)
+            - Burn: ${healthData.caloriesBurned} kcal
+
+            Task: Provide a 3-sentence personalized motivational summary. 
+            If sleep is low (<7h), suggest recovery. If steps are low, push for a walk. 
+            Use emojis.
+        `;
+
+        try {
+            const summary = await getComplexResponse(prompt);
+            setAiSummary(summary);
+        } catch (e) {
+            setAiSummary("Coach is offline. Try again later.");
+        } finally {
+            setIsGeneratingSummary(false);
+        }
     };
+
+    if (connectionStatus === 'disconnected') {
+        return (
+            <div className="animate-fade-in">
+                <h1 className="text-3xl font-bold text-amber-500 dark:text-amber-400 mb-6">Health Connect</h1>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <Card className="hover:border-red-500 transition-all cursor-pointer border-2 border-transparent group relative overflow-hidden bg-gray-900">
+                        <div className="text-center py-10 px-4 relative z-10">
+                            <AppleHealthIcon className="w-16 h-16 mx-auto mb-4 text-red-500 group-hover:scale-110 transition-transform" />
+                            <h2 className="text-xl font-semibold mb-2 text-white">Apple Health</h2>
+                            <p className="text-gray-500 text-xs mb-6">Sync Activity Rings, Sleep & Heart.</p>
+                            <button onClick={() => handleConnect('apple_health')} className="bg-white text-black font-bold py-2 px-6 rounded-full hover:bg-gray-200 transition-colors shadow-md text-xs uppercase tracking-wider">Connect</button>
+                        </div>
+                    </Card>
+                    <Card className="hover:border-blue-500 transition-all cursor-pointer border-2 border-transparent group relative overflow-hidden bg-gray-900">
+                        <div className="text-center py-10 px-4 relative z-10">
+                            <SamsungHealthIcon className="w-16 h-16 mx-auto mb-4 group-hover:scale-110 transition-transform" />
+                            <h2 className="text-xl font-semibold mb-2 text-white">Samsung Health</h2>
+                            <p className="text-gray-500 text-xs mb-6">Galaxy Watch & Phone Integration.</p>
+                            <button onClick={() => handleConnect('samsung_health')} className="bg-blue-600 text-white font-bold py-2 px-6 rounded-full hover:bg-blue-500 transition-colors shadow-md text-xs uppercase tracking-wider">Connect</button>
+                        </div>
+                    </Card>
+                    <Card className="hover:border-yellow-500 transition-all cursor-pointer border-2 border-transparent group relative overflow-hidden bg-gray-900">
+                        <div className="text-center py-10 px-4 relative z-10">
+                            <GoogleIcon className="w-16 h-16 mx-auto mb-4 group-hover:scale-110 transition-transform" />
+                            <h2 className="text-xl font-semibold mb-2 text-white">Google Fit</h2>
+                            <p className="text-gray-500 text-xs mb-6">Universal Android Health Sync.</p>
+                            <button onClick={() => handleConnect('google_fit')} className="bg-white text-gray-900 font-bold py-2 px-6 rounded-full hover:bg-gray-200 transition-colors shadow-md text-xs uppercase tracking-wider">Connect</button>
+                        </div>
+                    </Card>
+                    <Card className="hover:border-amber-500 transition-all cursor-pointer border-2 border-transparent group relative overflow-hidden bg-gray-900">
+                        <div className="absolute top-0 right-0 bg-amber-500 text-black text-[9px] font-black px-2 py-1 rounded-bl-lg">BLE</div>
+                        <div className="text-center py-10 px-4 relative z-10">
+                            <WatchOSIcon className="w-16 h-16 mx-auto mb-4 text-gray-700 dark:text-gray-200 group-hover:scale-110 transition-transform" />
+                            <h2 className="text-xl font-semibold mb-2 text-white">Direct Device</h2>
+                            <p className="text-gray-500 text-xs mb-6">Pair Bluetooth Wearables Directly.</p>
+                            <button onClick={() => handleConnect('smartwatch')} className="bg-amber-500 text-black font-bold py-2 px-6 rounded-full hover:bg-amber-400 transition-colors shadow-md text-xs uppercase tracking-wider">Pair BLE</button>
+                        </div>
+                    </Card>
+                </div>
+            </div>
+        );
+    }
+
+    if (connectionStatus === 'scanning') {
+        return (
+            <Card className="h-[600px] flex flex-col items-center justify-center bg-black relative overflow-hidden">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-amber-900/20 via-black to-black"></div>
+                <div className="relative z-10 text-center">
+                    <div className="w-32 h-32 bg-amber-500/10 rounded-full flex items-center justify-center border-4 border-amber-500/30 animate-pulse mb-8 mx-auto">
+                        <SmartWatchIcon className="w-12 h-12 text-amber-500" />
+                    </div>
+                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter animate-pulse">Scanning Bio-Signal...</h2>
+                    <p className="text-gray-500 font-mono text-xs mt-2 uppercase tracking-widest">Handshake Protocol Initiated</p>
+                </div>
+            </Card>
+        );
+    }
 
     return (
-        <div className="space-y-6">
-            {/* --- HEADER --- */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-gray-900 p-6 rounded-2xl border border-gray-800 shadow-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <AutoUpdateIcon className="w-48 h-48 text-amber-500" />
+        <div className="animate-fade-in space-y-6">
+            
+            {/* 1. DEVICE HEADER */}
+            <div className="flex flex-col md:flex-row justify-between items-center bg-gray-900 border border-white/10 p-6 rounded-[2.5rem]">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-gray-800 rounded-2xl border border-white/5">
+                        {sourceType === 'apple_health' ? <AppleHealthIcon className="w-6 h-6 text-red-500" /> : sourceType === 'samsung_health' ? <SamsungHealthIcon className="w-6 h-6" /> : sourceType === 'google_fit' ? <GoogleIcon className="w-6 h-6" /> : <WatchOSIcon className="w-6 h-6 text-amber-400" />}
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-white leading-none">{deviceName}</h3>
+                        <div className="flex items-center gap-3 mt-1">
+                            <span className="text-[10px] font-black text-green-500 uppercase tracking-widest flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Connected
+                            </span>
+                            <span className={`text-[10px] font-mono ${batteryLevel < 20 ? 'text-red-500' : 'text-gray-400'}`}>BAT: {batteryLevel}%</span>
+                        </div>
+                    </div>
                 </div>
-                <div className="relative z-10">
-                    <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-amber-400 flex items-center">
-                        <HealthIcon className="w-8 h-8 mr-3 text-blue-400" />
-                        Proactive Health Intelligence
-                    </h1>
-                    <p className="text-gray-400 text-xs mt-1 font-mono uppercase tracking-[0.2em] flex items-center">
-                        <LockIcon className="w-3 h-3 mr-1 text-green-500" />
-                        AES-256 Encrypted • HIPAA Compliant • 2026 Arch
-                    </p>
-                </div>
-                <div className="flex bg-black/40 p-1 rounded-xl border border-gray-700 mt-4 md:mt-0 relative z-10">
-                    <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === 'dashboard' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>Live Dashboard</button>
-                    <button onClick={() => setActiveTab('sources')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === 'sources' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}>Sources</button>
-                    <button onClick={() => setActiveTab('logs')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === 'logs' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}>Data Logs</button>
+                <div className="flex gap-3 mt-4 md:mt-0">
+                     <button onClick={handleSync} className="p-3 bg-blue-600/20 text-blue-400 hover:bg-blue-600/40 rounded-xl border border-blue-500/30 transition-all active:scale-95">
+                         <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`} />
+                     </button>
+                     <button onClick={handleDisconnect} className="px-6 py-3 bg-red-900/20 text-red-500 hover:bg-red-900/40 rounded-xl border border-red-500/30 text-xs font-black uppercase tracking-widest transition-all">
+                         Unlink
+                     </button>
                 </div>
             </div>
 
-            {/* --- DASHBOARD TAB --- */}
-            {activeTab === 'dashboard' && (
-                <div className="space-y-6 animate-fade-in">
-                    
-                    {/* Anomaly Alert */}
-                    {anomaly && (
-                        <AnomalyAlert message={anomaly.msg} type={anomaly.type} />
-                    )}
-
-                    {/* TOP ROW: PREDICTIVE ENGINE */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* 1. Recovery Engine */}
-                        <Card className="border-t-4 border-purple-500 bg-gray-900">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-sm font-bold text-purple-400 uppercase tracking-widest flex items-center">
-                                    <SparkleIcon className="w-4 h-4 mr-2" /> Predictive Recovery
-                                </h3>
-                                <span className={`text-xl font-black ${data.recoveryScore > 60 ? 'text-green-400' : 'text-red-400'}`}>{data.recoveryScore}%</span>
-                            </div>
-                            <div className="h-2 w-full bg-gray-800 rounded-full overflow-hidden mb-4">
-                                <div className={`h-full transition-all duration-1000 ${data.recoveryScore > 60 ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${data.recoveryScore}%` }}></div>
-                            </div>
-                            <div className="bg-gray-800 p-3 rounded-lg border border-gray-700">
-                                <p className="text-xs text-gray-300 leading-relaxed">
-                                    {data.recoveryScore > 80 ? "System Primed. Recommended: High Intensity / PR Attempt." : 
-                                     data.recoveryScore > 40 ? "Baseline Readiness. Recommended: Maintenance Load." : 
-                                     "⚠️ Low Readiness. Agent suggests: Active Recovery / Yoga."}
-                                </p>
-                            </div>
-                        </Card>
-
-                        {/* 2. Bio-Sync (Nutrition) */}
-                        <Card className="border-t-4 border-amber-500 bg-gray-900">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-sm font-bold text-amber-400 uppercase tracking-widest flex items-center">
-                                    <FireIcon className="w-4 h-4 mr-2" /> Generative Bio-Sync
-                                </h3>
-                                <span className="text-xs bg-amber-900/30 text-amber-300 px-2 py-1 rounded border border-amber-500/20">CGM ACTIVE</span>
-                            </div>
-                            <div className="flex items-end gap-2 mb-4">
-                                <span className="text-3xl font-black text-white">{data.glucose}</span>
-                                <span className="text-xs text-gray-500 mb-1">mg/dL</span>
-                                <span className={`text-xs font-bold mb-1 ${data.glucose > 140 ? 'text-red-400' : 'text-green-400'}`}>
-                                    {data.glucose > 140 ? '↑ Spiking' : '→ Stable'}
-                                </span>
-                            </div>
-                            <div className="bg-gray-800 p-3 rounded-lg border border-gray-700">
-                                <p className="text-xs text-gray-300 leading-relaxed">
-                                    {data.glucose > 140 ? "⚠️ Glucose Spike Detected. AI Advice: Reduce carb intake for next meal. Walk 10 mins." : 
-                                     "Metabolic State Optimized. Fueling strategy is effective."}
-                                </p>
-                            </div>
-                        </Card>
-
-                        {/* 3. Vision Coach Link */}
-                        <Card className="border-t-4 border-cyan-500 bg-gray-900 flex flex-col justify-between">
-                            <div>
-                                <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-widest flex items-center mb-2">
-                                    <VideoCameraIcon className="w-4 h-4 mr-2" /> Vision Form Lab
-                                </h3>
-                                <p className="text-xs text-gray-400">Real-time posture tracking using MediaPipe.</p>
-                            </div>
-                            <button className="w-full mt-4 bg-cyan-900/30 hover:bg-cyan-900/50 text-cyan-300 border border-cyan-500/30 text-xs font-bold py-3 rounded-lg transition-all flex items-center justify-center">
-                                Launch Vision Coach
-                            </button>
-                        </Card>
-                    </div>
-
-                    {/* LIVE TELEMETRY ROW */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                        <MetricCard title="Live Heart Rate" value={data.heartRate.avg.toString()} unit="bpm" icon={<HeartRateIcon className="w-5 h-5 text-red-500"/>} />
-                        <MetricCard title="HR Variability" value={data.hrv.toFixed(0)} unit="ms" icon={<SparkleIcon className="w-5 h-5 text-purple-500"/>} />
-                        <MetricCard title="Daily Steps" value={data.steps.toLocaleString()} unit="" icon={<StepsIcon className="w-5 h-5 text-blue-500"/>} />
-                        <MetricCard title="Sleep" value={data.sleep.totalHours.toString()} unit="hrs" icon={<SleepIcon className="w-5 h-5 text-indigo-500"/>} />
-                    </div>
-
-                    {/* LIVE CHART */}
-                    <Card title="Unified Biometric Stream" className="bg-gray-900 border-gray-800">
-                        <div className="h-[250px] w-full min-w-0 relative">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={data.heartRate.history}>
-                                    <defs>
-                                        <linearGradient id="colorHr" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.5}/>
-                                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                                        </linearGradient>
-                                    </defs>
-                                    <XAxis dataKey="time" stroke="#6b7280" className="text-[10px]" tick={false} />
-                                    <YAxis stroke="#6b7280" className="text-[10px]" domain={['dataMin - 10', 'dataMax + 10']} />
-                                    <Tooltip content={<CustomTooltip />} />
-                                    <Area type="monotone" dataKey="value" stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#colorHr)" isAnimationActive={false} />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                            <div className="absolute top-2 right-2 text-[10px] font-mono text-green-400 animate-pulse">
-                                ● LIVE FEED: APPLE WATCH + GALAXY RING
+            {/* 2. LIVE METRICS GRID */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                
+                {/* HEART RATE */}
+                <div className="bg-[#0c0c0c] border border-white/5 p-6 rounded-[2.5rem] relative overflow-hidden group">
+                    <div className="flex justify-between items-start relative z-10">
+                        <div>
+                            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Live Pulse</p>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-4xl font-black text-white italic">{healthData.heartRate.avg}</span>
+                                <span className="text-xs text-red-500 font-bold animate-pulse">BPM</span>
                             </div>
                         </div>
-                    </Card>
-
-                    {/* AI AGENT ACTION */}
-                    <div className="flex justify-center">
-                        <button 
-                            onClick={handleGenerateAiInsight}
-                            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 px-8 rounded-full shadow-lg flex items-center transition-transform hover:scale-105"
-                        >
-                            <SparkleIcon className="w-5 h-5 mr-2" /> Generate Health Intelligence Report
-                        </button>
+                        <HeartBeat bpm={healthData.heartRate.avg} />
                     </div>
-                    {aiInsight && (
-                        <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded-xl text-sm text-gray-300 animate-fade-in prose prose-invert max-w-none">
-                            <div dangerouslySetInnerHTML={{ __html: aiInsight.replace(/\n/g, '<br/>') }} />
-                        </div>
-                    )}
+                    <div className="h-16 w-full mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={healthData.heartRate.history}>
+                                <Line type="monotone" dataKey="value" stroke="#ef4444" strokeWidth={2} dot={false} isAnimationActive={false} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
-            )}
 
-            {/* --- SOURCES TAB --- */}
-            {activeTab === 'sources' && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
-                    <Card title="Android Ecosystem (Health Connect)">
-                        <div className="flex items-center gap-4 mb-4">
-                            <SamsungHealthIcon className="w-12 h-12 text-blue-500" />
-                            <div>
-                                <p className="text-gray-400 text-xs">API Level 34+</p>
-                                <p className="text-white font-bold">Google Pixel / Samsung Galaxy</p>
-                            </div>
-                        </div>
-                        <button onClick={() => handleSync('Android')} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg font-bold text-sm flex items-center justify-center">
-                            {isSyncing ? <AutoUpdateIcon className="w-4 h-4 mr-2 animate-spin"/> : <CheckCircleIcon className="w-4 h-4 mr-2"/>}
-                            {isSyncing ? 'Syncing via Health Connect...' : 'Sync Now'}
-                        </button>
-                    </Card>
-
-                    <Card title="Apple Ecosystem (HealthKit)">
-                        <div className="flex items-center gap-4 mb-4">
-                            <AppleHealthIcon className="w-12 h-12 text-white" />
-                            <div>
-                                <p className="text-gray-400 text-xs">iOS 17+</p>
-                                <p className="text-white font-bold">iPhone / Apple Watch Ultra</p>
-                            </div>
-                        </div>
-                        <button onClick={() => handleSync('iOS')} className="w-full bg-white hover:bg-gray-200 text-black py-2 rounded-lg font-bold text-sm flex items-center justify-center">
-                            {isSyncing ? <AutoUpdateIcon className="w-4 h-4 mr-2 animate-spin"/> : <CheckCircleIcon className="w-4 h-4 mr-2"/>}
-                            {isSyncing ? 'Syncing via HealthKit...' : 'Sync Now'}
-                        </button>
-                    </Card>
-
-                    <Card title="Direct BLE (Wearables)" className="lg:col-span-2 bg-gradient-to-r from-gray-900 to-amber-900/10 border-amber-500/20">
-                        <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <WatchOSIcon className="w-8 h-8 text-amber-500"/>
-                                <div>
-                                    <h4 className="font-bold text-white">Direct Sensor Link</h4>
-                                    <p className="text-xs text-gray-400">Garmin, Whoop, Oura (Bluetooth 5.3)</p>
-                                </div>
-                            </div>
-                            <button onClick={() => setPermissionsOpen(true)} className="text-xs text-amber-400 underline">Manage Permissions</button>
-                        </div>
-                    </Card>
+                {/* STEPS GOAL */}
+                <div className="bg-[#0c0c0c] border border-white/5 p-6 rounded-[2.5rem] flex items-center justify-between relative overflow-hidden">
+                    <div>
+                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 flex items-center gap-2"><Footprints className="w-3 h-3"/> Steps</p>
+                        <span className="text-3xl font-black text-white italic">{healthData.steps.toLocaleString()}</span>
+                        <p className="text-[10px] text-gray-600 mt-1">Goal: {dailyStepGoal.toLocaleString()}</p>
+                    </div>
+                    <StepProgress current={healthData.steps} goal={dailyStepGoal} />
                 </div>
-            )}
 
-            {/* --- LOGS TAB --- */}
-            {activeTab === 'logs' && (
-                <Card title="Data Normalization Layer" className="bg-black border-gray-700 h-[500px] flex flex-col">
-                    <div className="flex justify-between border-b border-gray-800 pb-2 mb-2">
-                        <span className="text-xs font-mono text-gray-500">STREAMING...</span>
-                        <span className="text-xs font-mono text-green-500">STATUS: NORMALIZED</span>
+                {/* CALORIES */}
+                <div className="bg-[#0c0c0c] border border-white/5 p-6 rounded-[2.5rem] flex flex-col justify-between relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-10"><Flame className="w-20 h-20 text-orange-500" /></div>
+                    <div>
+                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Active Burn</p>
+                        <span className="text-3xl font-black text-white italic">{Math.floor(healthData.caloriesBurned)} <span className="text-sm text-orange-500 not-italic">kcal</span></span>
                     </div>
-                    <div className="flex-1 overflow-y-auto font-mono text-xs space-y-1.5 p-2 custom-scrollbar">
-                        {normalizationLogs.length === 0 && <span className="text-gray-600">Waiting for data packets...</span>}
-                        {normalizationLogs.map((log, i) => (
-                            <div key={i} className="text-green-400/80 border-b border-gray-900 pb-1 break-all">
-                                {log}
+                    <div className="w-full bg-gray-800 h-1.5 rounded-full mt-4 overflow-hidden">
+                        <div className="h-full bg-orange-500" style={{ width: `${Math.min(100, (healthData.caloriesBurned / 800) * 100)}%` }}></div>
+                    </div>
+                </div>
+
+                {/* SLEEP TRACKING */}
+                <div className="bg-[#0c0c0c] border border-white/5 p-6 rounded-[2.5rem] relative overflow-hidden">
+                    <div className="flex justify-between items-start mb-2">
+                         <div>
+                            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 flex items-center gap-2"><Moon className="w-3 h-3 text-indigo-400"/> Sleep</p>
+                            <span className="text-3xl font-black text-white italic">{healthData.sleep.totalHours} <span className="text-sm text-gray-500 not-italic">hr</span></span>
+                         </div>
+                         <div className="text-right">
+                             <p className="text-xs font-bold text-green-400">85%</p>
+                             <p className="text-[8px] text-gray-600 uppercase">Quality</p>
+                         </div>
+                    </div>
+                    <SleepBar deep={healthData.sleep.deepHours} light={healthData.sleep.totalHours - healthData.sleep.deepHours - healthData.sleep.remHours} rem={healthData.sleep.remHours} />
+                    <div className="flex justify-between text-[8px] text-gray-500 mt-2 uppercase font-mono">
+                        <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 bg-indigo-600 rounded-full"></div> Deep</span>
+                        <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div> Light</span>
+                        <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 bg-purple-400 rounded-full"></div> REM</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* 3. AI COACH SECTION */}
+            <Card className="bg-gradient-to-r from-gray-900 to-black border-white/10 p-8 rounded-[3rem]">
+                <div className="flex flex-col md:flex-row items-center gap-8">
+                    <div className="bg-indigo-500/10 p-4 rounded-full border border-indigo-500/30">
+                        <BrainCircuit className="w-10 h-10 text-indigo-400" />
+                    </div>
+                    <div className="flex-1 text-center md:text-left">
+                        <h3 className="text-xl font-black text-white italic uppercase tracking-tight mb-2">Personalized Neural Coach</h3>
+                        {aiSummary ? (
+                            <div className="bg-gray-800/50 p-4 rounded-2xl border border-white/5 text-sm text-gray-300 italic leading-relaxed animate-fade-in">
+                                "{aiSummary}"
                             </div>
-                        ))}
+                        ) : (
+                            <p className="text-gray-500 text-xs">Ready to analyze your daily biometrics for optimal performance suggestions.</p>
+                        )}
                     </div>
-                </Card>
-            )}
-
-            {/* Permission Modal */}
-            <PermissionModal isOpen={permissionsOpen} onClose={() => setPermissionsOpen(false)} onSave={(p) => { setPermissions(p); setPermissionsOpen(false); }} />
+                    <button 
+                        onClick={handleGenerateCoach}
+                        disabled={isGeneratingSummary}
+                        className="bg-white text-black font-black px-8 py-4 rounded-2xl text-[10px] uppercase tracking-widest shadow-xl hover:bg-indigo-400 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                    >
+                        {isGeneratingSummary ? <RefreshCw className="w-4 h-4 animate-spin"/> : <SparkleIcon className="w-4 h-4"/>}
+                        {isGeneratingSummary ? 'Analyzing...' : 'Generate Insights'}
+                    </button>
+                </div>
+            </Card>
         </div>
     );
 };
 
-export default HealthConnectHub;
+export default HealthConnect;

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Modal from './Modal';
-import { generateAIWorkoutTemplate, getComplexResponse } from '../../../lib/gemini';
+import { getComplexResponse } from '../../../lib/gemini';
 import { SparkleIcon } from '../icons/SparkleIcon';
 import { AutoUpdateIcon } from '../icons/AutoUpdateIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
@@ -66,9 +66,28 @@ const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpe
         setStatus('generating');
         
         try {
-            const rawResponse = await generateAIWorkoutTemplate({
-                name, level, goal, structure, daysPerWeek, notes
-            });
+            const prompt = `
+                Create a detailed, scientific gym workout plan.
+                Name: ${name}
+                Level: ${level}
+                Goal: ${goal}
+                Split: ${structure}
+                Freq: ${daysPerWeek} days/week
+                Notes: ${notes}
+
+                Format strictly as JSON matching this schema:
+                {
+                    "name": "string",
+                    "description": "string (Explain the science/periodization)",
+                    "exercises": [
+                        { "name": "string", "sets": "string", "reps": "string (include RPE or Tempo if applicable e.g. '10 @ RPE 8')" }
+                    ]
+                }
+                
+                Ensure exercises are standard gym movements.
+            `;
+            
+            const rawResponse = await getComplexResponse(prompt);
             
             try {
                 // Ensure we parse strict JSON
@@ -92,8 +111,8 @@ const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpe
         onSave({ 
             name: generatedPlan.name || name, 
             level, 
-            content: generatedPlan.description, // Store description in content for fallback
-            exercises: generatedPlan.exercises // Store structured exercises
+            content: generatedPlan.description,
+            exercises: generatedPlan.exercises
         });
         onClose();
     };
@@ -102,7 +121,6 @@ const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpe
         <Modal isOpen={isOpen} onClose={onClose} title="AI Workout Architect">
             <div className="flex flex-col h-[70vh]">
                 
-                {/* Progress Bar (Visible when processing) */}
                 {(status === 'generating' || status === 'refining') && (
                     <div className="w-full bg-gray-700 h-1.5 mb-4 rounded-full overflow-hidden">
                         <div 
@@ -112,7 +130,6 @@ const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpe
                     </div>
                 )}
 
-                {/* ERROR STATE */}
                 {status === 'error' && (
                     <div className="bg-red-900/30 border border-red-500 rounded-lg p-4 mb-4 text-center">
                         <p className="text-red-400 font-bold mb-2">Generation Failed</p>
@@ -126,7 +143,6 @@ const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpe
                     </div>
                 )}
 
-                {/* IDLE STATE: INPUT FORM */}
                 {status === 'idle' && (
                     <div className="space-y-4 overflow-y-auto pr-2 flex-grow custom-scrollbar">
                         <div className="bg-blue-900/20 border border-blue-500/30 p-3 rounded-lg flex items-start gap-3">
@@ -188,7 +204,6 @@ const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpe
                     </div>
                 )}
 
-                {/* GENERATING STATE */}
                 {(status === 'generating' || status === 'refining') && (
                     <div className="flex-grow flex flex-col items-center justify-center text-center p-8">
                         <div className="relative mb-6">
@@ -196,15 +211,14 @@ const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpe
                             <div className="absolute inset-0 bg-amber-500/20 blur-xl rounded-full animate-pulse"></div>
                         </div>
                         <h3 className="text-xl font-bold text-white mb-2">
-                            {status === 'generating' ? 'Designing Workout Protocol...' : 'Refining Plan based on Feedback...'}
+                            {status === 'generating' ? 'Designing Scientific Protocol...' : 'Refining Plan based on Feedback...'}
                         </h3>
                         <p className="text-gray-400 text-sm">
-                            Analyzing {goal} strategies for {level} level intensity.
+                            Analyzing {goal} strategies for {level} level intensity. Calculating RPE & Volume.
                         </p>
                     </div>
                 )}
 
-                {/* REVIEW STATE: VISUAL GRID */}
                 {status === 'review' && generatedPlan && (
                     <div className="flex flex-col h-full overflow-hidden">
                         <div className="bg-gray-800 p-3 rounded-t-lg border-b border-gray-700 flex flex-col">
@@ -241,7 +255,6 @@ const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpe
                     </div>
                 )}
 
-                {/* FOOTER ACTIONS */}
                 <div className="flex justify-end gap-3 pt-4 mt-auto border-t border-gray-700">
                     {status === 'idle' ? (
                         <>

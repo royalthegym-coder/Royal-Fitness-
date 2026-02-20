@@ -1,106 +1,109 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Card from './common/Card';
-import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
-import { LockIcon } from './icons/LockIcon';
-import { CubeIcon } from './icons/CubeIcon';
-import { AutoUpdateIcon } from './icons/AutoUpdateIcon';
-import { CloudArrowUpIcon } from './icons/CloudArrowUpIcon';
+import { 
+    ShieldAlert, Lock, Unlock, Eye, Activity, 
+    AlertTriangle, Video, Fingerprint, History, Siren 
+} from 'lucide-react';
+import { useData } from '../context/DataProvider';
+import { useToast } from '../hooks/useToast';
 
 const SecurityLayer: React.FC = () => {
-    const [trainingProgress, setTrainingProgress] = useState(0);
-    const [verificationStep, setVerificationStep] = useState(0);
+    const { auditLogs } = useData();
+    const { addToast } = useToast();
+    const [doorStatus, setDoorStatus] = useState<'LOCKED' | 'UNLOCKED'>('LOCKED');
+    const [alarmActive, setAlarmActive] = useState(false);
+    
+    // Mock Cams
+    const cams = [
+        { id: 1, name: 'Main Entrance', status: 'Online' },
+        { id: 2, name: 'Weight Floor', status: 'Online' },
+        { id: 3, name: 'Cardio Deck', status: 'Recording' },
+        { id: 4, name: 'Back Exit', status: 'Online' },
+    ];
 
-    // Simulate Federated Learning
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setTrainingProgress(prev => (prev >= 100 ? 0 : prev + 5));
-        }, 800);
-        return () => clearInterval(interval);
-    }, []);
+    const toggleLock = () => {
+        const newStatus = doorStatus === 'LOCKED' ? 'UNLOCKED' : 'LOCKED';
+        setDoorStatus(newStatus);
+        addToast(`Main Gate: ${newStatus}`, newStatus === 'LOCKED' ? 'error' : 'success');
+    };
 
-    // Simulate ZKP Verification
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setVerificationStep(prev => (prev + 1) % 4);
-        }, 1500);
-        return () => clearInterval(interval);
-    }, []);
-
-    const steps = ["Hashing Biometrics...", "Generating ZK-Proof...", "Verifying on Hyperledger...", "Identity Confirmed"];
+    const toggleAlarm = () => {
+        setAlarmActive(!alarmActive);
+        if(!alarmActive) addToast("EMERGENCY PROTOCOL INITIATED.", "error");
+        else addToast("Alarm Silenced.", "info");
+    };
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-900 p-6 rounded-xl border border-gray-800">
-                <div>
-                    <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-orange-500 flex items-center">
-                        <ShieldCheckIcon className="w-8 h-8 mr-3 text-red-400" />
-                        Privacy-First Data Hub
-                    </h1>
-                    <p className="text-gray-400 text-sm mt-1">Zero-Knowledge Architecture & Federated AI</p>
+        <div className="space-y-8 animate-fade-in pb-24">
+            <div className={`p-10 rounded-[3.5rem] border transition-all duration-500 shadow-2xl relative overflow-hidden ${alarmActive ? 'bg-red-950 border-red-500 animate-pulse' : 'bg-[#050505] border-red-500/20'}`}>
+                <div className="relative z-10 flex justify-between items-center">
+                    <div>
+                        <h1 className="text-4xl font-black text-white italic uppercase tracking-tighter flex items-center gap-4">
+                            <ShieldAlert className={`w-12 h-12 ${alarmActive ? 'text-white' : 'text-red-500'}`} />
+                            Security <span className={alarmActive ? 'text-white' : 'text-red-500'}>Grid</span>
+                        </h1>
+                        <p className="text-gray-400 text-sm font-mono mt-2 tracking-widest">PERIMETER CONTROL v31.0</p>
+                    </div>
+                    <div className="flex gap-4">
+                        <button 
+                            onClick={toggleLock}
+                            className={`px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 transition-all ${doorStatus === 'LOCKED' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}
+                        >
+                            {doorStatus === 'LOCKED' ? <Lock className="w-4 h-4"/> : <Unlock className="w-4 h-4"/>}
+                            {doorStatus === 'LOCKED' ? 'UNLOCK GATE' : 'LOCK GATE'}
+                        </button>
+                        <button 
+                            onClick={toggleAlarm}
+                            className={`px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 transition-all ${alarmActive ? 'bg-white text-red-600' : 'bg-red-900/20 border border-red-500 text-red-500 hover:bg-red-600 hover:text-white'}`}
+                        >
+                            <Siren className="w-4 h-4"/>
+                            {alarmActive ? 'DISARM SYSTEM' : 'PANIC ALERT'}
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                
-                {/* 1. Federated Learning Node */}
-                <Card className="border-t-4 border-blue-500 bg-gray-800/40">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-xl font-bold text-white flex items-center">
-                            <CubeIcon className="w-6 h-6 mr-2 text-blue-400" />
-                            Federated Learning Node
-                        </h3>
-                        <span className="text-[10px] bg-blue-900/30 text-blue-300 px-2 py-0.5 rounded border border-blue-500/20">DEVICE: ACTIVE</span>
-                    </div>
-                    
-                    <p className="text-sm text-gray-400 mb-4">
-                        Your health models are training <strong>locally on your phone</strong> (ONNX Runtime). Raw data never leaves this device. Only improved model weights are synced.
-                    </p>
-
-                    <div className="bg-black/50 p-4 rounded-xl border border-gray-700">
-                        <div className="flex justify-between text-xs text-gray-400 mb-2">
-                            <span>Local Training Epoch: 42</span>
-                            <span>{trainingProgress}%</span>
-                        </div>
-                        <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
-                            <div className="bg-blue-500 h-full transition-all duration-300" style={{ width: `${trainingProgress}%` }}></div>
-                        </div>
-                        <div className="flex justify-between items-center mt-3">
-                            <div className="flex items-center text-[10px] text-green-400">
-                                <LockIcon className="w-3 h-3 mr-1" /> Data Encrypted
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Cameras */}
+                <Card title="Visual Surveillance" className="bg-gray-950 border-white/5 p-8 rounded-[3rem]">
+                    <div className="grid grid-cols-2 gap-4">
+                        {cams.map(cam => (
+                            <div key={cam.id} className="bg-black aspect-video rounded-xl border border-white/10 relative overflow-hidden group">
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <Video className="w-8 h-8 text-gray-700" />
+                                </div>
+                                <div className="absolute top-2 left-2 flex items-center gap-2">
+                                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                                    <span className="text-[9px] font-black uppercase text-red-500 tracking-widest">REC</span>
+                                </div>
+                                <div className="absolute bottom-2 left-2">
+                                    <span className="text-xs font-bold text-white">{cam.name}</span>
+                                </div>
+                                <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
                             </div>
-                            <div className="flex items-center text-[10px] text-gray-500">
-                                <CloudArrowUpIcon className="w-3 h-3 mr-1" /> Syncing Weights (12KB)
-                            </div>
-                        </div>
+                        ))}
                     </div>
                 </Card>
 
-                {/* 2. Blockchain Identity (ZKP) */}
-                <Card className="border-t-4 border-purple-500 bg-gray-800/40">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-xl font-bold text-white flex items-center">
-                            <ShieldCheckIcon className="w-6 h-6 mr-2 text-purple-400" />
-                            Blockchain Identity (ZKP)
-                        </h3>
-                        <span className="text-[10px] bg-purple-900/30 text-purple-300 px-2 py-0.5 rounded border border-purple-500/20">HYPERLEDGER</span>
-                    </div>
-
-                    <p className="text-sm text-gray-400 mb-4">
-                        Access control uses <strong>Zero-Knowledge Proofs</strong>. The gym verifies you are a member without knowing *who* you are, preserving anonymity.
-                    </p>
-
-                    <div className="space-y-3">
-                        {steps.map((step, i) => (
-                            <div key={i} className={`flex items-center p-2 rounded transition-all ${i === verificationStep ? 'bg-purple-900/20 border border-purple-500/50' : 'opacity-30'}`}>
-                                <div className={`w-4 h-4 rounded-full mr-3 flex items-center justify-center ${i <= verificationStep ? 'bg-purple-500' : 'bg-gray-700'}`}>
-                                    {i < verificationStep && <span className="text-black text-[8px]">✓</span>}
+                {/* Access Logs */}
+                <Card title="Access Ledger" className="bg-gray-950 border-white/5 p-8 rounded-[3rem] h-[500px] flex flex-col">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4">
+                        {auditLogs.filter(l => l.action.includes('ACCESS') || l.action.includes('LOCK')).map((log, i) => (
+                            <div key={i} className="flex items-center gap-4 p-4 bg-black/40 rounded-2xl border border-white/5">
+                                <div className={`p-3 rounded-xl ${log.action.includes('DENIED') ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
+                                    <Fingerprint className="w-5 h-5"/>
                                 </div>
-                                <span className={`text-xs font-mono ${i === verificationStep ? 'text-white font-bold' : 'text-gray-400'}`}>
-                                    {step} {i === verificationStep && <span className="animate-pulse">...</span>}
-                                </span>
+                                <div>
+                                    <p className="text-white font-bold text-sm">{log.action}</p>
+                                    <p className="text-gray-500 text-[10px] font-mono">{new Date(log.timestamp).toLocaleString()}</p>
+                                    <p className="text-gray-400 text-xs mt-1">{log.details}</p>
+                                </div>
                             </div>
                         ))}
+                        {auditLogs.length === 0 && (
+                            <p className="text-gray-600 text-center py-10 uppercase tracking-widest text-xs">No recent security events.</p>
+                        )}
                     </div>
                 </Card>
             </div>

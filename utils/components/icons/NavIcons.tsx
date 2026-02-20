@@ -32,8 +32,8 @@ const IconWrapper: React.FC<{ children: React.ReactNode; className?: string }> =
   </span>
 );
 
-export const DashboardIcon = () => (
-  <IconWrapper>
+export const DashboardIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <IconWrapper className={className}>
     <path d="M4 4h6v6H4V4z" fill="url(#royal-gold)" fillOpacity="0.1" />
     <path d="M14 4h6v6h-6V4z" />
     <path d="M4 14h6v6H4v-6z" />
@@ -74,8 +74,8 @@ export const NotificationsIcon = () => (
     </IconWrapper>
 );
 
-export const WorkoutIcon = () => (
-  <IconWrapper>
+export const WorkoutIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <IconWrapper className={className}>
     <path d="M13 10V3L4 14h7v7l9-11h-7z" fill="url(#royal-gold)" fillOpacity="0.2" />
   </IconWrapper>
 );
@@ -111,8 +111,8 @@ export const SettingsIcon = () => (
   </IconWrapper>
 );
 
-export const LeadsIcon = () => (
-    <IconWrapper>
+export const LeadsIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <IconWrapper className={className}>
       <path d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
     </IconWrapper>
 );

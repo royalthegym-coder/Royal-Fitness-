@@ -1,11 +1,11 @@
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { GYM_INFO } from '../../../constants';
-import { UploadIcon } from '../icons/UploadIcon';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { SparkleIcon } from '../icons/SparkleIcon';
-import { InvoiceItem } from '../../../types';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
+import { X, Printer, Smartphone, Star as StarIcon } from 'lucide-react';
+import { toDataURL } from 'qrcode';
 
 interface ReceiptProps {
     invoiceId: string;
@@ -14,8 +14,7 @@ interface ReceiptProps {
     amount: number;
     date: string;
     method: string;
-    packageName?: string;
-    items?: InvoiceItem[]; 
+    items?: { description: string; amount: number; type?: string }[]; 
     onClose: () => void;
 }
 
@@ -26,29 +25,47 @@ const ReceiptTemplate: React.FC<ReceiptProps> = ({
     amount, 
     date, 
     method,
-    packageName = "Gym Membership",
     items,
     onClose 
 }) => {
     const receiptRef = useRef<HTMLDivElement>(null);
-    const logoInputRef = useRef<HTMLInputElement>(null);
     const [isGenerating, setIsGenerating] = useState(false);
-    const [logoSrc, setLogoSrc] = useState(GYM_INFO.logo);
+    const [generatedQr, setGeneratedQr] = useState<string>('');
+    const [reviewQr, setReviewQr] = useState<string>('');
+
+    // Generate QRs on mount
+    useEffect(() => {
+        const generateQRs = async () => {
+            try {
+                // Payment Verification QR (UPI String)
+                const upiString = `upi://pay?pa=${GYM_INFO.upiIds.gpay1}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${amount.toFixed(2)}&cu=INR&tn=Inv-${invoiceId}`;
+                const payUrl = await toDataURL(upiString, { width: 100, margin: 0, color: { dark: '#000000', light: '#ffffff' } });
+                setGeneratedQr(payUrl);
+
+                // Review QR (Google Business)
+                const reviewLink = "https://g.page/r/royal-the-gym/review";
+                const reviewUrl = await toDataURL(reviewLink, { width: 100, margin: 0, color: { dark: '#000000', light: '#ffffff' } });
+                setReviewQr(reviewUrl);
+            } catch (e) {
+                console.error("QR Gen Error", e);
+            }
+        };
+        generateQRs();
+    }, [amount, invoiceId]);
 
     const handleDownload = async () => {
         if (!receiptRef.current) return;
         setIsGenerating(true);
 
         try {
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 800)); 
 
             const canvas = await html2canvas(receiptRef.current, {
                 scale: 3, 
-                backgroundColor: '#ffffff', // White background for print
-                useCORS: true, 
+                backgroundColor: '#ffffff',
+                useCORS: true,
                 logging: false,
                 allowTaint: true,
-                ignoreElements: (element) => element.hasAttribute('data-html2canvas-ignore') 
             });
 
             const imgData = canvas.toDataURL('image/png');
@@ -59,216 +76,279 @@ const ReceiptTemplate: React.FC<ReceiptProps> = ({
             pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
             pdf.save(`Royal_Receipt_${invoiceId}.pdf`);
         } catch (error) {
-            console.error("Receipt generation failed", error);
-            alert("Could not generate PDF. Please try again.");
+            console.error("Receipt generation error", error);
+            alert("Error generating receipt PDF. Please try again.");
         } finally {
             setIsGenerating(false);
         }
     };
 
-    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                if (event.target?.result) {
-                    setLogoSrc(event.target.result as string);
-                }
-            };
-            reader.readAsDataURL(e.target.files[0]);
-        }
-    };
-
-    const lineItems = items && items.length > 0 ? items : [{ description: packageName, amount: amount, type: 'membership' }];
+    // Default items if none provided
+    const lineItems = items && items.length > 0 ? items : [{ description: 'Gym Membership Fees', amount: amount, type: 'Membership' }];
+    const subTotal = lineItems.filter(i => i.amount > 0).reduce((acc, item) => acc + item.amount, 0);
+    const totalDiscount = Math.abs(lineItems.filter(i => i.amount < 0).reduce((acc, item) => acc + item.amount, 0));
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md overflow-y-auto p-4">
-            <div className="w-full max-w-xl">
-                {/* Actions Header */}
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-white font-bold text-lg">Payment Receipt</h3>
-                    <div className="flex gap-2">
-                        <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors bg-gray-800 rounded-lg">Close</button>
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/95 backdrop-blur-xl overflow-y-auto p-4 font-sans">
+            <div className="w-full max-w-[210mm] flex flex-col gap-6 animate-fade-in-up">
+                
+                {/* Control Bar */}
+                <div className="flex justify-between items-center bg-gray-900/90 p-4 rounded-2xl border border-amber-500/30 backdrop-blur-md shadow-2xl sticky top-0 z-50">
+                    <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center shadow-[0_0_15px_#22c55e]">
+                            <CheckCircleIcon className="w-6 h-6 text-black" />
+                        </div>
+                        <div>
+                            <h3 className="text-white font-black text-sm uppercase tracking-wider">Receipt Generated</h3>
+                        </div>
+                    </div>
+                    <div className="flex gap-3">
+                        <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white">
+                            <X className="w-6 h-6" />
+                        </button>
                         <button 
                             onClick={handleDownload}
                             disabled={isGenerating}
-                            className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-bold py-2 px-6 rounded-lg shadow-lg flex items-center transition-transform hover:scale-105 disabled:opacity-70 disabled:cursor-not-allowed"
+                            className="bg-amber-500 hover:bg-amber-400 text-black font-black py-2 px-6 rounded-xl flex items-center gap-2 transition-all shadow-lg active:scale-95 disabled:opacity-50 text-sm uppercase tracking-wider"
                         >
-                            {isGenerating ? (
-                                <span className="flex items-center"><span className="animate-spin mr-2">⏳</span> Generating...</span>
-                            ) : (
-                                <span>Download PDF</span>
-                            )}
+                            {isGenerating ? 'Rendering...' : <><Printer className="w-4 h-4" /> Download PDF</>}
                         </button>
                     </div>
                 </div>
 
-                {/* THE RECEIPT CANVAS (White Background for Print Quality) */}
-                <div ref={receiptRef} className="bg-white relative overflow-hidden shadow-2xl min-h-[700px] flex flex-col justify-between border-b-4 border-yellow-600">
-                    
-                    {/* Background Watermark */}
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5 pointer-events-none z-0">
-                        <img 
-                            src={logoSrc} 
-                            crossOrigin="anonymous"
-                            alt="Watermark"
-                            className="w-[400px] h-[400px] object-contain grayscale"
-                        />
+                {/* --- FINAL A4 RECEIPT CANVAS --- */}
+                <div 
+                    ref={receiptRef} 
+                    className="bg-white text-slate-900 relative shadow-2xl mx-auto overflow-hidden w-full flex flex-col"
+                    style={{ aspectRatio: '1/1.414', maxWidth: '800px', fontFamily: "'Inter', sans-serif" }} 
+                >
+                    {/* TOP ACCENT LINE */}
+                    <div className="h-2 w-full bg-[#1e293b]"></div>
+
+                    {/* WATERMARK BACKGROUND */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-0 overflow-hidden opacity-[0.06]">
+                         <div className="transform -rotate-45 flex flex-col items-center justify-center whitespace-nowrap select-none">
+                             <h1 className="text-6xl font-black text-slate-900 uppercase tracking-tighter">ROYAL THE GYM</h1>
+                             <h1 className="text-[8rem] font-black text-slate-900 uppercase tracking-[0.2em] -mt-4 opacity-50">OFFICIAL</h1>
+                         </div>
                     </div>
 
-                    <div className="relative z-10 p-8">
-                        {/* Header with Logo Centered and Above Name */}
-                        <div className="flex justify-between items-center mb-8">
-                            <div className="flex items-center gap-4">
-                                {/* LOGO SLOT */}
-                                <div 
-                                    className="w-24 h-24 relative group cursor-pointer"
-                                    onClick={() => logoInputRef.current?.click()}
-                                    title="Click to upload custom logo"
-                                >
-                                    <img 
-                                        src={logoSrc} 
-                                        alt="Royal Gym Logo" 
-                                        crossOrigin="anonymous"
-                                        className="w-full h-full object-contain filter drop-shadow-md"
-                                    />
-                                    
-                                    {/* Upload Overlay */}
-                                    <div 
-                                        data-html2canvas-ignore="true"
-                                        className="absolute inset-0 bg-black/60 rounded-full flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                    >
-                                        <UploadIcon className="w-6 h-6 text-white" />
-                                    </div>
-                                    <input 
-                                        type="file" 
-                                        ref={logoInputRef} 
-                                        className="hidden" 
-                                        accept="image/*" 
-                                        onChange={handleLogoUpload}
-                                    />
+                    {/* --- HEADER SECTION --- */}
+                    <div className="p-10 pb-4 flex justify-between items-start relative z-10">
+                        {/* Logo & Name */}
+                        <div className="flex gap-4">
+                             <img 
+                                src={GYM_INFO.logo} 
+                                alt="Logo" 
+                                className="w-20 h-20 object-contain drop-shadow-md"
+                                crossOrigin="anonymous"
+                            />
+                            <div className="flex flex-col justify-center">
+                                <h1 className="text-5xl font-black text-[#1e293b] tracking-tighter uppercase leading-none" style={{ fontFamily: "'Russo One', sans-serif" }}>
+                                    ROYAL
+                                </h1>
+                                <h2 className="text-2xl font-bold text-[#d97706] tracking-[0.3em] uppercase leading-tight font-serif-display">
+                                    THE GYM
+                                </h2>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">International Fitness Hub</p>
+                            </div>
+                        </div>
+
+                        {/* Invoice Label */}
+                        <div className="text-right">
+                            <h2 className="text-6xl font-black text-slate-100 uppercase tracking-tighter leading-none select-none">INVOICE</h2>
+                            <p className="text-lg font-bold text-[#1e293b] font-mono mt-[-10px] relative z-10">#{invoiceId}</p>
+                            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{date}</p>
+                        </div>
+                    </div>
+
+                    <div className="w-full h-px bg-slate-200 mx-auto w-[90%] mb-8"></div>
+
+                    {/* --- BODY SECTION --- */}
+                    <div className="px-12 flex-grow relative z-10 flex flex-col">
+                        
+                        {/* ADDRESS & BILL INFO GRID */}
+                        <div className="grid grid-cols-2 gap-8 mb-8 pb-8 border-b-2 border-dashed border-slate-300">
+                            {/* LEFT: Billed To + QR Codes */}
+                            <div className="flex flex-col justify-between">
+                                <div className="mb-6">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Billed To</p>
+                                    <h3 className="text-2xl font-black text-[#1e293b] capitalize leading-none">{memberName}</h3>
+                                    <p className="text-sm font-medium text-slate-600 mt-1 flex items-center gap-1">
+                                        <Smartphone className="w-3 h-3" /> {memberPhone}
+                                    </p>
+                                    <span className="inline-block mt-2 text-[9px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase tracking-wider border border-slate-200">
+                                        Premium Member
+                                    </span>
                                 </div>
                                 
-                                <div>
-                                    <h1 className="text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">
-                                        Royal <span className="text-yellow-600">The Gym</span>
-                                    </h1>
-                                    <p className="text-xs text-slate-500 font-bold tracking-widest uppercase mt-1">Jhunjhunu Premium Fitness</p>
-                                    <div className="text-[10px] text-gray-500 mt-1 leading-tight">
-                                        <p>{GYM_INFO.address}</p>
-                                        <p>{GYM_INFO.contact} • {GYM_INFO.email}</p>
+                                {/* QR CODES - Positioned under Candidate Name */}
+                                <div className="flex gap-4">
+                                    <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                                        <div className="bg-white p-1 rounded border border-slate-100">
+                                             {reviewQr && <img src={reviewQr} className="w-10 h-10 object-contain mix-blend-multiply" alt="Review" />}
+                                        </div>
+                                        <div>
+                                            <p className="text-[7px] font-black text-slate-400 uppercase tracking-wider">Rate Us</p>
+                                            <p className="text-[8px] font-bold text-[#fbbf24]">Google</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                                        <div className="bg-white p-1 rounded border border-slate-100">
+                                             {generatedQr && <img src={generatedQr} className="w-10 h-10 object-contain mix-blend-multiply" alt="Pay" />}
+                                        </div>
+                                        <div>
+                                            <p className="text-[7px] font-black text-slate-400 uppercase tracking-wider">Verify</p>
+                                            <p className="text-[8px] font-bold text-green-600">Payment</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="text-right">
-                                <h2 className="text-4xl font-black text-slate-200 uppercase tracking-widest">Receipt</h2>
-                                <p className="font-mono text-lg font-bold text-slate-700">#{invoiceId}</p>
-                                <p className="text-sm text-slate-500">{date}</p>
-                            </div>
-                        </div>
-
-                        {/* Golden Divider Line */}
-                        <div className="w-full h-1 bg-gradient-to-r from-yellow-600 via-yellow-300 to-yellow-600 mb-8"></div>
-
-                        {/* Bill To Info */}
-                        <div className="grid grid-cols-2 gap-6 mb-8 bg-slate-50 p-6 rounded-xl border border-slate-200">
-                            <div>
-                                <p className="text-[10px] text-yellow-600 uppercase font-bold mb-2 tracking-wider">Billed To</p>
-                                <h3 className="text-2xl font-bold text-slate-900 mb-1">{memberName}</h3>
-                                <p className="text-sm text-slate-500 font-mono">{memberPhone}</p>
-                            </div>
-                            <div className="text-right flex flex-col justify-center items-end">
-                                <p className="text-[10px] text-slate-500 uppercase font-bold mb-2 tracking-wider">Payment Status</p>
-                                <div className="inline-flex items-center bg-green-100 border border-green-200 px-6 py-2 rounded-full">
-                                    <div className="w-2 h-2 rounded-full bg-green-600 mr-2"></div>
-                                    <span className="text-green-700 font-black uppercase tracking-widest text-sm">PAID</span>
+                            {/* RIGHT: Invoice Details & Payable To */}
+                            <div className="text-right flex flex-col justify-between">
+                                <div className="mb-4">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Payable To</p>
+                                    <h3 className="text-lg font-bold text-[#1e293b]">Royal The Gym</h3>
+                                    <p className="text-xs text-slate-500 leading-relaxed max-w-[220px] ml-auto">
+                                        2nd floor, Vishwakarma Complex, Gandhi Chowk, Khemi Sati Road, Jhunjhunu (Raj.) 333001
+                                    </p>
+                                    <p className="text-xs text-slate-500 mt-1">{GYM_INFO.email}</p>
+                                </div>
+                                <div>
+                                    <div className="inline-block text-right">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Payment Method</p>
+                                        <p className="text-sm font-bold text-slate-800">{method}</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Line Items */}
+                        {/* ITEMS TABLE */}
                         <div className="mb-8">
-                            <table className="w-full text-left">
-                                <thead className="bg-slate-900 text-white border-b border-slate-700">
-                                    <tr className="text-[10px] uppercase font-bold tracking-wider">
-                                        <th className="p-4 pl-6 rounded-tl-lg">Description</th>
-                                        <th className="p-4 text-center">Type</th>
-                                        <th className="p-4 text-right pr-6 rounded-tr-lg">Amount</th>
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="border-b-2 border-[#1e293b]">
+                                        <th className="py-3 text-left text-xs font-black text-[#1e293b] uppercase tracking-widest">Description</th>
+                                        <th className="py-3 text-center text-xs font-black text-[#1e293b] uppercase tracking-widest">Type</th>
+                                        <th className="py-3 text-right text-xs font-black text-[#1e293b] uppercase tracking-widest">Amount</th>
                                     </tr>
                                 </thead>
-                                <tbody className="text-sm border border-slate-200">
+                                <tbody className="text-sm text-slate-700">
                                     {lineItems.map((item, idx) => (
-                                        <tr key={idx} className="border-b border-slate-100 last:border-0 even:bg-slate-50">
-                                            <td className="p-6 text-slate-900 font-medium">
-                                                <div className="flex items-center">
-                                                    <SparkleIcon className="w-4 h-4 text-yellow-500 mr-3" />
-                                                    <div>
-                                                        <p className="text-lg font-bold">{item.description}</p>
-                                                        {idx === 0 && <p className="text-xs text-slate-500 mt-1">Gym Service</p>}
-                                                    </div>
-                                                </div>
+                                        <tr key={idx} className="border-b border-slate-100">
+                                            <td className="py-4 font-bold text-[#1e293b]">
+                                                {item.description}
                                             </td>
-                                            <td className="p-6 text-center text-slate-500 font-mono uppercase">
-                                                {(item as any).type || 'Service'}
-                                            </td>
-                                            <td className="p-6 text-right text-slate-900 font-bold font-mono text-lg">
-                                                ₹{item.amount.toLocaleString()}
+                                            <td className="py-4 text-center text-xs uppercase font-medium text-slate-500">{item.type || 'Service'}</td>
+                                            <td className={`py-4 text-right font-mono font-bold text-lg ${item.amount < 0 ? 'text-green-600' : 'text-[#1e293b]'}`}>
+                                                {item.amount < 0 ? `- ₹${Math.abs(item.amount).toLocaleString()}` : `₹${item.amount.toLocaleString()}`}
                                             </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
+
+                            {/* TOTALS */}
+                            <div className="flex justify-end mt-6">
+                                <div className="w-64">
+                                    <div className="flex justify-between py-2 text-xs font-medium text-slate-500">
+                                        <span>Subtotal</span>
+                                        <span>₹{subTotal.toLocaleString()}</span>
+                                    </div>
+                                    {totalDiscount > 0 && (
+                                        <div className="flex justify-between py-2 text-xs font-medium text-green-600">
+                                            <span>Discount</span>
+                                            <span>- ₹{totalDiscount.toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between py-2 text-xs font-medium text-slate-500 border-b border-slate-200 pb-2">
+                                        <span>Tax (Incl.)</span>
+                                        <span>₹0.00</span>
+                                    </div>
+                                    <div className="flex justify-between items-center py-4">
+                                        <span className="text-sm font-black text-[#1e293b] uppercase tracking-widest">Total</span>
+                                        <span className="text-3xl font-black text-[#d97706] font-serif-display">₹{amount.toLocaleString()}</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-[9px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded uppercase tracking-wider">Paid via {method}</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        {/* Totals */}
-                        <div className="flex justify-end mb-12">
-                            <div className="w-full max-w-xs space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-200">
-                                <div className="flex justify-between text-xs text-slate-500">
-                                    <span>Method</span>
-                                    <span className="font-mono uppercase text-slate-900 font-bold">{method}</span>
+                        {/* --- FOOTER: TERMS & SIGNATURE --- */}
+                        <div className="mt-auto grid grid-cols-2 gap-12 items-end border-t-4 border-[#b45309] pt-8 pb-12">
+                            
+                            {/* Terms */}
+                            <div>
+                                <h4 className="text-[10px] font-black uppercase tracking-widest text-[#1e293b] mb-3">Terms & Conditions</h4>
+                                <ul className="text-[9px] text-slate-500 space-y-1.5 list-disc list-inside font-medium leading-tight">
+                                    <li>Fees once paid are <span className="text-red-600 font-bold">NON-REFUNDABLE</span> under any circumstances.</li>
+                                    <li>Membership is non-transferable & valid for paid duration only.</li>
+                                    <li>Please carry your digital ID for entry. Gym rules apply.</li>
+                                    <li>This receipt is electronically generated & valid without physical signature.</li>
+                                </ul>
+                            </div>
+
+                            {/* Signature & Stamp */}
+                            <div className="flex justify-end relative">
+                                <div className="relative w-56 h-56 flex items-center justify-center">
+                                    {/* AUTHENTIC CIRCULAR STAMP */}
+                                    <div className="absolute inset-0 z-0">
+                                        <svg viewBox="0 0 200 200" className="w-full h-full text-red-700 opacity-85 mix-blend-multiply transform -rotate-12">
+                                            {/* Rings */}
+                                            <circle cx="100" cy="100" r="95" fill="none" stroke="currentColor" strokeWidth="4" />
+                                            <circle cx="100" cy="100" r="88" fill="none" stroke="currentColor" strokeWidth="1" />
+                                            
+                                            {/* Paths for text */}
+                                            <defs>
+                                                <path id="curveTop" d="M 30,100 A 70,70 0 1,1 170,100" fill="none" />
+                                                <path id="curveBottom" d="M 40,100 A 60,60 0 0,0 160,100" fill="none" />
+                                            </defs>
+
+                                            {/* Circular Text */}
+                                            <text fill="currentColor" fontSize="16" fontWeight="bold" letterSpacing="0.05em">
+                                                <textPath href="#curveTop" startOffset="50%" textAnchor="middle" className="uppercase font-black" style={{fontFamily: "'Russo One', sans-serif"}}>
+                                                    ROYAL THE GYM
+                                                </textPath>
+                                            </text>
+                                            
+                                            {/* Bottom Text - Jhunjhunu */}
+                                            <text x="100" y="150" textAnchor="middle" fontSize="12" fontWeight="bold" fill="currentColor" letterSpacing="0.1em" style={{fontFamily: "'Inter', sans-serif"}}>
+                                                JHUNJHUNU
+                                            </text>
+
+                                            {/* Center Content */}
+                                            <g transform="translate(100, 95)">
+                                                <rect x="-65" y="-20" width="130" height="40" fill="none" stroke="currentColor" strokeWidth="2" />
+                                                <text x="0" y="5" textAnchor="middle" fontSize="28" fontWeight="900" fill="currentColor" style={{fontFamily: "'Inter', sans-serif"}}>PAID</text>
+                                                <text x="0" y="30" textAnchor="middle" fontSize="10" fontWeight="bold" fill="currentColor" letterSpacing="0.3em" style={{fontFamily: "'Inter', sans-serif"}}>VERIFIED</text>
+                                            </g>
+                                        </svg>
+                                    </div>
+
+                                    {/* Signature Overlay (Matching Uploaded Image Style - Single Line Forced - NO UNDERLINE) */}
+                                    <div className="relative z-10 transform -rotate-6 translate-y-[-20px] flex flex-col items-center">
+                                        {/* Signature Text - Dark Blue, Bold, Cursive - whitespace-nowrap added */}
+                                        <p className="font-signature text-6xl font-bold text-[#000080] leading-none whitespace-nowrap" 
+                                           style={{ 
+                                               fontFamily: "'Great Vibes', cursive", 
+                                               textShadow: "0.5px 0.5px 0px #000080" 
+                                           }}>
+                                            Mahesh Saini
+                                        </p>
+                                    </div>
                                 </div>
-                                <div className="flex justify-between text-xs text-slate-500">
-                                    <span>Subtotal</span>
-                                    <span className="font-mono">₹{amount.toLocaleString()}</span>
-                                </div>
-                                <div className="flex justify-between text-xs text-slate-500">
-                                    <span>Tax (Included)</span>
-                                    <span className="font-mono">₹0.00</span>
-                                </div>
-                                <div className="flex justify-between text-3xl font-black text-yellow-600 border-t border-slate-300 pt-3 mt-2">
-                                    <span className="text-lg text-slate-900 font-bold self-end mb-1">Total</span>
-                                    <span>₹{amount.toLocaleString()}</span>
-                                </div>
+                                <p className="absolute bottom-6 right-2 text-[8px] font-black text-[#1e293b] uppercase tracking-[0.2em]">Authorized Signatory</p>
                             </div>
                         </div>
                     </div>
-
-                    {/* Footer / Signature Section */}
-                    <div className="relative z-10 bg-slate-50 p-8 border-t border-slate-200">
-                        <div className="grid grid-cols-2 gap-8 items-end">
-                            <div>
-                                <p className="text-[10px] text-slate-500 font-bold uppercase mb-3 tracking-wider">Terms & Conditions</p>
-                                <ul className="text-[9px] text-slate-500 list-disc list-inside space-y-1.5 font-medium opacity-80">
-                                    <li>Fees once paid are non-refundable & non-transferable.</li>
-                                    <li>Member agrees to follow all gym safety rules.</li>
-                                    <li>This is a computer generated receipt.</li>
-                                </ul>
-                            </div>
-                            
-                            <div className="flex flex-col items-center justify-end">
-                                <div className="relative mb-2 px-8">
-                                    <p className="font-signature text-4xl text-blue-600 transform -rotate-2 leading-none whitespace-nowrap opacity-80" style={{ textShadow: '0 0 1px rgba(37, 99, 235, 0.3)' }}>
-                                        Mahesh Saini
-                                    </p>
-                                </div>
-                                <div className="w-48 h-px bg-slate-400 mb-2"></div>
-                                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.2em]">Authorized Signature</p>
-                            </div>
-                        </div>
-                        
-                        <div className="mt-6 text-center">
-                            <p className="text-[10px] text-yellow-700 font-bold uppercase tracking-[0.5em] opacity-80">COMMIT TO BE FIT</p>
-                        </div>
+                    
+                    {/* Bottom Bar */}
+                    <div className="h-8 w-full bg-slate-100 flex items-center justify-between px-12">
+                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-[0.3em]">Thank you for choosing Royal The Gym</p>
+                        <p className="text-[8px] font-mono text-slate-300">1/1</p>
                     </div>
                 </div>
             </div>

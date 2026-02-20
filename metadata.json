@@ -1,10 +1,10 @@
 {
-  "name": "Royal The Gym - Superhuman Protocol",
-  "description": "An autonomous AI-powered gym management OS for 'Royal The Gym' featuring neural biometrics, vision-based training, and proactive health intelligence.",
+  "name": "Royal The Gym Management",
+  "description": "The Living Digital Organism. Version 31.0 Singularity.",
+  "version": "31.0.0",
   "requestFramePermissions": [
     "camera",
     "microphone",
-    "geolocation",
-    "bluetooth"
+    "geolocation"
   ]
 }

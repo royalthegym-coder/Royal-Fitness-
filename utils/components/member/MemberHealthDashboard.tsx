@@ -1,288 +1,348 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Card from '../common/Card';
-import { HealthData } from '../../../types';
-import { CaloriesIcon, HeartRateIcon, StepsIcon } from '../icons/HealthIcons';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, LineChart, Line, BarChart, Bar } from 'recharts';
+import { useData } from '../../context/DataProvider';
+import { 
+    Activity, Heart, BrainCircuit, Droplets, AlertTriangle, 
+    RefreshCw, Scale, Flame, Fingerprint, Save, CheckCircle, Target, ArrowUpRight,
+    Bot, Zap, Link, FileText, Pill, TrendingDown, Stethoscope, Microscope,
+    ScanFace, Watch, Dna, Layers
+} from 'lucide-react';
+import { AreaChart, Area, ResponsiveContainer, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import Modal from '../common/Modal';
+import { useToast } from '../../hooks/useToast';
 import { getComplexResponse } from '../../../lib/gemini';
-import { SparkleIcon } from '../icons/SparkleIcon';
-import CustomTooltip from '../common/CustomTooltip';
-import { WatchOSIcon } from '../icons/WatchOSIcon';
-import { BotIcon } from '../icons/BotIcon';
-import { BluetoothIcon } from '../icons/BluetoothIcon';
-import { WifiIcon } from '../icons/WifiIcon';
-import { SignalIcon } from '../icons/SignalIcon';
-import { NfcIcon } from '../icons/NfcIcon';
-import { AutoUpdateIcon } from '../icons/AutoUpdateIcon';
-import { CheckCircleIcon } from '../icons/CheckCircleIcon';
-import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
-import { AppleHealthIcon } from '../icons/AppleHealthIcon';
-import { SamsungHealthIcon } from '../icons/SamsungHealthIcon';
+import { SmartWatchIcon } from '../icons/SmartWatchIcon';
 
-interface MemberHealthDashboardProps {
-    isConnected: boolean;
-    isConnecting: boolean;
-    onConnect: () => void;
-    onDisconnect?: () => void;
-    healthData: HealthData;
-    setHealthData: React.Dispatch<React.SetStateAction<HealthData>>;
-}
+// --- INTEGRATED MODULES ---
+import BodySimulator from '../BodySimulator';
+import WearableConnectHub from './SmartWatch';
+import BiomarkerVault from './BiomarkerVault'; // Assuming this exists or using placeholder
+import MedicalHub from './MedicalHub';
 
-const AnomalyAlert: React.FC<{ message: string; onAnalyze: () => void }> = ({ message, onAnalyze }) => (
-    <div className="bg-red-900/30 border border-red-500/50 rounded-xl p-4 flex items-start justify-between animate-pulse">
-        <div className="flex items-start gap-3">
-            <div className="p-2 bg-red-500/20 rounded-full text-red-500 mt-1">
-                <ShieldCheckIcon className="w-6 h-6" />
-            </div>
-            <div>
-                <h4 className="text-red-400 font-bold text-sm uppercase tracking-wider">Health Anomaly Detected</h4>
-                <p className="text-white text-sm font-medium mt-1">{message}</p>
-            </div>
-        </div>
-        <button 
-            onClick={onAnalyze}
-            className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-lg flex items-center transition-all"
-        >
-            <SparkleIcon className="w-4 h-4 mr-2" /> AI Diagnose
-        </button>
-    </div>
-);
-
-const StrainGauge: React.FC<{ strain: number; recovery: number }> = ({ strain, recovery }) => (
-    <div className="flex flex-col items-center justify-center p-4 bg-gray-800 rounded-xl border border-gray-700">
-        <div className="relative h-24 w-24">
-             <svg viewBox="0 0 36 36" className="w-full h-full">
-                <path className="text-gray-700" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" />
-                <path className="text-blue-500" strokeDasharray={`${(strain/21)*100}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-xs text-gray-400 font-bold">STRAIN</span>
-                <span className="text-xl font-black text-white">{strain.toFixed(1)}</span>
-            </div>
-        </div>
-        <div className="w-full mt-3">
-            <div className="flex justify-between text-[10px] text-gray-400 mb-1">
-                <span>RECOVERY</span>
-                <span className={recovery > 66 ? 'text-green-400' : 'text-amber-400'}>{recovery}%</span>
-            </div>
-            <div className="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">
-                <div className={`h-full ${recovery > 66 ? 'bg-green-500' : 'bg-amber-500'}`} style={{ width: `${recovery}%` }}></div>
-            </div>
-        </div>
-    </div>
-);
-
-const MemberHealthDashboard: React.FC<MemberHealthDashboardProps> = ({ isConnected, isConnecting, onConnect, onDisconnect, healthData, setHealthData }) => {
-    const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+const MemberHealthDashboard: React.FC = () => {
+    const { liveHealthData, updateLiveHealthData, members, updateMember, connectedDevice } = useData();
+    const { addToast } = useToast();
+    
+    // --- UI STATE ---
+    const [activeTab, setActiveTab] = useState<'telemetry' | 'digital_twin' | 'wearable' | 'medical'>('telemetry');
+    const [isInputModalOpen, setIsInputModalOpen] = useState(false);
+    const [bioForm, setBioForm] = useState({ weight: 0, hrv: 0, height: 0 });
+    const [liveGraphData, setLiveGraphData] = useState<{time: number, hr: number, stress: number}[]>([]);
+    
+    // --- AI COACH ---
+    const [coachVerdict, setCoachVerdict] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [anomaly, setAnomaly] = useState<string | null>(null);
-    
-    // Virtual Device State for "Unified Dashboard"
-    const [primarySource, setPrimarySource] = useState<'Apple' | 'Samsung'>('Apple');
-    
-    // Simulate extended metrics if not present in basic HealthData type (casting for demo)
-    const extendedData = {
-        strain: 14.5,
-        recovery: 68,
-        sleepStages: { deep: 95, rem: 110, light: 240, awake: 15 },
-        ...healthData
-    };
+    const [readinessScore, setReadinessScore] = useState(85);
 
-    const simulationIntervalRef = useRef<number | null>(null);
+    // Current Member Context
+    const currentUser = members[0]; 
 
-    // --- ANOMALY DETECTION ENGINE ---
+    // --- 1. LIVE BIOLOGICAL SIMULATION ENGINE ---
     useEffect(() => {
-        if (!isConnected) return;
-        const checkAnomaly = setInterval(() => {
-            const hr = healthData.heartRate.avg;
-            if (hr > 110 && Math.random() > 0.85) { 
-                setAnomaly(`Resting Heart Rate Spike (${hr} bpm) detected while sedentary.`);
-            } else {
-                setAnomaly(null);
-            }
-        }, 5000);
-        return () => clearInterval(checkAnomaly);
-    }, [healthData, isConnected]);
+        if (!currentUser) return;
 
-    // --- DATA STREAM SIMULATION ---
-    useEffect(() => {
-        if (!isConnected) return;
+        setBioForm({
+            weight: currentUser.physical_metrics.weight || 70,
+            height: currentUser.physical_metrics.height || 170,
+            hrv: liveHealthData.heartRate.hrv || 65
+        });
         
-        simulationIntervalRef.current = window.setInterval(() => {
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            
-            setHealthData(prev => {
-                const noise = Math.random() * 5 - 2.5;
-                const baseHr = 75;
-                const variability = Math.sin(now.getTime() / 1000) * 15; 
-                const hr = Math.floor(baseHr + Math.abs(variability) + noise);
-                
-                const newHistoryPoint = { time: timeStr, value: hr };
-                const newHistory = [...prev.heartRate.history.slice(-29), newHistoryPoint]; 
+        // Calculate Readiness (0-100)
+        const hrvFactor = Math.min(100, (liveHealthData.heartRate.hrv / 80) * 100);
+        const sleepFactor = Math.min(100, (liveHealthData.sleep.totalHours / 8) * 100);
+        setReadinessScore(Math.round((hrvFactor * 0.6) + (sleepFactor * 0.4)));
 
-                return {
-                    ...prev,
-                    steps: prev.steps + (hr > 90 ? 2 : 0),
-                    caloriesBurned: parseFloat((prev.caloriesBurned + (hr / 2000) * 8).toFixed(2)),
-                    heartRate: { ...prev.heartRate, avg: hr, history: newHistory }
-                };
+        // Live ECG Stream
+        const interval = setInterval(() => {
+            const now = Date.now();
+            const baseHR = liveHealthData.heartRate.avg;
+            const fluctuation = Math.sin(now / 1000) * 5 + (Math.random() * 4 - 2);
+            const currentHR = Math.floor(baseHR + fluctuation);
+            const stress = Math.max(0, 100 - liveHealthData.heartRate.hrv + (Math.random() * 5));
+
+            setLiveGraphData(prev => {
+                const newData = [...prev, { time: now, hr: currentHR, stress }];
+                return newData.slice(-50); // Keep last 50 points
             });
         }, 1000);
 
-        return () => {
-            if (simulationIntervalRef.current) clearInterval(simulationIntervalRef.current);
-        };
-    }, [isConnected]);
+        return () => clearInterval(interval);
+    }, [currentUser, liveHealthData]);
 
-    const handleAnalyzeAnomaly = async () => {
-        if (!anomaly) return;
+    // --- 2. METRICS CALCULATION ---
+    const metrics = useMemo(() => {
+        if (!currentUser) return null;
+        const h = (currentUser.physical_metrics.height || 170) / 100;
+        const w = currentUser.physical_metrics.weight || 70;
+        const bmi = (w / (h * h)).toFixed(1);
+        const age = currentUser.bio_age || 25;
+        const bmr = (10 * w) + (6.25 * (h * 100)) - (5 * age) + 5;
+        return { bmi, bmr: Math.round(bmr) };
+    }, [currentUser]);
+
+    // --- 3. AI HANDLERS ---
+    const handleConsultCoach = async () => {
         setIsAnalyzing(true);
+        setCoachVerdict(null);
+
         const prompt = `
-            Act as a Medical AI Assistant.
-            ALERT: ${anomaly}
-            Context: User is currently at the gym.
-            Vital Signs: HR ${healthData.heartRate.avg} bpm.
-            Suggest an immediate action (e.g. "Sit down", "Hydrate").
+            ACT AS 'ROYAL BIO-ARCHITECT'. 
+            User: ${currentUser?.name}.
+            Data: Readiness ${readinessScore}%, HRV ${liveHealthData.heartRate.hrv}ms, Sleep ${liveHealthData.sleep.totalHours}h.
+            
+            Output a "Tactical Brief" (HTML):
+            1. System Status (1 sentence)
+            2. Recommended Protocol (e.g. "High Intensity" or "Active Recovery")
+            3. One Bio-Hack tip.
         `;
+
         try {
-            const advice = await getComplexResponse(prompt);
-            setAiAnalysis(advice);
+            const result = await getComplexResponse(prompt);
+            setCoachVerdict(result);
         } catch (e) {
-            setAiAnalysis("Network error. Please consult a trainer immediately.");
+            setCoachVerdict("Neural Link Unstable. Rest recommended.");
         } finally {
             setIsAnalyzing(false);
         }
     };
 
+    const handleSaveBio = () => {
+        if (!currentUser) return;
+        updateMember({
+            ...currentUser,
+            physical_metrics: { ...currentUser.physical_metrics, weight: bioForm.weight, height: bioForm.height }
+        });
+        updateLiveHealthData({ heartRate: { ...liveHealthData.heartRate, hrv: bioForm.hrv } });
+        addToast("Bio-Matrix Updated.", "success");
+        setIsInputModalOpen(false);
+    };
+
+    if (!currentUser || !metrics) return null;
+
     return (
-        <div className="space-y-6">
-            {/* Unified Dashboard Header */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-xl flex flex-col md:flex-row justify-between items-center gap-4 shadow-lg">
-                <div className="flex items-center gap-4">
-                    <div className="relative">
-                        <span className="absolute top-0 right-0 -mt-1 -mr-1 flex h-3 w-3">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                        </span>
-                        <div className="bg-gray-800 p-2.5 rounded-lg border border-gray-700">
-                             {primarySource === 'Apple' ? <AppleHealthIcon className="w-6 h-6 text-white"/> : <SamsungHealthIcon className="w-6 h-6 text-blue-400"/>}
-                        </div>
-                    </div>
-                    <div>
-                        <h2 className="text-lg font-bold text-white leading-none">Super App Connectivity</h2>
-                        <p className="text-[10px] text-gray-500 mt-1">Synced with Android, iOS, & Wearables</p>
-                    </div>
-                </div>
+        <div className="space-y-8 animate-fade-in pb-32">
+            
+            {/* 1. BIO-METRIC COMMAND HEADER */}
+            <div className="bg-[#020308] p-10 rounded-[4rem] border border-cyan-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(6,182,212,0.15)] group">
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-15"></div>
+                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[150px] animate-pulse"></div>
                 
-                <div className="flex gap-2">
-                    <div className="px-3 py-1 bg-black/40 rounded border border-gray-700 text-center">
-                        <p className="text-[9px] text-gray-500 uppercase">Integrity</p>
-                        <p className="text-xs font-bold text-green-400">100%</p>
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-10">
+                    <div className="flex items-center gap-8">
+                        <div className="p-8 bg-cyan-600 text-black rounded-[3rem] shadow-[0_0_60px_rgba(6,182,212,0.4)] group-hover:rotate-12 transition-transform duration-700">
+                            <Activity className="w-16 h-16 animate-pulse" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="px-4 py-1.5 bg-cyan-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg">
+                                    Bio-Metric v31.0
+                                </div>
+                                <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">LINK: SECURE</span>
+                            </div>
+                            <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none">
+                                Health <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Core</span>
+                            </h1>
+                        </div>
+                    </div>
+
+                    {/* Quick Stats Pill */}
+                    <div className="flex bg-gray-900/80 p-2 rounded-3xl border border-white/10 backdrop-blur-3xl shadow-2xl">
+                         <div className="px-10 py-5 text-center border-r border-white/5">
+                             <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-2">Readiness</p>
+                             <div className="flex items-center gap-2 justify-center">
+                                 <Zap className={`w-4 h-4 ${readinessScore > 80 ? 'text-green-500' : 'text-amber-500'}`} />
+                                 <p className={`text-4xl font-black italic ${readinessScore > 80 ? 'text-green-400' : 'text-amber-400'}`}>{readinessScore}%</p>
+                             </div>
+                         </div>
+                         <div className="px-10 py-5 text-center">
+                             <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-2">Device</p>
+                             <p className="text-xl font-bold text-white flex items-center gap-2 justify-center">
+                                 {connectedDevice ? <CheckCircle className="w-4 h-4 text-cyan-400"/> : <AlertTriangle className="w-4 h-4 text-gray-600"/>}
+                                 {connectedDevice ? 'SYNCED' : 'OFFLINE'}
+                             </p>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Anomaly Alert Section */}
-            {anomaly && (
-                <AnomalyAlert message={anomaly} onAnalyze={handleAnalyzeAnomaly} />
-            )}
+            {/* 2. NAVIGATION DECK */}
+            <div className="flex bg-black/60 p-2 rounded-[2.5rem] border border-white/10 w-fit mx-auto backdrop-blur-xl shadow-xl overflow-x-auto no-scrollbar">
+                {[
+                    { id: 'telemetry', label: 'Live Telemetry', icon: <Activity className="w-4 h-4"/> },
+                    { id: 'digital_twin', label: 'Digital Twin', icon: <ScanFace className="w-4 h-4"/> },
+                    { id: 'wearable', label: 'Wearable Uplink', icon: <Watch className="w-4 h-4"/> },
+                    { id: 'medical', label: 'Med-Vault', icon: <Dna className="w-4 h-4"/> },
+                ].map((tab) => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as any)}
+                        className={`px-8 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 whitespace-nowrap ${
+                            activeTab === tab.id 
+                            ? 'bg-cyan-600 text-black shadow-[0_0_20px_rgba(6,182,212,0.4)]' 
+                            : 'text-gray-500 hover:text-white hover:bg-white/5'
+                        }`}
+                    >
+                        {tab.icon} {tab.label}
+                    </button>
+                ))}
+            </div>
 
-            {/* Vitals Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="relative overflow-hidden border-t-2 border-red-500 bg-gray-800/60">
-                    <div className="flex justify-between items-start mb-2">
-                        <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Pulse</p>
-                        <HeartRateIcon className="w-5 h-5 text-red-500" />
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                        <span className="text-4xl font-black text-white">{healthData.heartRate.avg}</span>
-                        <span className="text-sm text-gray-500">BPM</span>
-                    </div>
-                    <p className="text-[10px] text-gray-500 mt-2">Source: Android Health</p>
-                </Card>
+            {/* 3. MAIN CONTENT AREA */}
+            <div className="min-h-[600px] relative">
+                
+                {/* TAB: TELEMETRY (Overview) */}
+                {activeTab === 'telemetry' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-slide-up">
+                        {/* LEFT: Live Graph */}
+                        <div className="lg:col-span-8 space-y-6">
+                            <Card className="bg-[#0a0a0a] border-white/5 p-8 rounded-[3.5rem] h-[500px] flex flex-col relative overflow-hidden shadow-2xl">
+                                <div className="absolute top-0 right-0 p-8 opacity-5"><Activity className="w-64 h-64 text-cyan-500" /></div>
+                                <div className="flex justify-between items-center mb-8 relative z-10">
+                                    <div>
+                                        <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">Hemodynamic Stream</h3>
+                                        <p className="text-[10px] text-cyan-500 font-bold uppercase tracking-widest mt-1 animate-pulse">● Live Transmission</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-5xl font-black text-white italic tracking-tighter">{liveHealthData.heartRate.avg}</p>
+                                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">BPM</p>
+                                    </div>
+                                </div>
+                                <div className="flex-1 w-full relative z-10">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={liveGraphData}>
+                                            <defs>
+                                                <linearGradient id="colorHr" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4}/>
+                                                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                                                </linearGradient>
+                                            </defs>
+                                            <YAxis hide domain={['dataMin - 10', 'dataMax + 10']} />
+                                            <Tooltip contentStyle={{ backgroundColor: '#000', border: '1px solid #333', borderRadius: '12px' }} />
+                                            <Area type="monotone" dataKey="hr" stroke="#06b6d4" strokeWidth={3} fill="url(#colorHr)" isAnimationActive={true} />
+                                            <Area type="monotone" dataKey="stress" stroke="#ef4444" strokeWidth={1} fill="transparent" strokeDasharray="4 4" />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </Card>
 
-                <Card className="relative overflow-hidden border-t-2 border-orange-500 bg-gray-800/60">
-                    <div className="flex justify-between items-start mb-2">
-                        <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Burn</p>
-                        <CaloriesIcon className="w-5 h-5 text-orange-500" />
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                        <span className="text-4xl font-black text-white">{Math.floor(healthData.caloriesBurned)}</span>
-                        <span className="text-sm text-gray-500">kcal</span>
-                    </div>
-                    <p className="text-[10px] text-gray-500 mt-2">Active Energy</p>
-                </Card>
+                            {/* Stats Grid */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="bg-gray-900 p-6 rounded-[2rem] border border-white/5 text-center group hover:border-cyan-500/30 transition-all">
+                                    <Scale className="w-6 h-6 text-gray-600 mx-auto mb-3 group-hover:text-cyan-400" />
+                                    <p className="text-2xl font-black text-white italic">{currentUser.physical_metrics.weight} <span className="text-xs text-gray-500">KG</span></p>
+                                    <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mt-1">Mass</p>
+                                </div>
+                                <div className="bg-gray-900 p-6 rounded-[2rem] border border-white/5 text-center group hover:border-cyan-500/30 transition-all">
+                                    <Activity className="w-6 h-6 text-gray-600 mx-auto mb-3 group-hover:text-cyan-400" />
+                                    <p className="text-2xl font-black text-white italic">{metrics.bmi}</p>
+                                    <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mt-1">BMI</p>
+                                </div>
+                                <div className="bg-gray-900 p-6 rounded-[2rem] border border-white/5 text-center group hover:border-cyan-500/30 transition-all">
+                                    <Flame className="w-6 h-6 text-gray-600 mx-auto mb-3 group-hover:text-orange-500" />
+                                    <p className="text-2xl font-black text-white italic">{metrics.bmr}</p>
+                                    <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mt-1">BMR (Kcal)</p>
+                                </div>
+                                <div className="bg-gray-900 p-6 rounded-[2rem] border border-white/5 text-center group hover:border-cyan-500/30 transition-all">
+                                    <Fingerprint className="w-6 h-6 text-gray-600 mx-auto mb-3 group-hover:text-purple-500" />
+                                    <p className="text-2xl font-black text-white italic">{currentUser.bio_age}</p>
+                                    <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mt-1">Bio-Age</p>
+                                </div>
+                            </div>
+                        </div>
 
-                {/* Strain Gauge (Wearable) */}
-                <div className="lg:col-span-1">
-                    <StrainGauge strain={extendedData.strain} recovery={extendedData.recovery} />
+                        {/* RIGHT: AI Coach */}
+                        <div className="lg:col-span-4 space-y-6">
+                            <Card title="Neural Architect" className="bg-gradient-to-br from-indigo-900/40 to-black border-indigo-500/30 p-8 rounded-[3rem] h-full flex flex-col relative overflow-hidden shadow-2xl">
+                                <div className="absolute top-0 right-0 p-8 opacity-10"><BrainCircuit className="w-48 h-48 text-indigo-400" /></div>
+                                <div className="relative z-10 flex-1 flex flex-col">
+                                    <div className="flex justify-center mb-8">
+                                        <div className="w-24 h-24 bg-indigo-500/20 rounded-full border-4 border-indigo-500/30 flex items-center justify-center shadow-[0_0_40px_rgba(99,102,241,0.3)] animate-pulse">
+                                            <Bot className="w-10 h-10 text-indigo-400" />
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 bg-black/40 rounded-3xl p-6 border border-white/5 mb-6 backdrop-blur-md overflow-y-auto custom-scrollbar">
+                                        {isAnalyzing ? (
+                                            <div className="h-full flex flex-col items-center justify-center text-indigo-300 space-y-4">
+                                                <RefreshCw className="w-8 h-8 animate-spin" />
+                                                <p className="text-[10px] font-black uppercase tracking-widest">Running Bio-Audit...</p>
+                                            </div>
+                                        ) : coachVerdict ? (
+                                            <div className="prose prose-invert prose-sm text-indigo-200 italic leading-relaxed" dangerouslySetInnerHTML={{ __html: coachVerdict }} />
+                                        ) : (
+                                            <p className="text-gray-500 text-xs text-center mt-10">"Initiate a scan to receive today's tactical health briefing."</p>
+                                        )}
+                                    </div>
+                                    <button 
+                                        onClick={handleConsultCoach}
+                                        disabled={isAnalyzing}
+                                        className="w-full bg-white text-black font-black py-5 rounded-[2rem] uppercase tracking-widest text-[10px] shadow-xl hover:bg-cyan-400 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
+                                    >
+                                        <Stethoscope className="w-4 h-4" /> Consult AI Architect
+                                    </button>
+                                </div>
+                            </Card>
+                        </div>
+                    </div>
+                )}
+
+                {/* TAB: DIGITAL TWIN */}
+                {activeTab === 'digital_twin' && (
+                    <div className="animate-scale-in">
+                        <BodySimulator />
+                    </div>
+                )}
+
+                {/* TAB: WEARABLE */}
+                {activeTab === 'wearable' && (
+                    <div className="animate-scale-in">
+                        <WearableConnectHub />
+                    </div>
+                )}
+
+                {/* TAB: MEDICAL VAULT */}
+                {activeTab === 'medical' && (
+                    <div className="animate-scale-in">
+                         {/* Here we combine BiomarkerVault and MedicalHub links/previews */}
+                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                             <MedicalHub memberId={currentUser.id} />
+                             <BiomarkerVault memberId={currentUser.id} />
+                         </div>
+                    </div>
+                )}
+            </div>
+
+            {/* QUICK UPDATE BUTTON */}
+            <div className="fixed bottom-24 left-8 z-40">
+                <button onClick={() => setIsInputModalOpen(true)} className="bg-black/80 backdrop-blur-xl p-4 rounded-full border border-white/10 text-white hover:bg-cyan-900/50 hover:text-cyan-400 transition-all shadow-2xl hover:scale-110 active:scale-95">
+                    <RefreshCw className="w-6 h-6" />
+                </button>
+            </div>
+
+            {/* BIO-SYNC MODAL */}
+            <Modal isOpen={isInputModalOpen} onClose={() => setIsInputModalOpen(false)} title="Manual Data Injection">
+                <div className="space-y-8 py-4">
+                    <div className="bg-gray-950 p-8 rounded-[2rem] border border-white/5 shadow-inner">
+                        <div className="grid grid-cols-2 gap-6">
+                            <div>
+                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Mass (KG)</label>
+                                <input type="number" value={bioForm.weight} onChange={e => setBioForm({...bioForm, weight: Number(e.target.value)})} className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white font-black text-lg outline-none focus:border-cyan-500 text-center" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Height (CM)</label>
+                                <input type="number" value={bioForm.height} onChange={e => setBioForm({...bioForm, height: Number(e.target.value)})} className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white font-black text-lg outline-none focus:border-cyan-500 text-center" />
+                            </div>
+                            <div className="col-span-2">
+                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">HRV (ms)</label>
+                                <input type="number" value={bioForm.hrv} onChange={e => setBioForm({...bioForm, hrv: Number(e.target.value)})} className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white font-black text-lg outline-none focus:border-cyan-500 text-center" />
+                            </div>
+                        </div>
+                    </div>
+                    <button onClick={handleSaveBio} className="w-full bg-cyan-600 hover:bg-cyan-500 text-black font-black py-5 rounded-2xl uppercase tracking-[0.3em] text-xs flex items-center justify-center gap-3">
+                        <Save className="w-4 h-4" /> Commit Data
+                    </button>
                 </div>
-
-                {/* Sleep Architecture (iOS) */}
-                <Card className="relative overflow-hidden border-t-2 border-indigo-500 bg-gray-800/60 p-0">
-                    <div className="p-4">
-                        <div className="flex justify-between items-start mb-2">
-                            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Sleep Arch</p>
-                            <AppleHealthIcon className="w-4 h-4 text-white" />
-                        </div>
-                        <div className="h-16 w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={[extendedData.sleepStages]} layout="vertical" stackOffset="expand">
-                                    <XAxis type="number" hide />
-                                    <YAxis type="category" hide />
-                                    <Tooltip content={<CustomTooltip />} cursor={false}/>
-                                    <Bar dataKey="deep" stackId="a" fill="#312e81" />
-                                    <Bar dataKey="rem" stackId="a" fill="#4338ca" />
-                                    <Bar dataKey="light" stackId="a" fill="#6366f1" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                        <div className="flex justify-between text-[10px] text-gray-400 mt-1">
-                            <span>Deep</span>
-                            <span>REM</span>
-                            <span>Light</span>
-                        </div>
-                    </div>
-                </Card>
-            </div>
-
-            {/* Live Chart */}
-            <div className="grid grid-cols-1 gap-6">
-                <Card title="Live Biometric Pulse (Samsung Health)">
-                    <div className="h-[250px] w-full min-w-0 relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={healthData.heartRate.history}>
-                                <defs>
-                                    <linearGradient id="colorHr" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.5}/>
-                                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                                    </linearGradient>
-                                </defs>
-                                <XAxis dataKey="time" stroke="#6b7280" className="text-[10px]" tick={false} />
-                                <YAxis stroke="#6b7280" className="text-[10px]" domain={['dataMin - 5', 'dataMax + 5']} />
-                                <Tooltip content={<CustomTooltip />} />
-                                <Area 
-                                    type="monotone" 
-                                    dataKey="value" 
-                                    stroke="#ef4444" 
-                                    strokeWidth={3} 
-                                    fillOpacity={1} 
-                                    fill="url(#colorHr)" 
-                                    isAnimationActive={false} 
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                        <div className="absolute top-2 right-2 flex items-center gap-2">
-                            <span className="flex h-2 w-2 relative">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                            </span>
-                            <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Live</span>
-                        </div>
-                    </div>
-                </Card>
-            </div>
+            </Modal>
         </div>
     );
 };

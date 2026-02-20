@@ -1,6 +1,7 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 
 interface ModalProps {
   isOpen: boolean;
@@ -10,32 +11,56 @@ interface ModalProps {
 }
 
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
-  if (!isOpen) return null;
-  
-  if (typeof document === 'undefined' || !document.body) {
-    return null;
-  }
+  const [mounted, setMounted] = useState(false);
+  const [container, setContainer] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+    setContainer(document.body);
+    return () => {
+      setMounted(false);
+      setContainer(null);
+    };
+  }, []);
+
+  if (!isOpen || !mounted || !container) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 transition-opacity duration-300">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg mx-4 transform transition-all duration-300 ease-in-out" onClick={(e) => e.stopPropagation()}>
-        <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-semibold text-amber-500 dark:text-amber-400">{title}</h3>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
+      {/* Backdrop with blur and click-to-close */}
+      <div 
+        className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity" 
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      
+      {/* Modal Content */}
+      <div 
+        className="bg-[#121212] border border-white/10 rounded-[2rem] shadow-2xl w-full max-w-lg transform transition-all relative z-10 flex flex-col max-h-[90vh] animate-scale-in"
+        role="dialog" 
+        aria-modal="true"
+      >
+        {/* Header */}
+        <div className="flex justify-between items-center p-6 border-b border-white/5">
+          <h3 className="text-xl font-black text-white uppercase italic tracking-wider truncate pr-4">
+            {title}
+          </h3>
           <button
             onClick={onClose}
-            className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+            className="text-gray-500 hover:text-white transition-colors bg-white/5 p-2 rounded-full hover:bg-white/20 flex-shrink-0"
+            aria-label="Close"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="p-6">
+
+        {/* Body */}
+        <div className="p-6 overflow-y-auto custom-scrollbar">
           {children}
         </div>
       </div>
     </div>,
-    document.body
+    container
   );
 };
 

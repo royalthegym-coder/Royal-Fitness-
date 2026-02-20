@@ -2,7 +2,7 @@
 import React from 'react';
 
 const IconWrapper: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-  <span className={`w-5 h-5 ${className || ''}`}>{children}</span>
+  <span className={`w-6 h-6 ${className || ''}`}>{children}</span>
 );
 
 export const BrainCircuitIcon: React.FC<{ className?: string }> = ({ className }) => (

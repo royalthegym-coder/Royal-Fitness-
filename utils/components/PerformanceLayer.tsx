@@ -9,6 +9,7 @@ import { SparkleIcon } from './icons/SparkleIcon';
 import { BotIcon } from './icons/BotIcon';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, LineChart, Line, Legend } from 'recharts';
 import { getComplexResponse } from '../../lib/gemini';
+import { Gauge, Activity, Cpu, Zap, Layers, RefreshCw, BarChart2, Radio } from 'lucide-react';
 
 // --- DATA STRUCTURES ---
 interface SystemMetric {
@@ -184,10 +185,12 @@ const PerformanceLayer: React.FC = () => {
     const currentLag = metrics.length > 0 ? metrics[metrics.length-1].eventLoopLag.toFixed(2) : '0.00';
 
     const renderProfiler = () => (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-slide-up">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="border-t-4 border-indigo-500">
-                    <p className="text-gray-400 text-xs font-bold uppercase">CPU Usage</p>
+                <Card className="border border-indigo-500/30 bg-black/60 rounded-[3rem] p-8">
+                    <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4">
+                        <Cpu className="w-4 h-4 text-indigo-500"/> CPU Usage
+                    </p>
                     <div className="h-[200px] w-full min-w-0">
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={metrics}>
@@ -197,15 +200,18 @@ const PerformanceLayer: React.FC = () => {
                                         <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
                                     </linearGradient>
                                 </defs>
-                                <Tooltip contentStyle={{backgroundColor: '#1f2937', border: 'none'}} itemStyle={{color: '#fff'}} />
-                                <Area type="monotone" dataKey="cpu" stroke="#6366f1" fillOpacity={1} fill="url(#colorCpu)" isAnimationActive={false} />
+                                <Tooltip contentStyle={{backgroundColor: '#000', border: '1px solid #333', borderRadius: '10px'}} itemStyle={{color: '#fff', fontSize: '12px'}} />
+                                <Area type="monotone" dataKey="cpu" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorCpu)" isAnimationActive={false} />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
-                    <p className="text-2xl font-bold text-white mt-2">{currentCpu}%</p>
+                    <p className="text-4xl font-black text-white mt-4 italic">{currentCpu}%</p>
                 </Card>
-                <Card className="border-t-4 border-amber-500">
-                    <p className="text-gray-400 text-xs font-bold uppercase">Memory Heap</p>
+
+                <Card className="border border-amber-500/30 bg-black/60 rounded-[3rem] p-8">
+                    <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4">
+                        <Layers className="w-4 h-4 text-amber-500"/> Memory Heap
+                    </p>
                     <div className="h-[200px] w-full min-w-0">
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={metrics}>
@@ -215,93 +221,101 @@ const PerformanceLayer: React.FC = () => {
                                         <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
                                     </linearGradient>
                                 </defs>
-                                <Tooltip contentStyle={{backgroundColor: '#1f2937', border: 'none'}} itemStyle={{color: '#fff'}} />
-                                <Area type="monotone" dataKey="memory" stroke="#f59e0b" fillOpacity={1} fill="url(#colorMem)" isAnimationActive={false} />
+                                <Tooltip contentStyle={{backgroundColor: '#000', border: '1px solid #333', borderRadius: '10px'}} itemStyle={{color: '#fff', fontSize: '12px'}} />
+                                <Area type="monotone" dataKey="memory" stroke="#f59e0b" strokeWidth={3} fillOpacity={1} fill="url(#colorMem)" isAnimationActive={false} />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
-                    <p className="text-2xl font-bold text-white mt-2">{currentMemory} MB</p>
+                    <p className="text-4xl font-black text-white mt-4 italic">{currentMemory} MB</p>
                 </Card>
-                <Card className="border-t-4 border-pink-500">
-                    <p className="text-gray-400 text-xs font-bold uppercase">Event Loop Lag</p>
+
+                <Card className="border border-pink-500/30 bg-black/60 rounded-[3rem] p-8">
+                    <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4">
+                        <Zap className="w-4 h-4 text-pink-500"/> Event Loop Lag
+                    </p>
                     <div className="h-[200px] w-full min-w-0">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={metrics}>
-                                <Tooltip cursor={{fill: 'transparent'}} contentStyle={{backgroundColor: '#1f2937', border: 'none'}} itemStyle={{color: '#fff'}} />
-                                <Bar dataKey="eventLoopLag" fill="#ec4899" isAnimationActive={false} />
+                                <Tooltip cursor={{fill: 'transparent'}} contentStyle={{backgroundColor: '#000', border: '1px solid #333', borderRadius: '10px'}} itemStyle={{color: '#fff', fontSize: '12px'}} />
+                                <Bar dataKey="eventLoopLag" fill="#ec4899" isAnimationActive={false} radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
-                    <p className="text-2xl font-bold text-white mt-2">{currentLag} ms</p>
+                    <p className="text-4xl font-black text-white mt-4 italic">{currentLag} ms</p>
                 </Card>
             </div>
         </div>
     );
 
     const renderTracing = () => (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
-            <div className="lg:col-span-1 bg-gray-800 rounded-xl border border-gray-700 overflow-hidden flex flex-col">
-                <div className="p-4 border-b border-gray-700 bg-gray-900">
-                    <h3 className="font-bold text-white">Recent Transactions</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px] animate-slide-up">
+            <div className="lg:col-span-1 bg-gray-900 border border-white/5 rounded-[3rem] overflow-hidden flex flex-col shadow-2xl">
+                <div className="p-6 border-b border-white/5 bg-black/40">
+                    <h3 className="font-black text-white uppercase italic tracking-widest text-sm">Trace Log</h3>
                 </div>
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
                     {traces.map(trace => (
                         <div 
                             key={trace.id} 
                             onClick={() => setSelectedTrace(trace)}
-                            className={`p-3 border-b border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors ${selectedTrace?.id === trace.id ? 'bg-gray-700 border-l-4 border-l-indigo-500' : ''}`}
+                            className={`p-4 rounded-2xl border transition-all cursor-pointer group ${selectedTrace?.id === trace.id ? 'bg-indigo-900/20 border-indigo-500' : 'bg-black/40 border-white/5 hover:border-white/20'}`}
                         >
                             <div className="flex justify-between items-center mb-1">
-                                <span className={`text-xs font-bold px-2 py-0.5 rounded ${trace.method === 'GET' ? 'bg-blue-900/50 text-blue-400' : 'bg-green-900/50 text-green-400'}`}>{trace.method}</span>
-                                <span className="text-xs text-gray-500">{trace.totalDuration}ms</span>
+                                <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase ${trace.method === 'GET' ? 'bg-blue-900/50 text-blue-400' : 'bg-green-900/50 text-green-400'}`}>{trace.method}</span>
+                                <span className="text-[10px] text-gray-400 font-mono">{trace.totalDuration}ms</span>
                             </div>
-                            <p className="text-sm text-gray-300 truncate">{trace.endpoint}</p>
-                            <p className="text-[10px] text-gray-500 mt-1">{trace.timestamp}</p>
+                            <p className="text-xs font-bold text-white truncate mt-1">{trace.endpoint}</p>
                         </div>
                     ))}
                 </div>
             </div>
+            
             <div className="lg:col-span-2">
-                <Card className="h-full bg-gray-900 border-gray-700">
+                <Card className="h-full bg-black border-white/10 p-8 rounded-[3rem] shadow-2xl flex flex-col">
                     {selectedTrace ? (
-                        <div className="h-full flex flex-col">
-                            <div className="mb-6">
-                                <h3 className="text-xl font-bold text-white mb-1">{selectedTrace.method} {selectedTrace.endpoint}</h3>
-                                <div className="flex gap-4 text-sm text-gray-400">
-                                    <span>ID: {selectedTrace.id}</span>
-                                    <span>Duration: {selectedTrace.totalDuration}ms</span>
+                        <div className="h-full flex flex-col animate-fade-in">
+                            <div className="mb-8 border-b border-white/10 pb-6">
+                                <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">{selectedTrace.method} {selectedTrace.endpoint}</h3>
+                                <div className="flex gap-6 mt-2">
+                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">ID: {selectedTrace.id}</p>
+                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Total Time: {selectedTrace.totalDuration}ms</p>
                                 </div>
                             </div>
-                            <div className="space-y-4 flex-1">
+                            
+                            <div className="space-y-6 flex-1">
                                 {selectedTrace.spans.map((span, i) => (
-                                    <div key={i} className="relative">
-                                        <div className="flex justify-between text-xs text-gray-400 mb-1">
+                                    <div key={i} className="relative group">
+                                        <div className="flex justify-between text-[10px] text-gray-400 font-bold uppercase mb-1">
                                             <span>{span.name}</span>
                                             <span>{span.duration}ms</span>
                                         </div>
-                                        <div className="h-8 bg-gray-800 rounded w-full relative overflow-hidden">
+                                        <div className="h-10 bg-gray-900 rounded-xl w-full relative overflow-hidden border border-white/5">
                                             <div 
-                                                className={`absolute top-0 bottom-0 rounded ${
+                                                className={`absolute top-0 bottom-0 rounded-xl transition-all ${
                                                     span.type === 'db' ? 'bg-amber-500' : 
                                                     span.type === 'http' ? 'bg-green-500' : 'bg-indigo-500'
                                                 }`}
                                                 style={{ 
                                                     left: `${(span.startTime / selectedTrace.totalDuration) * 100}%`,
-                                                    width: `${Math.max(1, (span.duration / selectedTrace.totalDuration) * 100)}%`
+                                                    width: `${Math.max(2, (span.duration / selectedTrace.totalDuration) * 100)}%`
                                                 }}
                                             ></div>
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                            <div className="mt-6 pt-4 border-t border-gray-700 flex gap-4 text-xs">
-                                <div className="flex items-center"><span className="w-3 h-3 bg-indigo-500 rounded mr-2"></span> Logic</div>
-                                <div className="flex items-center"><span className="w-3 h-3 bg-amber-500 rounded mr-2"></span> Database</div>
-                                <div className="flex items-center"><span className="w-3 h-3 bg-green-500 rounded mr-2"></span> HTTP/Net</div>
+                            
+                            <div className="mt-8 pt-6 border-t border-white/10 flex gap-6 text-[10px] font-black uppercase text-gray-500">
+                                <div className="flex items-center"><div className="w-2 h-2 bg-indigo-500 rounded-full mr-2"></div> Logic Layer</div>
+                                <div className="flex items-center"><div className="w-2 h-2 bg-amber-500 rounded-full mr-2"></div> Database</div>
+                                <div className="flex items-center"><div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div> Network</div>
                             </div>
                         </div>
                     ) : (
-                        <div className="h-full flex items-center justify-center text-gray-500">Select a trace to view breakdown.</div>
+                        <div className="h-full flex flex-col items-center justify-center text-gray-600 opacity-50">
+                            <Activity className="w-24 h-24 mb-6" />
+                            <p className="text-sm font-black uppercase tracking-[0.4em]">Select Trace to Analyze</p>
+                        </div>
                     )}
                 </Card>
             </div>
@@ -309,52 +323,53 @@ const PerformanceLayer: React.FC = () => {
     );
 
     const renderLoadTest = () => (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-slide-up">
             <div className="lg:col-span-1 space-y-6">
-                <Card title="Locust Controller">
-                    <div className="space-y-4">
+                <Card title="Locust Controller" className="bg-gray-950 border-white/5 p-8 rounded-[3rem] shadow-2xl">
+                    <div className="space-y-6">
                         <div>
-                            <label className="text-xs text-gray-400 uppercase font-bold">Number of Users</label>
-                            <input type="number" value={users} onChange={e => setUsers(Number(e.target.value))} className="w-full bg-gray-700 border border-gray-600 rounded p-2 text-white mt-1" />
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Simulated Users</label>
+                            <input type="number" value={users} onChange={e => setUsers(Number(e.target.value))} className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-red-500" />
                         </div>
                         <div>
-                            <label className="text-xs text-gray-400 uppercase font-bold">Spawn Rate (users/sec)</label>
-                            <input type="number" value={spawnRate} onChange={e => setSpawnRate(Number(e.target.value))} className="w-full bg-gray-700 border border-gray-600 rounded p-2 text-white mt-1" />
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Hatch Rate (Users/Sec)</label>
+                            <input type="number" value={spawnRate} onChange={e => setSpawnRate(Number(e.target.value))} className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-red-500" />
                         </div>
-                        <div className="pt-4">
-                            <button 
-                                onClick={toggleLoadTest}
-                                className={`w-full py-3 rounded-lg font-bold text-white transition-all shadow-lg ${
-                                    loadTestStatus === 'running' 
-                                    ? 'bg-red-600 hover:bg-red-500 animate-pulse' 
-                                    : 'bg-green-600 hover:bg-green-500'
-                                }`}
-                            >
-                                {loadTestStatus === 'running' ? 'STOP SWARM' : 'SPAWN SWARM'}
-                            </button>
-                        </div>
-                        <div className="flex justify-between items-center bg-gray-800 p-3 rounded border border-gray-700">
-                            <span className="text-sm text-gray-400">Status</span>
-                            <span className={`text-sm font-bold uppercase ${loadTestStatus === 'running' ? 'text-red-500' : 'text-green-500'}`}>
-                                {loadTestStatus.toUpperCase()}
+                        
+                        <button 
+                            onClick={toggleLoadTest}
+                            className={`w-full py-5 rounded-[2rem] font-black uppercase tracking-widest text-xs shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3 ${
+                                loadTestStatus === 'running' 
+                                ? 'bg-red-600 hover:bg-red-500 text-white animate-pulse' 
+                                : 'bg-green-600 hover:bg-green-500 text-black'
+                            }`}
+                        >
+                            {loadTestStatus === 'running' ? 'ABORT SWARM' : 'DEPLOY SWARM'}
+                        </button>
+
+                        <div className="flex justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5">
+                            <span className="text-xs font-bold text-gray-400 uppercase">Engine Status</span>
+                            <span className={`text-xs font-black uppercase px-3 py-1 rounded border ${loadTestStatus === 'running' ? 'text-red-500 border-red-500/30 bg-red-900/10' : 'text-green-500 border-green-500/30 bg-green-900/10'}`}>
+                                {loadTestStatus}
                             </span>
                         </div>
                     </div>
                 </Card>
             </div>
+            
             <div className="lg:col-span-2">
-                <Card title="Real-time Stress Metrics">
-                    <div className="h-[300px] w-full min-w-0">
+                <Card title="Stress Test Telemetry" className="bg-black border-white/5 p-8 rounded-[3rem] shadow-2xl h-full">
+                    <div className="h-[400px] w-full min-w-0">
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={metrics}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                                <XAxis dataKey="time" stroke="#9ca3af" fontSize={10} />
-                                <YAxis yAxisId="left" stroke="#10b981" fontSize={10} label={{ value: 'RPS', angle: -90, position: 'insideLeft', fill: '#10b981' }} />
-                                <YAxis yAxisId="right" orientation="right" stroke="#f43f5e" fontSize={10} label={{ value: 'Latency (ms)', angle: 90, position: 'insideRight', fill: '#f43f5e' }} />
-                                <Tooltip contentStyle={{backgroundColor: '#1f2937', border: 'none'}} />
+                                <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                                <XAxis dataKey="time" stroke="#666" fontSize={10} tickLine={false} axisLine={false} />
+                                <YAxis yAxisId="left" stroke="#10b981" fontSize={10} axisLine={false} tickLine={false} />
+                                <YAxis yAxisId="right" orientation="right" stroke="#f43f5e" fontSize={10} axisLine={false} tickLine={false} />
+                                <Tooltip contentStyle={{backgroundColor: '#000', border: '1px solid #333', borderRadius: '10px'}} itemStyle={{fontSize: '12px'}} />
                                 <Legend />
-                                <Line yAxisId="left" type="monotone" dataKey="rps" stroke="#10b981" dot={false} strokeWidth={2} name="Requests/Sec" isAnimationActive={false} />
-                                <Line yAxisId="right" type="monotone" dataKey="latency" stroke="#f43f5e" dot={false} strokeWidth={2} name="Response Time" isAnimationActive={false} />
+                                <Line yAxisId="left" type="monotone" dataKey="rps" stroke="#10b981" dot={false} strokeWidth={3} name="Reqs/Sec" isAnimationActive={false} />
+                                <Line yAxisId="right" type="monotone" dataKey="latency" stroke="#f43f5e" dot={false} strokeWidth={3} name="Latency (ms)" isAnimationActive={false} />
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
@@ -364,94 +379,122 @@ const PerformanceLayer: React.FC = () => {
     );
 
     const renderCache = () => (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card title="Redis Monitor">
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div className="bg-gray-800 p-4 rounded-lg text-center">
-                        <p className="text-3xl font-bold text-green-400">{(cacheStats.hits / (cacheStats.hits + cacheStats.misses) * 100).toFixed(1)}%</p>
-                        <p className="text-xs text-gray-500 uppercase">Hit Rate</p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-slide-up">
+            <Card title="Redis Cluster Node" className="bg-gray-950 border-white/5 p-8 rounded-[3rem] shadow-2xl">
+                <div className="grid grid-cols-2 gap-6 mb-8">
+                    <div className="bg-black/40 p-6 rounded-[2rem] border border-white/5 text-center">
+                        <p className="text-4xl font-black text-green-400 italic tracking-tighter">{(cacheStats.hits / (cacheStats.hits + cacheStats.misses) * 100).toFixed(1)}%</p>
+                        <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mt-2">Hit Ratio</p>
                     </div>
-                    <div className="bg-gray-800 p-4 rounded-lg text-center">
-                        <p className="text-3xl font-bold text-blue-400">{cacheStats.keys.toLocaleString()}</p>
-                        <p className="text-xs text-gray-500 uppercase">Keys</p>
+                    <div className="bg-black/40 p-6 rounded-[2rem] border border-white/5 text-center">
+                        <p className="text-4xl font-black text-blue-400 italic tracking-tighter">{cacheStats.keys.toLocaleString()}</p>
+                        <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mt-2">Active Keys</p>
                     </div>
-                    <div className="bg-gray-800 p-4 rounded-lg text-center">
-                        <p className="text-3xl font-bold text-amber-400">{cacheStats.memory}</p>
-                        <p className="text-xs text-gray-500 uppercase">Memory Used</p>
+                    <div className="bg-black/40 p-6 rounded-[2rem] border border-white/5 text-center">
+                        <p className="text-4xl font-black text-amber-400 italic tracking-tighter">{cacheStats.memory}</p>
+                        <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mt-2">Mem Usage</p>
                     </div>
-                    <div className="bg-gray-800 p-4 rounded-lg text-center">
-                        <p className="text-3xl font-bold text-white">{(cacheStats.hits + cacheStats.misses).toLocaleString()}</p>
-                        <p className="text-xs text-gray-500 uppercase">Total Ops</p>
+                    <div className="bg-black/40 p-6 rounded-[2rem] border border-white/5 text-center">
+                        <p className="text-4xl font-black text-white italic tracking-tighter">{(cacheStats.hits + cacheStats.misses).toLocaleString()}</p>
+                        <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mt-2">Total Ops</p>
                     </div>
                 </div>
                 <div className="flex gap-4">
-                    <button onClick={handleFlushCache} className="flex-1 bg-red-900/30 text-red-400 border border-red-500/50 py-2 rounded hover:bg-red-900/50">Flush DB</button>
-                    <button className="flex-1 bg-blue-900/30 text-blue-400 border border-blue-500/50 py-2 rounded hover:bg-blue-900/50">Warm Up Cache</button>
+                    <button onClick={handleFlushCache} className="flex-1 bg-red-900/20 text-red-500 border border-red-500/30 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-900/40 transition-all">Flush Database</button>
+                    <button className="flex-1 bg-blue-900/20 text-blue-400 border border-blue-500/30 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-900/40 transition-all">Warm-Up Sequence</button>
                 </div>
             </Card>
-            <Card title="Command Log" className="bg-black border-gray-700">
-                <div className="font-mono text-xs text-green-400 h-64 overflow-y-auto custom-scrollbar flex flex-col space-y-2">
+            
+            <Card title="Live Command Stream" className="bg-black border-white/10 p-0 overflow-hidden flex flex-col h-[500px] rounded-[3rem] shadow-2xl">
+                <div className="bg-gray-900/50 px-8 py-4 border-b border-white/5 flex items-center gap-3">
+                    <ServerIcon className="w-4 h-4 text-green-500 animate-pulse" />
+                    <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">redis-cli monitor</span>
+                </div>
+                <div className="flex-1 overflow-y-auto p-8 font-mono text-[10px] text-green-400 space-y-2 custom-scrollbar bg-[#020202]">
                     {cacheLogs.map((log, i) => (
-                        <div key={i} className="border-b border-gray-800 pb-1">{log}</div>
+                        <div key={i} className="border-b border-white/5 pb-1 opacity-80 hover:opacity-100">{log}</div>
                     ))}
+                    {cacheLogs.length === 0 && <div className="text-gray-700 italic">// Waiting for commands...</div>}
+                    <div className="animate-pulse text-green-500">_</div>
                 </div>
             </Card>
         </div>
     );
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400 flex items-center">
-                        <SpeedIcon className="w-8 h-8 mr-3 text-indigo-400" />
-                        Performance Layer
-                    </h1>
-                    <p className="text-gray-400 text-sm mt-1">Real-time telemetry & optimization engine.</p>
-                </div>
-                <div className="flex bg-gray-800 rounded-lg p-1">
-                    {[
-                        { id: 'profiler', icon: <SpeedIcon />, label: 'Profiler' },
-                        { id: 'tracing', icon: <TraceIcon />, label: 'Tracing' },
-                        { id: 'loadtest', icon: <UserGroupIcon />, label: 'Load Test' },
-                        { id: 'cache', icon: <ServerIcon />, label: 'Redis' },
-                    ].map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
-                            className={`flex items-center px-4 py-2 text-sm font-bold rounded-md transition-colors ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'}`}
-                        >
-                            <span className="w-4 h-4 mr-2">{tab.icon}</span>
-                            {tab.label}
-                        </button>
-                    ))}
+        <div className="space-y-8 animate-fade-in pb-24">
+            
+            {/* Header */}
+            <div className="bg-[#020308] p-10 rounded-[3.5rem] border border-indigo-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(99,102,241,0.15)] group">
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[150px] animate-pulse"></div>
+                
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-10">
+                    <div className="flex items-center gap-8">
+                        <div className="p-8 bg-indigo-600 text-white rounded-[3rem] shadow-[0_0_60px_rgba(99,102,241,0.5)] border border-indigo-400 group-hover:rotate-12 transition-transform duration-700">
+                            <Gauge className="w-16 h-16 animate-pulse" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="px-4 py-1.5 bg-indigo-500 text-white rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
+                                    <Activity className="w-3 h-3" /> Telemetry v31.0
+                                </div>
+                                <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">LINK: ULTRA_LOW_LATENCY</span>
+                            </div>
+                            <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none">
+                                Hyper <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-500">Telemetry</span>
+                            </h1>
+                        </div>
+                    </div>
+
+                    <div className="flex bg-gray-900/80 p-2 rounded-3xl border border-white/10 backdrop-blur-3xl shadow-2xl overflow-x-auto no-scrollbar max-w-full">
+                        {[
+                            { id: 'profiler', label: 'Profiler', icon: <SpeedIcon /> },
+                            { id: 'tracing', label: 'Tracing', icon: <TraceIcon /> },
+                            { id: 'loadtest', label: 'Load Test', icon: <UserGroupIcon /> },
+                            { id: 'cache', label: 'Redis', icon: <ServerIcon /> },
+                        ].map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id as any)}
+                                className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 whitespace-nowrap ${
+                                    activeTab === tab.id 
+                                    ? 'bg-indigo-600 text-white shadow-2xl' 
+                                    : 'text-gray-500 hover:text-white'
+                                }`}
+                            >
+                                <span className="text-lg">{tab.icon}</span> {tab.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
             {/* AI SRE Bar */}
-            <div className="bg-gradient-to-r from-gray-900 to-indigo-900/30 border border-indigo-500/30 rounded-xl p-4 flex flex-col md:flex-row justify-between items-center gap-4">
-                <div className="flex items-center">
-                    <div className="p-2 bg-indigo-500/20 rounded-full mr-3 text-indigo-400">
-                        <BotIcon className="w-6 h-6" />
+            <div className="bg-gradient-to-r from-indigo-900/20 to-black border border-indigo-500/30 rounded-[2.5rem] p-6 flex flex-col md:flex-row justify-between items-center gap-6 shadow-xl relative overflow-hidden">
+                <div className="absolute inset-0 bg-indigo-500/5 opacity-0 hover:opacity-100 transition-opacity"></div>
+                <div className="flex items-center gap-6 relative z-10">
+                    <div className="p-4 bg-indigo-500/20 rounded-2xl text-indigo-400 border border-indigo-500/30">
+                        <BotIcon className="w-8 h-8" />
                     </div>
                     <div>
-                        <h3 className="font-bold text-white text-sm">AI Site Reliability Engineer</h3>
-                        <p className="text-xs text-gray-400">Analysis engine standing by.</p>
+                        <h3 className="font-black text-white text-lg italic uppercase tracking-tight">AI Site Reliability Engineer</h3>
+                        <p className="text-xs text-gray-400 font-medium">Neural Analysis Engine Standing By.</p>
                     </div>
                 </div>
                 <button 
                     onClick={handleAiAnalyze} 
                     disabled={isAnalyzing}
-                    className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-sm flex items-center shadow-lg transition-all disabled:opacity-50"
+                    className="px-10 py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[2rem] font-black uppercase tracking-widest text-[10px] flex items-center gap-3 shadow-2xl transition-all active:scale-95 disabled:opacity-50 relative z-10"
                 >
-                    {isAnalyzing ? <SparkleIcon className="w-4 h-4 mr-2 animate-spin"/> : <SparkleIcon className="w-4 h-4 mr-2"/>}
+                    {isAnalyzing ? <SparkleIcon className="w-4 h-4 animate-spin"/> : <SparkleIcon className="w-4 h-4"/>}
                     {isAnalyzing ? 'Analyzing Stack...' : 'Optimize Performance'}
                 </button>
             </div>
 
             {aiInsight && (
-                <div className="animate-fade-in bg-indigo-900/20 border-l-4 border-indigo-500 p-4 rounded-r-xl">
-                    <div className="prose dark:prose-invert prose-sm max-w-none text-gray-300" dangerouslySetInnerHTML={{ __html: aiInsight }} />
+                <div className="animate-fade-in bg-indigo-900/10 border-l-4 border-indigo-500 p-8 rounded-r-[3rem] shadow-2xl">
+                    <div className="prose prose-invert prose-sm max-w-none text-indigo-100 italic leading-relaxed font-medium" dangerouslySetInnerHTML={{ __html: aiInsight }} />
                 </div>
             )}
 

@@ -4,301 +4,298 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import { MenuIcon } from './icons/MenuIcon';
 import LoginScreen from './LoginScreen';
-import LandingPage from './LandingPage'; 
-import { INITIAL_MEMBERS } from '../../constants';
-import { checkMembershipExpiryAndNotify } from '../../lib/whatsapp';
 import { ChatIcon } from './icons/ChatIcon';
 import GeminiChat from './GeminiChat';
 import { View, Theme } from '../../types';
 import { ToastProvider } from '../context/ToastProvider';
 import { DataProvider, useData } from '../context/DataProvider';
 import AdminGeoGuard from './admin/AdminGeoGuard';
+import SecurityShield from './SecurityShield';
+import ErrorBoundary from './common/ErrorBoundary';
+import { Crown, Sparkles, WifiOff, Zap, ShieldCheck, RefreshCw, Cpu, Activity, Infinity, Orbit } from 'lucide-react';
+import MemberPortal from './member/MemberPortal';
+import DevTools from './DevTools';
 
-// Lazy load heavy components
+// --- ADMIN MODULES (Lazy Loaded with Prefetch Logic) ---
 const Dashboard = React.lazy(() => import('./Dashboard'));
 const Members = React.lazy(() => import('./Members'));
-const Packages = React.lazy(() => import('./Packages'));
 const Billing = React.lazy(() => import('./Billing'));
-const Workouts = React.lazy(() => import('./Workouts'));
-const DietPlans = React.lazy(() => import('./DietPlans'));
+const Packages = React.lazy(() => import('./Packages'));
+const RevenueOracle = React.lazy(() => import('./admin/RevenueOracle')); 
+const SecurityLayer = React.lazy(() => import('./SecurityLayer'));
+const Settings = React.lazy(() => import('./Settings'));
+const HealthEngine = React.lazy(() => import('./HealthEngine'));
+const GeminiHub = React.lazy(() => import('./GeminiHub'));
+const NeuralSystemCore = React.lazy(() => import('./NeuralSystemCore'));
+const StorkCollaboration = React.lazy(() => import('./StorkCollaboration'));
+const RoyalBotIntegrations = React.lazy(() => import('./RoyalBotIntegrations'));
+const AutoProcurement = React.lazy(() => import('./admin/AutoProcurement'));
+const CityHealthMap = React.lazy(() => import('./admin/CityHealthMap'));
+const VisualLaunch = React.lazy(() => import('./VisualLaunch'));
+const FutureOFSAdmin = React.lazy(() => import('./admin/FutureOFSAdmin'));
+const GeniusMode = React.lazy(() => import('./GeniusMode'));
+const RoyalOvermind = React.lazy(() => import('./RoyalOvermind'));
+const BioScoutBot = React.lazy(() => import('./BioScoutBot'));
 const Staff = React.lazy(() => import('./Staff'));
 const Expenses = React.lazy(() => import('./Expenses'));
-const Settings = React.lazy(() => import('./Settings'));
-const Leads = React.lazy(() => import('./Leads'));
-const Memberships = React.lazy(() => import('./Memberships'));
+const Workouts = React.lazy(() => import('./Workouts'));
+const DietPlans = React.lazy(() => import('./DietPlans'));
+const Leads = React.lazy(() => import('./Leads')); 
+const AutomationDashboard = React.lazy(() => import('./AutomationDashboard')); 
+const SocialMediaManager = React.lazy(() => import('./admin/SocialMediaManager')); 
+const GoogleBusiness = React.lazy(() => import('./GoogleBusiness'));
 const WhatsAppIntegration = React.lazy(() => import('./WhatsAppIntegration'));
-const AutomationDashboard = React.lazy(() => import('./AutomationDashboard'));
-const CRMSystem = React.lazy(() => import('./CRMSystem'));
-const Payment = React.lazy(() => import('./Payment'));
-const GeminiHub = React.lazy(() => import('./GeminiHub'));
-const VoiceAssistant = React.lazy(() => import('./VoiceAssistant'));
-const MemberPortal = React.lazy(() => import('./MemberPortal'));
-const AIFitnessTracker = React.lazy(() => import('./AIFitnessTracker'));
-const HealthEngine = React.lazy(() => import('./HealthEngine'));
-const GeniusMode = React.lazy(() => import('./GeniusMode'));
-const Tasks = React.lazy(() => import('./Tasks'));
-const FuturisticFeatures = React.lazy(() => import('./FuturisticFeatures'));
-const HealthIntelligence = React.lazy(() => import('./HealthIntelligence'));
-const BodySimulator = React.lazy(() => import('./BodySimulator'));
-const RoyalBotIntegrations = React.lazy(() => import('./RoyalBotIntegrations'));
-const AutoUpgrader = React.lazy(() => import('./AutoUpgrader')); 
-const SelfRepair = React.lazy(() => import('./SelfRepair')); 
-const NeuralSystemCore = React.lazy(() => import('./NeuralSystemCore'));
+const SocialHiveHub = React.lazy(() => import('./SocialHiveHub'));
+const RoyalSingularity = React.lazy(() => import('./RoyalSingularity'));
+const AetherOmni = React.lazy(() => import('./AetherOmni'));
+const SynapseIoTHub = React.lazy(() => import('./SynapseIoTHub'));
+const NeuroSyncHub = React.lazy(() => import('./NeuroSyncHub'));
+const AutoUpgrader = React.lazy(() => import('./AutoUpgrader'));
+const SelfRepair = React.lazy(() => import('./SelfRepair'));
+const QuantumLedgerHub = React.lazy(() => import('./QuantumLedgerHub'));
 const DebugEngine = React.lazy(() => import('./DebugEngine'));
 const PerformanceLayer = React.lazy(() => import('./PerformanceLayer'));
-const SecurityLayer = React.lazy(() => import('./SecurityLayer'));
-const ControlPanel = React.lazy(() => import('./ControlPanel'));
-const StorkCollaboration = React.lazy(() => import('./StorkCollaboration'));
+const SynthesisX = React.lazy(() => import('./SynthesisX'));
+const Tasks = React.lazy(() => import('./Tasks'));
+const AetherMedDashboard = React.lazy(() => import('./admin/AetherMedDashboard'));
+const StorkTeam = React.lazy(() => import('./StorkCollaboration'));
+const Payment = React.lazy(() => import('./Payment'));
+const AIFitnessTracker = React.lazy(() => import('./AIFitnessTracker'));
+const HormonalClock = React.lazy(() => import('./member/HormonalClock'));
+const MetabolicTracker = React.lazy(() => import('./member/MetabolicTracker'));
+const NeuroRecovery = React.lazy(() => import('./member/NeuroRecovery'));
+const CRMSystem = React.lazy(() => import('./CRMSystem'));
 
-interface CurrentUser {
-    type: 'admin' | 'member';
-    id?: number;
-    name: string;
-    avatar: string;
-    token?: string; 
-    loginMethod?: 'password' | 'otp' | 'biometric';
-}
-
-const LoadingSpinner = () => (
-    <div className="flex flex-col items-center justify-center h-full w-full bg-[#050505] text-amber-500">
-        <div className="relative w-24 h-24">
-             <div className="absolute inset-0 border-4 border-amber-500/20 rounded-full"></div>
-             <div className="absolute inset-0 border-4 border-t-amber-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
-        </div>
-        <div className="mt-4 font-mono text-xs tracking-widest uppercase animate-pulse">Loading Core System...</div>
-    </div>
-);
-
-const AppContent: React.FC = () => {
-    const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => {
-        try {
-            const savedUser = localStorage.getItem('royal_user'); 
-            if (savedUser) return JSON.parse(savedUser);
-            return null;
-        } catch { return null; }
-    });
-    
-    const [showLanding, setShowLanding] = useState(!currentUser);
-    const [isAtLogin, setIsAtLogin] = useState(false);
-    
-    const [currentView, setCurrentView] = useState<View>('dashboard');
-    const [isSidebarOpen, setSidebarOpen] = useState(false);
-    const [theme, setTheme] = useState<Theme>('dark');
-    const [isChatOpen, setChatOpen] = useState(false);
-
-    const { members } = useData();
+const NeuralBoot = ({ onComplete }: { onComplete: () => void }) => {
+    const [progress, setProgress] = useState(0);
+    const [phase, setPhase] = useState('Initializing Apex-Continuum v31.0 (The Singularity)...');
 
     useEffect(() => {
-        if (currentUser) {
-            localStorage.setItem('royal_user', JSON.stringify(currentUser));
-            setShowLanding(false); 
-        }
-    }, [currentUser]);
+        const interval = setInterval(() => {
+            setProgress(prev => {
+                if (prev >= 100) {
+                    clearInterval(interval);
+                    setTimeout(onComplete, 200); 
+                    return 100;
+                }
+                
+                if (prev > 10) setPhase('Establishing Immutable Ledger...');
+                if (prev > 30) setPhase('Entangling Data Nodes...');
+                if (prev > 60) setPhase('Activating Self-Evolution Engine...');
+                if (prev > 90) setPhase('Sovereign Clearance Granted.');
+
+                const inc = Math.random() * 20 + 10; 
+                return Math.min(100, prev + inc);
+            });
+        }, 30);
+        return () => clearInterval(interval);
+    }, [onComplete]);
+
+    return (
+        <div className="h-screen w-screen bg-[#000000] flex flex-col items-center justify-center relative overflow-hidden z-[9999]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-900/40 via-black to-black animate-pulse"></div>
+            
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] border border-indigo-500/10 rounded-full animate-spin-slow"></div>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] border border-cyan-500/10 rounded-full animate-spin-reverse-slow"></div>
+
+            <div className="relative z-10 flex flex-col items-center text-center">
+                <div className="mb-10 relative group">
+                    <div className="absolute inset-0 bg-indigo-500/30 rounded-full blur-[100px] opacity-60 animate-pulse"></div>
+                    <Orbit className="w-32 h-32 text-white relative z-10 drop-shadow-[0_0_60px_rgba(99,102,241,0.8)] animate-spin-slow" />
+                </div>
+                <h1 className="text-7xl font-black text-white italic uppercase tracking-[0.2em] mb-2 leading-none">
+                    Apex <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-500">Continuum</span>
+                </h1>
+                <p className="text-xs font-mono text-indigo-500/60 uppercase tracking-[1em] mb-12">The Singularity Update v31.0</p>
+                
+                <div className="w-96 h-1 bg-gray-900 rounded-full overflow-hidden relative border border-white/10">
+                    <div className="h-full bg-gradient-to-r from-indigo-500 via-white to-cyan-500 transition-all duration-100 shadow-[0_0_20px_white]" style={{ width: `${progress}%` }}></div>
+                </div>
+                
+                <div className="mt-6 flex items-center gap-4">
+                    <Activity className="w-4 h-4 text-indigo-500 animate-pulse" />
+                    <p className="text-[10px] font-mono text-gray-500 uppercase tracking-[0.2em]">
+                        {phase}
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const AppContent: React.FC = () => {
+    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [currentView, setCurrentView] = useState<View>('dashboard');
+    const [isBooting, setIsBooting] = useState(true);
+    const [isChatOpen, setChatOpen] = useState(false);
+    const [isSidebarOpen, setSidebarOpen] = useState(false);
+    
+    // Forced Dark Mode for Royal theme consistency
+    const theme = 'dark';
+
+    const { members, systemHealth, isSyncing, evolutionLevel } = useData();
 
     useEffect(() => {
         document.documentElement.classList.add('dark');
+        localStorage.setItem('royal_theme', 'dark');
     }, []);
 
-    const toggleTheme = () => {
-        setTheme('dark'); 
-    };
-
-    const handleLogin = async (identifier: string, pass: string | null, role: 'admin' | 'member', method: 'password' | 'otp' | 'biometric'): Promise<boolean> => {
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        let user: CurrentUser | null = null;
-
+    const handleLogin = async (identifier: string, pass: string | null, role: 'admin' | 'member', method: string) => {
+        await new Promise(r => setTimeout(r, 400));
+        
         if (role === 'admin') {
-            const authorizedAdmins = ['admin@royal.com', '9785300123', '+919785300123', 'admin'];
-            if (authorizedAdmins.includes(identifier)) {
-                if (method === 'otp' || (method === 'password' && (pass === 'admin123' || pass === ''))) {
-                    user = { 
-                        type: 'admin', 
-                        name: 'Super Admin', 
-                        avatar: 'https://i.pravatar.cc/150?u=admin',
-                        token: 'admin-jwt-token-' + Date.now(),
-                        loginMethod: method
-                    };
-                }
-            }
-        }
-
-        if (role === 'member') {
-            const member = members.find(m => 
-                m.email.toLowerCase() === identifier.toLowerCase() || 
-                m.phone.replace(/\D/g,'').slice(-10) === identifier.replace(/\D/g,'').slice(-10)
-            );
-
-            if (member) {
-                if (method === 'biometric' || method === 'otp' || (method === 'password' && pass === `${member.name.split(' ')[0].toLowerCase()}123`)) {
-                     user = { 
-                         type: 'member', 
-                         id: member.id, 
-                         name: member.name, 
-                         avatar: member.avatar,
-                         token: 'member-jwt-token-' + Date.now(),
-                         loginMethod: method
-                     };
-                }
-            }
-        }
-
-        if (user) {
-            localStorage.setItem('token', user.token || '');
-            localStorage.setItem('userRole', user.type);
-            
-            setCurrentUser(user);
-            setShowLanding(false);
-            
-            if (user.type === 'admin') {
+            if (identifier === 'admin@royal.com' || identifier === '9785300123') {
+                setCurrentUser({ type: 'admin', name: 'Super Admin', avatar: 'https://i.ibb.co/6800735/Royal-The-Gym.png' });
                 setCurrentView('dashboard');
+                return true;
             }
-            return true;
+        } else {
+            const member = members.find(m => m.email === identifier || m.phone.slice(-10) === identifier.slice(-10));
+            if (member) {
+                setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
+                setCurrentView('dashboard');
+                return true;
+            }
         }
-
         return false;
     };
 
-    const handleLogout = () => {
-        sessionStorage.clear();
-        localStorage.removeItem('token');     
-        localStorage.removeItem('userRole');  
-        localStorage.removeItem('royal_user'); 
-        
-        setChatOpen(false);
-        setIsAtLogin(false);
-        setShowLanding(true); 
-        setCurrentView('dashboard');
-        setCurrentUser(null);
+    const handleDevSwitch = () => {
+        if (currentUser?.type === 'admin') {
+            // Switch to first member
+            const member = members[0];
+            if (member) {
+                setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
+                setCurrentView('dashboard');
+            }
+        } else {
+            // Switch to admin
+            setCurrentUser({ type: 'admin', name: 'Super Admin', avatar: 'https://i.ibb.co/6800735/Royal-The-Gym.png' });
+            setCurrentView('dashboard');
+        }
     };
 
-    const renderView = () => {
-        const view = (() => {
+    if (isBooting) return <NeuralBoot onComplete={() => setIsBooting(false)} />;
+    if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
+
+    const renderAdminView = () => {
+        const ViewComponent = (() => {
             switch (currentView) {
-                case 'dashboard': return <Dashboard setCurrentView={setCurrentView} />;
-                case 'controlPanel': return <ControlPanel />;
-                case 'royalBots': return <RoyalBotIntegrations />;
-                case 'healthIntelligence': return <HealthIntelligence />;
-                case 'tasks': return <Tasks />;
-                case 'packages': return <Packages />;
-                case 'members': return <Members />;
-                case 'stork': return <StorkCollaboration />;
-                case 'billing': return <Billing setCurrentView={setCurrentView} />;
-                case 'payment': return <Payment />;
-                case 'memberships': return <Memberships />;
-                case 'leads': return <Leads />;
-                case 'crm': return <CRMSystem />;
-                case 'workouts': return <Workouts />;
-                case 'diet': return <DietPlans />;
-                case 'staff': return <Staff />;
-                case 'expenses': return <Expenses />;
-                case 'settings': return <Settings setCurrentView={setCurrentView} theme={theme} toggleTheme={toggleTheme} currentUser={currentUser} />;
-                case 'whatsapp': return <WhatsAppIntegration />;
-                case 'automation': return <AutomationDashboard />;
-                case 'geminiHub': return <GeminiHub />;
-                case 'voiceAssistant': return <VoiceAssistant setCurrentView={setCurrentView} />;
-                case 'aiTracker': return <AIFitnessTracker />;
-                case 'healthEngine': return <HealthEngine />;
-                case 'geniusMode': return <GeniusMode />;
-                case 'futureOps': return <FuturisticFeatures />;
-                case 'simulator': return <BodySimulator />;
-                case 'autoUpgrader': return <AutoUpgrader />;
-                case 'selfRepair': return <SelfRepair />;
-                case 'neuralCore': return <NeuralSystemCore />;
-                case 'debugEngine': return <DebugEngine />;
-                case 'performance': return <PerformanceLayer />;
-                case 'security': return <SecurityLayer />;
-                default: return <Dashboard setCurrentView={setCurrentView} />;
+                case 'dashboard': return Dashboard;
+                case 'members': return Members;
+                case 'billing': return Billing;
+                case 'packages': return Packages;
+                case 'staff': return Staff;
+                case 'expenses': return Expenses;
+                case 'settings': return Settings;
+                case 'healthEngine': return HealthEngine;
+                case 'aetherMed': return AetherMedDashboard;
+                case 'geniusMode': return GeniusMode;
+                case 'futureOFSAdmin': return FutureOFSAdmin;
+                case 'bioScout': return BioScoutBot;
+                case 'synthesisX': return SynthesisX;
+                case 'hormonalClock': return HormonalClock;
+                case 'metabolicTracker': return MetabolicTracker;
+                case 'neuroRecovery': return NeuroRecovery;
+                case 'workouts': return Workouts;
+                case 'diet': return DietPlans;
+                case 'aiFitnessTracker': return AIFitnessTracker;
+                case 'crm': return CRMSystem;
+                case 'leads': return Leads;
+                case 'socialManager': return SocialMediaManager;
+                case 'googleBusiness': return GoogleBusiness;
+                case 'whatsapp': return WhatsAppIntegration;
+                case 'socialHive': return SocialHiveHub;
+                case 'visualLaunch': return VisualLaunch;
+                case 'cityHealthMap': return CityHealthMap;
+                case 'royalOvermind': return RoyalOvermind;
+                case 'revenueOracle': return RevenueOracle;
+                case 'royalSingularity': return RoyalSingularity;
+                case 'aetherOmni': return AetherOmni;
+                case 'synapseIoT': return SynapseIoTHub;
+                case 'neuroSync': return NeuroSyncHub;
+                case 'autoupgrade': return AutoUpgrader;
+                case 'selfrepair': return SelfRepair;
+                case 'neuralCore': return NeuralSystemCore;
+                case 'geminiHub': return GeminiHub;
+                case 'autoProcurement': return AutoProcurement;
+                case 'quantumLedger': return QuantumLedgerHub;
+                case 'security': return SecurityLayer;
+                case 'debugEngine': return DebugEngine;
+                case 'performance': return PerformanceLayer;
+                case 'tasks': return Tasks;
+                case 'storkTeam': return StorkTeam;
+                case 'payment': return Payment;
+                case 'bots': return RoyalBotIntegrations;
+                default: return Dashboard;
             }
         })();
 
-        const geoProtectedViews = ['dashboard', 'controlPanel', 'billing', 'payment', 'staff', 'expenses', 'neuralCore'];
-        if (currentUser?.type === 'admin' && geoProtectedViews.includes(currentView)) {
-            return <AdminGeoGuard>{view}</AdminGeoGuard>;
-        }
-        return view;
+        return (
+            <Suspense fallback={
+                <div className="h-full w-full flex flex-col items-center justify-center text-indigo-500 opacity-80">
+                    <RefreshCw className="animate-spin w-12 h-12 mb-4" />
+                    <p className="text-xs font-black uppercase tracking-[0.3em]">Entangling Module...</p>
+                </div>
+            }>
+                <ViewComponent setCurrentView={setCurrentView} currentUser={currentUser} theme={theme} />
+            </Suspense>
+        );
     };
-
-    if (!currentUser) {
-        if (showLanding && !isAtLogin) {
-            return (
-                <Suspense fallback={<LoadingSpinner />}>
-                    <LandingPage onEnter={() => setIsAtLogin(true)} />
-                </Suspense>
-            );
-        }
+    
+    if (currentUser.type === 'member') {
         return (
-            <React.Suspense fallback={<LoadingSpinner />}>
-                <LoginScreen onLogin={handleLogin} onBack={() => { setIsAtLogin(false); setShowLanding(true); }} /> 
-            </React.Suspense>
-        ); 
-    }
-
-    if (currentUser.type === 'member' && currentUser.id) {
-        return (
-            <Suspense fallback={<LoadingSpinner />}>
-                <MemberPortal loggedInMemberId={currentUser.id} onLogout={handleLogout} theme={theme} toggleTheme={toggleTheme} />
+            <Suspense fallback={<div className="h-screen w-screen bg-black"></div>}>
+                <MemberPortal loggedInMemberId={currentUser.id} onLogout={() => setCurrentUser(null)} theme={theme} toggleTheme={() => {}} />
+                <DevTools onSwitch={handleDevSwitch} currentRole="member" />
             </Suspense>
         );
     }
 
     return (
-        <div className={`h-screen w-screen font-sans text-gray-100 bg-[#050505] overflow-hidden`}>
-             <div className="absolute inset-0 z-0 pointer-events-none">
-                <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:100px_100px]"></div>
-                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-amber-900/5 blur-[100px] rounded-full mix-blend-screen"></div>
-            </div>
-
-            <div className="relative z-10 flex h-full w-full">
-                <Sidebar currentView={currentView} setCurrentView={setCurrentView} isOpen={isSidebarOpen} setIsOpen={setSidebarOpen} />
-                <div className="flex-1 flex flex-col h-screen">
-                    <Header onLogout={handleLogout} userName={currentUser.name} avatar={currentUser.avatar} theme={theme} toggleTheme={toggleTheme}>
-                        <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="text-gray-400 focus:outline-none md:hidden">
-                            <MenuIcon />
-                        </button>
-                    </Header>
-                    <main className="flex-1 overflow-y-auto custom-scrollbar bg-black/20 backdrop-blur-sm">
-                        <div className="p-4 sm:p-6">
-                            <Suspense fallback={<div className="h-[calc(100vh-150px)] flex items-center justify-center"><LoadingSpinner /></div>}>
-                                {renderView()}
-                            </Suspense>
-                        </div>
-                    </main>
+        <div className={`h-screen w-screen flex flex-col overflow-hidden font-sans selection:bg-indigo-500/30 transition-colors duration-300 bg-black text-gray-100`}>
+            <SecurityShield />
+            <DevTools onSwitch={handleDevSwitch} currentRole="admin" />
+            <Header onLogout={() => setCurrentUser(null)} userName={currentUser.name} avatar={currentUser.avatar} theme={theme} toggleTheme={() => {}}>
+                <div className="hidden lg:flex items-center gap-3 px-4 py-1.5 bg-white dark:bg-gray-900 rounded-full border border-gray-200 dark:border-white/5 shadow-inner group cursor-help" title="System Status">
+                    {systemHealth === 100 ? <ShieldCheck className="w-4 h-4 text-green-500" /> : <Activity className="w-4 h-4 text-amber-500 animate-pulse" />}
+                    <span className="text-[9px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                        {isSyncing ? 'EVOLVING...' : `APEX v31.0 (The Singularity)`}
+                    </span>
                 </div>
+            </Header>
+            <div className="flex-1 flex overflow-hidden">
+                <Sidebar currentView={currentView} setCurrentView={setCurrentView} isOpen={isSidebarOpen} setIsOpen={setSidebarOpen} role={currentUser.type} />
+                
+                <main className={`flex-1 overflow-y-auto p-4 sm:p-6 md:p-10 custom-scrollbar relative bg-black`}>
+                    <ErrorBoundary>
+                        <AdminGeoGuard>{renderAdminView()}</AdminGeoGuard>
+                    </ErrorBoundary>
+                </main>
             </div>
 
-            <button
-                onClick={() => setChatOpen(!isChatOpen)}
-                className="fixed bottom-6 right-6 bg-amber-500 text-gray-900 p-4 rounded-full shadow-[0_0_20px_rgba(245,158,11,0.5)] hover:bg-amber-400 focus:outline-none z-50 transform hover:scale-110 transition-all group"
-                aria-label="Toggle AI Agent"
+            <button 
+                onClick={() => setChatOpen(true)}
+                className="fixed bottom-8 right-8 md:bottom-10 md:right-10 bg-indigo-600 p-5 rounded-full shadow-[0_0_60px_rgba(79,70,229,0.6)] z-50 hover:scale-110 transition-all border-4 border-white dark:border-black group active:scale-95"
             >
-                <div className="absolute inset-0 rounded-full border border-white/20 animate-ping opacity-20"></div>
-                <ChatIcon />
-                <span className="absolute right-full mr-4 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap font-bold">
-                    Gemini Agent
-                </span>
+                <ChatIcon className="w-6 h-6 text-white group-hover:rotate-12 transition-transform" />
             </button>
             
-            <GeminiChat 
-                isOpen={isChatOpen} 
-                onClose={() => setChatOpen(false)} 
-                onNavigate={(view) => setCurrentView(view as View)}
-                context={{ 
-                    role: currentUser.type, 
-                    memberId: currentUser.id, 
-                    memberName: currentUser.name 
-                }} 
-            />
+            <GeminiChat isOpen={isChatOpen} onClose={() => setChatOpen(false)} context={{ role: currentUser.type, memberId: currentUser.id, memberName: currentUser.name }} />
         </div>
     );
 };
 
-const App: React.FC = () => (
-    <ToastProvider>
-        <DataProvider>
-            <AppContent />
-        </DataProvider>
-    </ToastProvider>
-);
+const App: React.FC = () => {
+    return (
+        <ToastProvider>
+            <DataProvider>
+                <ErrorBoundary>
+                    <AppContent />
+                </ErrorBoundary>
+            </DataProvider>
+        </ToastProvider>
+    );
+};
 
 export default App;

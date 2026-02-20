@@ -1,128 +1,212 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#111827" />
-    <title>Royal The Gym Management</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#09090b" />
+    <meta name="description" content="Royal The Gym - AI Powered Fitness Ecosystem v31.0 (Singularity)" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    
+    <title>Royal Neural OS v31.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              royal: {
+                charcoal: '#000000',
+                gold: '#d97706',
+              }
+            },
+            fontFamily: {
+              display: ['"Russo One"', 'sans-serif'],
+              mono: ['"Fira Code"', 'monospace'],
+              signature: ['"Great Vibes"', 'cursive'],
+              serif: ['"Cinzel"', 'serif'],
+              sans: ['"Inter"', 'sans-serif'],
+            }
+          }
+        }
+      }
+    </script>
     <script async src="https://ga.jspm.io/npm:es-module-shims@1.10.0/dist/es-module-shims.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Russo+One&display=swap" rel="stylesheet">
+    
+    <!-- Premium Fonts for Receipt & UI -->
+    <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Fira+Code:wght@300;500&family=Great+Vibes&family=Cinzel:wght@400;700;900&family=Playfair+Display:wght@400;700;900&family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+    
     <script type="importmap">
 {
   "imports": {
-    "@google/genai": "https://esm.sh/@google/genai",
-    "openai": "https://esm.sh/openai@4.52.0",
-    "@react-google-maps/api": "https://esm.sh/@react-google-maps/api?external=react,react-dom",
-    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-    "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "@/": "./utils/",
+    "lib/": "./lib/",
     "react": "https://esm.sh/react@18.2.0",
     "react/": "https://esm.sh/react@18.2.0/",
+    "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "lucide-react": "https://esm.sh/lucide-react@0.474.0?external=react,react-dom",
     "recharts": "https://esm.sh/recharts@2.12.0?external=react,react-dom",
-    "@heroicons/react/": "https://esm.sh/@heroicons/react@2.1.3/",
-    "three": "https://esm.sh/three@0.164.1",
+    "@google/genai": "https://esm.sh/@google/genai",
     "html2canvas": "https://esm.sh/html2canvas@1.4.1",
     "jspdf": "https://esm.sh/jspdf@2.5.1",
-    "qrcode": "https://esm.sh/qrcode@1.5.3",
-    "clsx": "https://esm.sh/clsx@2.1.0",
-    "tailwind-merge": "https://esm.sh/tailwind-merge@2.2.1",
-    "react-dom/": "https://esm.sh/react-dom@18.2.0/"
+    "openai": "https://esm.sh/openai",
+    "qrcode": "https://esm.sh/qrcode",
+    "three": "https://esm.sh/three@0.160.0",
+    "@react-google-maps/api": "https://esm.sh/@react-google-maps/api@2.19.2?external=react,react-dom",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.3",
+    "path": "https://esm.sh/path@^0.12.7",
+    "url": "https://esm.sh/url@^0.11.4"
   }
 }
 </script>
     <script>
-      // Apply theme from localStorage before React loads to prevent FOUC
-      if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-
-      // Apply Performance Mode immediately
-      if (localStorage.getItem('royal_perf_mode') === 'turbo') {
-        document.body.classList.add('turbo-mode');
-      }
-
-      // ROBUST PROCESS POLYFILL & KEY INJECTION
-      window.process = window.process || {};
-      window.process.env = window.process.env || {};
-      
-      // Inject API Keys
-      window.process.env.API_KEY = 'AIzaSyDEFXd4jSoKsSsZlnwRQhES8EvFL6kjuAE';
-      window.process.env.OPENAI_API_KEY = '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';
-
-      // Global variable for modules that might access 'process' directly
-      // This is crucial for some libraries that expect 'process' to be global
-      var process = window.process;
+      // Using a setter to ensure process.env is handled by the platform injection
+      window.process = window.process || { env: {}, cwd: () => '/' };
     </script>
     <style>
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background-color: rgba(125, 125, 125, 0.3);
-        border-radius: 10px;
-        border: 2px solid transparent;
-        background-clip: content-box;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background-color: rgba(125, 125, 125, 0.5);
-      }
-      ::selection {
-        background-color: #f59e0b;
-        color: #111827;
-      }
-      @keyframes progress {
-        0% { width: 0; }
-        100% { width: 100%; }
-      }
-      .animate-progress {
-        animation: progress 2s ease-in-out infinite;
-      }
-      /* Ensure root takes full viewport */
-      #root {
-        height: 100vh;
-        width: 100vw;
-      }
-      .font-signature {
-        font-family: 'Great Vibes', cursive;
-      }
-      .font-display {
-        font-family: 'Russo One', sans-serif;
+      :root {
+        --royal-charcoal: #000000;
+        --royal-gold: #d97706;
+        --royal-gold-light: #fbbf24;
+        --royal-orange: #ea580c;
+        --glass-border: rgba(255, 255, 255, 0.08);
       }
 
-      /* --- TURBO MODE PERFORMANCE OPTIMIZATIONS --- */
-      body.turbo-mode * {
-        backdrop-filter: none !important;
-        -webkit-backdrop-filter: none !important;
-        box-shadow: none !important;
-        transition: none !important;
-        animation: none !important;
-        text-shadow: none !important;
+      body {
+        background-color: var(--royal-charcoal);
+        font-family: 'Inter', sans-serif;
+        color: #e5e7eb;
+        /* Disable text selection globally for security */
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        overscroll-behavior: none; /* Prevent pull-to-refresh on mobile */
+      }
+      /* Allow selection only in inputs */
+      input, textarea {
+        -webkit-user-select: text;
+        -moz-user-select: text;
+        -ms-user-select: text;
+        user-select: text;
+      }
+      .font-display { font-family: 'Russo One', sans-serif; }
+      .font-mono { font-family: 'Fira Code', monospace; }
+      .font-signature { font-family: 'Great Vibes', cursive; }
+      .font-serif-display { font-family: 'Cinzel', serif; }
+      
+      .receipt-paper {
+        background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
+        background-size: 20px 20px;
+      }
+
+      /* Holographic & Neon Effects */
+      .neon-text {
+        text-shadow: 0 0 10px rgba(255, 215, 0, 0.5), 0 0 20px rgba(255, 215, 0, 0.3);
       }
       
-      /* Keep essential structural animations if needed, but disable cosmetic ones */
-      body.turbo-mode .animate-spin {
-        animation: spin 1s linear infinite !important; /* Keep loading spinners */
+      /* Window Opening Effect */
+      .window-open-anim {
+        animation: windowOpen 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        transform-origin: center center;
+        will-change: transform, opacity, clip-path;
+      }
+
+      @keyframes windowOpen {
+        0% {
+          opacity: 0;
+          transform: scale(0.92);
+          clip-path: inset(50% 0 50% 0);
+          filter: blur(10px);
+        }
+        50% {
+          opacity: 1;
+          clip-path: inset(0 0 0 0);
+        }
+        100% {
+          transform: scale(1);
+          filter: blur(0);
+        }
+      }
+
+      @keyframes check-pop {
+        0% { transform: scale(0.5); opacity: 0; }
+        50% { transform: scale(1.3); }
+        100% { transform: scale(1); opacity: 1; }
+      }
+      .animate-neural-check {
+        animation: check-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      }
+
+      @keyframes tactical-glow {
+        0% { box-shadow: 0 0 5px rgba(245, 158, 11, 0.2); }
+        50% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.4); }
+        100% { box-shadow: 0 0 5px rgba(245, 158, 11, 0.2); }
+      }
+      .tactical-glow {
+        animation: tactical-glow 2s infinite ease-in-out;
+      }
+
+      .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+      .custom-scrollbar::-webkit-scrollbar-track { background: #000000; }
+      .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--royal-gold); }
+
+      /* Visual Launch Animations */
+      @keyframes marquee {
+        0% { transform: translateX(100%); }
+        100% { transform: translateX(-100%); }
+      }
+      .animate-marquee {
+        animation: marquee 30s linear infinite;
+      }
+      @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+      }
+      .animate-float {
+        animation: float 6s ease-in-out infinite;
+      }
+      @keyframes scan {
+        0% { top: 0; }
+        100% { top: 100%; }
+      }
+      .animate-scan {
+        animation: scan 3s linear infinite;
+      }
+
+      /* Checkmark Drawing Animation - Fixed Selector and Values */
+      @keyframes draw-stroke {
+        0% { stroke-dashoffset: 1000; }
+        100% { stroke-dashoffset: 0; }
+      }
+      .animate-stroke {
+        stroke-dasharray: 1000;
+        stroke-dashoffset: 1000;
+        animation: draw-stroke 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
       }
       
-      body.turbo-mode .bg-white\/5,
-      body.turbo-mode .bg-white\/10, 
-      body.turbo-mode .bg-white\/80,
-      body.turbo-mode .dark\:bg-gray-800\/30,
-      body.turbo-mode .dark\:bg-gray-900\/50 {
-        background-color: #1f2937 !important; /* Solid fallback color for glassmorphism */
-        opacity: 1 !important;
+      /* Specific selector for Lucide icons often used inside buttons */
+      .animate-stroke path, 
+      .animate-stroke polyline, 
+      .animate-stroke circle, 
+      .animate-stroke line {
+        stroke-dasharray: 1000;
+        stroke-dashoffset: 1000;
+        animation: draw-stroke 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
       }
+
     </style>
-  </head>
-  <body class="bg-gray-100 dark:bg-gray-900 overflow-hidden m-0 p-0">
+  <link rel="stylesheet" href="/index.css">
+</head>
+  <body class="overflow-hidden m-0 p-0 bg-black text-gray-100 transition-colors duration-300">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
-  </body>
+  <script type="module" src="/index.tsx"></script>
+</body>
 </html>

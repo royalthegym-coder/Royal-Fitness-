@@ -1,855 +1,412 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Card from './common/Card';
-import { GYM_INFO } from '../../constants';
-import { View, Theme } from '../../types';
-import { GoogleIcon } from './icons/GoogleIcon';
-import { WhatsAppIcon } from './icons/WhatsAppIcon';
-import Modal from './common/Modal';
-import { CheckCircleIcon } from './icons/CheckCircleIcon';
-import { BluetoothIcon } from './icons/BluetoothIcon';
-import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
-import { SecurityLog } from '../../types';
-import { BellIcon } from './icons/BellIcon';
-import { SunIcon } from './icons/SunIcon';
-import { MoonIcon } from './icons/MoonIcon';
-import { UploadIcon } from './icons/UploadIcon';
-import { BotIcon } from './icons/BotIcon';
-import { BugFixIcon } from './icons/BugFixIcon';
-import { SparkleIcon } from './icons/SparkleIcon';
-import { SupportIcon } from './icons/SupportIcon';
-import { SpeedIcon } from './icons/SpeedIcon';
+import { View } from '../../types';
+import { 
+    Cpu, RefreshCw, Zap, Save, CheckCircle, 
+    Globe, Lock, Shield, Server, Activity, 
+    Smartphone, Cloud, BrainCircuit, User,
+    MapPin, Radio, AlertTriangle, Trash2,
+    Crosshair, Terminal, Power, Mic, ScanFace,
+    Layers, Fingerprint, Database
+} from 'lucide-react';
 import { useToast } from '../hooks/useToast';
-import { toggleTurboMode, performanceCache } from '../hooks/usePerformance';
-import { validateWgerKey } from '../../lib/wger';
-import { AutoUpdateIcon } from './icons/AutoUpdateIcon';
+import ConfirmationDialog from './common/ConfirmationDialog';
 
 interface SettingsProps {
     setCurrentView: (view: View) => void;
-    theme?: Theme;
-    toggleTheme?: () => void;
     currentUser?: any;
 }
 
-// UUIDs matching the device firmware (Hypothetical defaults based on common ESP32 provisioning)
-const PROVISIONING_SERVICE_UUID = '000000ff-0000-1000-8000-00805f9b34fb'; 
-const WIFI_CREDENTIALS_CHAR_UUID = '0000ff01-0000-1000-8000-00805f9b34fb'; 
-
-const IntegrationCard: React.FC<{ 
-    name: string; 
-    category: string; 
-    description: string; 
-    status: 'Active' | 'Inactive';
-    onConfigure?: () => void;
-    icon?: React.ReactNode;
-}> = ({ name, category, description, status, onConfigure, icon }) => (
-    <div className="flex items-start justify-between p-4 bg-gray-700/50 rounded-lg border border-gray-600">
-        <div className="flex gap-4">
-             {icon && <div className="mt-1">{icon}</div>}
-            <div>
-                <div className="flex items-center">
-                    <h4 className="font-bold text-white text-lg mr-3">{name}</h4>
-                    <span className="text-xs bg-gray-600 text-gray-300 px-2 py-0.5 rounded-full">{category}</span>
-                </div>
-                <p className="text-sm text-gray-400 mt-1">{description}</p>
-            </div>
-        </div>
-        <div className="flex items-center gap-2">
-            {status === 'Active' && (
-                <span className="flex items-center text-green-400 text-sm font-semibold">
-                    <CheckCircleIcon className="w-5 h-5 mr-1" />
-                    Active
-                </span>
-            )}
-            {onConfigure && (
-                <button 
-                    onClick={onConfigure}
-                    className="text-sm bg-gray-600 hover:bg-gray-500 text-white py-1 px-3 rounded transition-colors"
-                >
-                    Configure
-                </button>
-            )}
-            {!onConfigure && status === 'Inactive' && (
-                <button className="text-sm bg-blue-600 hover:bg-blue-500 text-white py-1 px-3 rounded">Connect</button>
-            )}
-        </div>
-    </div>
-);
-
-const Settings: React.FC<SettingsProps> = ({ setCurrentView, theme, toggleTheme, currentUser }) => {
+const Settings: React.FC<SettingsProps> = ({ setCurrentView, currentUser }) => {
     const { addToast } = useToast();
-    const [activeTab, setActiveTab] = useState<'general' | 'integrations' | 'iot' | 'security' | 'profile' | 'notifications' | 'feedback' | 'performance'>('performance');
-
-    // IoT Provisioning State
-    const [ssid, setSsid] = useState('');
-    const [password, setPassword] = useState('');
-    const [provisionStatus, setProvisionStatus] = useState<'idle' | 'scanning' | 'connecting' | 'provisioning' | 'success' | 'error'>('idle');
-    const [statusMessage, setStatusMessage] = useState('');
-
-    // Profile State
-    const [profileName, setProfileName] = useState(currentUser?.name || '');
-    const [profileEmail, setProfileEmail] = useState(currentUser?.type === 'admin' ? 'admin@royal.com' : 'user@example.com');
-    const [profileAvatar, setProfileAvatar] = useState(currentUser?.avatar || '');
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    // Notification State
-    const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default');
-
-    // Security & Webhook Logs
-    const [webhookLogs, setWebhookLogs] = useState<SecurityLog[]>([]);
-    const [geoLockEnabled, setGeoLockEnabled] = useState(false);
-    const [isCalibrating, setIsCalibrating] = useState(false);
-
-    // OpenAI State
-    const [isOpenAIModalOpen, setIsOpenAIModalOpen] = useState(false);
-    const [openAIKey, setOpenAIKey] = useState('');
-
-    // Wger State
-    const [isWgerModalOpen, setIsWgerModalOpen] = useState(false);
-    const [wgerApiKey, setWgerApiKey] = useState('');
-    const [isWgerValidating, setIsWgerValidating] = useState(false);
-
-    // Google Business State
-    const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
-    const [googleApiKey, setGoogleApiKey] = useState('');
-
-    // WhatsApp Business State
-    const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
-    const [whatsappToken, setWhatsappToken] = useState('');
-    const [whatsappPhoneId, setWhatsappPhoneId] = useState('');
-
-    // Feedback State
-    const [feedbackType, setFeedbackType] = useState<'bug' | 'feature' | 'general'>('bug');
-    const [feedbackTitle, setFeedbackTitle] = useState('');
-    const [feedbackDesc, setFeedbackDesc] = useState('');
-    const [feedbackPriority, setFeedbackPriority] = useState('Medium');
-    const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
-    const [feedbackHistory, setFeedbackHistory] = useState([
-        { id: 1, type: 'bug', title: 'Login Timeout', status: 'Resolved', date: '2024-07-20' },
-        { id: 2, type: 'feature', title: 'Dark Mode Toggle', status: 'Implemented', date: '2024-07-25' }
-    ]);
+    const [activeTab, setActiveTab] = useState<'neural_core' | 'security_grid' | 'comms_uplink' | 'identity'>('neural_core');
     
-    // Performance State
-    const [isTurboMode, setIsTurboMode] = useState(false);
-    const [isCleaning, setIsCleaning] = useState(false);
+    // --- STATE MANAGEMENT ---
 
-    useEffect(() => {
-        if ('Notification' in window) {
-            setNotifPermission(Notification.permission);
-        }
-        // Load Keys with safe fallback
-        const envOpenAI = (window as any).process?.env?.OPENAI_API_KEY;
-        const savedOpenAIKey = localStorage.getItem('OPENAI_API_KEY') || envOpenAI;
-        if (savedOpenAIKey) setOpenAIKey(savedOpenAIKey);
+    // 1. Neural Core (AI)
+    const [aiProvider, setAiProvider] = useState(localStorage.getItem('royal_ai_provider') || 'HUGGINGFACE');
+    const [simMode, setSimMode] = useState(localStorage.getItem('royal_ai_mode') === 'SIMULATION');
+    const [voiceEnabled, setVoiceEnabled] = useState(localStorage.getItem('royal_voice_enabled') !== 'false');
+    const [reasoningBudget, setReasoningBudget] = useState(Number(localStorage.getItem('royal_reasoning_budget')) || 50);
+    const [hfToken, setHfToken] = useState(localStorage.getItem('HUGGINGFACE_API_KEY') || '');
+
+    // 2. Security Grid (Geo-Fencing)
+    const [geoLockEnabled, setGeoLockEnabled] = useState(localStorage.getItem('royal_geo_lock') === 'true');
+    const [bioLockEnabled, setBioLockEnabled] = useState(localStorage.getItem('royal_bio_lock') === 'true');
+    const [gymLat, setGymLat] = useState(localStorage.getItem('royal_gym_lat') || '28.1289');
+    const [gymLng, setGymLng] = useState(localStorage.getItem('royal_gym_lng') || '75.3995');
+
+    // 3. Comms Uplink (WhatsApp)
+    const [waToken, setWaToken] = useState(localStorage.getItem('whatsapp_access_token') || '');
+    const [waPhoneId, setWaPhoneId] = useState(localStorage.getItem('whatsapp_phone_id') || '');
+
+    // 4. Identity
+    const [name, setName] = useState(currentUser?.name || '');
+
+    // Danger Zone
+    const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+
+    // --- ACTIONS ---
+
+    const handleSaveNeural = () => {
+        localStorage.setItem('royal_ai_provider', aiProvider);
+        localStorage.setItem('royal_ai_mode', simMode ? 'SIMULATION' : 'ONLINE');
+        localStorage.setItem('royal_voice_enabled', String(voiceEnabled));
+        localStorage.setItem('royal_reasoning_budget', String(reasoningBudget));
+        localStorage.setItem('HUGGINGFACE_API_KEY', hfToken);
         
-        const savedWgerKey = localStorage.getItem('wger_api_key');
-        if (savedWgerKey) setWgerApiKey(savedWgerKey);
-
-        const savedGoogleKey = localStorage.getItem('google_business_key');
-        if (savedGoogleKey) setGoogleApiKey(savedGoogleKey);
-
-        const savedWhatsAppToken = localStorage.getItem('whatsapp_access_token');
-        if (savedWhatsAppToken) setWhatsappToken(savedWhatsAppToken);
-
-        const savedWhatsAppPhoneId = localStorage.getItem('whatsapp_phone_id');
-        if (savedWhatsAppPhoneId) setWhatsappPhoneId(savedWhatsAppPhoneId);
-
-        // Load Turbo Mode
-        setIsTurboMode(localStorage.getItem('royal_perf_mode') === 'turbo');
-
-        // Load GeoLock
-        setGeoLockEnabled(localStorage.getItem('royal_geo_lock') === 'true');
-    }, []);
-
-    useEffect(() => {
-        // Simulate incoming webhook traffic
-        const interval = setInterval(() => {
-            if (Math.random() > 0.7) {
-                const newLog: SecurityLog = {
-                    id: Date.now(),
-                    event: Math.random() > 0.5 ? 'payment.success' : 'message.received',
-                    source: Math.random() > 0.5 ? 'Razorpay' : 'WhatsApp',
-                    status: 'Verified',
-                    timestamp: new Date().toISOString(),
-                    details: 'Signature: hmac_sha256 verified.'
-                };
-                setWebhookLogs(prev => [newLog, ...prev].slice(0, 10));
-            }
-        }, 8000);
-        return () => clearInterval(interval);
-    }, []);
-    
-    const handleTurboToggle = () => {
-        const newState = !isTurboMode;
-        setIsTurboMode(newState);
-        toggleTurboMode(newState);
-        addToast(newState ? "Turbo Mode Activated: Maximum Speed" : "Turbo Mode Deactivated: High Quality", 'info');
+        addToast("Neural Core Reconfigured. Rebooting Logic Layers...", "success");
+        // Simulate a quick reboot effect if needed, or just toast
     };
 
-    const handleGeoLockToggle = () => {
-        const newState = !geoLockEnabled;
-        setGeoLockEnabled(newState);
-        localStorage.setItem('royal_geo_lock', String(newState));
-        addToast(newState ? "Geo-Lock Active: Admin access restricted." : "Geo-Lock Disabled: Remote Access Allowed.", newState ? 'success' : 'info');
+    const handleSaveSecurity = () => {
+        localStorage.setItem('royal_geo_lock', String(geoLockEnabled));
+        localStorage.setItem('royal_bio_lock', String(bioLockEnabled));
+        localStorage.setItem('royal_gym_lat', gymLat);
+        localStorage.setItem('royal_gym_lng', gymLng);
+        addToast("Perimeter & Bio-Security Protocols Updated.", "success");
     };
 
     const handleCalibrateLocation = () => {
-        setIsCalibrating(true);
         if (!navigator.geolocation) {
-            addToast("Geolocation not supported by this browser.", 'error');
-            setIsCalibrating(false);
+            addToast("GPS Hardware Not Detected.", "error");
             return;
         }
-
+        addToast("Triangulating Satellite Signal...", "info");
         navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude, longitude } = position.coords;
-                // Save custom coordinates
-                localStorage.setItem('royal_gym_lat', latitude.toString());
-                localStorage.setItem('royal_gym_lng', longitude.toString());
-                localStorage.setItem('royal_geo_lock', 'true'); // Auto-enable on calibrate
-                setGeoLockEnabled(true);
-                
-                addToast(`Location Calibrated! Gym set to: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, 'success');
-                setIsCalibrating(false);
+            (pos) => {
+                setGymLat(pos.coords.latitude.toString());
+                setGymLng(pos.coords.longitude.toString());
+                addToast("Coordinates Locked to Current Location.", "success");
             },
-            (err) => {
-                addToast("Failed to get location. Ensure GPS is on.", 'error');
-                setIsCalibrating(false);
-            },
-            { enableHighAccuracy: true }
+            (err) => addToast("GPS Signal Lost.", "error")
         );
     };
 
-    const handleClearCache = () => {
-        if (isCleaning) return;
-        setIsCleaning(true);
-        addToast("Optimizing storage...", 'info');
-        setTimeout(() => {
-            try {
-                const keysToPreserve = [
-                    'royal_user', 'theme', 'royal_perf_mode', 
-                    'OPENAI_API_KEY', 'wger_api_key', 'google_business_key',
-                    'whatsapp_access_token', 'whatsapp_phone_id',
-                    'royal_members', 'royal_invoices', 'royal_packages', 
-                    'royal_leads', 'royal_transactions', 'royal_geo_lock',
-                    'royal_gym_lat', 'royal_gym_lng'
-                ];
-                const allKeys = Object.keys(localStorage);
-                let cleanedCount = 0;
-                allKeys.forEach(key => {
-                    if (!keysToPreserve.includes(key)) {
-                        localStorage.removeItem(key);
-                        cleanedCount++;
-                    }
-                });
-                try { sessionStorage.clear(); } catch (e) { console.warn("Session clean skipped"); }
-                if (performanceCache && typeof performanceCache.clear === 'function') {
-                    performanceCache.clear();
-                }
-                addToast(`Success! Cleared ${cleanedCount} temp files. System Optimized.`, 'success');
-            } catch (error) {
-                console.error("Cache clear error:", error);
-                addToast("Minor error during optimization, but system is safe.", 'error');
-            } finally {
-                setIsCleaning(false);
-            }
-        }, 500);
+    const handleSaveComms = () => {
+        localStorage.setItem('whatsapp_access_token', waToken);
+        localStorage.setItem('whatsapp_phone_id', waPhoneId);
+        addToast("Sub-Space Communication Channels Synced.", "success");
     };
 
-    const handleProvisionDevice = async () => {
-        // ... (Existing provision logic kept as is)
-        if (!ssid || !password) {
-            addToast("Please enter both SSID and Password.", 'error');
-            return;
-        }
-        setProvisionStatus('scanning');
-        setStatusMessage("Scanning for Royal Smart Devices...");
-        try {
-            const nav = navigator as any;
-            if (!nav.bluetooth) throw new Error("Web Bluetooth not supported.");
-            const device = await nav.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [PROVISIONING_SERVICE_UUID] });
-            if (!device) throw new Error("No device selected.");
-            setProvisionStatus('connecting');
-            const server = await device.gatt.connect();
-            const service = await server.getPrimaryService(PROVISIONING_SERVICE_UUID);
-            const characteristic = await service.getCharacteristic(WIFI_CREDENTIALS_CHAR_UUID);
-            setProvisionStatus('provisioning');
-            const payload = JSON.stringify({ ssid, password });
-            await characteristic.writeValue(new TextEncoder().encode(payload));
-            setProvisionStatus('success');
-            setStatusMessage("Device Provisioned Successfully!");
-            setTimeout(() => { if (device.gatt.connected) device.gatt.disconnect(); }, 2000);
-        } catch (error: any) {
-            console.error(error);
-            setProvisionStatus('error');
-            setStatusMessage(`Error: ${error.message || "Failed to provision"}`);
-        }
-    };
-
-    const handleExportData = () => addToast("Preparing GDPR Data Export...", 'info');
-    const handleDeleteAccount = () => { if(confirm("Are you sure?")) addToast("Account deletion request received.", 'info'); }
-    const handleProfileUpdate = (e: React.FormEvent) => { e.preventDefault(); addToast("Profile updated successfully!", 'success'); };
-    
-    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const reader = new FileReader();
-            reader.onload = (event) => { if (event.target?.result) setProfileAvatar(event.target.result as string); };
-            reader.readAsDataURL(e.target.files[0]);
-        }
-    };
-
-    const requestNotificationPermission = async () => {
-        if (!('Notification' in window)) return;
-        const permission = await Notification.requestPermission();
-        setNotifPermission(permission);
-        if (permission === 'granted') new Notification("Royal Gym", { body: "Notifications enabled!" });
-    };
-
-    const sendTestNotification = () => {
-        if (notifPermission === 'granted') new Notification("Royal Gym Alert", { body: "Test notification." });
-        else addToast("Enable notifications first.", 'error');
-    };
-
-    const handleSaveOpenAIKey = () => {
-        localStorage.setItem('OPENAI_API_KEY', openAIKey);
-        setIsOpenAIModalOpen(false);
-        addToast("OpenAI API Key Saved.", 'success');
-    };
-
-    const handleSaveWgerKey = async () => {
-        setIsWgerValidating(true);
-        const isValid = await validateWgerKey(wgerApiKey);
-        setIsWgerValidating(false);
-
-        if (isValid) {
-            localStorage.setItem('wger_api_key', wgerApiKey);
-            setIsWgerModalOpen(false);
-            addToast("Wger Integration Connected Successfully!", 'success');
-        } else {
-            localStorage.setItem('wger_api_key', wgerApiKey); // Saving anyway for demo persistence
-            setIsWgerModalOpen(false);
-            addToast("Wger Key saved (Validation warning: could not verify).", 'info');
-        }
-    };
-
-    const handleSaveGoogleKey = () => {
-        localStorage.setItem('google_business_key', googleApiKey);
-        setIsGoogleModalOpen(false);
-        addToast("Google Business API Key Saved. Integration Active.", 'success');
-    };
-
-    const handleSaveWhatsAppKey = () => {
-        if (!whatsappToken || !whatsappPhoneId) {
-            addToast("Please fill in both Token and Phone ID", "error");
-            return;
-        }
-        localStorage.setItem('whatsapp_access_token', whatsappToken);
-        localStorage.setItem('whatsapp_phone_id', whatsappPhoneId);
-        setIsWhatsAppModalOpen(false);
-        addToast("WhatsApp Business API Connected Successfully.", 'success');
-    };
-
-    const handleSubmitFeedback = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!feedbackTitle.trim() || !feedbackDesc.trim()) {
-            addToast("Please fill in the title and description.", 'error');
-            return;
-        }
-        setIsSubmittingFeedback(true);
-        setTimeout(() => {
-            const newEntry = {
-                id: Date.now(),
-                type: feedbackType,
-                title: feedbackTitle,
-                status: 'Under Review',
-                date: new Date().toISOString().split('T')[0]
-            };
-            setFeedbackHistory(prev => [newEntry, ...prev]);
-            setFeedbackTitle('');
-            setFeedbackDesc('');
-            setIsSubmittingFeedback(false);
-            addToast("Feedback submitted successfully. Thank you!", 'success');
-        }, 1500);
+    const handleFactoryReset = () => {
+        localStorage.clear();
+        sessionStorage.clear();
+        addToast("SYSTEM PURGE INITIATED...", "error");
+        setTimeout(() => window.location.reload(), 2000);
     };
 
     return (
-        <div>
-            <h1 className="text-3xl font-bold text-amber-400 mb-6">Settings</h1>
+        <div className="space-y-8 animate-fade-in pb-24">
             
-            <div className="flex space-x-4 mb-6 border-b border-gray-700 overflow-x-auto">
-                {['performance', 'profile', 'general', 'notifications', 'security', 'integrations', 'iot', 'feedback'].map(tab => (
-                    <button 
-                        key={tab}
-                        onClick={() => setActiveTab(tab as any)} 
-                        className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap capitalize ${activeTab === tab ? 'border-amber-500 text-amber-400' : 'border-transparent text-gray-400 hover:text-white'}`}
-                    >
-                        {tab === 'iot' ? 'IoT Setup' : tab}
-                    </button>
-                ))}
+            {/* KERNEL HEADER */}
+            <div className="bg-[#020202] p-10 rounded-[3.5rem] border border-white/10 shadow-2xl relative overflow-hidden group">
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-white/5 rounded-full blur-[100px] animate-pulse"></div>
+
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
+                    <div className="flex items-center gap-6">
+                        <div className="p-6 bg-white/10 rounded-[2.5rem] border border-white/20 text-white shadow-xl group-hover:rotate-12 transition-transform duration-700">
+                            <Cpu className="w-16 h-16 animate-pulse" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="px-4 py-1.5 bg-white/10 text-gray-300 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2 border border-white/5">
+                                    <Terminal className="w-3 h-3" /> Root Access
+                                </div>
+                                <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">VER: 31.0.0</span>
+                            </div>
+                            <h1 className="text-5xl md:text-7xl font-black text-white italic uppercase tracking-tighter leading-none">
+                                Kernel <span className="text-gray-500">Config</span>
+                            </h1>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            {/* Performance Tab */}
-            {activeTab === 'performance' && (
-                <div className="max-w-2xl mx-auto space-y-6">
-                    <Card title="Optimization Engine">
-                        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-800 to-gray-900 rounded-lg border border-gray-700">
-                            <div className="flex items-start gap-4">
-                                <div className={`p-3 rounded-full ${isTurboMode ? 'bg-amber-500 text-black' : 'bg-gray-700 text-gray-400'}`}>
-                                    <SpeedIcon className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-white text-lg">Turbo Mode</h3>
-                                    <p className="text-gray-400 text-sm mt-1">
-                                        Disables blur effects, shadows, and heavy animations. 
-                                        <br/>Recommended for low-end devices or battery saving.
-                                    </p>
-                                </div>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" checked={isTurboMode} onChange={handleTurboToggle} className="sr-only peer" />
-                                <div className="w-14 h-7 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-amber-500"></div>
-                            </label>
-                        </div>
-                    </Card>
-                    <Card title="System Maintenance">
-                         <div className="flex justify-between items-center">
-                            <div>
-                                <p className="font-bold text-white">Application Cache</p>
-                                <p className="text-sm text-gray-400">Cleanup temporary files to free up memory.</p>
-                            </div>
-                            <button onClick={handleClearCache} disabled={isCleaning} className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${isCleaning ? 'bg-gray-700 text-gray-400 border-gray-600 cursor-not-allowed' : 'bg-red-900/30 border-red-500/50 text-red-300 hover:bg-red-900/50'}`}>
-                                {isCleaning ? 'Optimizing...' : 'Clear Cache'}
-                            </button>
-                        </div>
-                    </Card>
-                </div>
-            )}
-
-            {/* Security Tab */}
-            {activeTab === 'security' && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card title="Admin Access Control">
-                        <div className="flex flex-col gap-4">
-                            <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700">
-                                <div className="flex items-start gap-3">
-                                    <div className={`p-2 rounded-full ${geoLockEnabled ? 'bg-red-500/20 text-red-400' : 'bg-gray-700 text-gray-400'}`}>
-                                        <ShieldCheckIcon className="w-6 h-6" />
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                
+                {/* NAVIGATION MATRIX */}
+                <div className="lg:col-span-4 space-y-4">
+                    <div className="bg-gray-950 p-6 rounded-[3rem] border border-white/5">
+                        <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest mb-6 pl-4">System Modules</p>
+                        <div className="space-y-3">
+                            {[
+                                { id: 'neural_core', label: 'Neural Core (AI)', icon: <BrainCircuit className="w-5 h-5"/>, color: 'text-cyan-400', border: 'border-cyan-500/20' },
+                                { id: 'security_grid', label: 'Security Grid', icon: <Shield className="w-5 h-5"/>, color: 'text-red-400', border: 'border-red-500/20' },
+                                { id: 'comms_uplink', label: 'Comms Uplink', icon: <Radio className="w-5 h-5"/>, color: 'text-green-400', border: 'border-green-500/20' },
+                                { id: 'identity', label: 'Identity Node', icon: <User className="w-5 h-5"/>, color: 'text-amber-400', border: 'border-amber-500/20' },
+                            ].map((item) => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => setActiveTab(item.id as any)}
+                                    className={`w-full p-5 rounded-[2rem] flex items-center justify-between transition-all group border ${
+                                        activeTab === item.id 
+                                        ? `bg-white text-black shadow-xl border-white` 
+                                        : `bg-black/40 text-gray-400 hover:bg-white/5 hover:text-white ${item.border}`
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className={`p-3 rounded-2xl bg-gray-900 border border-white/5 ${item.color} group-hover:scale-110 transition-transform`}>
+                                            {item.icon}
+                                        </div>
+                                        <span className="font-bold text-xs uppercase tracking-widest">{item.label}</span>
                                     </div>
-                                    <div>
-                                        <h3 className="font-bold text-white">Admin Geo-Fencing</h3>
-                                        <p className="text-sm text-gray-400">Restrict admin login to gym premises only (GPS Check).</p>
-                                    </div>
-                                </div>
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" checked={geoLockEnabled} onChange={handleGeoLockToggle} className="sr-only peer" />
-                                    <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-                                </label>
-                            </div>
-                            
-                            <button 
-                                onClick={handleCalibrateLocation} 
-                                disabled={isCalibrating}
-                                className="w-full bg-blue-900/20 border border-blue-500/50 text-blue-300 hover:bg-blue-900/40 font-bold py-3 px-4 rounded-lg flex items-center justify-center transition-colors"
-                            >
-                                {isCalibrating ? <AutoUpdateIcon className="w-5 h-5 mr-2 animate-spin"/> : <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
-                                {isCalibrating ? 'Calibrating...' : 'Set Gym Location to Here'}
-                            </button>
-                            
-                            <p className="text-xs text-gray-500 text-center">
-                                *Clicking this button sets the lock to your current location.
-                            </p>
-                        </div>
-                    </Card>
-                    <Card title="Webhook Monitor">
-                        <div className="bg-black/40 rounded-lg p-3 h-64 overflow-y-auto font-mono text-xs border border-gray-700">
-                            {webhookLogs.map(log => (
-                                <div key={log.id} className="mb-2 pb-2 border-b border-gray-800">
-                                    <div className="flex justify-between text-gray-400"><span>{new Date(log.timestamp).toLocaleTimeString()}</span><span className="text-blue-400">{log.source}</span></div>
-                                    <div className="text-green-500">[{log.event}] {log.status}</div>
-                                </div>
+                                    {activeTab === item.id && <div className="w-2 h-2 bg-black rounded-full animate-pulse"></div>}
+                                </button>
                             ))}
                         </div>
-                    </Card>
-                    <Card title="Data Rights">
-                        <div className="space-y-4">
-                            <button onClick={handleExportData} className="w-full bg-gray-700 py-2 rounded text-white text-sm">Export Data (GDPR)</button>
-                            <button onClick={handleDeleteAccount} className="w-full bg-red-900/30 text-red-300 border border-red-900 py-2 rounded text-sm">Delete Account</button>
-                        </div>
-                    </Card>
-                </div>
-            )}
-
-            {/* Profile Tab */}
-            {activeTab === 'profile' && (
-                <div className="max-w-2xl mx-auto space-y-6">
-                    <Card title="Edit Profile">
-                        <form onSubmit={handleProfileUpdate} className="space-y-6">
-                            <div className="flex flex-col items-center">
-                                <div className="relative group">
-                                    <img src={profileAvatar} alt="Profile" className="w-32 h-32 rounded-full object-cover border-4 border-gray-700" />
-                                    <button type="button" onClick={() => fileInputRef.current?.click()} className="absolute bottom-0 right-0 bg-amber-500 p-2 rounded-full text-gray-900 hover:bg-amber-400 transition-colors shadow-lg">
-                                        <UploadIcon className="w-5 h-5" />
-                                    </button>
-                                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleAvatarChange} />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-1">Full Name</label>
-                                    <input type="text" value={profileName} onChange={(e) => setProfileName(e.target.value)} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 outline-none" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-1">Email Address</label>
-                                    <input type="email" value={profileEmail} onChange={(e) => setProfileEmail(e.target.value)} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 outline-none" />
-                                </div>
-                            </div>
-                            <div className="flex justify-end">
-                                <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg transition-colors">Save Changes</button>
-                            </div>
-                        </form>
-                    </Card>
-                    <Card title="Appearance">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="font-bold text-white">App Theme</p>
-                                <p className="text-sm text-gray-400">Switch between dark and light mode.</p>
-                            </div>
-                            {toggleTheme && (
-                                <button onClick={toggleTheme} className={`p-3 rounded-lg flex items-center gap-2 font-bold transition-colors ${theme === 'dark' ? 'bg-gray-700 text-amber-400' : 'bg-gray-200 text-gray-800'}`}>
-                                    {theme === 'dark' ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
-                                    <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
-                                </button>
-                            )}
-                        </div>
-                    </Card>
-                </div>
-            )}
-
-            {/* General Tab */}
-            {activeTab === 'general' && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card title="Gym Information">
-                        <div className="space-y-3 text-sm text-gray-300">
-                            <p><strong>Name:</strong> {GYM_INFO.name}</p>
-                            <p><strong>Contact:</strong> {GYM_INFO.contact}</p>
-                            <p><strong>Email:</strong> {GYM_INFO.email}</p>
-                            <p><strong>Address:</strong> {GYM_INFO.address}</p>
-                        </div>
-                    </Card>
-                    <Card title="Application Settings">
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-center bg-gray-700 p-3 rounded-lg">
-                                <div className="flex items-center"><WhatsAppIcon className="w-5 h-5 mr-3 text-green-500"/> WhatsApp Business</div>
-                                <span className={`text-white text-xs px-2 py-1 rounded ${whatsappToken ? 'bg-green-500' : 'bg-gray-500'}`}>
-                                    {whatsappToken ? 'Connected' : 'Not Connected'}
-                                </span>
-                            </div>
-                        </div>
-                    </Card>
-                </div>
-            )}
-
-            {/* Notifications Tab */}
-            {activeTab === 'notifications' && (
-                <Card title="Push Notifications">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                            <div className={`p-3 rounded-full ${notifPermission === 'granted' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                                <BellIcon className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-white">Browser Permission</h3>
-                                <p className="text-sm text-gray-400">Status: <span className="uppercase font-bold">{notifPermission}</span></p>
-                            </div>
-                        </div>
-                        {notifPermission !== 'granted' && <button onClick={requestNotificationPermission} className="bg-amber-500 text-gray-900 font-bold py-2 px-4 rounded-lg">Enable</button>}
                     </div>
-                    <button onClick={sendTestNotification} disabled={notifPermission !== 'granted'} className="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg text-sm w-full">Send Test Alert</button>
-                </Card>
-            )}
 
-            {/* Integrations Tab */}
-            {activeTab === 'integrations' && (
-                <div className="space-y-6">
-                    <Card title="Marketing & Visibility">
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <IntegrationCard 
-                                name="Google Business Profile" 
-                                category="Marketing" 
-                                description="Manage reviews, posts, and map data via API." 
-                                status={googleApiKey ? 'Active' : 'Inactive'}
-                                onConfigure={() => setIsGoogleModalOpen(true)}
-                                icon={<GoogleIcon className="w-8 h-8" />}
-                            />
-                            <IntegrationCard 
-                                name="WhatsApp Business" 
-                                category="Marketing" 
-                                description="Automate messages, broadcasts, and chatbots." 
-                                status={whatsappToken ? 'Active' : 'Inactive'}
-                                onConfigure={() => setIsWhatsAppModalOpen(true)}
-                                icon={<WhatsAppIcon className="w-8 h-8 text-green-500" />}
-                            />
-                         </div>
-                    </Card>
-                    <Card title="AI & Automation Core">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <IntegrationCard name="Gemini (RoyalOS)" category="Default AI" description="Primary neural engine for chat, vision, and reasoning." status="Active" />
-                            <IntegrationCard 
-                                name="OpenAI (GPT-4)" 
-                                category="Advanced LLM" 
-                                description="Enable GPT-4o for enhanced creative writing and reasoning tasks." 
-                                status={openAIKey ? 'Active' : 'Inactive'}
-                                onConfigure={() => setIsOpenAIModalOpen(true)}
-                            />
-                            <IntegrationCard name="Rasa / LangChain" category="AI Chatbot" description="Powers the 'Gemini Assistant' for natural language processing." status="Active" />
-                            <IntegrationCard name="Alan AI" category="Voice Command" description="Enables offline and online voice navigation." status="Active" />
-                        </div>
-                    </Card>
-                    <Card title="Fitness & Analytics">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <IntegrationCard 
-                                name="Wger" 
-                                category="Workout Tracker" 
-                                description="Workout logging database (Open Source)." 
-                                status={wgerApiKey ? 'Active' : 'Inactive'}
-                                onConfigure={() => setIsWgerModalOpen(true)}
-                            />
-                            <IntegrationCard name="Grafana" category="Visualization" description="High-performance metric dashboards." status="Active" />
-                        </div>
-                    </Card>
-                </div>
-            )}
-
-            {/* IoT Tab */}
-            {activeTab === 'iot' && (
-                <div className="max-w-2xl mx-auto space-y-6">
-                    <Card title="Provision Smart Device" className="border-2 border-blue-500/30">
-                        <div className="space-y-4">
-                            <input type="text" value={ssid} onChange={(e) => setSsid(e.target.value)} className="block w-full bg-gray-700 border-gray-600 rounded-md py-3 px-4 text-white" placeholder="Wi-Fi SSID" />
-                            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="block w-full bg-gray-700 border-gray-600 rounded-md py-3 px-4 text-white" placeholder="Wi-Fi Password" />
-                            <button onClick={handleProvisionDevice} disabled={provisionStatus !== 'idle' && provisionStatus !== 'success'} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md flex justify-center items-center">
-                                <BluetoothIcon className="w-5 h-5 mr-2" /> {provisionStatus === 'idle' ? 'Scan & Provision' : provisionStatus}
-                            </button>
-                            {statusMessage && <div className="text-center text-sm text-gray-300 mt-2">{statusMessage}</div>}
-                        </div>
-                    </Card>
-                </div>
-            )}
-
-            {/* Feedback Tab */}
-            {activeTab === 'feedback' && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2">
-                        <Card title="Submit Feedback">
-                            <div className="flex items-center gap-2 mb-4 bg-gray-800 p-3 rounded-lg border border-gray-700">
-                                <SupportIcon className="w-5 h-5 text-amber-400" />
-                                <p className="text-sm text-gray-300">Found a bug or have a feature idea? Let us know directly.</p>
-                            </div>
-                            <form onSubmit={handleSubmitFeedback} className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-400 mb-1">Feedback Type</label>
-                                        <div className="flex gap-2">
-                                            <button 
-                                                type="button" 
-                                                onClick={() => setFeedbackType('bug')}
-                                                className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center transition-colors ${feedbackType === 'bug' ? 'bg-red-900/40 text-red-400 border border-red-500/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}
-                                            >
-                                                <BugFixIcon className="w-4 h-4 mr-2" /> Bug
-                                            </button>
-                                            <button 
-                                                type="button" 
-                                                onClick={() => setFeedbackType('feature')}
-                                                className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center transition-colors ${feedbackType === 'feature' ? 'bg-blue-900/40 text-blue-400 border border-blue-500/50' : 'bg-gray-700 text-gray-400 border border-gray-600'}`}
-                                            >
-                                                <SparkleIcon className="w-4 h-4 mr-2" /> Feature
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-400 mb-1">Priority</label>
-                                        <select value={feedbackPriority} onChange={(e) => setFeedbackPriority(e.target.value)} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-amber-500 outline-none h-[42px]">
-                                            <option>Low</option>
-                                            <option>Medium</option>
-                                            <option>High</option>
-                                            <option>Critical</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-1">Subject</label>
-                                    <input type="text" value={feedbackTitle} onChange={(e) => setFeedbackTitle(e.target.value)} placeholder={feedbackType === 'bug' ? "e.g., App crashes on profile update" : "e.g., Add dark mode for calendar"} className="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-amber-500 outline-none" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-1">Description</label>
-                                    <textarea rows={4} value={feedbackDesc} onChange={(e) => setFeedbackDesc(e.target.value)} placeholder="Describe the issue or idea in detail..." className="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-amber-500 outline-none" />
-                                </div>
-                                <div className="flex justify-end pt-2">
-                                    <button type="submit" disabled={isSubmittingFeedback} className="bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold py-2 px-6 rounded-lg transition-colors flex items-center disabled:opacity-50">
-                                        {isSubmittingFeedback ? 'Sending...' : 'Submit Feedback'}
-                                    </button>
-                                </div>
-                            </form>
-                        </Card>
-                    </div>
-                    <div className="lg:col-span-1">
-                        <Card title="My Submissions">
-                            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
-                                {feedbackHistory.length === 0 && <p className="text-gray-500 text-sm text-center py-4">No submissions yet.</p>}
-                                {feedbackHistory.map(item => (
-                                    <div key={item.id} className="bg-gray-800 p-3 rounded-lg border border-gray-700">
-                                        <div className="flex justify-between items-start mb-1">
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${item.type === 'bug' ? 'bg-red-900/30 text-red-400' : 'bg-blue-900/30 text-blue-400'}`}>
-                                                {item.type}
-                                            </span>
-                                            <span className="text-xs text-gray-500">{item.date}</span>
-                                        </div>
-                                        <h4 className="font-semibold text-white text-sm mb-1 line-clamp-1">{item.title}</h4>
-                                        <div className="flex justify-between items-center mt-2">
-                                            <span className="text-xs text-gray-400">Status:</span>
-                                            <span className={`text-xs font-bold ${item.status === 'Resolved' || item.status === 'Implemented' ? 'text-green-400' : 'text-yellow-400'}`}>
-                                                {item.status}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </Card>
-                    </div>
-                </div>
-            )}
-
-            {/* OpenAI Configuration Modal */}
-            <Modal isOpen={isOpenAIModalOpen} onClose={() => setIsOpenAIModalOpen(false)} title="Configure OpenAI">
-                <div className="space-y-4">
-                    <div className="flex items-center gap-3 bg-gray-800 p-3 rounded-lg border border-gray-700">
-                        <BotIcon className="w-8 h-8 text-green-400" />
-                        <div>
-                            <h4 className="text-white font-bold">OpenAI Integration</h4>
-                            <p className="text-xs text-gray-400">Unlock GPT-4o for advanced reasoning.</p>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">API Key</label>
-                        <input 
-                            type="password" 
-                            value={openAIKey} 
-                            onChange={(e) => setOpenAIKey(e.target.value)} 
-                            placeholder="sk-..."
-                            className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-green-500 outline-none font-mono" 
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Your key is stored locally on this device.</p>
-                    </div>
-                    <div className="flex justify-end pt-4">
-                        <button onClick={() => setIsOpenAIModalOpen(false)} className="mr-2 text-gray-400 hover:text-white px-4 py-2">Cancel</button>
-                        <button onClick={handleSaveOpenAIKey} className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded-lg">Save Key</button>
-                    </div>
-                </div>
-            </Modal>
-
-            {/* Wger Configuration Modal */}
-            <Modal isOpen={isWgerModalOpen} onClose={() => setIsWgerModalOpen(false)} title="Configure Wger Integration">
-                <div className="space-y-4">
-                    <div className="flex items-center gap-3 bg-gray-800 p-3 rounded-lg border border-gray-700">
-                        <div className="bg-blue-500/20 p-2 rounded-lg text-blue-400">
-                            <span className="font-bold">W</span>
-                        </div>
-                        <div>
-                            <h4 className="text-white font-bold">Wger Workout Manager</h4>
-                            <p className="text-xs text-gray-400">Sync exercises and workout templates from wger.de</p>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">API Token</label>
-                        <input 
-                            type="password" 
-                            value={wgerApiKey} 
-                            onChange={(e) => setWgerApiKey(e.target.value)} 
-                            placeholder="Wger API Token"
-                            className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none font-mono" 
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Get your token from your wger.de profile settings.</p>
-                    </div>
-                    <div className="flex justify-end pt-4">
-                         <button onClick={() => setIsWgerModalOpen(false)} className="mr-2 text-gray-400 hover:text-white px-4 py-2">Cancel</button>
-                         <button 
-                            onClick={handleSaveWgerKey} 
-                            disabled={isWgerValidating}
-                            className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg flex items-center"
+                    <div className="bg-red-950/10 p-6 rounded-[2.5rem] border border-red-500/20 text-center">
+                        <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-3" />
+                        <h4 className="text-red-500 font-black uppercase text-xs tracking-widest mb-4">Danger Zone</h4>
+                        <button 
+                            onClick={() => setIsResetConfirmOpen(true)}
+                            className="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-black rounded-2xl uppercase tracking-widest text-[10px] shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95"
                         >
-                            {isWgerValidating ? <AutoUpdateIcon className="w-4 h-4 animate-spin mr-2"/> : null}
-                            {isWgerValidating ? "Verifying..." : "Connect Wger"}
+                            <Trash2 className="w-4 h-4" /> System Purge
                         </button>
                     </div>
                 </div>
-            </Modal>
 
-            {/* Google Business API Modal */}
-            <Modal isOpen={isGoogleModalOpen} onClose={() => setIsGoogleModalOpen(false)} title="Google Business Profile API">
-                <div className="space-y-4">
-                    <div className="flex items-center gap-3 bg-gray-800 p-3 rounded-lg border border-gray-700">
-                        <GoogleIcon className="w-8 h-8" />
-                        <div>
-                            <h4 className="text-white font-bold">Google My Business</h4>
-                            <p className="text-xs text-gray-400">Automate reviews and posts via API.</p>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">API Key / Client ID</label>
-                        <input 
-                            type="password" 
-                            value={googleApiKey} 
-                            onChange={(e) => setGoogleApiKey(e.target.value)} 
-                            placeholder="AIzaSy..."
-                            className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none font-mono" 
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Stored securely in local storage.</p>
-                    </div>
-                    <div className="flex justify-end pt-4">
-                        <button onClick={() => setIsGoogleModalOpen(false)} className="mr-2 text-gray-400 hover:text-white px-4 py-2">Cancel</button>
-                        <button onClick={handleSaveGoogleKey} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg">Save API Key</button>
-                    </div>
-                </div>
-            </Modal>
+                {/* CONFIGURATION DECK */}
+                <div className="lg:col-span-8">
+                    
+                    {/* 1. NEURAL CORE (AI) */}
+                    {activeTab === 'neural_core' && (
+                        <Card title="Intelligence Engine" className="bg-[#0c0c0c] border-white/5 p-10 rounded-[3rem] h-full shadow-2xl">
+                             <div className="space-y-8">
+                                <div className="p-6 bg-blue-900/10 border border-blue-500/30 rounded-3xl relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-4 opacity-10"><BrainCircuit className="w-32 h-32 text-blue-400"/></div>
+                                    <div className="flex justify-between items-center mb-4 relative z-10">
+                                        <div>
+                                            <h4 className="text-white font-bold text-lg">Cost Control Mode</h4>
+                                            <p className="text-xs text-gray-400 mt-1">Force Simulation to prevent API charges.</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => setSimMode(!simMode)}
+                                            className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase transition-all tracking-widest ${simMode ? 'bg-green-500 text-black shadow-[0_0_20px_#22c55e]' : 'bg-gray-800 text-gray-500'}`}
+                                        >
+                                            {simMode ? 'Simulation: Active' : 'Online: Active'}
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[10px] font-mono">
+                                        <div className={`w-2 h-2 rounded-full ${simMode ? 'bg-green-500' : 'bg-red-500'} animate-pulse`}></div>
+                                        <span className={simMode ? 'text-green-400' : 'text-red-400'}>
+                                            {simMode ? 'Running Local Heuristics (Free)' : 'Connected to Hugging Face/OpenAI (Cloud)'}
+                                        </span>
+                                    </div>
+                                </div>
 
-            {/* WhatsApp Business API Modal */}
-            <Modal isOpen={isWhatsAppModalOpen} onClose={() => setIsWhatsAppModalOpen(false)} title="WhatsApp Business API">
-                <div className="space-y-4">
-                    <div className="flex items-center gap-3 bg-gray-800 p-3 rounded-lg border border-gray-700">
-                        <WhatsAppIcon className="w-8 h-8 text-green-500" />
-                        <div>
-                            <h4 className="text-white font-bold">Meta Cloud API</h4>
-                            <p className="text-xs text-gray-400">Configure your Facebook/Meta Developer credentials.</p>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Phone Number ID</label>
-                        <input 
-                            type="text" 
-                            value={whatsappPhoneId} 
-                            onChange={(e) => setWhatsappPhoneId(e.target.value)} 
-                            placeholder="e.g. 1000293..."
-                            className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-green-500 outline-none font-mono" 
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Access Token</label>
-                        <input 
-                            type="password" 
-                            value={whatsappToken} 
-                            onChange={(e) => setWhatsappToken(e.target.value)} 
-                            placeholder="EAA..."
-                            className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-green-500 outline-none font-mono" 
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Permanent or Temporary Token from Meta App Dashboard.</p>
-                    </div>
-                    <div className="flex justify-end pt-4">
-                        <button onClick={() => setIsWhatsAppModalOpen(false)} className="mr-2 text-gray-400 hover:text-white px-4 py-2">Cancel</button>
-                        <button onClick={handleSaveWhatsAppKey} className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded-lg">Connect</button>
-                    </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div onClick={() => setAiProvider('HUGGINGFACE')} className={`p-6 rounded-3xl border-2 cursor-pointer transition-all ${aiProvider === 'HUGGINGFACE' || aiProvider === 'GEMINI' ? 'border-blue-500 bg-blue-900/10' : 'border-gray-800 bg-black/40 hover:border-gray-600'}`}>
+                                        <Globe className={`w-8 h-8 mb-4 ${aiProvider === 'HUGGINGFACE' || aiProvider === 'GEMINI' ? 'text-blue-400' : 'text-gray-600'}`} />
+                                        <h3 className="font-bold text-white">Hugging Face</h3>
+                                        <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-wider">Open Source Models. Free Tier.</p>
+                                    </div>
+                                    <div onClick={() => setAiProvider('OPENAI')} className={`p-6 rounded-3xl border-2 cursor-pointer transition-all ${aiProvider === 'OPENAI' ? 'border-green-500 bg-green-900/10' : 'border-gray-800 bg-black/40 hover:border-gray-600'}`}>
+                                        <Cloud className={`w-8 h-8 mb-4 ${aiProvider === 'OPENAI' ? 'text-green-400' : 'text-gray-600'}`} />
+                                        <h3 className="font-bold text-white">OpenAI (GPT-4)</h3>
+                                        <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-wider">Requires External Key.</p>
+                                    </div>
+                                </div>
+
+                                {aiProvider === 'HUGGINGFACE' && (
+                                    <div>
+                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Hugging Face Token (Optional for Free Tier)</label>
+                                        <input 
+                                            type="password" 
+                                            value={hfToken}
+                                            onChange={(e) => setHfToken(e.target.value)}
+                                            placeholder="hf_..."
+                                            className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-blue-500 transition-all"
+                                        />
+                                        <p className="text-[10px] text-gray-500 mt-2">Get a free token at huggingface.co/settings/tokens</p>
+                                    </div>
+                                )}
+
+                                <div className="bg-gray-900/50 p-6 rounded-3xl border border-white/5 space-y-6">
+                                     <div>
+                                         <div className="flex justify-between items-center mb-3">
+                                             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                                                 <Activity className="w-3 h-3 text-purple-400"/> Reasoning Budget
+                                             </label>
+                                             <span className="text-white font-bold font-mono">{reasoningBudget}%</span>
+                                         </div>
+                                         <input 
+                                            type="range" min="0" max="100" value={reasoningBudget} 
+                                            onChange={(e) => setReasoningBudget(Number(e.target.value))}
+                                            className="w-full h-2 bg-black rounded-full appearance-none cursor-pointer accent-purple-500"
+                                         />
+                                     </div>
+                                     <div className="flex items-center justify-between">
+                                         <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                                             <Mic className="w-3 h-3 text-amber-400"/> Voice Synthesis
+                                         </label>
+                                         <button 
+                                            onClick={() => setVoiceEnabled(!voiceEnabled)}
+                                            className={`w-12 h-6 rounded-full p-1 transition-colors ${voiceEnabled ? 'bg-amber-500' : 'bg-gray-700'}`}
+                                         >
+                                             <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${voiceEnabled ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                                         </button>
+                                     </div>
+                                </div>
+
+                                <button onClick={handleSaveNeural} className="w-full bg-white text-black font-black py-5 rounded-[2rem] uppercase tracking-widest text-xs shadow-xl hover:bg-cyan-400 transition-all flex items-center justify-center gap-2">
+                                    <RefreshCw className="w-4 h-4" /> Save & Reboot Neural Link
+                                </button>
+                             </div>
+                        </Card>
+                    )}
+
+                    {/* 2. SECURITY GRID */}
+                    {activeTab === 'security_grid' && (
+                        <Card title="Perimeter Defense" className="bg-[#0c0c0c] border-white/5 p-10 rounded-[3rem] h-full shadow-2xl">
+                             <div className="space-y-8">
+                                <div className="bg-red-900/10 p-8 rounded-3xl border border-red-500/20 flex items-center justify-between relative overflow-hidden">
+                                    <div className="absolute -right-10 -top-10 opacity-10"><Shield className="w-48 h-48 text-red-500"/></div>
+                                    <div className="relative z-10">
+                                        <h4 className="text-white font-bold text-xl uppercase italic">Geo-Fencing Protocol</h4>
+                                        <p className="text-gray-400 text-xs mt-2 max-w-xs">Restrict admin access to physical gym location (10m radius).</p>
+                                    </div>
+                                    <div 
+                                        onClick={() => setGeoLockEnabled(!geoLockEnabled)}
+                                        className={`w-16 h-8 rounded-full p-1 cursor-pointer transition-all relative z-10 ${geoLockEnabled ? 'bg-red-600 shadow-[0_0_20px_#dc2626]' : 'bg-gray-700'}`}
+                                    >
+                                        <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform ${geoLockEnabled ? 'translate-x-8' : 'translate-x-0'}`}></div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-gray-900/50 p-6 rounded-3xl border border-white/5">
+                                    <div className="flex items-center justify-between mb-2">
+                                         <h4 className="text-white font-bold text-sm uppercase">Biometric Login Lock</h4>
+                                         <div 
+                                            onClick={() => setBioLockEnabled(!bioLockEnabled)}
+                                            className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-all ${bioLockEnabled ? 'bg-indigo-500' : 'bg-gray-700'}`}
+                                        >
+                                            <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${bioLockEnabled ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                                        </div>
+                                    </div>
+                                    <p className="text-gray-500 text-[10px] uppercase tracking-widest flex items-center gap-2">
+                                        <ScanFace className="w-3 h-3"/> {bioLockEnabled ? 'Enforced' : 'Optional'}
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Latitude</label>
+                                        <input value={gymLat} onChange={e => setGymLat(e.target.value)} className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-red-500 transition-all" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Longitude</label>
+                                        <input value={gymLng} onChange={e => setGymLng(e.target.value)} className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-red-500 transition-all" />
+                                    </div>
+                                </div>
+
+                                <button onClick={handleCalibrateLocation} className="w-full py-4 bg-gray-900 border border-white/10 rounded-2xl text-gray-400 font-bold uppercase text-[10px] tracking-widest hover:text-white hover:bg-gray-800 transition-all flex items-center justify-center gap-2">
+                                    <Crosshair className="w-4 h-4" /> Calibrate to My Location
+                                </button>
+
+                                <button onClick={handleSaveSecurity} className="w-full bg-red-600 hover:bg-red-500 text-white font-black py-5 rounded-[2rem] uppercase tracking-widest text-xs shadow-xl transition-all flex items-center justify-center gap-2 mt-auto">
+                                    <Lock className="w-4 h-4" /> Update Security Grid
+                                </button>
+                             </div>
+                        </Card>
+                    )}
+
+                    {/* 3. COMMS UPLINK */}
+                    {activeTab === 'comms_uplink' && (
+                        <Card title="Sub-Space Transceiver" className="bg-[#0c0c0c] border-white/5 p-10 rounded-[3rem] h-full shadow-2xl">
+                             <div className="space-y-8">
+                                <div className="p-6 bg-green-900/10 border border-green-500/20 rounded-3xl">
+                                    <div className="flex items-center gap-4 mb-4">
+                                        <Smartphone className="w-8 h-8 text-green-500" />
+                                        <h3 className="text-xl font-black text-white italic uppercase">WhatsApp Business API</h3>
+                                    </div>
+                                    <p className="text-gray-400 text-xs leading-relaxed">
+                                        Configure your Meta Developer credentials here to enable automated alerts, fee reminders, and the AI chatbot.
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Phone Number ID</label>
+                                    <input 
+                                        type="text" 
+                                        value={waPhoneId}
+                                        onChange={(e) => setWaPhoneId(e.target.value)}
+                                        placeholder="e.g. 1045..."
+                                        className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-green-500 transition-all"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Permanent Access Token</label>
+                                    <textarea 
+                                        value={waToken}
+                                        onChange={(e) => setWaToken(e.target.value)}
+                                        placeholder="EAAG..."
+                                        rows={3}
+                                        className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 text-white font-mono text-xs outline-none focus:border-green-500 transition-all resize-none"
+                                    />
+                                </div>
+
+                                <button onClick={handleSaveComms} className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-5 rounded-[2rem] uppercase tracking-widest text-xs shadow-xl transition-all flex items-center justify-center gap-2">
+                                    <Zap className="w-4 h-4" /> Establish Uplink
+                                </button>
+                             </div>
+                        </Card>
+                    )}
+
+                    {/* 4. IDENTITY NODE */}
+                    {activeTab === 'identity' && (
+                        <Card title="Admin Identity" className="bg-[#0c0c0c] border-white/5 p-10 rounded-[3rem] h-full shadow-2xl">
+                             <div className="space-y-8">
+                                <div className="flex items-center gap-6">
+                                    <div className="w-24 h-24 bg-gray-900 rounded-[2rem] border-2 border-white/10 flex items-center justify-center shadow-lg">
+                                        <User className="w-10 h-10 text-gray-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Access Level</p>
+                                        <h3 className="text-3xl font-black text-white italic uppercase">Super Admin</h3>
+                                        <p className="text-amber-500 font-mono text-xs mt-2">Clearance: Level 10</p>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Display Name</label>
+                                    <input 
+                                        type="text" 
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 text-white font-bold text-lg outline-none focus:border-amber-500 transition-all"
+                                    />
+                                </div>
+
+                                <div className="bg-amber-900/10 border border-amber-500/20 p-6 rounded-3xl flex items-center justify-between">
+                                    <div>
+                                        <h4 className="text-white font-bold text-sm uppercase">Biometric Hash</h4>
+                                        <p className="text-[9px] text-gray-500 uppercase tracking-widest mt-1">Last Scan: 2 mins ago</p>
+                                    </div>
+                                    <Fingerprint className="w-8 h-8 text-amber-500 animate-pulse" />
+                                </div>
+                                
+                                <button className="w-full bg-gray-900 border border-white/10 text-gray-300 font-black py-5 rounded-[2rem] uppercase tracking-widest text-xs hover:bg-white hover:text-black transition-all flex items-center justify-center gap-2">
+                                    <Save className="w-4 h-4" /> Update Credentials
+                                </button>
+                             </div>
+                        </Card>
+                    )}
                 </div>
-            </Modal>
+            </div>
+
+            <ConfirmationDialog 
+                isOpen={isResetConfirmOpen}
+                onClose={() => setIsResetConfirmOpen(false)}
+                onConfirm={handleFactoryReset}
+                title="System Purge Sequence"
+                message="WARNING: This will wipe all local neural shards and reset the kernel to factory defaults. Proceed?"
+            />
         </div>
     );
 };
