@@ -1,16 +1,14 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
+import LoginScreen from './LoginScreen';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import { MenuIcon } from './icons/MenuIcon';
-import LoginScreen from './LoginScreen';
 import { ChatIcon } from './icons/ChatIcon';
 import GeminiChat from './GeminiChat';
 import { View, Theme } from '../../types';
 import { ToastProvider } from '../context/ToastProvider';
 import { DataProvider, useData } from '../context/DataProvider';
-import AdminGeoGuard from './admin/AdminGeoGuard';
-import SecurityShield from './SecurityShield';
 import ErrorBoundary from './common/ErrorBoundary';
 import { Crown, Sparkles, WifiOff, Zap, ShieldCheck, RefreshCw, Cpu, Activity, Infinity, Orbit } from 'lucide-react';
 import MemberPortal from './member/MemberPortal';
@@ -65,6 +63,7 @@ const HormonalClock = React.lazy(() => import('./member/HormonalClock'));
 const MetabolicTracker = React.lazy(() => import('./member/MetabolicTracker'));
 const NeuroRecovery = React.lazy(() => import('./member/NeuroRecovery'));
 const CRMSystem = React.lazy(() => import('./CRMSystem'));
+const ScientificAdmissionForm = React.lazy(() => import('./ScientificAdmissionForm'));
 
 const NeuralBoot = ({ onComplete }: { onComplete: () => void }) => {
     const [progress, setProgress] = useState(0);
@@ -140,43 +139,8 @@ const AppContent: React.FC = () => {
         localStorage.setItem('royal_theme', 'dark');
     }, []);
 
-    const handleLogin = async (identifier: string, pass: string | null, role: 'admin' | 'member', method: string) => {
-        await new Promise(r => setTimeout(r, 400));
-        
-        if (role === 'admin') {
-            if (identifier === 'admin@royal.com' || identifier === '9785300123') {
-                setCurrentUser({ type: 'admin', name: 'Super Admin', avatar: 'https://i.ibb.co/6800735/Royal-The-Gym.png' });
-                setCurrentView('dashboard');
-                return true;
-            }
-        } else {
-            const member = members.find(m => m.email === identifier || m.phone.slice(-10) === identifier.slice(-10));
-            if (member) {
-                setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
-                setCurrentView('dashboard');
-                return true;
-            }
-        }
-        return false;
-    };
-
-    const handleDevSwitch = () => {
-        if (currentUser?.type === 'admin') {
-            // Switch to first member
-            const member = members[0];
-            if (member) {
-                setCurrentUser({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
-                setCurrentView('dashboard');
-            }
-        } else {
-            // Switch to admin
-            setCurrentUser({ type: 'admin', name: 'Super Admin', avatar: 'https://i.ibb.co/6800735/Royal-The-Gym.png' });
-            setCurrentView('dashboard');
-        }
-    };
-
     if (isBooting) return <NeuralBoot onComplete={() => setIsBooting(false)} />;
-    if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
+    if (!currentUser) return <LoginScreen onLogin={setCurrentUser} />;
 
     const renderAdminView = () => {
         const ViewComponent = (() => {
@@ -227,6 +191,8 @@ const AppContent: React.FC = () => {
                 case 'storkTeam': return StorkTeam;
                 case 'payment': return Payment;
                 case 'bots': return RoyalBotIntegrations;
+                case 'neuralArchitecture': return NeuralArchitecture;
+                case 'scientificAdmissionForm': return ScientificAdmissionForm;
                 default: return Dashboard;
             }
         })();
@@ -247,15 +213,12 @@ const AppContent: React.FC = () => {
         return (
             <Suspense fallback={<div className="h-screen w-screen bg-black"></div>}>
                 <MemberPortal loggedInMemberId={currentUser.id} onLogout={() => setCurrentUser(null)} theme={theme} toggleTheme={() => {}} />
-                <DevTools onSwitch={handleDevSwitch} currentRole="member" />
             </Suspense>
         );
     }
 
     return (
         <div className={`h-screen w-screen flex flex-col overflow-hidden font-sans selection:bg-indigo-500/30 transition-colors duration-300 bg-black text-gray-100`}>
-            <SecurityShield />
-            <DevTools onSwitch={handleDevSwitch} currentRole="admin" />
             <Header onLogout={() => setCurrentUser(null)} userName={currentUser.name} avatar={currentUser.avatar} theme={theme} toggleTheme={() => {}}>
                 <div className="hidden lg:flex items-center gap-3 px-4 py-1.5 bg-white dark:bg-gray-900 rounded-full border border-gray-200 dark:border-white/5 shadow-inner group cursor-help" title="System Status">
                     {systemHealth === 100 ? <ShieldCheck className="w-4 h-4 text-green-500" /> : <Activity className="w-4 h-4 text-amber-500 animate-pulse" />}
@@ -269,7 +232,7 @@ const AppContent: React.FC = () => {
                 
                 <main className={`flex-1 overflow-y-auto p-4 sm:p-6 md:p-10 custom-scrollbar relative bg-black`}>
                     <ErrorBoundary>
-                        <AdminGeoGuard>{renderAdminView()}</AdminGeoGuard>
+                        {renderAdminView()}
                     </ErrorBoundary>
                 </main>
             </div>
@@ -285,6 +248,8 @@ const AppContent: React.FC = () => {
         </div>
     );
 };
+
+import NeuralArchitecture from './NeuralArchitecture';
 
 const App: React.FC = () => {
     return (

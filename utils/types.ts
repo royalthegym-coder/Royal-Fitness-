@@ -334,6 +334,7 @@ export interface Task {
     priority: 'Low' | 'Medium' | 'High';
     dueDate: string;
     completed: boolean;
+    dependencies?: number[];
 }
 
 export interface MedicalTestMaster {

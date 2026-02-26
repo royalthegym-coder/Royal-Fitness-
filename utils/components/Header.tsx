@@ -6,7 +6,7 @@ import ConfirmationDialog from './common/ConfirmationDialog';
 
 interface HeaderProps {
     children?: React.ReactNode;
-    onLogout: () => void;
+    onLogout?: () => void;
     userName: string;
     avatar: string;
     theme: Theme;
@@ -17,11 +17,7 @@ const Header: React.FC<HeaderProps> = ({ children, onLogout, userName, avatar })
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
 
   const handleSecureDisconnect = () => {
-    // Session Wipe Command
-    localStorage.clear();
-    sessionStorage.clear();
-    // Redirect through parent
-    onLogout();
+    if (onLogout) onLogout();
   };
 
   return (
@@ -48,13 +44,15 @@ const Header: React.FC<HeaderProps> = ({ children, onLogout, userName, avatar })
                 <img className="w-10 h-10 rounded-2xl border border-gray-200 dark:border-white/10 object-cover shadow-xl dark:shadow-2xl" src={avatar} alt="Avatar" />
             </div>
 
-            <button 
-                onClick={() => setIsLogoutConfirmOpen(true)}
-                className="ml-4 p-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-500 hover:bg-red-500 hover:text-white transition-all group relative"
-                title="Logout"
-            >
-                <Power className="w-5 h-5 transition-transform duration-700" />
-            </button>
+            {onLogout && (
+                <button 
+                    onClick={() => setIsLogoutConfirmOpen(true)}
+                    className="ml-4 p-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-500 hover:bg-red-500 hover:text-white transition-all group relative"
+                    title="Logout"
+                >
+                    <Power className="w-5 h-5 transition-transform duration-700" />
+                </button>
+            )}
         </div>
 
         <ConfirmationDialog 

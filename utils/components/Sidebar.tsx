@@ -8,7 +8,7 @@ import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { BrainCircuitIcon } from './icons/BrainCircuitIcon';
 import { ControlIcon } from './icons/ControlIcon';
-import { Microscope, Zap, Settings, Command, Activity, Heart, DollarSign, CalendarCheck, Stethoscope, TrendingUp, Cpu, ShieldAlert, MonitorPlay, HelpCircle, ScanFace, Globe, Glasses, Link, Shield, FlaskConical, Clock, Wind, Network, Moon, Eye, Truck, Map, Terminal, Gauge, Share2, Package, List, Users, ChevronDown, Utensils } from 'lucide-react';
+import { Microscope, Zap, Settings, Command, Activity, Heart, DollarSign, CalendarCheck, Stethoscope, TrendingUp, Cpu, ShieldAlert, MonitorPlay, HelpCircle, ScanFace, Globe, Glasses, Link, Shield, FlaskConical, Clock, Wind, Network, Moon, Eye, Truck, Map, Terminal, Gauge, Share2, Package, List, Users, ChevronDown, Utensils, Sparkles } from 'lucide-react';
 import { GoogleIcon } from './icons/GoogleIcon';
 import { View } from '../../types';
 import { CloudArrowUpIcon } from './icons/CloudArrowUpIcon';
@@ -51,6 +51,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
       category: 'Main (मुख्य)', 
       items: [
         { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
+        { id: 'scientificAdmissionForm', label: 'AI Admission Form', icon: <Sparkles className="w-5 h-5 text-indigo-400" /> },
         { id: 'members', label: 'Members List', icon: <MembersIcon /> },
         { id: 'billing', label: 'Billing & Fees', icon: <BillingIcon /> },
         { id: 'payment', label: 'Take Payment', icon: <DollarSignIcon className="text-green-500" /> },
@@ -92,6 +93,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
     {
       category: 'System (सिस्टम)',
       items: [
+        { id: 'neuralArchitecture', label: 'Neural OS Stack', icon: <Cpu className="w-5 h-5 text-indigo-400" /> },
         { id: 'autoProcurement', label: 'Auto-Orders', icon: <Truck className="w-5 h-5 text-amber-500" /> }, 
         { id: 'security', label: 'Security', icon: <ShieldAlert className="w-5 h-5 text-red-400" /> },
         { id: 'settings', label: 'Settings', icon: <Settings className="w-5 h-5" /> },
@@ -117,7 +119,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
         { id: 'workout', label: 'Start Workout', icon: <WorkoutIcon /> },
         { id: 'diet', label: 'My Diet', icon: <DietIcon /> },
         { id: 'nutritionAdvisor', label: 'Nutritionist', icon: <Utensils className="w-5 h-5 text-green-400" /> },
-        { id: 'performanceLab', label: 'Progress Lab', icon: <TrendingUp className="w-5 h-5 text-cyan-400" /> },
+        { id: "performanceLab", label: "Progress Lab", icon: <TrendingUp className="w-5 h-5 text-cyan-400" /> },
         { id: 'futureOFS', label: 'Recovery Test', icon: <Activity className="w-5 h-5 text-amber-400" /> },
       ]
     },

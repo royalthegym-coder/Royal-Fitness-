@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import Card from './common/Card';
-import { AetherIcon } from './icons/AetherIcon';
+import Card from './Card';
+import { AetherIcon } from '../icons/AetherIcon';
 import { 
     AlertTriangle, Crosshair, Ghost, Layers, User, Zap, 
     RefreshCcw, Activity, ScanLine, Scale, Eye, ShieldAlert, 

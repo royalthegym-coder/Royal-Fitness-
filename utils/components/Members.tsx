@@ -761,10 +761,10 @@ const Members: React.FC<{ setCurrentView: (view: any) => void }> = ({ setCurrent
                     </p>
                 </div>
                 <button 
-                    onClick={() => { setEditingMember(null); setIsModalOpen(true); }}
+                    onClick={() => setCurrentView('scientificAdmissionForm')}
                     className="bg-white text-black font-black px-8 py-4 rounded-2xl uppercase tracking-widest text-xs shadow-xl hover:bg-amber-400 transition-all flex items-center gap-2 active:scale-95"
                 >
-                    <Plus className="w-5 h-5" /> New Admission
+                    <Plus className="w-5 h-5" /> AI Admission
                 </button>
             </div>
 

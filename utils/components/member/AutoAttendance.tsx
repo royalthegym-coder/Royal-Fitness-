@@ -89,12 +89,24 @@ const AutoAttendance: React.FC<{ memberId: number }> = ({ memberId }) => {
         setLogs(['Initializing Secure Handshake...']);
         setScanStatus('scanning');
         
-        // 1. BLE Check (Simulation)
+        // Check "one check-in per day" rule
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (checkInHistory.has(todayStr) || isCheckedIn) {
+            addLog("ERROR: Daily Check-In Limit Reached.");
+            setScanStatus('error');
+            addToast("You have already checked in today.", "error");
+            return;
+        }
+
+        // 1. Wi-Fi Check (Simulation/Heuristic)
         setTimeout(() => {
-            addLog("BLE: Searching for Gym Beacon (Royal_Core)...");
+            addLog("WIFI: Scanning for Gym Network (Royal_Core)...");
+            // In a real app, we might check navigator.connection or a specific API
+            // Here we simulate a successful Wi-Fi connection
+            addLog("WIFI: Connected to Royal_Core.");
         }, 800);
 
-        // 2. GPS Check (Simulation)
+        // 2. GPS Check (Real Geolocation)
         setTimeout(() => {
             addLog("GPS: Triangulating Satellites...");
             if (navigator.geolocation) {
@@ -103,25 +115,32 @@ const AutoAttendance: React.FC<{ memberId: number }> = ({ memberId }) => {
                         const dist = getDistanceFromLatLonInMeters(pos.coords.latitude, pos.coords.longitude, GYM_INFO.coordinates.latitude, GYM_INFO.coordinates.longitude);
                         addLog(`GPS: Lock Acquired (${Math.round(dist)}m from HQ).`);
                         
-                        // Force success for demo purposes
-                        setTimeout(() => {
-                            setScanStatus('found');
-                            addLog("NEURAL: Identity Confirmed.");
-                            setTimeout(() => handleCheckInSuccess('neural'), 1000);
-                        }, 1500);
+                        if (dist <= GEOFENCE_RADIUS) {
+                            setTimeout(() => {
+                                setScanStatus('found');
+                                addLog("NEURAL: Identity Confirmed. Location Verified.");
+                                setTimeout(() => handleCheckInSuccess('gps'), 1000);
+                            }, 1500);
+                        } else {
+                            addLog(`GPS: Out of Range. Must be within ${GEOFENCE_RADIUS}m.`);
+                            setScanStatus('error');
+                            addToast("You are not at the gym location.", "error");
+                        }
                     },
                     (err) => {
                         addLog("GPS: Signal Weak. Attempting Neural Fallback...");
                         // Fallback success
                         setTimeout(() => handleCheckInSuccess('neural'), 2000);
-                    }
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                 );
             } else {
+                addLog("GPS: Not supported by device.");
                 handleCheckInSuccess('neural');
             }
         }, 2000);
 
-    }, []);
+    }, [checkInHistory, isCheckedIn, handleCheckInSuccess, addToast]);
 
     // --- STATS CALCULATION ---
     const { streak, monthlyAttendance, punctuality } = useMemo(() => {

@@ -94,9 +94,9 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
     const handleNeuralCollect = async () => {
         setIsCollecting(true);
         setCollectorLog([]);
-        addToast("Neural Debt Collector: Scanning Ledger...", "info");
+        addToast("Chronos Mirror Bot: Scanning Ledger for Due Dates...", "info");
         
-        const overdueInvoices = invoices.filter(i => i.status === 'Overdue');
+        const overdueInvoices = invoices.filter(i => i.status === 'Overdue' || i.status === 'Pending');
         
         if (overdueInvoices.length === 0) {
             setTimeout(() => {
@@ -110,10 +110,10 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
         for (const inv of overdueInvoices) {
             await new Promise(r => setTimeout(r, 600)); // Simulate AI Processing
             const member = members.find(m => m.id === inv.memberId);
-            setCollectorLog(prev => [`Analyzing ${member?.name || 'Unknown'}... Risk: High`, ...prev]);
+            setCollectorLog(prev => [`Analyzing ${member?.name || 'Unknown'}... Risk: ${inv.status === 'Overdue' ? 'High' : 'Medium'}`, ...prev]);
             
             if (member?.phone && member.whatsappConsent) {
-                 setCollectorLog(prev => [`>> Sent Reminder to ${member.name}`, ...prev]);
+                 setCollectorLog(prev => [`>> Sent Chronos Reminder to ${member.name}`, ...prev]);
                  // Send actual message logic here (Already handled by DataProvider logic if implemented there, or call directly)
                 sentCount++;
             }
@@ -121,7 +121,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
 
         setCollectorLog(prev => [`SUMMARY: ${sentCount} Notices Dispatched.`, ...prev]);
         setIsCollecting(false);
-        addToast(`Neural Agent: Dispatched ${sentCount} reminders.`, "success");
+        addToast(`Chronos Mirror Bot: Dispatched ${sentCount} reminders.`, "success");
     };
 
     const addToCart = (item: InventoryItem) => {
@@ -292,7 +292,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                              <p className="text-xs text-red-400 mt-2 font-bold">{overdueCount} Overdue Nodes</p>
                         </div>
                         
-                        {/* Neural Collector Control */}
+                        {/* Chronos Mirror Bot Control */}
                         <div className="bg-gray-900 border border-white/5 rounded-[2.5rem] p-6 relative overflow-hidden">
                             {isCollecting && <div className="absolute inset-0 bg-black/60 z-10 flex items-center justify-center backdrop-blur-sm"><RefreshCw className="w-8 h-8 text-amber-500 animate-spin"/></div>}
                             <button 
@@ -300,7 +300,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                                 disabled={isCollecting}
                                 className="w-full py-5 bg-white text-black font-black uppercase tracking-widest text-[10px] rounded-2xl shadow-xl hover:bg-amber-400 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
                             >
-                                <BotIcon className="w-4 h-4"/> AUTO-COLLECT DEBT
+                                <BotIcon className="w-4 h-4"/> CHRONOS MIRROR BOT
                             </button>
                             <div className="mt-4 h-24 overflow-y-auto custom-scrollbar bg-black/40 rounded-xl p-3 border border-white/5">
                                 {collectorLog.map((log, i) => (

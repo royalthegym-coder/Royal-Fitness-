@@ -81,9 +81,30 @@ const WhatsAppIntegration: React.FC = () => {
 
     // Template State
     const [templates, setTemplates] = useState<MessageTemplate[]>([
-        { id: 't1', name: 'Welcome', content: "Welcome to Royal The Gym! Let's crush your goals.", category: 'Onboarding' },
-        { id: 't2', name: 'Fee Reminder', content: "Gentle reminder: Your gym fee is due. Pay here: {{link}}", category: 'Payment' },
-        { id: 't3', name: 'Offer', content: "Flash Sale! 20% off on annual plans today.", category: 'Marketing' }
+        { 
+            id: 't1', 
+            name: 'New Member Onboarding (The Admission Bot)', 
+            content: "नमस्ते! [Gym Name] के 'Neural OS' पावर्ड फिटनेस इकोसिस्टम में आपका स्वागत है। 🚀\nअपना एडमिशन फॉर्म भरने के लिए नीचे दिए गए बटन पर क्लिक करें। यह फॉर्म पूरी तरह से ऑटोमेटेड है। [Link: Admission Form]\nएक बार फॉर्म भरने के बाद, आपको पेमेंट लिंक प्राप्त होगा।", 
+            category: 'Onboarding' 
+        },
+        { 
+            id: 't2', 
+            name: 'Automated Payment & Fees (Cash/UPI/Cards)', 
+            content: "नमस्ते [Member Name]!\nआपकी जिम मेंबरशिप का विवरण:\n- Plan: [Plan Name]\n- Due Date: [Date]\n- Amount: ₹[Amount]\nभुगतान करने के लिए यहाँ क्लिक करें (UPI/Card/NetBanking): [Payment Link]\nनोट: भुगतान के बाद आपकी रसीद और 'Aether Prime' वर्कआउट एक्सेस तुरंत सक्रिय हो जाएगा।", 
+            category: 'Payment' 
+        },
+        { 
+            id: 't3', 
+            name: 'AI Diet & Workout Delivery', 
+            content: "बधाई हो [Member Name]! आपका भुगतान सफल रहा। ✅\nआपका 'Scientific AI Diet Plan' और 'Bodybuilding Workout Schedule' तैयार है। [Link: View My Plan]\nहमारी 'Titan Vision' तकनीक आपकी एक्सरसाइज पोजीशन को ट्रैक करने के लिए तैयार है। अपना पहला वर्कआउट शुरू करें!", 
+            category: 'Onboarding' 
+        },
+        { 
+            id: 't4', 
+            name: 'Auto-Reminder (Retention Bot)', 
+            content: "नमस्ते [Member Name], क्या आप तैयार हैं अगले लेवल के लिए? 🔥\nआपकी मेंबरशिप 3 दिनों में समाप्त हो रही है। बिना किसी रुकावट के वर्कआउट जारी रखने के लिए आज ही रिन्यू करें। [Link: Quick Renew]", 
+            category: 'Reminder' 
+        }
     ]);
     const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
     const [newTemplate, setNewTemplate] = useState({ name: '', content: '' });

@@ -274,7 +274,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const updateInvoiceStatus = (id: number, status: 'Paid' | 'Pending' | 'Overdue' | 'Verification Pending' | 'Rejected') => {
-        setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, status } : inv));
+        setInvoices(prev => {
+            const updatedInvoices = prev.map(inv => inv.id === id ? { ...inv, status } : inv);
+            
+            // Razorpay Integration Logic: If paid, activate member
+            if (status === 'Paid') {
+                const invoice = prev.find(inv => inv.id === id);
+                if (invoice) {
+                    setMembers(membersPrev => membersPrev.map(m => 
+                        m.id === invoice.memberId ? { ...m, status: 'Active' } : m
+                    ));
+                }
+            }
+            return updatedInvoices;
+        });
         logEvent(`Invoice #${id} status updated to ${status}. Syncing Ledger.`);
     };
 
