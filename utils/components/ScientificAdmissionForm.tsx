@@ -11,9 +11,44 @@ import { sendPaymentRequest, sendWhatsAppWelcomeMessage, sendPaymentReceipt } fr
 import { Member, Invoice, Transaction } from '../../types';
 
 const ScientificAdmissionForm: React.FC = () => {
+    const { members, packages, addMember, addInvoice, addTransaction } = useData();
+    const { addToast } = useToast();
     const [currentStep, setCurrentStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+
+    // Form State
+    const [formData, setFormData] = useState({
+        name: '',
+        phone: '',
+        email: '',
+        age: '',
+        gender: '',
+        profession: '',
+        weight: '',
+        height: '',
+        bloodGroup: '',
+        bodyFat: '',
+        avatar: '',
+        injuries: '',
+        conditions: [] as string[],
+        allergies: '',
+        dietType: '',
+        waterIntake: '',
+        mealFrequency: '',
+        sleepTime: '',
+        supplements: '',
+        primaryGoal: '',
+        experienceLevel: '',
+        timeCommitment: '',
+        stressLevel: '5',
+        sleepQuality: '',
+        metabolicRate: '',
+        // Payment State
+        packageId: '',
+        paymentMethod: 'UPI' as 'UPI' | 'Cash' | 'Card (NFC)',
+        isPaid: false
+    });
 
     const steps = [
         { id: 1, title: 'मूल जानकारी', icon: <User className="w-5 h-5" /> },
@@ -21,22 +56,138 @@ const ScientificAdmissionForm: React.FC = () => {
         { id: 3, title: 'मेडिकल इतिहास', icon: <HeartPulse className="w-5 h-5" /> },
         { id: 4, title: 'जीवनशैली', icon: <Coffee className="w-5 h-5" /> },
         { id: 5, title: 'फिटनेस लक्ष्य', icon: <Target className="w-5 h-5" /> },
-        { id: 6, title: 'Neural OS डेटा', icon: <Brain className="w-5 h-5" /> }
+        { id: 6, title: 'Neural OS डेटा', icon: <Brain className="w-5 h-5" /> },
+        { id: 7, title: 'Payment', icon: <Wallet className="w-5 h-5" /> }
     ];
 
+    const selectedPkg = packages.find(p => p.id === Number(formData.packageId));
+    const totalAmount = selectedPkg?.price || 0;
+
     const handleNext = () => {
-        if (currentStep < 6) setCurrentStep(currentStep + 1);
+        if (currentStep < 7) setCurrentStep(currentStep + 1);
     };
 
     const handlePrev = () => {
         if (currentStep > 1) setCurrentStep(currentStep - 1);
     };
 
+    const handleInputChange = (field: string, value: any) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleConditionToggle = (condition: string) => {
+        setFormData(prev => {
+            if (condition === 'कोई नहीं') {
+                return { ...prev, conditions: ['कोई नहीं'] };
+            }
+            const newConditions = prev.conditions.filter(c => c !== 'कोई नहीं');
+            if (newConditions.includes(condition)) {
+                return { ...prev, conditions: newConditions.filter(c => c !== condition) };
+            } else {
+                return { ...prev, conditions: [...newConditions, condition] };
+            }
+        });
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
-        // Simulate API call to n8n -> Gemini 1.5 Pro
+        
+        // Simulate AI Processing & Member Creation
         setTimeout(() => {
+            const newId = Math.max(0, ...members.map(m => m.id)) + 1;
+            
+            const newMember: Member = {
+                id: newId,
+                name: formData.name,
+                phone: formData.phone,
+                email: formData.email || `${formData.phone}@royal.gym`,
+                joinDate: new Date().toISOString().split('T')[0],
+                status: 'Active',
+                packageId: Number(formData.packageId),
+                avatar: formData.avatar || `https://i.pravatar.cc/150?u=${newId}`,
+                gender: formData.gender,
+                dob: '', // Calculate from age if needed
+                aadhaar: '',
+                address: '',
+                achievements: [],
+                xp: 0,
+                level: 1,
+                hrv: 0,
+                lbm: 0,
+                health_score: 85, // AI generated
+                bio_age: Number(formData.age) || 25,
+                assigned_tests: [],
+                automation_settings: { remind_12hrs_before: true, auto_renewal: false, ai_coaching: true, sync_id: '' },
+                rpeHistory: [],
+                anatomicalStatus: {},
+                emergency_contact: { name: '', phone: '', relation: '' },
+                whatsappConsent: true,
+                physical_metrics: {
+                    height: Number(formData.height) || 0,
+                    weight: Number(formData.weight) || 0,
+                    body_fat: Number(formData.bodyFat) || 0,
+                    muscle_mass: 0,
+                    target_weight: 0,
+                    body_type: 'Mesomorph',
+                    activity_level: 'Moderate'
+                },
+                medical_history: {
+                    conditions: formData.conditions,
+                    pastInjuries: formData.injuries,
+                    medications: formData.supplements,
+                    lifestyle: {
+                        diet: formData.dietType,
+                        sleep: formData.sleepTime,
+                        stress: formData.stressLevel
+                    }
+                },
+                initial_assessment: {
+                    fitness_level: formData.experienceLevel || 'Beginner',
+                    pushup_count: 0,
+                    plank_time: '0s',
+                    squat_count: 0,
+                    comments: `Goal: ${formData.primaryGoal}`
+                }
+            };
+
+            addMember(newMember);
+
+            // Payment Processing
+            if (formData.packageId) {
+                const invoice: Invoice = {
+                    id: Date.now(),
+                    memberId: newId,
+                    memberName: newMember.name,
+                    packageId: newMember.packageId,
+                    packageName: selectedPkg?.name || 'Custom',
+                    amount: totalAmount,
+                    date: new Date().toISOString().split('T')[0],
+                    status: formData.isPaid ? 'Paid' : 'Pending', 
+                    items: [
+                        { description: `Membership: ${selectedPkg?.name}`, amount: totalAmount, type: 'Membership' }
+                    ]
+                };
+                addInvoice(invoice);
+
+                if (formData.isPaid) {
+                    addTransaction({
+                        id: `TXN-${Date.now()}`,
+                        memberName: newMember.name,
+                        amount: totalAmount,
+                        date: invoice.date,
+                        method: formData.paymentMethod
+                    });
+                    
+                    sendPaymentReceipt(newMember.name, newMember.phone, totalAmount, `TXN-${Date.now()}`, invoice.packageName);
+                } else {
+                    sendPaymentRequest(newMember, totalAmount, invoice.packageName);
+                }
+            }
+
+            sendWhatsAppWelcomeMessage(newMember);
+            addToast("AI Admission Complete. Member Onboarded.", "success");
+
             setIsSubmitting(false);
             setIsSuccess(true);
         }, 2500);
@@ -135,19 +286,19 @@ const ScientificAdmissionForm: React.FC = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">पूरा नाम</label>
-                                    <input type="text" className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="e.g. Rahul Kumar" required />
+                                    <input type="text" value={formData.name} onChange={(e) => handleInputChange('name', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="e.g. Rahul Kumar" required />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">मोबाइल नंबर (WhatsApp)</label>
-                                    <input type="tel" className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="+91 9876543210" required />
+                                    <input type="tel" value={formData.phone} onChange={(e) => handleInputChange('phone', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="+91 9876543210" required />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">आयु</label>
-                                    <input type="number" className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="e.g. 25" required />
+                                    <input type="number" value={formData.age} onChange={(e) => handleInputChange('age', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" placeholder="e.g. 25" required />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">लिंग</label>
-                                    <select className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" required>
+                                    <select value={formData.gender} onChange={(e) => handleInputChange('gender', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" required>
                                         <option value="">चुनें...</option>
                                         <option value="male">पुरुष (Male)</option>
                                         <option value="female">महिला (Female)</option>
@@ -156,7 +307,7 @@ const ScientificAdmissionForm: React.FC = () => {
                                 </div>
                                 <div className="space-y-2 md:col-span-2">
                                     <label className="text-sm font-medium text-gray-300">व्यवसाय (Profession)</label>
-                                    <select className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" required>
+                                    <select value={formData.profession} onChange={(e) => handleInputChange('profession', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500" required>
                                         <option value="">चुनें...</option>
                                         <option value="desk">डेस्क जॉब (Sitting mostly)</option>
                                         <option value="active">भाग-दौड़ वाला काम (Active/Standing)</option>
@@ -178,15 +329,15 @@ const ScientificAdmissionForm: React.FC = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">वजन (kg)</label>
-                                    <input type="number" step="0.1" className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-cyan-500" placeholder="e.g. 75.5" required />
+                                    <input type="number" step="0.1" value={formData.weight} onChange={(e) => handleInputChange('weight', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-cyan-500" placeholder="e.g. 75.5" required />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">लंबाई (cm)</label>
-                                    <input type="number" className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-cyan-500" placeholder="e.g. 175" required />
+                                    <input type="number" value={formData.height} onChange={(e) => handleInputChange('height', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-cyan-500" placeholder="e.g. 175" required />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">ब्लड ग्रुप</label>
-                                    <select className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-cyan-500">
+                                    <select value={formData.bloodGroup} onChange={(e) => handleInputChange('bloodGroup', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-cyan-500">
                                         <option value="">चुनें (Optional)...</option>
                                         <option value="A+">A+</option><option value="A-">A-</option>
                                         <option value="B+">B+</option><option value="B-">B-</option>
@@ -196,7 +347,7 @@ const ScientificAdmissionForm: React.FC = () => {
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">बॉडी फैट प्रतिशत (अनुमानित)</label>
-                                    <input type="number" className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-cyan-500" placeholder="e.g. 15" />
+                                    <input type="number" value={formData.bodyFat} onChange={(e) => handleInputChange('bodyFat', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-cyan-500" placeholder="e.g. 15" />
                                 </div>
                                 <div className="space-y-2 md:col-span-2">
                                     <label className="text-sm font-medium text-gray-300">AI Visual Analysis के लिए फोटो (Optional)</label>
@@ -221,14 +372,14 @@ const ScientificAdmissionForm: React.FC = () => {
                                 <div className="space-y-3">
                                     <label className="text-sm font-medium text-gray-300">पुरानी चोटें (Injuries)</label>
                                     <p className="text-xs text-gray-500">क्या आपको घुटने, पीठ या कंधों में कोई पुरानी चोट है?</p>
-                                    <textarea className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-rose-500 min-h-[100px]" placeholder="यदि कोई चोट है तो यहाँ विवरण दें..."></textarea>
+                                    <textarea value={formData.injuries} onChange={(e) => handleInputChange('injuries', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-rose-500 min-h-[100px]" placeholder="यदि कोई चोट है तो यहाँ विवरण दें..."></textarea>
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-sm font-medium text-gray-300">मेडिकल कंडीशंस</label>
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                         {['थायराइड', 'डायबिटीज', 'PCOD/PCOS', 'ब्लड प्रेशर', 'अस्थमा', 'हृदय रोग', 'कोई नहीं'].map(condition => (
                                             <label key={condition} className="flex items-center gap-2 p-3 border border-gray-700 rounded-lg cursor-pointer hover:bg-gray-800/50">
-                                                <input type="checkbox" className="rounded border-gray-600 text-rose-500 focus:ring-rose-500 bg-gray-900" />
+                                                <input type="checkbox" checked={formData.conditions.includes(condition)} onChange={() => handleConditionToggle(condition)} className="rounded border-gray-600 text-rose-500 focus:ring-rose-500 bg-gray-900" />
                                                 <span className="text-sm text-gray-300">{condition}</span>
                                             </label>
                                         ))}
@@ -236,7 +387,7 @@ const ScientificAdmissionForm: React.FC = () => {
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-sm font-medium text-gray-300">एलर्जी (Allergies)</label>
-                                    <input type="text" className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-rose-500" placeholder="जैसे: दूध (Lactose), मूंगफली, ग्लूटेन..." />
+                                    <input type="text" value={formData.allergies} onChange={(e) => handleInputChange('allergies', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-rose-500" placeholder="जैसे: दूध (Lactose), मूंगफली, ग्लूटेन..." />
                                 </div>
                             </div>
                         </div>
@@ -252,7 +403,7 @@ const ScientificAdmissionForm: React.FC = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">डाइट का प्रकार</label>
-                                    <select className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-amber-500" required>
+                                    <select value={formData.dietType} onChange={(e) => handleInputChange('dietType', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-amber-500" required>
                                         <option value="">चुनें...</option>
                                         <option value="veg">शाकाहारी (Vegetarian)</option>
                                         <option value="nonveg">मांसाहारी (Non-Vegetarian)</option>
@@ -262,7 +413,7 @@ const ScientificAdmissionForm: React.FC = () => {
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">पानी का सेवन (प्रतिदिन)</label>
-                                    <select className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-amber-500" required>
+                                    <select value={formData.waterIntake} onChange={(e) => handleInputChange('waterIntake', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-amber-500" required>
                                         <option value="">चुनें...</option>
                                         <option value="low">1-2 लीटर</option>
                                         <option value="medium">2-3 लीटर</option>
@@ -272,7 +423,7 @@ const ScientificAdmissionForm: React.FC = () => {
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">भोजन की आवृत्ति</label>
-                                    <select className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-amber-500" required>
+                                    <select value={formData.mealFrequency} onChange={(e) => handleInputChange('mealFrequency', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-amber-500" required>
                                         <option value="">आप दिन में कितनी बार खाते हैं?</option>
                                         <option value="2">2 बार</option>
                                         <option value="3">3 बार</option>
@@ -282,12 +433,12 @@ const ScientificAdmissionForm: React.FC = () => {
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">सोने का समय</label>
-                                    <input type="time" className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-amber-500" required />
+                                    <input type="time" value={formData.sleepTime} onChange={(e) => handleInputChange('sleepTime', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-amber-500" required />
                                     <p className="text-xs text-gray-500 mt-1">यह 'Chronos Mirror' बोट के लिए जरूरी है।</p>
                                 </div>
                                 <div className="space-y-2 md:col-span-2">
                                     <label className="text-sm font-medium text-gray-300">सप्लीमेंट का इतिहास</label>
-                                    <input type="text" className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-amber-500" placeholder="क्या आप पहले से कोई प्रोटीन या मल्टीविटामिन ले रहे हैं?" />
+                                    <input type="text" value={formData.supplements} onChange={(e) => handleInputChange('supplements', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-amber-500" placeholder="क्या आप पहले से कोई प्रोटीन या मल्टीविटामिन ले रहे हैं?" />
                                 </div>
                             </div>
                         </div>
@@ -310,8 +461,8 @@ const ScientificAdmissionForm: React.FC = () => {
                                             { id: 'st', label: 'स्ट्रेंथ ट्रेनिंग', desc: 'Strength' },
                                             { id: 'gf', label: 'सामान्य फिटनेस', desc: 'General Fitness' }
                                         ].map(goal => (
-                                            <label key={goal.id} className="flex flex-col p-4 border border-gray-700 rounded-xl cursor-pointer hover:bg-gray-800/50 focus-within:border-green-500 focus-within:ring-1 focus-within:ring-green-500">
-                                                <input type="radio" name="primaryGoal" className="sr-only" required />
+                                            <label key={goal.id} className={`flex flex-col p-4 border rounded-xl cursor-pointer transition-colors ${formData.primaryGoal === goal.id ? 'border-green-500 bg-green-500/10' : 'border-gray-700 hover:bg-gray-800/50'}`}>
+                                                <input type="radio" name="primaryGoal" value={goal.id} checked={formData.primaryGoal === goal.id} onChange={(e) => handleInputChange('primaryGoal', e.target.value)} className="sr-only" required />
                                                 <span className="font-medium text-gray-200">{goal.label}</span>
                                                 <span className="text-xs text-gray-500 mt-1">{goal.desc}</span>
                                             </label>
@@ -320,7 +471,7 @@ const ScientificAdmissionForm: React.FC = () => {
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">अनुभव का स्तर</label>
-                                    <select className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-green-500" required>
+                                    <select value={formData.experienceLevel} onChange={(e) => handleInputChange('experienceLevel', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-green-500" required>
                                         <option value="">चुनें...</option>
                                         <option value="beginner">बिगनर (Beginner)</option>
                                         <option value="intermediate">इंटरमीडिएट (Intermediate)</option>
@@ -329,7 +480,7 @@ const ScientificAdmissionForm: React.FC = () => {
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">समय की प्रतिबद्धता</label>
-                                    <select className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-green-500" required>
+                                    <select value={formData.timeCommitment} onChange={(e) => handleInputChange('timeCommitment', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-green-500" required>
                                         <option value="">सप्ताह में कितने दिन?</option>
                                         <option value="3">3 दिन / सप्ताह</option>
                                         <option value="4">4 दिन / सप्ताह</option>
@@ -352,9 +503,9 @@ const ScientificAdmissionForm: React.FC = () => {
                                 <div className="space-y-3">
                                     <label className="text-sm font-medium text-gray-300 flex justify-between">
                                         <span>तनाव का स्तर (Stress Level)</span>
-                                        <span className="text-purple-400">1 से 10 के पैमाने पर</span>
+                                        <span className="text-purple-400">1 से 10 के पैमाने पर: {formData.stressLevel}</span>
                                     </label>
-                                    <input type="range" min="1" max="10" defaultValue="5" className="w-full accent-purple-500" />
+                                    <input type="range" min="1" max="10" value={formData.stressLevel} onChange={(e) => handleInputChange('stressLevel', e.target.value)} className="w-full accent-purple-500" />
                                     <div className="flex justify-between text-xs text-gray-500">
                                         <span>बिल्कुल नहीं (1)</span>
                                         <span>सामान्य (5)</span>
@@ -364,7 +515,7 @@ const ScientificAdmissionForm: React.FC = () => {
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">नींद की गुणवत्ता</label>
-                                    <select className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-purple-500" required>
+                                    <select value={formData.sleepQuality} onChange={(e) => handleInputChange('sleepQuality', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-purple-500" required>
                                         <option value="">आप रोजाना कितने घंटे गहरी नींद लेते हैं?</option>
                                         <option value="<5">5 घंटे से कम</option>
                                         <option value="5-6">5-6 घंटे</option>
@@ -374,12 +525,78 @@ const ScientificAdmissionForm: React.FC = () => {
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">मेटाबॉलिक रेट फैक्टर्स</label>
-                                    <select className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-purple-500" required>
+                                    <select value={formData.metabolicRate} onChange={(e) => handleInputChange('metabolicRate', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-purple-500" required>
                                         <option value="">पसीना आने की प्रवृत्ति</option>
                                         <option value="high">बहुत जल्दी पसीना आता है</option>
                                         <option value="normal">सामान्य</option>
                                         <option value="low">बहुत कम पसीना आता है</option>
                                     </select>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Step 7: Payment & Package */}
+                    {currentStep === 7 && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                            <h2 className="text-xl font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
+                                <Wallet className="w-5 h-5 text-amber-500" />
+                                भाग 7: पैकेज और भुगतान (Payment)
+                            </h2>
+                            <div className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-300">जिम पैकेज चुनें</label>
+                                    <select value={formData.packageId} onChange={(e) => handleInputChange('packageId', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-amber-500" required>
+                                        <option value="">-- Select Package --</option>
+                                        {packages.map(p => (
+                                            <option key={p.id} value={p.id}>{p.name} - ₹{p.price}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {selectedPkg && (
+                                    <div className="bg-gray-900/50 p-4 rounded-xl border border-white/5 space-y-2">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-sm text-gray-400">Total Amount</span>
+                                            <span className="text-xl font-bold text-white">₹{totalAmount}</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-300">Payment Options (भुगतान विकल्प)</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {(['UPI', 'Cash', 'Card (NFC)'] as const).map(method => (
+                                            <button 
+                                                type="button" 
+                                                key={method} 
+                                                onClick={() => handleInputChange('paymentMethod', method)} 
+                                                className={`p-4 flex flex-col items-center justify-center gap-2 rounded-xl border transition-all ${formData.paymentMethod === method ? 'bg-white text-black border-white' : 'bg-gray-800/50 border-gray-700 text-gray-400 hover:border-gray-500'}`}
+                                            >
+                                                {method === 'UPI' ? <Fingerprint className="w-5 h-5"/> : method === 'Card (NFC)' ? <Nfc className="w-5 h-5"/> : <Wallet className="w-5 h-5"/>}
+                                                <span className="text-xs font-bold uppercase">{method}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {formData.paymentMethod === 'UPI' && (
+                                    <div className="bg-black/40 p-4 rounded-xl border border-white/5 flex flex-col items-center justify-center text-center">
+                                        <p className="text-xs font-bold uppercase tracking-widest text-green-400 mb-3 bg-green-500/10 px-3 py-1 rounded-full inline-block">Royal Official UPI</p>
+                                        <div className="bg-white p-2 rounded-xl shadow-lg border-4 border-white mb-4">
+                                            <img 
+                                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=${GYM_INFO.upiIds.gpay1}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${totalAmount}&cu=INR`}
+                                                alt="UPI QR" 
+                                                className="w-32 h-32 object-contain mix-blend-multiply" 
+                                            />
+                                        </div>
+                                        <p className="text-xs text-gray-400 font-mono">Primary: <span className="text-white font-bold">{GYM_INFO.upiIds.gpay1}</span></p>
+                                    </div>
+                                )}
+
+                                <div className="flex items-center bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 cursor-pointer" onClick={() => handleInputChange('isPaid', !formData.isPaid)}>
+                                    <input type="checkbox" checked={formData.isPaid} onChange={(e) => handleInputChange('isPaid', e.target.checked)} className="w-5 h-5 accent-amber-500 rounded cursor-pointer"/>
+                                    <label className="ml-3 text-sm font-medium text-gray-300 cursor-pointer select-none">Mark as Paid (भुगतान हो गया)</label>
                                 </div>
                             </div>
                         </div>
@@ -401,7 +618,7 @@ const ScientificAdmissionForm: React.FC = () => {
                             पिछला
                         </button>
 
-                        {currentStep < 6 ? (
+                        {currentStep < 7 ? (
                             <button
                                 type="button"
                                 onClick={handleNext}
@@ -413,18 +630,18 @@ const ScientificAdmissionForm: React.FC = () => {
                         ) : (
                             <button
                                 type="submit"
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || !formData.packageId}
                                 className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-lg font-medium transition-all shadow-lg shadow-indigo-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {isSubmitting ? (
                                     <>
                                         <RefreshCw className="w-5 h-5 animate-spin" />
-                                        Analyzing Data...
+                                        Processing...
                                     </>
                                 ) : (
                                     <>
                                         <Sparkles className="w-5 h-5" />
-                                        Submit to Neural OS
+                                        Complete Admission
                                     </>
                                 )}
                             </button>

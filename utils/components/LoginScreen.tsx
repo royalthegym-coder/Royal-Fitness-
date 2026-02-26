@@ -36,7 +36,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         setIsAuthenticating(true);
 
         setTimeout(() => {
-            const member = members.find(m => m.email === email && m.phone === phone);
+            // Trim inputs to avoid whitespace issues
+            const trimmedEmail = email.trim().toLowerCase();
+            const trimmedPhone = phone.trim();
+
+            const member = members.find(m => 
+                (m.email && m.email.toLowerCase() === trimmedEmail) || 
+                (m.phone && m.phone === trimmedPhone)
+            );
+            
             if (member) {
                 // Register device
                 localStorage.setItem('registered_device_member_id', member.id.toString());
