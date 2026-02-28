@@ -30,7 +30,7 @@ type ScanStatus = 'idle' | 'scanning' | 'found' | 'error' | 'unsupported';
 type View = 'calendar' | 'scanner';
 
 const AutoAttendance: React.FC<{ memberId: number }> = ({ memberId }) => {
-    const { addAuditLog } = useData();
+    const { addAuditLog, attendanceRecords, markAttendance } = useData();
     const { addToast } = useToast();
     
     // Core State
@@ -45,12 +45,16 @@ const AutoAttendance: React.FC<{ memberId: number }> = ({ memberId }) => {
     
     // Calendar State
     const [currentDate, setCurrentDate] = useState(new Date());
-    // Mock History Data for Heatmap
-    const [checkInHistory, setCheckInHistory] = useState<Set<string>>(new Set([
-        new Date().toISOString().split('T')[0], // Today (if checked in)
-        '2024-08-01', '2024-08-02', '2024-08-04', '2024-08-05', 
-        '2024-08-07', '2024-08-08', '2024-08-09'
-    ]));
+    
+    const checkInHistory = useMemo(() => {
+        const history = new Set<string>();
+        attendanceRecords.forEach(r => {
+            if (r.memberId === memberId && r.status === 'Present') {
+                history.add(r.date);
+            }
+        });
+        return history;
+    }, [attendanceRecords, memberId]);
 
     // --- ANIMATION LOOP ---
     useEffect(() => {
@@ -68,11 +72,19 @@ const AutoAttendance: React.FC<{ memberId: number }> = ({ memberId }) => {
         setLogs(prev => [`[${timestamp}] ${message}`, ...prev].slice(0, 8));
     };
     
-    const handleCheckInSuccess = (method: CheckInMethod) => {
+    const handleCheckInSuccess = useCallback((method: CheckInMethod) => {
         setIsCheckedIn(true);
         setCheckInMethod(method);
         const todayStr = new Date().toISOString().split('T')[0];
-        setCheckInHistory(prev => new Set(prev).add(todayStr));
+        
+        markAttendance({
+            id: `ATT_${Date.now()}_${memberId}`,
+            memberId,
+            date: todayStr,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            status: 'Present',
+            method: method === 'gps' || method === 'wifi' || method === 'ble' ? 'Auto' : 'Manual'
+        });
         
         addAuditLog({
             member_id: memberId,
@@ -83,7 +95,7 @@ const AutoAttendance: React.FC<{ memberId: number }> = ({ memberId }) => {
         addToast("Presence Verified. Welcome to the Arena.", "success");
         setView('calendar'); // Close scanner after success? Or show success screen? 
         // Better: Show success screen.
-    };
+    }, [memberId, markAttendance, addAuditLog, addToast]);
 
     const startSmartScan = useCallback(async () => {
         setLogs(['Initializing Secure Handshake...']);

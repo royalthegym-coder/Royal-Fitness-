@@ -5,12 +5,14 @@ import {
     Transaction, HealthData, WorkoutTemplate, 
     DailyRoutineLog, AIRecommendation, MedicalReport,
     SocialPost, SocialReview, MedicalConsultation,
-    InventoryItem, GymMachine, DetailedWorkoutSession, OFSLog
+    InventoryItem, GymMachine, DetailedWorkoutSession, OFSLog,
+    AttendanceRecord
 } from '../../types';
 import { 
     INITIAL_MEMBERS, INITIAL_PACKAGES, INITIAL_INVOICES, 
     INITIAL_TRANSACTIONS, INITIAL_STAFF, INITIAL_EXPENSES, 
-    INITIAL_LEADS, INITIAL_HEALTH_DATA, INITIAL_WORKOUT_TEMPLATES 
+    INITIAL_LEADS, INITIAL_HEALTH_DATA, INITIAL_WORKOUT_TEMPLATES,
+    INITIAL_INVENTORY
 } from '../../constants';
 import { sendWhatsAppWelcomeMessage, sendPaymentRequest, sendPaymentReceipt } from '../../lib/whatsapp';
 
@@ -120,21 +122,15 @@ interface DataContextType {
 
     // Automation State
     automationEvents: string[];
+
+    attendanceRecords: AttendanceRecord[];
+    markAttendance: (record: AttendanceRecord) => void;
+    deleteAttendance: (id: string) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
-// Initial Inventory Mock Data
-const INITIAL_INVENTORY: InventoryItem[] = [
-    { id: 'inv_1', name: 'Whey Protein (Gold)', category: 'Supplement', stock: 25, price: 6500, threshold: 10, maxCapacity: 50, status: 'In Stock' },
-    { id: 'inv_2', name: 'Creatine Monohydrate', category: 'Supplement', stock: 15, price: 1200, threshold: 8, maxCapacity: 30, status: 'In Stock' },
-    { id: 'inv_3', name: 'Pre-Workout (Ignite)', category: 'Supplement', stock: 10, price: 2500, threshold: 5, maxCapacity: 20, status: 'In Stock' },
-    { id: 'inv_4', name: 'Royal Lifting Belt', category: 'Accessory', stock: 5, price: 1800, threshold: 3, maxCapacity: 10, status: 'Low Stock' },
-    { id: 'inv_5', name: 'Gym Shaker Bottle', category: 'Accessory', stock: 40, price: 350, threshold: 15, maxCapacity: 100, status: 'In Stock' },
-    { id: 'inv_6', name: 'Wrist Wraps', category: 'Accessory', stock: 12, price: 450, threshold: 5, maxCapacity: 20, status: 'In Stock' },
-    { id: 'inv_7', name: 'Royal T-Shirt', category: 'Apparel', stock: 20, price: 900, threshold: 8, maxCapacity: 50, status: 'In Stock' },
-    { id: 'inv_8', name: 'BCAA (Watermelon)', category: 'Supplement', stock: 8, price: 2200, threshold: 4, maxCapacity: 20, status: 'In Stock' },
-];
+// Initial Inventory is now imported from constants.ts
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     // --- STATE INITIALIZATION ---
@@ -145,6 +141,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return saved ? JSON.parse(saved) : fallback;
     };
 
+    // --- ONE-TIME SYSTEM RESET ---
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const hasReset = localStorage.getItem('has_reset_v32_final');
+            if (!hasReset) {
+                console.log("Performing full system reset for final launch...");
+                const keysToRemove = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('royal_')) {
+                        keysToRemove.push(key);
+                    }
+                }
+                keysToRemove.forEach(key => localStorage.removeItem(key));
+                localStorage.setItem('has_reset_v32_final', 'true');
+                window.location.reload();
+            }
+        }
+    }, []);
+
     const [members, setMembers] = useState<Member[]>(() => loadState('royal_members', INITIAL_MEMBERS));
     const [packages, setPackages] = useState<Package[]>(() => loadState('royal_packages', INITIAL_PACKAGES));
     const [invoices, setInvoices] = useState<Invoice[]>(() => loadState('royal_invoices', INITIAL_INVOICES));
@@ -154,6 +170,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [leads, setLeads] = useState<Lead[]>(() => loadState('royal_leads', INITIAL_LEADS));
     const [inventory, setInventory] = useState<InventoryItem[]>(() => loadState('royal_inventory', INITIAL_INVENTORY));
     const [workoutTemplates, setWorkoutTemplates] = useState<WorkoutTemplate[]>(() => loadState('royal_workout_templates', INITIAL_WORKOUT_TEMPLATES));
+    const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() => loadState('royal_attendance', []));
     
     // Non-persisted or less critical states
     const [dailyRoutineLogs, setDailyRoutineLogs] = useState<DailyRoutineLog[]>([]);
@@ -175,8 +192,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // --- SYSTEM CORE STATES ---
     const [systemHealth, setSystemHealth] = useState(100);
     const [isSyncing, setIsSyncing] = useState(false);
-    const [evolutionLevel, setEvolutionLevel] = useState(31.0);
-    const [systemVersion, setSystemVersion] = useState("v31.0 SINGULARITY");
+    const [evolutionLevel, setEvolutionLevel] = useState(1.0);
+    const [systemVersion, setSystemVersion] = useState("v1.0 STABLE ORIGIN");
 
     const [aiProvider, setAiProvider] = useState(localStorage.getItem('royal_ai_provider') || 'HUGGINGFACE');
 
@@ -190,6 +207,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     useEffect(() => { localStorage.setItem('royal_leads', JSON.stringify(leads)); }, [leads]);
     useEffect(() => { localStorage.setItem('royal_inventory', JSON.stringify(inventory)); }, [inventory]);
     useEffect(() => { localStorage.setItem('royal_workout_templates', JSON.stringify(workoutTemplates)); }, [workoutTemplates]);
+    useEffect(() => { localStorage.setItem('royal_attendance', JSON.stringify(attendanceRecords)); }, [attendanceRecords]);
 
     useEffect(() => {
         const handleStorage = () => setAiProvider(localStorage.getItem('royal_ai_provider') || 'HUGGINGFACE');
@@ -203,6 +221,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const addAuditLog = (log: any) => setAuditLogs(prev => [{...log, timestamp: new Date().toISOString()}, ...prev].slice(0, 100));
+
+    // --- ATTENDANCE ACTIONS ---
+    const markAttendance = (record: AttendanceRecord) => {
+        setAttendanceRecords(prev => {
+            const existing = prev.find(r => r.memberId === record.memberId && r.date === record.date);
+            if (existing) {
+                return prev.map(r => r.id === existing.id ? record : r);
+            }
+            return [record, ...prev];
+        });
+        logEvent(`Attendance marked for Member ID ${record.memberId} (${record.status}).`);
+    };
+
+    const deleteAttendance = (id: string) => {
+        setAttendanceRecords(prev => prev.filter(r => r.id !== id));
+    };
 
     // --- ACTIONS WITH AUTOMATION ---
 
@@ -355,13 +389,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const activeMemberCount = members.filter(m => m.status === 'Active').length;
     const totalRevenue = transactions.reduce((acc, t) => acc + t.amount, 0);
 
-    const triggerSystemUpdate = () => {
+    const triggerSystemUpdate = (targetVersion?: string) => {
         setIsSyncing(true);
         setTimeout(() => {
-            setSystemVersion(prev => {
-                const currentVer = parseFloat(prev.replace('v', '').split(' ')[0]);
-                return `v${(currentVer + 0.1).toFixed(1)} SINGULARITY`;
-            });
+            if (targetVersion) {
+                setSystemVersion(`${targetVersion} SINGULARITY`);
+            } else {
+                setSystemVersion(prev => {
+                    const currentVer = parseFloat(prev.replace('v', '').split(' ')[0]);
+                    return `v${(currentVer + 0.1).toFixed(1)} SINGULARITY`;
+                });
+            }
             setEvolutionLevel(prev => prev + 0.1);
             setIsSyncing(false);
         }, 3000);
@@ -403,7 +441,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         ofsLogs,
         activeMemberCount, totalRevenue,
         automationEvents,
-        workoutTemplates, addWorkoutTemplate, updateWorkoutTemplate
+        workoutTemplates, addWorkoutTemplate, updateWorkoutTemplate,
+        attendanceRecords, markAttendance, deleteAttendance
     };
 
     return (

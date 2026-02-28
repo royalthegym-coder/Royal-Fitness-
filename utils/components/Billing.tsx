@@ -410,9 +410,22 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
 
                                 <div className="flex gap-3 relative z-10">
                                     {inv.status !== 'Paid' && inv.status !== 'Verification Pending' && (
-                                        <button onClick={() => handleOpenPayment(inv)} className="flex-1 py-4 bg-white text-black font-black uppercase text-[10px] tracking-widest rounded-2xl hover:bg-green-400 transition-all shadow-lg">
-                                            Accept Payment
-                                        </button>
+                                        <>
+                                            <button onClick={() => handleOpenPayment(inv)} className="flex-1 py-4 bg-white text-black font-black uppercase text-[10px] tracking-widest rounded-2xl hover:bg-green-400 transition-all shadow-lg">
+                                                Accept Payment
+                                            </button>
+                                            <button onClick={() => {
+                                                const member = members.find(m => m.id === inv.memberId);
+                                                if (member && member.phone) {
+                                                    const msg = `URGENT: Dear ${member.name}, your payment of Rs.${inv.amount} for invoice #${inv.id} is ${inv.status}. Please pay immediately to avoid service interruption. - Royal The Gym`;
+                                                    window.open(`https://wa.me/${member.phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+                                                } else {
+                                                    addToast("Member phone number not found.", "error");
+                                                }
+                                            }} className="flex-1 py-4 bg-amber-500 text-black font-black uppercase text-[10px] tracking-widest rounded-2xl hover:bg-amber-400 transition-all shadow-lg flex items-center justify-center gap-2">
+                                                <Send className="w-4 h-4" /> Reminder
+                                            </button>
+                                        </>
                                     )}
                                     {inv.status === 'Verification Pending' && (
                                         <button onClick={() => setActiveTab('Approvals')} className="flex-1 py-4 bg-blue-600 text-white font-black uppercase text-[10px] tracking-widest rounded-2xl hover:bg-blue-500 transition-all shadow-lg">

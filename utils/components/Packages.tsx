@@ -401,7 +401,15 @@ const PackageFormModal: React.FC<{
                     <div>
                         <label className={labelClass}>Core category</label>
                         <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className={inputClass}>
-                            <option>Strength</option><option>Cardio</option><option>Aerobics</option><option>Personal Training</option>
+                            <option>Strength</option>
+                            <option>Cardio</option>
+                            <option>Aerobics</option>
+                            <option>Personal Training</option>
+                            <option>PT: Weight Loss</option>
+                            <option>PT: Muscle Gain</option>
+                            <option>PT: Bodybuilding</option>
+                            <option>PT: Powerlifting</option>
+                            <option>PT: General Fitness</option>
                         </select>
                     </div>
                     <div>

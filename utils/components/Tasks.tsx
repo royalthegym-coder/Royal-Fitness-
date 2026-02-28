@@ -6,7 +6,8 @@ import {
     Plus, Trash2, Edit3, 
     Calendar, CheckCircle2, Clock, 
     Zap, Database, ShieldAlert, Search, Check,
-    BrainCircuit, Sparkles, RefreshCw, Cpu, Filter
+    BrainCircuit, Sparkles, RefreshCw, Cpu, Filter,
+    Link as LinkIcon, Lock
 } from 'lucide-react';
 import TaskFormModal from './TaskFormModal';
 import ConfirmationDialog from './common/ConfirmationDialog';
@@ -65,6 +66,21 @@ const Tasks: React.FC = () => {
             // Instantly un-complete without confirmation
             setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: false } : t));
         } else {
+            // Check dependencies
+            const unmetDependencies = (task.dependencies || []).filter(depId => {
+                const depTask = tasks.find(t => t.id === depId);
+                return depTask && !depTask.completed;
+            });
+
+            if (unmetDependencies.length > 0) {
+                const depTitles = unmetDependencies.map(depId => {
+                    const depTask = tasks.find(t => t.id === depId);
+                    return depTask?.title || 'Unknown Task';
+                }).join(', ');
+                addToast(`Dependency Block: Complete prerequisites first: ${depTitles}`, "error");
+                return;
+            }
+
             // Show confirmation before completing
             setTaskToComplete(task);
         }
@@ -236,6 +252,12 @@ const Tasks: React.FC = () => {
                                 const config = getPriorityConfig(task.priority);
                                 const isOverdue = !task.completed && new Date(task.dueDate) < new Date(new Date().setHours(0,0,0,0));
                                 
+                                const unmetDependencies = (task.dependencies || []).filter(depId => {
+                                    const depTask = tasks.find(t => t.id === depId);
+                                    return depTask && !depTask.completed;
+                                });
+                                const hasUnmetDeps = unmetDependencies.length > 0;
+                                
                                 return (
                                     <div 
                                         key={task.id}
@@ -244,6 +266,8 @@ const Tasks: React.FC = () => {
                                             ? 'bg-gray-900/20 border-white/5 opacity-50 scale-95 blur-[1px] hover:blur-0 hover:opacity-100 hover:scale-100' 
                                             : isOverdue 
                                             ? 'bg-red-950/10 border-red-500/50 shadow-[0_0_30px_rgba(220,38,38,0.2)]' 
+                                            : hasUnmetDeps
+                                            ? 'bg-gray-900/40 border-amber-500/20'
                                             : 'bg-[#0a0a0a] border-white/5 hover:border-amber-500/30'
                                         }`}
                                     >
@@ -257,11 +281,15 @@ const Tasks: React.FC = () => {
                                                 className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center transition-all duration-300 group/btn relative overflow-hidden ${
                                                     task.completed 
                                                     ? 'bg-green-500 border-green-400 shadow-[0_0_30px_#22c55e]' 
+                                                    : hasUnmetDeps
+                                                    ? 'bg-gray-800 border-white/5 cursor-not-allowed'
                                                     : 'bg-gray-900 border-white/10 hover:border-amber-500/50'
                                                 }`}
                                             >
                                                 {task.completed ? (
                                                     <Check className="w-6 h-6 text-black animate-stroke" strokeWidth={4} />
+                                                ) : hasUnmetDeps ? (
+                                                    <Lock className="w-5 h-5 text-gray-600" />
                                                 ) : (
                                                     <div className="w-3 h-3 rounded-full bg-white/10 group-hover/btn:bg-amber-500 group-hover/btn:scale-150 transition-all"></div>
                                                 )}
@@ -275,6 +303,12 @@ const Tasks: React.FC = () => {
                                                     <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${config.bg} ${config.color} ${config.border}`}>
                                                         {task.priority}
                                                     </span>
+                                                    {hasUnmetDeps && (
+                                                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 rounded text-amber-500 text-[8px] font-black uppercase tracking-widest">
+                                                            <LinkIcon className="w-2.5 h-2.5" />
+                                                            Locked
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-6 text-gray-500">
                                                      <div className={`flex items-center gap-2 text-[10px] font-mono ${isOverdue ? 'text-red-500 font-bold animate-pulse' : ''}`}>
@@ -283,6 +317,18 @@ const Tasks: React.FC = () => {
                                                      </div>
                                                      {task.description && <p className="text-[10px] uppercase tracking-widest italic opacity-70 truncate max-w-xs">{task.description}</p>}
                                                 </div>
+                                                {hasUnmetDeps && (
+                                                    <div className="mt-2 flex flex-wrap gap-2">
+                                                        {unmetDependencies.map(depId => {
+                                                            const depTask = tasks.find(t => t.id === depId);
+                                                            return (
+                                                                <span key={depId} className="text-[8px] font-bold text-gray-600 uppercase tracking-tighter bg-black/40 px-2 py-0.5 rounded border border-white/5">
+                                                                    Prereq: {depTask?.title || 'Unknown'}
+                                                                </span>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 
@@ -394,6 +440,7 @@ const Tasks: React.FC = () => {
                     onClose={() => setIsFormOpen(false)} 
                     onSave={handleSave} 
                     task={selectedTask}
+                    allTasks={tasks}
                     onDelete={selectedTask ? () => {
                         setIsFormOpen(false);
                         setTasks(prev => prev.filter(t => t.id !== selectedTask.id));

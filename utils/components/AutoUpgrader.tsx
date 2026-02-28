@@ -44,6 +44,8 @@ const AutoUpgrader: React.FC = () => {
     const [isEvolving, setIsEvolving] = useState(false);
     const [evolutionProgress, setEvolutionProgress] = useState(0);
     const [currentDownload, setCurrentDownload] = useState<string | null>(null);
+    const [selectedVersion, setSelectedVersion] = useState<string>('');
+    const availableVersions = ["v1.1", "v1.2", "v2.0", "v3.0", "v3.1", "v3.2", "v4.0", "v5.0"];
 
     // Derived progress for download simulation (First 25% of evolution)
     const downloadProgress = Math.min(100, evolutionProgress * 4);
@@ -190,7 +192,7 @@ const AutoUpgrader: React.FC = () => {
         addLog(`Evolution Complete. Stabilizing System...`, "success");
         
         // --- REAL SYSTEM UPDATE TRIGGER ---
-        triggerSystemUpdate();
+        triggerSystemUpdate(selectedVersion || undefined);
         
         addToast("Singularity Self-Evolve Successful. Version Incremented.", "success");
     };
@@ -250,14 +252,27 @@ const AutoUpgrader: React.FC = () => {
                                             {workflow ? `Targeting: ${workflow.optimizationGain}` : "No active mutations detected. Self-Healing active."}
                                         </p>
                                     </div>
-                                    <button 
-                                        onClick={handleForceEvolution}
-                                        disabled={isEvolving}
-                                        className="bg-blue-600 hover:bg-blue-500 text-white font-black px-6 py-3 rounded-xl uppercase tracking-widest text-[10px] shadow-lg flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
-                                    >
-                                        {isEvolving ? <RefreshCw className="animate-spin w-4 h-4"/> : <Zap className="w-4 h-4"/>}
-                                        {isEvolving ? 'EVOLVING...' : 'FORCE EVOLUTION'}
-                                    </button>
+                                    <div className="flex items-center gap-4">
+                                        <select 
+                                            value={selectedVersion}
+                                            onChange={(e) => setSelectedVersion(e.target.value)}
+                                            disabled={isEvolving}
+                                            className="bg-gray-900 border border-white/10 text-white text-[10px] font-mono rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition-all appearance-none cursor-pointer"
+                                        >
+                                            <option value="">Auto-Select Version</option>
+                                            {availableVersions.map(v => (
+                                                <option key={v} value={v}>{v}</option>
+                                            ))}
+                                        </select>
+                                        <button 
+                                            onClick={handleForceEvolution}
+                                            disabled={isEvolving}
+                                            className="bg-blue-600 hover:bg-blue-500 text-white font-black px-6 py-3 rounded-xl uppercase tracking-widest text-[10px] shadow-lg flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                                        >
+                                            {isEvolving ? <RefreshCw className="animate-spin w-4 h-4"/> : <Zap className="w-4 h-4"/>}
+                                            {isEvolving ? 'EVOLVING...' : 'FORCE EVOLUTION'}
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-4 relative">

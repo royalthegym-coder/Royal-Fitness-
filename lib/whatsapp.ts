@@ -3,8 +3,8 @@ import { Member } from '../types';
 import { GYM_INFO, INITIAL_MEMBERS, INITIAL_PACKAGES } from '../constants';
 
 // Credentials from environment variables or fallbacks
-const ENV_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_ID;
-const ENV_ACCESS_TOKEN = process.env.WHATSAPP_TOKEN;
+const ENV_PHONE_NUMBER_ID = import.meta.env.VITE_WHATSAPP_PHONE_ID;
+const ENV_ACCESS_TOKEN = import.meta.env.VITE_WHATSAPP_TOKEN;
 
 // Helper to get credentials dynamically (from LocalStorage or Env)
 const getWhatsAppCredentials = () => {
@@ -22,7 +22,7 @@ const getWhatsAppCredentials = () => {
     }
 
     // Fallback to Mock
-    return { token: 'mock_token', phoneId: '123456789', isMock: true };
+    return { token: 'mock_token', phoneId: '939889575884602', isMock: true };
 };
 
 interface WhatsAppMessageParams {
@@ -47,7 +47,7 @@ export async function sendWhatsAppMessage({
     const sanitizedNumber = mobileNumber.replace(/\D/g, '');
     const finalNumber = sanitizedNumber.length === 10 ? `91${sanitizedNumber}` : sanitizedNumber;
 
-    const url = `https://graph.facebook.com/v17.0/${phoneId}/messages`;
+    const url = `https://graph.facebook.com/v22.0/${phoneId}/messages`;
     
     // Check if we are in a mock environment
     if (isMock) {
@@ -57,21 +57,30 @@ export async function sendWhatsAppMessage({
     }
 
     try {
-        const payload = {
+        const payload: any = {
             messaging_product: "whatsapp",
             to: finalNumber,
             type: "template",
             template: {
                 name: templateName,
-                language: { code: languageCode },
-                components: [
-                    {
-                        type: "body",
-                        parameters: parameters
-                    }
-                ]
+                language: { code: languageCode }
             }
         };
+
+        if (parameters && parameters.length > 0) {
+            payload.template.components = [
+                {
+                    type: "body",
+                    parameters: parameters
+                }
+            ];
+        }
+
+        // If we don't have a real token/phoneId, don't try to fetch
+        if (token === 'mock_token' || !token || !phoneId) {
+            console.warn("WhatsApp API: Missing valid credentials. Simulating success.");
+            return true;
+        }
 
         const response = await fetch(url, {
             method: 'POST',
@@ -83,13 +92,14 @@ export async function sendWhatsAppMessage({
         });
 
         if (!response.ok) {
-            console.error("WhatsApp API Error:", await response.json());
+            console.error("WhatsApp API Error:", await response.json().catch(() => ({})));
             return false;
         }
         
         return true;
     } catch (error) {
         console.error("Network Error sending WhatsApp message:", error);
+        // Don't throw, just return false so the app doesn't crash
         return false;
     }
 }
@@ -288,6 +298,20 @@ export async function sendWhatsAppOTP(phone: string, otp: string): Promise<boole
     return sendWhatsAppMessage({
         mobileNumber,
         templateName: "secure_otp", languageCode: "en", parameters: [{ type: "text", text: otp }, { type: "text", text: "5 minutes" }]
+    });
+}
+
+/**
+ * 6. TEST BOT (NEW)
+ * Sends a hello_world template to verify API connectivity.
+ */
+export async function testWhatsAppConnection(phone: string): Promise<boolean> {
+    const mobileNumber = `91${phone.replace(/\D/g, '')}`;
+    return sendWhatsAppMessage({
+        mobileNumber,
+        templateName: "hello_world",
+        languageCode: "en_US",
+        parameters: []
     });
 }
 

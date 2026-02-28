@@ -8,9 +8,10 @@ export type View =
     | 'visualLaunch' | 'royalSingularity' | 'aetherOmni' | 'aetherReality' 
     | 'synapseIoT' | 'neuroSync' | 'autoupgrade' | 'selfrepair' 
     | 'neuralCore' | 'geminiHub' | 'autoProcurement' | 'quantumLedger' 
+    | 'automationHub'
     | 'security' | 'debugEngine' | 'performance' | 'tasks' | 'storkTeam'
     | 'payment' | 'leads' | 'aiFitnessTracker' | 'hormonalClock' | 'metabolicTracker' | 'neuroRecovery'
-    | 'socialManager'
+    | 'socialManager' | 'adminAttendance'
     // Member views
     | 'dailyProtocol' | 'attendance' | 'workout' | 'futureOFS' | 'neuralRep' | 'performanceLab'
     | 'health' | 'medicalHub' | 'biomarkerVault' | 'aetherCommunity' | 'wearables' | 'helpSupport'
@@ -86,6 +87,15 @@ export interface StructuredDietPlan {
     macrosTarget: { protein: number; carbs: number; fats: number };
     meals: { name: string; time: string; items: { food: string; portion: string }[]; totalCalories: number, macros: { protein: number; carbs: number; fats: number } }[];
     scienceNote?: string;
+}
+
+export interface AttendanceRecord {
+    id: string;
+    memberId: number;
+    date: string; // YYYY-MM-DD
+    time: string; // HH:MM AM/PM
+    status: 'Present' | 'Absent' | 'Late';
+    method: 'Manual' | 'QR' | 'Auto';
 }
 
 export interface Member {

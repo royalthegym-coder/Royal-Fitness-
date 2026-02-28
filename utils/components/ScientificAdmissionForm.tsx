@@ -1,21 +1,27 @@
 import React, { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import Card from './common/Card';
 import { 
     User, Activity, HeartPulse, Coffee, Target, Brain, 
-    ChevronRight, ChevronLeft, CheckCircle2, Sparkles, Upload, RefreshCw, Wallet, Fingerprint, Nfc
+    ChevronRight, ChevronLeft, CheckCircle2, Sparkles, Upload, RefreshCw, Wallet, Fingerprint, Nfc,
+    Dumbbell, ShoppingBag, Apple, Pill, Minus, Plus, ShieldCheck, Smartphone,
+    ExternalLink, Star, MessageCircle, Globe, Flame, Crown, Zap
 } from 'lucide-react';
 import { useData } from '../context/DataProvider';
 import { useToast } from '../hooks/useToast';
 import { GYM_INFO } from '../../constants';
 import { sendPaymentRequest, sendWhatsAppWelcomeMessage, sendPaymentReceipt } from '../../lib/whatsapp';
 import { Member, Invoice, Transaction } from '../../types';
+import { analyzeMemberPhoto, generatePersonalizedHealthVision } from '../../lib/gemini';
+import { triggerAutomation } from '../../lib/automation';
 
 const ScientificAdmissionForm: React.FC = () => {
-    const { members, packages, addMember, addInvoice, addTransaction } = useData();
+    const { members, packages, inventory, addMember, addInvoice, addTransaction, updateInventory } = useData();
     const { addToast } = useToast();
     const [currentStep, setCurrentStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [healthVision, setHealthVision] = useState<string>('');
 
     // Form State
     const [formData, setFormData] = useState({
@@ -30,6 +36,7 @@ const ScientificAdmissionForm: React.FC = () => {
         bloodGroup: '',
         bodyFat: '',
         avatar: '',
+        password: '', // Added
         injuries: '',
         conditions: [] as string[],
         allergies: '',
@@ -46,9 +53,83 @@ const ScientificAdmissionForm: React.FC = () => {
         metabolicRate: '',
         // Payment State
         packageId: '',
+        trainingPackageId: '',
+        includeRegFee: false,
+        cart: [] as { itemId: string; name: string; price: number; qty: number; type: string }[],
         paymentMethod: 'UPI' as 'UPI' | 'Cash' | 'Card (NFC)',
         isPaid: false
     });
+
+    const [trainingCategory, setTrainingCategory] = useState<string>('Personal Training');
+
+    const gymPackages = useMemo(() => {
+        return packages.filter(p => 
+            !p.category.toLowerCase().includes('personal') && 
+            !p.category.toLowerCase().includes('training') &&
+            !p.category.toLowerCase().includes('pt ') &&
+            p.category.toLowerCase() !== 'pt'
+        );
+    }, [packages]);
+
+    const ptPackages = useMemo(() => {
+        return packages.filter(p => 
+            p.category.toLowerCase().includes('personal') || 
+            p.category.toLowerCase().includes('training') ||
+            p.category.toLowerCase().includes('pt ') ||
+            p.category.toLowerCase() === 'pt'
+        );
+    }, [packages]);
+
+    const PT_CATEGORY_INFO: Record<string, { desc: string, icon: React.ReactNode }> = {
+        'PT: Weight Loss': { desc: 'वजन घटाने और फैट लॉस पर केंद्रित (Focus on Fat Loss & Weight Reduction) - ₹3000/Month', icon: <Flame className="w-4 h-4 text-orange-500" /> },
+        'PT: Muscle Gain': { desc: 'मांसपेशियों के निर्माण और स्ट्रेंथ पर केंद्रित (Focus on Muscle Building & Hypertrophy) - ₹5000/Month', icon: <Dumbbell className="w-4 h-4 text-blue-500" /> },
+        'PT: Bodybuilding': { desc: 'प्रतियोगिता स्तर की तैयारी और सिमिट्री (Competition Prep & Aesthetic Symmetry) - ₹8000/Month', icon: <Crown className="w-4 h-4 text-amber-500" /> },
+        'PT: Powerlifting': { desc: 'अधिकतम शक्ति और लिफ्टिंग तकनीक (Max Strength & Lifting Technique) - ₹5000/Month', icon: <Zap className="w-4 h-4 text-yellow-500" /> },
+        'PT: General Fitness': { desc: 'सामान्य स्वास्थ्य और गतिशीलता (Overall Health, Mobility & Longevity) - ₹3000/Month', icon: <HeartPulse className="w-4 h-4 text-rose-500" /> },
+        'Personal Training': { desc: 'अनुकूलित व्यक्तिगत प्रशिक्षण (Customized 1-on-1 Coaching)', icon: <User className="w-4 h-4 text-indigo-500" /> }
+    };
+
+    const uniqueTrainingCategories = useMemo(() => {
+        const categories = Array.from(new Set(ptPackages.map(p => p.category)));
+        return categories.length > 0 ? categories : ['Personal Training'];
+    }, [ptPackages]);
+
+    const availableTrainingPackages = useMemo(() => {
+        return ptPackages.filter(p => p.category === trainingCategory);
+    }, [ptPackages, trainingCategory]);
+
+    // Ensure trainingCategory is valid
+    React.useEffect(() => {
+        if (uniqueTrainingCategories.length > 0 && !uniqueTrainingCategories.includes(trainingCategory)) {
+            setTrainingCategory(uniqueTrainingCategories[0]);
+        }
+    }, [uniqueTrainingCategories, trainingCategory]);
+
+    const selectedPkg = packages.find(p => p.id === Number(formData.packageId));
+    const selectedPtPkg = packages.find(p => p.id === Number(formData.trainingPackageId));
+    
+    const pkgPrice = selectedPkg?.price || 0;
+    const ptPrice = selectedPtPkg?.price || 0;
+    const registrationFee = formData.includeRegFee ? 1000 : 0;
+    const cartTotal = formData.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    const totalAmount = pkgPrice + ptPrice + registrationFee + cartTotal;
+
+    const addToCart = (item: any) => {
+        setFormData(prev => {
+            const existing = prev.cart.find(i => i.itemId === item.id);
+            if (existing) {
+                return { ...prev, cart: prev.cart.map(i => i.itemId === item.id ? { ...i, qty: i.qty + 1 } : i) };
+            }
+            return { ...prev, cart: [...prev.cart, { itemId: item.id, name: item.name, price: item.price || 0, qty: 1, type: item.category }] };
+        });
+    };
+
+    const updateCartQty = (itemId: string, delta: number) => {
+        setFormData(prev => ({
+            ...prev,
+            cart: prev.cart.map(i => i.itemId === itemId ? { ...i, qty: Math.max(0, i.qty + delta) } : i).filter(i => i.qty > 0)
+        }));
+    };
 
     const steps = [
         { id: 1, title: 'मूल जानकारी', icon: <User className="w-5 h-5" /> },
@@ -59,9 +140,6 @@ const ScientificAdmissionForm: React.FC = () => {
         { id: 6, title: 'Neural OS डेटा', icon: <Brain className="w-5 h-5" /> },
         { id: 7, title: 'Payment', icon: <Wallet className="w-5 h-5" /> }
     ];
-
-    const selectedPkg = packages.find(p => p.id === Number(formData.packageId));
-    const totalAmount = selectedPkg?.price || 0;
 
     const handleNext = () => {
         if (currentStep < 7) setCurrentStep(currentStep + 1);
@@ -89,10 +167,29 @@ const ScientificAdmissionForm: React.FC = () => {
         });
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
         
+        let aiResults = { health_score: 85, bio_age: Number(formData.age) || 25, body_fat: Number(formData.bodyFat) || 20, body_type: 'Mesomorph', analysis_summary: 'Standard analysis.' };
+        
+        // Generate Health Vision in parallel with photo analysis if possible
+        const visionPromise = generatePersonalizedHealthVision(formData);
+
+        if (formData.avatar) {
+            try {
+                const results = await analyzeMemberPhoto(formData.avatar);
+                if (results && results.health_score) {
+                    aiResults = { ...aiResults, ...results };
+                }
+            } catch (err) {
+                console.error("AI Analysis failed, using defaults", err);
+            }
+        }
+
+        const generatedVision = await visionPromise;
+        setHealthVision(generatedVision);
+
         // Simulate AI Processing & Member Creation
         setTimeout(() => {
             const newId = Math.max(0, ...members.map(m => m.id)) + 1;
@@ -104,7 +201,9 @@ const ScientificAdmissionForm: React.FC = () => {
                 email: formData.email || `${formData.phone}@royal.gym`,
                 joinDate: new Date().toISOString().split('T')[0],
                 status: 'Active',
+                password: formData.password || 'royal123', // Default password
                 packageId: Number(formData.packageId),
+                trainingPackageId: formData.trainingPackageId ? Number(formData.trainingPackageId) : undefined,
                 avatar: formData.avatar || `https://i.pravatar.cc/150?u=${newId}`,
                 gender: formData.gender,
                 dob: '', // Calculate from age if needed
@@ -115,8 +214,8 @@ const ScientificAdmissionForm: React.FC = () => {
                 level: 1,
                 hrv: 0,
                 lbm: 0,
-                health_score: 85, // AI generated
-                bio_age: Number(formData.age) || 25,
+                health_score: aiResults.health_score,
+                bio_age: aiResults.bio_age,
                 assigned_tests: [],
                 automation_settings: { remind_12hrs_before: true, auto_renewal: false, ai_coaching: true, sync_id: '' },
                 rpeHistory: [],
@@ -126,10 +225,10 @@ const ScientificAdmissionForm: React.FC = () => {
                 physical_metrics: {
                     height: Number(formData.height) || 0,
                     weight: Number(formData.weight) || 0,
-                    body_fat: Number(formData.bodyFat) || 0,
+                    body_fat: aiResults.body_fat,
                     muscle_mass: 0,
                     target_weight: 0,
-                    body_type: 'Mesomorph',
+                    body_type: aiResults.body_type as any,
                     activity_level: 'Moderate'
                 },
                 medical_history: {
@@ -147,11 +246,17 @@ const ScientificAdmissionForm: React.FC = () => {
                     pushup_count: 0,
                     plank_time: '0s',
                     squat_count: 0,
-                    comments: `Goal: ${formData.primaryGoal}`
+                    comments: aiResults.analysis_summary
                 }
             };
 
             addMember(newMember);
+
+            // Trigger Neural Automation
+            triggerAutomation({
+                event: 'member_created',
+                payload: { member: newMember, paymentMethod: formData.paymentMethod, totalAmount }
+            });
 
             // Payment Processing
             if (formData.packageId) {
@@ -165,7 +270,10 @@ const ScientificAdmissionForm: React.FC = () => {
                     date: new Date().toISOString().split('T')[0],
                     status: formData.isPaid ? 'Paid' : 'Pending', 
                     items: [
-                        { description: `Membership: ${selectedPkg?.name}`, amount: totalAmount, type: 'Membership' }
+                        { description: `Membership: ${selectedPkg?.name}`, amount: pkgPrice, type: 'Membership' },
+                        ...(ptPrice > 0 ? [{ description: `Training: ${selectedPtPkg?.name}`, amount: ptPrice, type: 'Training' }] : []),
+                        ...(registrationFee > 0 ? [{ description: 'Registration Fee', amount: registrationFee, type: 'Fee' }] : []),
+                        ...formData.cart.map(c => ({ description: `${c.name} x${c.qty}`, amount: c.price * c.qty, type: c.type }))
                     ]
                 };
                 addInvoice(invoice);
@@ -177,6 +285,14 @@ const ScientificAdmissionForm: React.FC = () => {
                         amount: totalAmount,
                         date: invoice.date,
                         method: formData.paymentMethod
+                    });
+
+                    // Update Inventory
+                    formData.cart.forEach(c => {
+                        const item = inventory.find(i => i.id === c.itemId);
+                        if (item) {
+                            updateInventory({ ...item, stock: Math.max(0, item.stock - c.qty) });
+                        }
                     });
                     
                     sendPaymentReceipt(newMember.name, newMember.phone, totalAmount, `TXN-${Date.now()}`, invoice.packageName);
@@ -206,6 +322,16 @@ const ScientificAdmissionForm: React.FC = () => {
                 <div className="bg-gray-900/50 border border-gray-800 p-6 rounded-xl text-left w-full max-w-md space-y-4">
                     <div className="flex items-center gap-3 text-indigo-400">
                         <Sparkles className="w-5 h-5" />
+                        <span className="font-medium">AI Personalized Health Vision:</span>
+                    </div>
+                    <p className="text-sm text-gray-300 italic leading-relaxed">
+                        "{healthVision || 'Your journey to peak performance starts now. With our Neural OS, we will optimize every rep and every meal to ensure you reach your goals faster than ever.'}"
+                    </p>
+                    
+                    <div className="h-px bg-gray-800 my-2"></div>
+
+                    <div className="flex items-center gap-3 text-indigo-400">
+                        <Star className="w-5 h-5 text-amber-400" />
                         <span className="font-medium">Aether Prime Core Actions:</span>
                     </div>
                     <ul className="space-y-3 text-sm text-gray-300">
@@ -223,12 +349,27 @@ const ScientificAdmissionForm: React.FC = () => {
                         </li>
                     </ul>
                 </div>
-                <button 
-                    onClick={() => { setIsSuccess(false); setCurrentStep(1); }}
-                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
-                >
-                    नया फॉर्म भरें
-                </button>
+
+                <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+                    <button 
+                        onClick={() => { setIsSuccess(false); setCurrentStep(1); }}
+                        className="flex-1 px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                        <RefreshCw className="w-4 h-4" /> नया फॉर्म भरें
+                    </button>
+                    <a 
+                        href={`${GYM_INFO.website}/reviews`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex-1 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black rounded-lg font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20"
+                    >
+                        <Star className="w-4 h-4" /> Google Review
+                    </a>
+                </div>
+                
+                <p className="text-[10px] text-gray-500 uppercase tracking-[0.2em] mt-4">
+                    Google Business & WhatsApp Automation Active
+                </p>
             </div>
         );
     }
@@ -276,13 +417,21 @@ const ScientificAdmissionForm: React.FC = () => {
             {/* Form Content */}
             <Card className="bg-gray-900/50 border-gray-800">
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    {/* Step 1: Personal Profile */}
-                    {currentStep === 1 && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                            <h2 className="text-xl font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
-                                <User className="w-5 h-5 text-indigo-400" />
-                                भाग 1: मूल जानकारी (Personal Profile)
-                            </h2>
+                    <AnimatePresence mode="wait">
+                        {/* Step 1: Personal Profile */}
+                        {currentStep === 1 && (
+                            <motion.div 
+                                key="step1"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                transition={{ duration: 0.3 }}
+                                className="space-y-6"
+                            >
+                                <h2 className="text-xl font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
+                                    <User className="w-5 h-5 text-indigo-400" />
+                                    भाग 1: मूल जानकारी (Personal Profile)
+                                </h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-300">पूरा नाम</label>
@@ -315,13 +464,32 @@ const ScientificAdmissionForm: React.FC = () => {
                                     </select>
                                     <p className="text-xs text-gray-500 mt-1">इससे AI को आपकी दैनिक कैलोरी बर्न का अंदाजा लगाने में मदद मिलेगी।</p>
                                 </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <label className="text-sm font-medium text-gray-300">Password (पासवर्ड)</label>
+                                    <input
+                                        type="password"
+                                        value={formData.password}
+                                        onChange={(e) => handleInputChange('password', e.target.value)}
+                                        placeholder="Set a login password"
+                                        className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500"
+                                        required
+                                    />
+                                    <p className="text-[10px] text-gray-500 mt-1">This password will be used for your Member Portal login.</p>
+                                </div>
                             </div>
-                        </div>
+                        </motion.div>
                     )}
 
                     {/* Step 2: Body Metrics */}
                     {currentStep === 2 && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                        <motion.div 
+                            key="step2"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.3 }}
+                            className="space-y-6"
+                        >
                             <h2 className="text-xl font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
                                 <Activity className="w-5 h-5 text-cyan-400" />
                                 भाग 2: बायोमेट्रिक्स और शारीरिक माप
@@ -351,19 +519,67 @@ const ScientificAdmissionForm: React.FC = () => {
                                 </div>
                                 <div className="space-y-2 md:col-span-2">
                                     <label className="text-sm font-medium text-gray-300">AI Visual Analysis के लिए फोटो (Optional)</label>
-                                    <div className="border-2 border-dashed border-gray-700 rounded-lg p-6 flex flex-col items-center justify-center text-gray-500 hover:bg-gray-800/30 hover:border-cyan-500/50 transition-colors cursor-pointer">
-                                        <Upload className="w-8 h-8 mb-2" />
-                                        <span className="text-sm">Click to upload or drag and drop</span>
-                                        <span className="text-xs mt-1">PNG, JPG up to 5MB</span>
+                                    <div 
+                                        onClick={() => document.getElementById('photo-upload')?.click()}
+                                        className={`border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center transition-all cursor-pointer overflow-hidden relative min-h-[160px] ${
+                                            formData.avatar 
+                                                ? 'border-cyan-500/50 bg-cyan-500/5' 
+                                                : 'border-gray-700 text-gray-500 hover:bg-gray-800/30 hover:border-cyan-500/50'
+                                        }`}
+                                    >
+                                        <input 
+                                            id="photo-upload"
+                                            type="file" 
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    const reader = new FileReader();
+                                                    reader.onloadend = () => {
+                                                        handleInputChange('avatar', reader.result as string);
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                }
+                                            }}
+                                        />
+                                        {formData.avatar ? (
+                                            <div className="relative w-full h-full flex flex-col items-center">
+                                                <img src={formData.avatar} alt="Preview" className="max-h-32 rounded-lg object-cover mb-2" />
+                                                <button 
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleInputChange('avatar', '');
+                                                    }}
+                                                    className="text-xs text-rose-400 hover:text-rose-300 underline"
+                                                >
+                                                    Remove Photo
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <Upload className="w-8 h-8 mb-2" />
+                                                <span className="text-sm">Click to upload or drag and drop</span>
+                                                <span className="text-xs mt-1">PNG, JPG up to 5MB</span>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </motion.div>
                     )}
 
                     {/* Step 3: Medical History */}
                     {currentStep === 3 && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                        <motion.div 
+                            key="step3"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.3 }}
+                            className="space-y-6"
+                        >
                             <h2 className="text-xl font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
                                 <HeartPulse className="w-5 h-5 text-rose-400" />
                                 भाग 3: स्वास्थ्य और मेडिकल इतिहास
@@ -390,12 +606,19 @@ const ScientificAdmissionForm: React.FC = () => {
                                     <input type="text" value={formData.allergies} onChange={(e) => handleInputChange('allergies', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-rose-500" placeholder="जैसे: दूध (Lactose), मूंगफली, ग्लूटेन..." />
                                 </div>
                             </div>
-                        </div>
+                        </motion.div>
                     )}
 
                     {/* Step 4: Lifestyle & Nutrition */}
                     {currentStep === 4 && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                        <motion.div 
+                            key="step4"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.3 }}
+                            className="space-y-6"
+                        >
                             <h2 className="text-xl font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
                                 <Coffee className="w-5 h-5 text-amber-400" />
                                 भाग 4: जीवनशैली और पोषण
@@ -441,12 +664,19 @@ const ScientificAdmissionForm: React.FC = () => {
                                     <input type="text" value={formData.supplements} onChange={(e) => handleInputChange('supplements', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-amber-500" placeholder="क्या आप पहले से कोई प्रोटीन या मल्टीविटामिन ले रहे हैं?" />
                                 </div>
                             </div>
-                        </div>
+                        </motion.div>
                     )}
 
                     {/* Step 5: Fitness Goals */}
                     {currentStep === 5 && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                        <motion.div 
+                            key="step5"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.3 }}
+                            className="space-y-6"
+                        >
                             <h2 className="text-xl font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
                                 <Target className="w-5 h-5 text-green-400" />
                                 भाग 5: फिटनेस लक्ष्य
@@ -489,12 +719,19 @@ const ScientificAdmissionForm: React.FC = () => {
                                     </select>
                                 </div>
                             </div>
-                        </div>
+                        </motion.div>
                     )}
 
                     {/* Step 6: Neural OS Insights */}
                     {currentStep === 6 && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                        <motion.div 
+                            key="step6"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.3 }}
+                            className="space-y-6"
+                        >
                             <h2 className="text-xl font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
                                 <Brain className="w-5 h-5 text-purple-400" />
                                 भाग 6: 'Neural OS' के लिए विशेष डेटा
@@ -533,64 +770,223 @@ const ScientificAdmissionForm: React.FC = () => {
                                     </select>
                                 </div>
                             </div>
-                        </div>
+                        </motion.div>
                     )}
 
                     {/* Step 7: Payment & Package */}
                     {currentStep === 7 && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                        <motion.div 
+                            key="step7"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.3 }}
+                            className="space-y-6"
+                        >
                             <h2 className="text-xl font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
                                 <Wallet className="w-5 h-5 text-amber-500" />
                                 भाग 7: पैकेज और भुगतान (Payment)
                             </h2>
                             <div className="space-y-6">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">जिम पैकेज चुनें</label>
-                                    <select value={formData.packageId} onChange={(e) => handleInputChange('packageId', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-amber-500" required>
-                                        <option value="">-- Select Package --</option>
-                                        {packages.map(p => (
-                                            <option key={p.id} value={p.id}>{p.name} - ₹{p.price}</option>
-                                        ))}
-                                    </select>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-gray-300">जिम पैकेज चुनें</label>
+                                        <select value={formData.packageId} onChange={(e) => handleInputChange('packageId', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-amber-500" required>
+                                            <option value="">-- Select Gym Plan --</option>
+                                            {gymPackages.map(p => (
+                                                <option key={p.id} value={p.id}>{p.name} - ₹{p.price}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <label className="text-sm font-bold text-amber-400 flex items-center gap-2">
+                                            <Dumbbell className="w-4 h-4" /> पर्सनल ट्रेनिंग (Personal Training) - Optional
+                                        </label>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold ml-1">Category</label>
+                                                <select 
+                                                    value={trainingCategory} 
+                                                    onChange={e => { setTrainingCategory(e.target.value); handleInputChange('trainingPackageId', ''); }} 
+                                                    className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-all"
+                                                >
+                                                    {uniqueTrainingCategories.map(cat => (
+                                                        <option key={cat} value={cat}>{cat}</option>
+                                                    ))}
+                                                </select>
+                                                {PT_CATEGORY_INFO[trainingCategory] && (
+                                                    <div className="mt-2 flex items-start gap-2 bg-gray-900/50 p-2 rounded-lg border border-white/5 animate-in fade-in slide-in-from-top-1">
+                                                        <div className="mt-0.5">{PT_CATEGORY_INFO[trainingCategory].icon}</div>
+                                                        <p className="text-[10px] text-gray-400 font-medium leading-tight">
+                                                            {PT_CATEGORY_INFO[trainingCategory].desc}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold ml-1">Select Plan</label>
+                                                <select 
+                                                    value={formData.trainingPackageId} 
+                                                    onChange={e => handleInputChange('trainingPackageId', e.target.value)} 
+                                                    className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-all"
+                                                >
+                                                    <option value="">-- No Personal Training --</option>
+                                                    {availableTrainingPackages.map(p => (
+                                                        <option key={p.id} value={p.id}>{p.name} (₹{p.price})</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                        {selectedPtPkg && (
+                                            <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 animate-in fade-in slide-in-from-top-2">
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Plan Details:</span>
+                                                    <span className="text-lg font-black text-white">₹{selectedPtPkg.price}</span>
+                                                </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {selectedPtPkg.features?.map((f, i) => (
+                                                        <span key={i} className="text-[9px] bg-amber-500/10 text-amber-200 px-2 py-1 rounded-md border border-amber-500/10">
+                                                            {f}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
-                                {selectedPkg && (
-                                    <div className="bg-gray-900/50 p-4 rounded-xl border border-white/5 space-y-2">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-sm text-gray-400">Total Amount</span>
-                                            <span className="text-xl font-bold text-white">₹{totalAmount}</span>
-                                        </div>
+                                <div className="flex items-center gap-3 bg-gray-900/30 p-3 rounded-xl border border-white/5">
+                                    <input type="checkbox" id="regFee" checked={formData.includeRegFee} onChange={e => handleInputChange('includeRegFee', e.target.checked)} className="w-5 h-5 accent-amber-500 rounded cursor-pointer" />
+                                    <label htmlFor="regFee" className="text-sm font-bold text-gray-300 cursor-pointer">Include Registration Fee (₹1000)</label>
+                                </div>
+
+                                {/* Inventory / POS */}
+                                <div className="space-y-3">
+                                    <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                                        <ShoppingBag className="w-4 h-4 text-cyan-400" /> अतिरिक्त आइटम (Accessories & Supplements)
+                                    </label>
+                                    <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                                        {inventory.map(item => (
+                                            <button 
+                                                key={item.id} 
+                                                type="button" 
+                                                onClick={() => addToCart(item)} 
+                                                className="bg-gray-800/50 text-xs px-3 py-1.5 rounded-full whitespace-nowrap hover:bg-gray-700 transition-colors text-white border border-white/5 flex items-center gap-2"
+                                            >
+                                                {item.category === 'Supplement' ? <Apple className="w-3 h-3 text-green-400"/> : <ShoppingBag className="w-3 h-3 text-cyan-400"/>}
+                                                {item.name} <span className="text-gray-500">₹{item.price}</span>
+                                            </button>
+                                        ))}
                                     </div>
-                                )}
+                                    
+                                    {formData.cart.length > 0 && (
+                                        <div className="bg-black/40 p-3 rounded-xl border border-white/5 space-y-2">
+                                            {formData.cart.map(c => (
+                                                <div key={c.itemId} className="flex justify-between items-center text-xs">
+                                                    <span className="text-gray-300">{c.name} x{c.qty}</span>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-amber-500 font-mono">₹{c.price * c.qty}</span>
+                                                        <div className="flex items-center gap-1">
+                                                            <button type="button" onClick={() => updateCartQty(c.itemId, -1)} className="p-1 bg-gray-800 rounded hover:bg-gray-700"><Minus className="w-3 h-3"/></button>
+                                                            <button type="button" onClick={() => updateCartQty(c.itemId, 1)} className="p-1 bg-gray-800 rounded hover:bg-gray-700"><Plus className="w-3 h-3"/></button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="bg-gray-900/50 p-5 rounded-2xl border border-white/5 space-y-3">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-400">Gym Package</span>
+                                        <span className="text-white">₹{pkgPrice}</span>
+                                    </div>
+                                    {ptPrice > 0 && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-amber-400">Training ({selectedPtPkg?.name})</span>
+                                            <span className="text-white">₹{ptPrice}</span>
+                                        </div>
+                                    )}
+                                    {registrationFee > 0 && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-400">Registration Fee</span>
+                                            <span className="text-white">₹{registrationFee}</span>
+                                        </div>
+                                    )}
+                                    {cartTotal > 0 && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-cyan-400">Inventory Items</span>
+                                            <span className="text-white">₹{cartTotal}</span>
+                                        </div>
+                                    )}
+                                    <div className="h-px bg-gray-800 my-1"></div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm font-bold text-amber-500 uppercase tracking-widest">Total Amount</span>
+                                        <span className="text-2xl font-black text-white italic">₹{totalAmount}</span>
+                                    </div>
+                                </div>
 
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Payment Options (भुगतान विकल्प)</label>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {(['UPI', 'Cash', 'Card (NFC)'] as const).map(method => (
+                                    <label className="text-sm font-medium text-gray-300">Payment Method (भुगतान विधि)</label>
+                                    <div className="grid grid-cols-4 gap-2">
+                                        {(['UPI', 'Google Pay', 'Cash', 'Card (NFC)'] as const).map(method => (
                                             <button 
                                                 type="button" 
                                                 key={method} 
                                                 onClick={() => handleInputChange('paymentMethod', method)} 
                                                 className={`p-4 flex flex-col items-center justify-center gap-2 rounded-xl border transition-all ${formData.paymentMethod === method ? 'bg-white text-black border-white' : 'bg-gray-800/50 border-gray-700 text-gray-400 hover:border-gray-500'}`}
                                             >
-                                                {method === 'UPI' ? <Fingerprint className="w-5 h-5"/> : method === 'Card (NFC)' ? <Nfc className="w-5 h-5"/> : <Wallet className="w-5 h-5"/>}
-                                                <span className="text-xs font-bold uppercase">{method}</span>
+                                                {method === 'UPI' ? <Fingerprint className="w-5 h-5"/> : method === 'Google Pay' ? <Globe className="w-5 h-5"/> : method === 'Card (NFC)' ? <Nfc className="w-5 h-5"/> : <Wallet className="w-5 h-5"/>}
+                                                <span className="text-[10px] font-bold uppercase text-center leading-tight">{method}</span>
                                             </button>
                                         ))}
                                     </div>
                                 </div>
 
-                                {formData.paymentMethod === 'UPI' && (
-                                    <div className="bg-black/40 p-4 rounded-xl border border-white/5 flex flex-col items-center justify-center text-center">
-                                        <p className="text-xs font-bold uppercase tracking-widest text-green-400 mb-3 bg-green-500/10 px-3 py-1 rounded-full inline-block">Royal Official UPI</p>
-                                        <div className="bg-white p-2 rounded-xl shadow-lg border-4 border-white mb-4">
-                                            <img 
-                                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=${GYM_INFO.upiIds.gpay1}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${totalAmount}&cu=INR`}
-                                                alt="UPI QR" 
-                                                className="w-32 h-32 object-contain mix-blend-multiply" 
-                                            />
+                                {(formData.paymentMethod === 'UPI' || formData.paymentMethod === 'Google Pay') && (
+                                    <div className="bg-black/40 p-6 rounded-[2rem] border border-white/5 flex flex-col items-center justify-center text-center space-y-4">
+                                        <div className="flex items-center gap-2 text-green-400 bg-green-500/10 px-4 py-1.5 rounded-full border border-green-500/20">
+                                            <ShieldCheck className="w-4 h-4" />
+                                            <span className="text-[10px] font-black uppercase tracking-widest">
+                                                {formData.paymentMethod === 'Google Pay' ? 'Google Pay Business' : 'Secure UPI Gateway'}
+                                            </span>
                                         </div>
-                                        <p className="text-xs text-gray-400 font-mono">Primary: <span className="text-white font-bold">{GYM_INFO.upiIds.gpay1}</span></p>
+                                        
+                                        <div className="bg-white p-4 rounded-[2.5rem] shadow-[0_0_50px_rgba(255,255,255,0.1)] border-[12px] border-gray-950 relative group">
+                                            <img 
+                                                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=${formData.paymentMethod === 'Google Pay' ? (localStorage.getItem('google_pay_upi') || GYM_INFO.upiIds.gpay1) : GYM_INFO.upiIds.gpay1}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${totalAmount}&cu=INR`}
+                                                alt="UPI QR" 
+                                                className="w-40 h-40 object-contain mix-blend-multiply transition-transform group-hover:scale-105" 
+                                            />
+                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 backdrop-blur-sm rounded-3xl">
+                                                <p className="text-black font-black text-[10px] uppercase tracking-tighter">Scan to Pay</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3 w-full">
+                                            <a 
+                                                href={`upi://pay?pa=${formData.paymentMethod === 'Google Pay' ? (localStorage.getItem('google_pay_upi') || GYM_INFO.upiIds.gpay1) : GYM_INFO.upiIds.gpay1}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${totalAmount}&cu=INR`}
+                                                className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl transition-all active:scale-95"
+                                            >
+                                                <Smartphone className="w-4 h-4" />
+                                                <span className="text-[10px] font-black uppercase">G-Pay</span>
+                                            </a>
+                                            {formData.paymentMethod !== 'Google Pay' && (
+                                                <a 
+                                                    href={`upi://pay?pa=${GYM_INFO.upiIds.gpay2}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${totalAmount}&cu=INR`}
+                                                    className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-500 text-white py-3 rounded-xl transition-all active:scale-95"
+                                                >
+                                                    <Smartphone className="w-4 h-4" />
+                                                    <span className="text-[10px] font-black uppercase">PhonePe</span>
+                                                </a>
+                                            )}
+                                        </div>
+
+                                        <p className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">
+                                            Merchant ID: <span className="text-white">{formData.paymentMethod === 'Google Pay' ? (localStorage.getItem('google_pay_upi') || GYM_INFO.upiIds.gpay1) : GYM_INFO.upiIds.gpay1}</span>
+                                        </p>
                                     </div>
                                 )}
 
@@ -599,12 +995,15 @@ const ScientificAdmissionForm: React.FC = () => {
                                     <label className="ml-3 text-sm font-medium text-gray-300 cursor-pointer select-none">Mark as Paid (भुगतान हो गया)</label>
                                 </div>
                             </div>
-                        </div>
+                        </motion.div>
                     )}
+                    </AnimatePresence>
 
                     {/* Navigation Buttons */}
                     <div className="flex items-center justify-between pt-6 border-t border-gray-800">
-                        <button
+                        <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
                             type="button"
                             onClick={handlePrev}
                             disabled={currentStep === 1 || isSubmitting}
@@ -616,19 +1015,23 @@ const ScientificAdmissionForm: React.FC = () => {
                         >
                             <ChevronLeft className="w-4 h-4" />
                             पिछला
-                        </button>
+                        </motion.button>
 
                         {currentStep < 7 ? (
-                            <button
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
                                 type="button"
                                 onClick={handleNext}
                                 className="flex items-center gap-2 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
                             >
                                 अगला
                                 <ChevronRight className="w-4 h-4" />
-                            </button>
+                            </motion.button>
                         ) : (
-                            <button
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
                                 type="submit"
                                 disabled={isSubmitting || !formData.packageId}
                                 className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-lg font-medium transition-all shadow-lg shadow-indigo-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -644,7 +1047,7 @@ const ScientificAdmissionForm: React.FC = () => {
                                         Complete Admission
                                     </>
                                 )}
-                            </button>
+                            </motion.button>
                         )}
                     </div>
                 </form>

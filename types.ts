@@ -14,7 +14,7 @@ export type View =
     // Member views
     | 'dailyProtocol' | 'attendance' | 'workout' | 'futureOFS' | 'neuralRep' | 'performanceLab'
     | 'health' | 'medicalHub' | 'biomarkerVault' | 'aetherCommunity' | 'wearables' | 'helpSupport'
-    | 'payments' | 'globalHealthPassport' | 'scheduler' | 'nutritionAdvisor'
+    | 'payments' | 'globalHealthPassport' | 'scheduler' | 'nutritionAdvisor' | 'profile'
     ;
 
 export type Theme = 'dark' | 'light';
@@ -102,6 +102,7 @@ export interface Member {
     trainingPackageId?: number; // Added for Personal Training
     status: 'Active' | 'Pending' | 'Expired' | 'Inactive';
     avatar: string;
+    password?: string; // Added for authentication
     whatsappConsent: boolean;
     xp: number;
     level: number;
@@ -208,6 +209,7 @@ export interface WorkoutExercise {
 }
 
 export interface WorkoutSection {
+    name?: string;
     exercises: WorkoutExercise[];
 }
 
@@ -337,6 +339,7 @@ export interface Task {
     priority: 'Low' | 'Medium' | 'High';
     dueDate: string;
     completed: boolean;
+    dependencies?: number[]; // IDs of prerequisite tasks
 }
 
 export interface MedicalTestMaster {

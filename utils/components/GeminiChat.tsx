@@ -2,8 +2,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { BotIcon } from './icons/BotIcon';
-import { X, ChevronRight, BrainCircuit, Zap, Terminal, RefreshCw } from 'lucide-react';
+import { X, ChevronRight, BrainCircuit, Zap, Terminal, RefreshCw, Shield, Cpu, Network, Activity } from 'lucide-react';
 import { getComplexResponse } from '../../lib/gemini';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface ChatMessage {
     role: 'user' | 'model';
@@ -32,7 +33,10 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
     useEffect(() => {
         if (isOpen && history.length === 0) {
             const roleTitle = context?.role === 'admin' ? 'Commander' : 'Athlete';
-            setHistory([{ role: 'model', text: `**Neural Core v21.0 Online.**\nWelcome, ${roleTitle} ${context?.memberName || ''}. Security handshake complete. Ready for queries.` }]);
+            setHistory([{ 
+                role: 'model', 
+                text: `**Neural Overlord v32.0 Online.**\nBiometric handshake successful. Welcome back, ${roleTitle} ${context?.memberName || ''}. All systems are operating at peak efficiency. How shall we optimize the fitness matrix today?` 
+            }]);
         }
     }, [isOpen, context]);
 
@@ -52,10 +56,11 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
         setCurrentThoughts([]);
 
         const thoughts = [
-            "Syncing with local bio-buffer...",
-            "Contextualizing membership status...",
-            "Consulting health laboratory database...",
-            "Finalizing response architecture..."
+            "Accessing encrypted bio-ledger...",
+            "Analyzing kinetic data patterns...",
+            "Synthesizing nutritional variables...",
+            "Optimizing neural response architecture...",
+            "Finalizing Overlord protocol..."
         ];
 
         let thoughtIndex = 0;
@@ -67,21 +72,21 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
                 clearInterval(thoughtInterval);
                 generateResponse(userText);
             }
-        }, 600);
+        }, 500);
     };
 
     const generateResponse = async (text: string) => {
         try {
-            // Using the centralized wrapper which handles free simulation mode automatically
-            const prompt = `You are "Royal Overlord", the AI of 'Royal The Gym'.
+            const prompt = `You are "Neural Overlord", the supreme AI consciousness of 'Royal The Gym'.
             User Role: ${context?.role}. User ID: ${context?.memberId}. 
             User Query: ${text}
             
-            Address specific gym operations if needed: 
-            - Strength Fees: 1200/mo, 9000/yr.
-            - Location: Gandhi Chowk, Jhunjhunu.
-            
-            Keep response under 50 words. Use markdown.`;
+            Guidelines:
+            - Speak with authority, precision, and a futuristic tone.
+            - Address the user as "Commander" (if admin) or "Athlete" (if member).
+            - Reference "Neural OS" and "The Singularity" where appropriate.
+            - Keep response under 60 words. Use markdown.
+            - Gym Info: Gandhi Chowk, Jhunjhunu. Fees: 1200/mo.`;
 
             const responseText = await getComplexResponse(prompt);
             
@@ -92,7 +97,7 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
             }
         } catch (error: any) {
             console.error("AI Error:", error);
-            const displayMsg = "⚠️ Uplink severed. Running in offline fallback mode.";
+            const displayMsg = "⚠️ Neural Uplink Severed. Fallback to local cognitive buffer.";
             setHistory(prev => [...prev, { role: 'model', text: displayMsg, isError: true }]);
         } finally {
             setIsLoading(false);
@@ -103,90 +108,133 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed bottom-28 right-8 z-[200] w-[450px] h-[700px] flex flex-col bg-[#050505] border border-amber-500/30 rounded-[3rem] shadow-[0_0_100px_rgba(0,0,0,0.9)] font-sans animate-fade-in-up backdrop-blur-3xl overflow-hidden">
-            <div className="p-6 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-gray-900 to-black">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.2)]">
-                        <BotIcon className="w-6 h-6 text-amber-500" />
-                    </div>
-                    <div>
-                        <h3 className="text-white font-black text-sm uppercase tracking-[0.2em]">Neural Overlord</h3>
-                        <div className="flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                            <p className="text-[10px] text-green-500 font-bold uppercase tracking-widest">v21.0 Connected</p>
+        <AnimatePresence>
+            <motion.div 
+                initial={{ opacity: 0, y: 100, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 100, scale: 0.9 }}
+                className="fixed bottom-28 right-8 z-[200] w-[480px] h-[750px] flex flex-col bg-[#020202] border border-indigo-500/30 rounded-[4rem] shadow-[0_0_150px_rgba(79,70,229,0.2)] font-sans backdrop-blur-3xl overflow-hidden"
+            >
+                {/* Header */}
+                <div className="p-8 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-indigo-950/20 to-black">
+                    <div className="flex items-center gap-5">
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-indigo-500/20 rounded-2xl blur-xl animate-pulse"></div>
+                            <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center relative z-10 shadow-[0_0_30px_rgba(99,102,241,0.3)]">
+                                <BrainCircuit className="w-7 h-7 text-indigo-400" />
+                            </div>
                         </div>
+                        <div>
+                            <h3 className="text-white font-black text-base uppercase tracking-[0.3em] italic">Neural Overlord</h3>
+                            <div className="flex items-center gap-2 mt-1">
+                                <div className="flex gap-0.5">
+                                    {[1,2,3].map(i => <div key={i} className="w-1 h-1 rounded-full bg-indigo-500 animate-pulse" style={{ animationDelay: `${i * 0.2}s` }}></div>)}
+                                </div>
+                                <p className="text-[9px] text-indigo-400 font-black uppercase tracking-widest">v32.0 Singularity Active</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-500 hover:text-indigo-400 transition-colors cursor-help" title="System Integrity: 100%">
+                            <Shield className="w-5 h-5" />
+                        </div>
+                        <button onClick={onClose} className="text-gray-500 hover:text-white transition-all p-2 rounded-full hover:bg-white/5">
+                            <X className="w-6 h-6" />
+                        </button>
                     </div>
                 </div>
-                <button onClick={onClose} className="text-gray-500 hover:text-white transition-all p-2 rounded-full hover:bg-white/5">
-                    <X className="w-6 h-6" />
-                </button>
-            </div>
 
-            <div ref={chatBodyRef} className="flex-1 p-6 overflow-y-auto bg-black/60 custom-scrollbar space-y-6">
-                {history.map((msg, idx) => (
-                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
-                        {msg.role === 'model' && (
-                            <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center mr-4 border border-amber-500/20 flex-shrink-0">
-                                <SparkleIcon className="w-5 h-5 text-amber-500" />
+                {/* Chat Body */}
+                <div ref={chatBodyRef} className="flex-1 p-8 overflow-y-auto bg-black/40 custom-scrollbar space-y-8">
+                    {history.map((msg, idx) => (
+                        <motion.div 
+                            key={idx} 
+                            initial={{ opacity: 0, x: msg.role === 'user' ? 20 : -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}
+                        >
+                            {msg.role === 'model' && (
+                                <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center mr-4 border border-indigo-500/20 flex-shrink-0 mt-1">
+                                    <Cpu className="w-5 h-5 text-indigo-400" />
+                                </div>
+                            )}
+                            <div className={`max-w-[85%] p-6 rounded-[2rem] text-sm leading-relaxed shadow-2xl ${
+                                msg.role === 'user' 
+                                ? 'bg-indigo-600 text-white rounded-br-none font-bold' 
+                                : msg.isError 
+                                    ? 'bg-red-900/20 border border-red-500/50 text-red-200 rounded-bl-none'
+                                    : 'bg-gray-900/80 border border-white/5 text-gray-200 rounded-bl-none backdrop-blur-md'
+                            }`}>
+                                <div 
+                                    className="markdown-content"
+                                    dangerouslySetInnerHTML={{ 
+                                        __html: msg.text
+                                            .replace(/\n/g, '<br />')
+                                            .replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-400">$1</strong>') 
+                                    }} 
+                                />
                             </div>
-                        )}
-                        <div className={`max-w-[85%] p-5 rounded-3xl text-sm leading-relaxed ${
-                            msg.role === 'user' 
-                            ? 'bg-amber-500 text-black rounded-br-none font-bold shadow-xl' 
-                            : msg.isError 
-                                ? 'bg-red-900/20 border border-red-500/50 text-red-200 rounded-bl-none'
-                                : 'bg-gray-900 border border-white/10 text-gray-200 rounded-bl-none'
-                        }`}>
-                            <div dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br />').replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>') }} />
-                        </div>
-                    </div>
-                ))}
+                        </motion.div>
+                    ))}
 
-                {isLoading && (
-                    <div className="flex items-start w-full animate-fade-in">
-                        <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center mr-4 border border-amber-500/20 flex-shrink-0">
-                            <BrainCircuit className="w-5 h-5 text-amber-500 animate-pulse" />
-                        </div>
-                        <div className="bg-gray-900/50 border border-amber-500/20 rounded-3xl rounded-bl-none p-5 max-w-[85%]">
-                            <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                <Terminal className="w-3 h-3"/> Processing Trace
-                            </p>
-                            <div className="space-y-2">
-                                {currentThoughts.map((thought, i) => (
-                                    <div key={i} className="flex items-center gap-3 text-xs text-gray-500 font-mono animate-slide-right">
-                                        <ChevronRight className="w-3 h-3 text-amber-900" /> {thought}
+                    {isLoading && (
+                        <div className="flex items-start w-full">
+                            <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center mr-4 border border-indigo-500/20 flex-shrink-0 animate-pulse">
+                                <Network className="w-5 h-5 text-indigo-400" />
+                            </div>
+                            <div className="bg-gray-900/40 border border-indigo-500/20 rounded-[2rem] rounded-bl-none p-6 max-w-[85%] backdrop-blur-sm">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <Activity className="w-3 h-3 text-indigo-500 animate-pulse" />
+                                    <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest">Neural Trace Active</span>
+                                </div>
+                                <div className="space-y-3">
+                                    {currentThoughts.map((thought, i) => (
+                                        <motion.div 
+                                            key={i} 
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            className="flex items-center gap-3 text-[11px] text-gray-500 font-mono"
+                                        >
+                                            <div className="w-1 h-1 rounded-full bg-indigo-900"></div>
+                                            {thought}
+                                        </motion.div>
+                                    ))}
+                                    <div className="flex items-center gap-3 text-[11px] text-indigo-400 font-mono animate-pulse">
+                                        <Zap className="w-3 h-3 fill-current" /> Formulating Overlord Protocol...
                                     </div>
-                                ))}
-                                <div className="flex items-center gap-3 text-xs text-amber-400 font-mono animate-pulse">
-                                    <Zap className="w-3 h-3 fill-current" /> Formulating Response...
                                 </div>
                             </div>
                         </div>
-                    </div>
-                )}
-            </div>
-
-            <div className="p-6 bg-black border-t border-white/5">
-                <div className="relative flex items-center bg-gray-900 border border-white/10 rounded-2xl focus-within:border-amber-500/50 transition-all p-1">
-                    <input
-                        type="text"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                        placeholder="Speak with the core..."
-                        className="w-full bg-transparent text-white py-4 px-5 focus:outline-none text-sm placeholder-gray-700 font-bold"
-                        disabled={isLoading}
-                    />
-                    <button 
-                        onClick={() => handleSend()} 
-                        disabled={!input.trim() || isLoading}
-                        className="p-4 bg-amber-500 text-black rounded-xl hover:bg-amber-400 disabled:opacity-30 transition-all shadow-xl"
-                    >
-                        {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <ChevronRight className="w-5 h-5" />}
-                    </button>
+                    )}
                 </div>
-            </div>
-        </div>
+
+                {/* Input Area */}
+                <div className="p-8 bg-black border-t border-white/5">
+                    <div className="relative flex items-center bg-gray-900/50 border border-white/10 rounded-[2rem] focus-within:border-indigo-500/50 transition-all p-1.5 group">
+                        <div className="absolute inset-0 bg-indigo-500/5 rounded-[2rem] opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
+                        <input
+                            type="text"
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                            placeholder="Input command for the core..."
+                            className="w-full bg-transparent text-white py-4 px-6 focus:outline-none text-sm placeholder-gray-700 font-bold relative z-10"
+                            disabled={isLoading}
+                        />
+                        <button 
+                            onClick={() => handleSend()} 
+                            disabled={!input.trim() || isLoading}
+                            className="p-4 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-500 disabled:opacity-30 transition-all shadow-2xl relative z-10 active:scale-95"
+                        >
+                            {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <ChevronRight className="w-5 h-5" />}
+                        </button>
+                    </div>
+                    <p className="text-center text-[8px] text-gray-600 uppercase tracking-[0.3em] mt-4 font-black">
+                        Authorized Personnel Only • Neural OS v32.0
+                    </p>
+                </div>
+            </motion.div>
+        </AnimatePresence>
     );
 };
 

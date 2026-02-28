@@ -1,5 +1,6 @@
 
 import React, { useMemo } from 'react';
+import { motion } from 'motion/react';
 import { View } from '../../types';
 import { useData } from '../context/DataProvider';
 import { 
@@ -19,10 +20,16 @@ const MetricCard: React.FC<{
     icon: React.ReactNode;
     color: string; 
     onClick: () => void;
-}> = ({ title, value, subtext, icon, color, onClick }) => (
-    <div 
+    index: number;
+}> = ({ title, value, subtext, icon, color, onClick, index }) => (
+    <motion.div 
         onClick={onClick} 
-        className="relative overflow-hidden bg-zinc-950 rounded-[2.5rem] border border-white/5 p-8 cursor-pointer group hover:border-white/20 transition-all duration-500 hover:shadow-2xl hover:-translate-y-1"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: index * 0.1 }}
+        whileHover={{ scale: 1.02, translateY: -5 }}
+        whileTap={{ scale: 0.98 }}
+        className="relative overflow-hidden bg-zinc-950 rounded-[2.5rem] border border-white/5 p-8 cursor-pointer group hover:border-white/20 transition-all duration-500 hover:shadow-2xl"
     >
         <div className="flex justify-between items-start mb-4 relative z-10">
             <div className={`p-4 rounded-2xl bg-black/40 border border-white/10 ${color} shadow-lg backdrop-blur-md group-hover:scale-110 transition-transform duration-300`}>
@@ -34,7 +41,7 @@ const MetricCard: React.FC<{
             <h3 className="text-4xl font-black text-white italic tracking-tighter mb-2">{value}</h3>
             <p className="text-xs font-mono text-gray-400">{subtext}</p>
         </div>
-    </div>
+    </motion.div>
 );
 
 const Dashboard: React.FC<{ setCurrentView: (view: View) => void }> = ({ setCurrentView }) => {
@@ -78,6 +85,7 @@ const Dashboard: React.FC<{ setCurrentView: (view: View) => void }> = ({ setCurr
                     icon={<Users className="w-6 h-6" />}
                     color="text-cyan-400"
                     onClick={() => setCurrentView('members')}
+                    index={0}
                 />
                 <MetricCard 
                     title="Fiscal Flow"
@@ -86,6 +94,7 @@ const Dashboard: React.FC<{ setCurrentView: (view: View) => void }> = ({ setCurr
                     icon={<Wallet className="w-6 h-6" />}
                     color="text-amber-400"
                     onClick={() => setCurrentView('billing')}
+                    index={1}
                 />
                 <MetricCard 
                     title="Future Streams"
@@ -94,6 +103,7 @@ const Dashboard: React.FC<{ setCurrentView: (view: View) => void }> = ({ setCurr
                     icon={<TrendingUp className="w-6 h-6" />}
                     color="text-purple-400"
                     onClick={() => setCurrentView('leads')}
+                    index={2}
                 />
                 <MetricCard 
                     title="System Integrity"
@@ -102,6 +112,7 @@ const Dashboard: React.FC<{ setCurrentView: (view: View) => void }> = ({ setCurr
                     icon={<ShieldCheck className="w-6 h-6" />}
                     color="text-green-400"
                     onClick={() => setCurrentView('security')}
+                    index={3}
                 />
             </div>
 
@@ -120,7 +131,13 @@ const Dashboard: React.FC<{ setCurrentView: (view: View) => void }> = ({ setCurr
                          
                          <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar bg-black/40">
                              {auditLogs.slice(0, 10).map((log, i) => (
-                                 <div key={i} className="flex gap-4 group animate-slide-up">
+                                 <motion.div 
+                                     key={i} 
+                                     initial={{ opacity: 0, x: -20 }}
+                                     animate={{ opacity: 1, x: 0 }}
+                                     transition={{ duration: 0.4, delay: i * 0.05 }}
+                                     className="flex gap-4 group"
+                                 >
                                      <div className="flex flex-col items-center">
                                          <div className="w-2 h-2 rounded-full bg-cyan-500 shadow-[0_0_10px_cyan]"></div>
                                          <div className="w-px h-full bg-white/5 my-1 group-last:hidden"></div>
@@ -132,7 +149,7 @@ const Dashboard: React.FC<{ setCurrentView: (view: View) => void }> = ({ setCurr
                                          </p>
                                          <p className="text-xs text-gray-300 font-medium leading-relaxed">{log.details}</p>
                                      </div>
-                                 </div>
+                                 </motion.div>
                              ))}
                              {auditLogs.length === 0 && (
                                  <div className="h-full flex flex-col items-center justify-center opacity-30">
@@ -189,6 +206,25 @@ const Dashboard: React.FC<{ setCurrentView: (view: View) => void }> = ({ setCurr
                         <div>
                             <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">AI Sentinel</p>
                             <p className="text-xs text-gray-400 italic">"Network Traffic optimal. No anomalies detected in Sector 7."</p>
+                        </div>
+                    </div>
+
+                    <div 
+                        onClick={() => setCurrentView('automationHub')}
+                        className="p-6 bg-black border border-white/5 rounded-[2.5rem] flex items-center justify-between group cursor-pointer hover:border-indigo-500/50 transition-all"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-indigo-600/10 rounded-2xl text-indigo-400 group-hover:scale-110 transition-transform">
+                                <Workflow className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Neural Sync Status</p>
+                                <p className="text-xs font-bold text-white">n8n + GitHub + Google</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black text-green-500 uppercase">Synced</span>
+                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
                         </div>
                     </div>
                 </div>

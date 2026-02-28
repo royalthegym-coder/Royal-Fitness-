@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import LoginScreen from './LoginScreen';
 import Sidebar from './Sidebar';
 import Header from './Header';
@@ -12,7 +13,6 @@ import { DataProvider, useData } from '../context/DataProvider';
 import ErrorBoundary from './common/ErrorBoundary';
 import { Crown, Sparkles, WifiOff, Zap, ShieldCheck, RefreshCw, Cpu, Activity, Infinity, Orbit } from 'lucide-react';
 import MemberPortal from './member/MemberPortal';
-import DevTools from './DevTools';
 
 // --- ADMIN MODULES (Lazy Loaded with Prefetch Logic) ---
 const Dashboard = React.lazy(() => import('./Dashboard'));
@@ -64,10 +64,12 @@ const MetabolicTracker = React.lazy(() => import('./member/MetabolicTracker'));
 const NeuroRecovery = React.lazy(() => import('./member/NeuroRecovery'));
 const CRMSystem = React.lazy(() => import('./CRMSystem'));
 const ScientificAdmissionForm = React.lazy(() => import('./ScientificAdmissionForm'));
+const AutomationHub = React.lazy(() => import('./AutomationHub'));
+const AdminAttendance = React.lazy(() => import('./admin/AdminAttendance'));
 
 const NeuralBoot = ({ onComplete }: { onComplete: () => void }) => {
     const [progress, setProgress] = useState(0);
-    const [phase, setPhase] = useState('Initializing Apex-Continuum v31.0 (The Singularity)...');
+    const [phase, setPhase] = useState('Initializing Apex-Continuum v32.0 (The Singularity)...');
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -105,7 +107,7 @@ const NeuralBoot = ({ onComplete }: { onComplete: () => void }) => {
                 <h1 className="text-7xl font-black text-white italic uppercase tracking-[0.2em] mb-2 leading-none">
                     Apex <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-500">Continuum</span>
                 </h1>
-                <p className="text-xs font-mono text-indigo-500/60 uppercase tracking-[1em] mb-12">The Singularity Update v31.0</p>
+                <p className="text-xs font-mono text-indigo-500/60 uppercase tracking-[1em] mb-12">The Singularity Update v32.0</p>
                 
                 <div className="w-96 h-1 bg-gray-900 rounded-full overflow-hidden relative border border-white/10">
                     <div className="h-full bg-gradient-to-r from-indigo-500 via-white to-cyan-500 transition-all duration-100 shadow-[0_0_20px_white]" style={{ width: `${progress}%` }}></div>
@@ -166,6 +168,7 @@ const AppContent: React.FC = () => {
                 case 'aiFitnessTracker': return AIFitnessTracker;
                 case 'crm': return CRMSystem;
                 case 'leads': return Leads;
+                case 'automationHub': return AutomationHub;
                 case 'socialManager': return SocialMediaManager;
                 case 'googleBusiness': return GoogleBusiness;
                 case 'whatsapp': return WhatsAppIntegration;
@@ -193,6 +196,7 @@ const AppContent: React.FC = () => {
                 case 'bots': return RoyalBotIntegrations;
                 case 'neuralArchitecture': return NeuralArchitecture;
                 case 'scientificAdmissionForm': return ScientificAdmissionForm;
+                case 'adminAttendance': return AdminAttendance;
                 default: return Dashboard;
             }
         })();
@@ -204,7 +208,18 @@ const AppContent: React.FC = () => {
                     <p className="text-xs font-black uppercase tracking-[0.3em]">Entangling Module...</p>
                 </div>
             }>
-                <ViewComponent setCurrentView={setCurrentView} currentUser={currentUser} theme={theme} />
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={currentView}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.3, ease: "easeOut" }}
+                        className="h-full"
+                    >
+                        <ViewComponent setCurrentView={setCurrentView} currentUser={currentUser} theme={theme} />
+                    </motion.div>
+                </AnimatePresence>
             </Suspense>
         );
     };
@@ -223,7 +238,7 @@ const AppContent: React.FC = () => {
                 <div className="hidden lg:flex items-center gap-3 px-4 py-1.5 bg-white dark:bg-gray-900 rounded-full border border-gray-200 dark:border-white/5 shadow-inner group cursor-help" title="System Status">
                     {systemHealth === 100 ? <ShieldCheck className="w-4 h-4 text-green-500" /> : <Activity className="w-4 h-4 text-amber-500 animate-pulse" />}
                     <span className="text-[9px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                        {isSyncing ? 'EVOLVING...' : `APEX v31.0 (The Singularity)`}
+                        {isSyncing ? 'EVOLVING...' : `APEX v32.0 (The Singularity)`}
                     </span>
                 </div>
             </Header>

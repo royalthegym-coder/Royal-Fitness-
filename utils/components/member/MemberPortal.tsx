@@ -36,6 +36,7 @@ import NeuralRepAnalyst from './NeuralRepAnalyst';
 import WearableConnectHub from './SmartWatch';
 import NutritionAdvisor from './NutritionAdvisor';
 import FutureOFS from './FutureOFS';
+import ProfileView from './ProfileView'; // Added
 import VoiceAssistant from '../VoiceAssistant';
 import { useToast } from '../../hooks/useToast';
 import { sendThankYouForPayment } from '../../../lib/whatsapp';
@@ -357,6 +358,7 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId,
             case 'neuralRep': return <NeuralRepAnalyst />;
             case 'wearables': return <WearableConnectHub />;
             case 'futureOFS': return <FutureOFS memberId={loggedInMemberId} />;
+            case 'profile': return <ProfileView memberId={loggedInMemberId} />; // Added
             default: return <div className="text-center py-20 text-gray-500 uppercase font-black tracking-widest">Protocol Initializing...</div>;
         }
     };

@@ -3,12 +3,15 @@ import Card from '../common/Card';
 import { 
     Stethoscope, FileText, Check, X, Clock, Zap, 
     AlertTriangle, Network, Globe, Activity, 
-    BrainCircuit, Dna, Scan, ChevronRight, CheckCircle, RefreshCw
+    BrainCircuit, Dna, Scan, ChevronRight, CheckCircle, RefreshCw,
+    UserPlus, Upload, ShieldCheck, Binary, Search
 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { useToast } from '../../hooks/useToast';
 import { AreaChart, Area, ResponsiveContainer, YAxis, Tooltip } from 'recharts';
 import { BotIcon } from '../icons/BotIcon';
+import { processMedicalReport, AIDoctorAnalysis } from '../../../lib/aiDoctor';
+import Modal from '../common/Modal';
 
 const AetherMedDashboard: React.FC = () => {
     const { medicalConsultations, medicalReports, updateMedicalConsultation, members, updateMember } = useData();
@@ -17,6 +20,12 @@ const AetherMedDashboard: React.FC = () => {
     // UI State
     const [selectedConsultId, setSelectedConsultId] = useState<string | null>(null);
     const [deployingId, setDeployingId] = useState<string | null>(null);
+    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+    const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [adminSymptoms, setAdminSymptoms] = useState('');
+    const [adminAttachedFiles, setAdminAttachedFiles] = useState<{name: string, data: string, type: string}[]>([]);
 
     // Filter Logic
     const pendingConsults = useMemo(() => medicalConsultations.filter(c => c.status === 'Pending Analysis'), [medicalConsultations]);
@@ -56,6 +65,87 @@ const AetherMedDashboard: React.FC = () => {
         }, 1500);
     };
 
+    const handleAdminReportUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []) as File[];
+        if (files.length === 0) return;
+
+        try {
+            const newFiles: {name: string, data: string, type: string}[] = [];
+            
+            for (const file of files) {
+                const reader = new FileReader();
+                await new Promise<void>((resolve, reject) => {
+                    reader.onload = () => {
+                        const base64 = reader.result?.toString().split(',')[1];
+                        if (base64) {
+                            newFiles.push({ name: file.name, data: base64, type: file.type });
+                        }
+                        resolve();
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            }
+            
+            setAdminAttachedFiles(prev => [...prev, ...newFiles]);
+            addToast(`${newFiles.length} report(s) attached.`, "success");
+            
+            if (e.target) e.target.value = '';
+        } catch (error) {
+            addToast("Failed to read files.", "error");
+        }
+    };
+
+    const removeAdminFile = (index: number) => {
+        setAdminAttachedFiles(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleAdminAnalyze = async () => {
+        if (!selectedMemberId) return addToast("Select a member first.", "error");
+        if (!adminSymptoms && adminAttachedFiles.length === 0) return addToast("Provide symptoms or attach reports.", "error");
+
+        setIsAnalyzing(true);
+        addToast("Microscope-AI Initializing...", "info");
+
+        try {
+            const filesForAI = adminAttachedFiles.map(f => ({ data: f.data, mimeType: f.type }));
+            const member = members.find(m => m.id === selectedMemberId);
+            
+            const { analyzeComprehensiveHealth } = await import('../../../lib/aiDoctor');
+            const analysis = await analyzeComprehensiveHealth(adminSymptoms, filesForAI, member);
+            
+            // Add to consultations
+            const consultId = `DOC-ADM-${Date.now()}`;
+            updateMedicalConsultation({
+                id: consultId,
+                memberId: selectedMemberId,
+                memberName: member?.name || 'Unknown',
+                symptoms: adminSymptoms + (adminAttachedFiles.length > 0 ? ` [Attached ${adminAttachedFiles.length} reports]` : ''),
+                duration: 'N/A',
+                severity: analysis.severity,
+                historyContext: 'Uploaded by Admin',
+                aiDiagnosis: JSON.stringify(analysis),
+                aiPrescription: analysis.treatment,
+                status: 'Pending Analysis',
+                timestamp: new Date().toISOString()
+            });
+            
+            addToast("Report Analyzed & Added to Triage.", "success");
+            setIsUploadModalOpen(false);
+            setAdminSymptoms('');
+            setAdminAttachedFiles([]);
+            setSelectedMemberId(null);
+        } catch (error) {
+            addToast("Analysis Failed.", "error");
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
+    const filteredMembers = useMemo(() => {
+        return members.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    }, [members, searchQuery]);
+
     return (
         <div className="space-y-8 animate-fade-in pb-20">
             {/* HEADER */}
@@ -80,6 +170,12 @@ const AetherMedDashboard: React.FC = () => {
                             </h1>
                         </div>
                     </div>
+                    <button 
+                        onClick={() => setIsUploadModalOpen(true)}
+                        className="bg-white text-black font-black px-8 py-4 rounded-2xl text-[10px] uppercase tracking-widest shadow-xl hover:bg-cyan-400 transition-all flex items-center gap-2 active:scale-95"
+                    >
+                        <Upload className="w-4 h-4"/> Upload Member Report
+                    </button>
                 </div>
             </div>
 
@@ -192,22 +288,31 @@ const AetherMedDashboard: React.FC = () => {
                                                             
                                                             {/* Council Breakdown */}
                                                             <div className="grid grid-cols-2 gap-4">
-                                                                {analysis.deepseek_logic && (
+                                                                {analysis.agents_involved && (
                                                                     <div className="bg-purple-900/10 border border-purple-500/20 p-5 rounded-3xl">
                                                                         <p className="text-[9px] text-purple-400 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
-                                                                            <Scan className="w-3 h-3"/> DeepSeek Logic
+                                                                            <Binary className="w-3 h-3"/> Council Agents
                                                                         </p>
-                                                                        <p className="text-xs text-gray-300 italic">"{analysis.deepseek_logic}"</p>
+                                                                        <div className="flex flex-wrap gap-2">
+                                                                            {analysis.agents_involved.map((agent: string) => (
+                                                                                <span key={agent} className="text-[8px] bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full border border-purple-500/30">{agent}</span>
+                                                                            ))}
+                                                                        </div>
                                                                     </div>
                                                                 )}
-                                                                {analysis.grok_insight && (
-                                                                    <div className="bg-blue-900/10 border border-blue-500/20 p-5 rounded-3xl">
-                                                                        <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
-                                                                            <Globe className="w-3 h-3"/> Grok Insight
+                                                                <div className="bg-indigo-900/10 border border-indigo-500/20 p-5 rounded-3xl">
+                                                                    <p className="text-[9px] text-indigo-400 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+                                                                        <Globe className="w-3 h-3"/> Sync Status
+                                                                    </p>
+                                                                    <div className="space-y-1">
+                                                                        <p className="text-[10px] text-white font-mono flex items-center gap-2">
+                                                                            <CheckCircle className="w-3 h-3 text-green-500"/> GitHub: {analysis.github_sync_status || 'Synced'}
                                                                         </p>
-                                                                        <p className="text-xs text-gray-300 italic">"{analysis.grok_insight}"</p>
+                                                                        <p className="text-[10px] text-white font-mono flex items-center gap-2">
+                                                                            <CheckCircle className="w-3 h-3 text-green-500"/> n8n: {analysis.n8n_workflow_id || 'Triggered'}
+                                                                        </p>
                                                                     </div>
-                                                                )}
+                                                                </div>
                                                             </div>
 
                                                             {/* Treatment Plan */}
@@ -259,6 +364,87 @@ const AetherMedDashboard: React.FC = () => {
                     )}
                 </div>
             </div>
+            {/* UPLOAD MODAL */}
+            <Modal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} title="Admin Medical Uplink">
+                <div className="space-y-6 py-4">
+                    <div className="relative">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                        <input 
+                            type="text" 
+                            placeholder="Search Member..." 
+                            className="w-full bg-gray-900 border border-white/10 rounded-2xl p-4 pl-12 text-white text-sm outline-none focus:border-cyan-500"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-2">
+                        {filteredMembers.map(m => (
+                            <button 
+                                key={m.id}
+                                onClick={() => setSelectedMemberId(m.id)}
+                                className={`w-full p-4 rounded-xl border flex items-center justify-between transition-all ${selectedMemberId === m.id ? 'bg-cyan-500/10 border-cyan-500' : 'bg-black/40 border-white/5 hover:border-white/10'}`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <img src={m.avatar} alt={m.name} className="w-8 h-8 rounded-full" />
+                                    <span className="text-sm font-bold text-white">{m.name}</span>
+                                </div>
+                                {selectedMemberId === m.id && <CheckCircle className="w-4 h-4 text-cyan-500" />}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="pt-4 space-y-4">
+                        <textarea 
+                            value={adminSymptoms} 
+                            onChange={e => setAdminSymptoms(e.target.value)} 
+                            placeholder="Add admin notes or member symptoms..." 
+                            className="w-full bg-gray-900 border border-white/10 rounded-2xl p-4 text-white focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all text-sm resize-none h-24"
+                            disabled={!selectedMemberId || isAnalyzing}
+                        />
+
+                        {adminAttachedFiles.length > 0 && (
+                            <div className="space-y-2">
+                                <p className="text-[10px] font-black uppercase text-gray-500 tracking-widest">Attached Reports</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {adminAttachedFiles.map((file, idx) => (
+                                        <div key={idx} className="flex items-center gap-2 bg-gray-800 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-300">
+                                            <FileText className="w-3 h-3 text-cyan-400" />
+                                            <span className="truncate max-w-[150px]">{file.name}</span>
+                                            <button onClick={() => removeAdminFile(idx)} className="text-red-400 hover:text-red-300 ml-1">
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex gap-3">
+                            <label className={`flex-1 py-4 rounded-2xl border-2 border-dashed flex items-center justify-center gap-2 transition-all cursor-pointer ${selectedMemberId ? 'border-cyan-500/30 hover:border-cyan-500 bg-cyan-500/5 text-cyan-400' : 'border-gray-800 text-gray-600 opacity-50 cursor-not-allowed'}`}>
+                                <Upload className="w-4 h-4" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Attach Files</span>
+                                <input 
+                                    type="file" 
+                                    multiple
+                                    className="hidden" 
+                                    onChange={handleAdminReportUpload} 
+                                    disabled={!selectedMemberId || isAnalyzing} 
+                                    accept=".pdf,.jpg,.png"
+                                />
+                            </label>
+                            <button 
+                                onClick={handleAdminAnalyze}
+                                disabled={!selectedMemberId || (!adminSymptoms && adminAttachedFiles.length === 0) || isAnalyzing}
+                                className="flex-[2] bg-white text-black font-black py-4 rounded-2xl uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-cyan-400 transition-all"
+                            >
+                                {isAnalyzing ? <RefreshCw className="w-4 h-4 animate-spin"/> : <Zap className="w-4 h-4 fill-current"/>}
+                                {isAnalyzing ? 'ANALYZING...' : 'ANALYZE DATA'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 };

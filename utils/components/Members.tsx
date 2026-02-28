@@ -10,10 +10,10 @@ import {
     CheckCircle, XCircle, MoreHorizontal, Trash2, Edit3,
     Fingerprint, Wallet, Landmark, Nfc, Minus, ShoppingBag, 
     CreditCard, Activity, ShieldCheck, Camera, UploadCloud, Dumbbell,
-    Pill, Apple, AlertTriangle
+    Pill, Apple, AlertTriangle, Flame, Crown, Zap, Key, ShieldAlert
 } from 'lucide-react';
 import { GYM_INFO } from '../../constants';
-import { sendPaymentRequest, sendWhatsAppWelcomeMessage, sendPaymentReceipt } from '../../lib/whatsapp';
+import { sendPaymentRequest, sendWhatsAppWelcomeMessage, sendPaymentReceipt, sendWhatsAppOTP } from '../../lib/whatsapp';
 import CameraModal from './common/CameraModal';
 
 interface CartItem {
@@ -36,6 +36,7 @@ const MemberForm: React.FC<{
         name: '', email: '', phone: '', joinDate: new Date().toISOString().split('T')[0],
         status: 'Active',
         avatar: '',
+        password: '', // Added
         aadhaar: '',
         dob: '',
         address: '',
@@ -132,6 +133,15 @@ const MemberForm: React.FC<{
                 ptPackageName: selectedPtPkg?.name
             }
         });
+    };
+
+    const PT_CATEGORY_INFO: Record<string, { desc: string, icon: React.ReactNode }> = {
+        'PT: Weight Loss': { desc: 'वजन घटाने और फैट लॉस पर केंद्रित (Focus on Fat Loss & Weight Reduction) - ₹3000/Month', icon: <Flame className="w-4 h-4 text-orange-500" /> },
+        'PT: Muscle Gain': { desc: 'मांसपेशियों के निर्माण और स्ट्रेंथ पर केंद्रित (Focus on Muscle Building & Hypertrophy) - ₹5000/Month', icon: <Dumbbell className="w-4 h-4 text-blue-500" /> },
+        'PT: Bodybuilding': { desc: 'प्रतियोगिता स्तर की तैयारी और सिमिट्री (Competition Prep & Aesthetic Symmetry) - ₹8000/Month', icon: <Crown className="w-4 h-4 text-amber-500" /> },
+        'PT: Powerlifting': { desc: 'अधिकतम शक्ति और लिफ्टिंग तकनीक (Max Strength & Lifting Technique) - ₹5000/Month', icon: <Zap className="w-4 h-4 text-yellow-500" /> },
+        'PT: General Fitness': { desc: 'सामान्य स्वास्थ्य और गतिशीलता (Overall Health, Mobility & Longevity) - ₹3000/Month', icon: <Activity className="w-4 h-4 text-rose-500" /> },
+        'Personal Training': { desc: 'अनुकूलित व्यक्तिगत प्रशिक्षण (Customized 1-on-1 Coaching)', icon: <User className="w-4 h-4 text-indigo-500" /> }
     };
 
     const accessories = inventory.filter(i => i.category === 'Accessory' || i.category === 'Apparel');
@@ -231,6 +241,16 @@ const MemberForm: React.FC<{
                         <label className={labelClass}>Address</label>
                         <textarea value={formData.address || ''} onChange={e => setFormData({...formData, address: e.target.value})} className={inputClass} placeholder="Full residential address" rows={2} />
                     </div>
+                    <div className="md:col-span-2">
+                        <label className={labelClass}>Login Password (पासवर्ड)</label>
+                        <input 
+                            type="password" 
+                            value={formData.password || ''} 
+                            onChange={e => setFormData({...formData, password: e.target.value})} 
+                            className={inputClass} 
+                            placeholder="Set member password (Default: royal123)" 
+                        />
+                    </div>
                 </div>
 
                 {/* Emergency Contact */}
@@ -324,6 +344,14 @@ const MemberForm: React.FC<{
                                     <option key={cat} value={cat}>{cat}</option>
                                 ))}
                             </select>
+                            {PT_CATEGORY_INFO[trainingCategory] && (
+                                <div className="mt-2 flex items-start gap-2 bg-black/40 p-2 rounded-xl border border-white/5">
+                                    <div className="mt-0.5">{PT_CATEGORY_INFO[trainingCategory].icon}</div>
+                                    <p className="text-[9px] text-gray-500 font-medium leading-tight">
+                                        {PT_CATEGORY_INFO[trainingCategory].desc}
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Package Selector */}
                              <select 
@@ -645,6 +673,13 @@ const Members: React.FC<{ setCurrentView: (view: any) => void }> = ({ setCurrent
     const [statusFilter, setStatusFilter] = useState('All');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingMember, setEditingMember] = useState<Member | null>(null);
+    
+    // Secure Removal State
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [memberToDelete, setMemberToDelete] = useState<Member | null>(null);
+    const [removalOtp, setRemovalOtp] = useState('');
+    const [generatedOtp, setGeneratedOtp] = useState('');
+    const [isSendingOtp, setIsSendingOtp] = useState(false);
 
     const filteredMembers = useMemo(() => {
         return members.filter(m => {
@@ -747,6 +782,37 @@ const Members: React.FC<{ setCurrentView: (view: any) => void }> = ({ setCurrent
         setEditingMember(null);
     };
 
+    const initiateRemoval = async (member: Member) => {
+        setMemberToDelete(member);
+        setIsSendingOtp(true);
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        setGeneratedOtp(otp);
+        
+        addToast(`Sending authorization code to admin...`, "info");
+        const success = await sendWhatsAppOTP(GYM_INFO.whatsappNumber.replace(/\D/g, ''), otp);
+        
+        if (success) {
+            setIsDeleteModalOpen(true);
+            addToast("Authorization code sent to admin WhatsApp.", "success");
+        } else {
+            addToast("Failed to send authorization code. Check WhatsApp API.", "error");
+        }
+        setIsSendingOtp(false);
+    };
+
+    const confirmRemoval = () => {
+        if (removalOtp === generatedOtp && memberToDelete) {
+            deleteMember(memberToDelete.id);
+            addToast(`Member ${memberToDelete.name} removed successfully.`, "success");
+            setIsDeleteModalOpen(false);
+            setMemberToDelete(null);
+            setRemovalOtp('');
+            setGeneratedOtp('');
+        } else {
+            addToast("Invalid authorization code.", "error");
+        }
+    };
+
     return (
         <div className="space-y-8 animate-fade-in pb-24">
              {/* Header */}
@@ -835,10 +901,12 @@ const Members: React.FC<{ setCurrentView: (view: any) => void }> = ({ setCurrent
                                 <Edit3 className="w-3 h-3"/> Edit
                              </button>
                              <button 
-                                onClick={() => { if(confirm("Delete Member?")) deleteMember(member.id); }}
-                                className="py-3 bg-red-900/10 hover:bg-red-900/30 text-red-500 border border-red-900/30 rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-all"
+                                onClick={() => initiateRemoval(member)}
+                                disabled={isSendingOtp && memberToDelete?.id === member.id}
+                                className="py-3 bg-red-900/10 hover:bg-red-900/30 text-red-500 border border-red-900/30 rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                             >
-                                <Trash2 className="w-3 h-3"/> Remove
+                                {isSendingOtp && memberToDelete?.id === member.id ? <Activity className="w-3 h-3 animate-spin"/> : <Trash2 className="w-3 h-3"/>}
+                                Remove
                              </button>
                         </div>
                     </Card>
@@ -853,6 +921,56 @@ const Members: React.FC<{ setCurrentView: (view: any) => void }> = ({ setCurrent
                     packages={packages}
                     inventory={inventory}
                 />
+            )}
+
+            {/* SECURE REMOVAL MODAL */}
+            {isDeleteModalOpen && (
+                <Modal onClose={() => setIsDeleteModalOpen(false)} title="Secure Removal Authorization">
+                    <div className="p-6 space-y-6 text-center">
+                        <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto border border-red-500/20">
+                            <ShieldAlert className="w-10 h-10 text-red-500" />
+                        </div>
+                        
+                        <div>
+                            <h3 className="text-xl font-black text-white uppercase italic">Confirm Deletion</h3>
+                            <p className="text-gray-400 text-xs mt-2">
+                                You are about to remove <span className="text-white font-bold">{memberToDelete?.name}</span>. 
+                                This action is irreversible and requires admin authorization.
+                            </p>
+                        </div>
+
+                        <div className="bg-black/40 p-6 rounded-2xl border border-white/10">
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">Enter Admin Auth Code</label>
+                            <div className="relative">
+                                <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                                <input 
+                                    type="text" 
+                                    value={removalOtp}
+                                    onChange={(e) => setRemovalOtp(e.target.value)}
+                                    placeholder="6-Digit Code"
+                                    className="w-full bg-black/60 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-center font-mono text-xl tracking-[0.5em] outline-none focus:border-red-500 transition-all"
+                                    maxLength={6}
+                                />
+                            </div>
+                            <p className="text-[9px] text-gray-600 mt-3 uppercase tracking-widest">Code sent to {GYM_INFO.whatsappNumber}</p>
+                        </div>
+
+                        <div className="flex gap-4">
+                            <button 
+                                onClick={() => setIsDeleteModalOpen(false)}
+                                className="flex-1 py-4 bg-gray-800 text-gray-400 font-bold rounded-xl text-xs hover:bg-gray-700 transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={confirmRemoval}
+                                className="flex-[2] py-4 bg-red-600 text-white font-black rounded-xl uppercase tracking-widest text-xs hover:bg-red-500 transition-all shadow-lg shadow-red-900/20"
+                            >
+                                Authorize Removal
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
             )}
         </div>
     );

@@ -1,5 +1,6 @@
 
 import React, { memo, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   DashboardIcon, MembersIcon, BillingIcon, WorkoutIcon, DietIcon, 
   ExpensesIcon, PackageIcon, LeadsIcon 
@@ -8,7 +9,7 @@ import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { BrainCircuitIcon } from './icons/BrainCircuitIcon';
 import { ControlIcon } from './icons/ControlIcon';
-import { Microscope, Zap, Settings, Command, Activity, Heart, DollarSign, CalendarCheck, Stethoscope, TrendingUp, Cpu, ShieldAlert, MonitorPlay, HelpCircle, ScanFace, Globe, Glasses, Link, Shield, FlaskConical, Clock, Wind, Network, Moon, Eye, Truck, Map, Terminal, Gauge, Share2, Package, List, Users, ChevronDown, Utensils, Sparkles } from 'lucide-react';
+import { User, Microscope, Zap, Settings, Command, Activity, Heart, DollarSign, CalendarCheck, Stethoscope, TrendingUp, Cpu, ShieldAlert, MonitorPlay, HelpCircle, ScanFace, Globe, Glasses, Link, Shield, FlaskConical, Clock, Wind, Network, Moon, Eye, Truck, Map, Terminal, Gauge, Share2, Package, List, Users, ChevronDown, Utensils, Sparkles, Workflow } from 'lucide-react';
 import { GoogleIcon } from './icons/GoogleIcon';
 import { View } from '../../types';
 import { CloudArrowUpIcon } from './icons/CloudArrowUpIcon';
@@ -53,6 +54,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
         { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
         { id: 'scientificAdmissionForm', label: 'AI Admission Form', icon: <Sparkles className="w-5 h-5 text-indigo-400" /> },
         { id: 'members', label: 'Members List', icon: <MembersIcon /> },
+        { id: 'adminAttendance', label: 'Attendance', icon: <Clock className="w-5 h-5 text-cyan-400" /> },
         { id: 'billing', label: 'Billing & Fees', icon: <BillingIcon /> },
         { id: 'payment', label: 'Take Payment', icon: <DollarSignIcon className="text-green-500" /> },
         { id: 'staff', label: 'Staff Management', icon: <Users className="w-5 h-5 text-indigo-400" /> },
@@ -93,6 +95,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
     {
       category: 'System (सिस्टम)',
       items: [
+        { id: 'automationHub', label: 'Automation Hub', icon: <Workflow className="w-5 h-5 text-indigo-400" /> },
         { id: 'neuralArchitecture', label: 'Neural OS Stack', icon: <Cpu className="w-5 h-5 text-indigo-400" /> },
         { id: 'autoProcurement', label: 'Auto-Orders', icon: <Truck className="w-5 h-5 text-amber-500" /> }, 
         { id: 'security', label: 'Security', icon: <ShieldAlert className="w-5 h-5 text-red-400" /> },
@@ -106,6 +109,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
       category: 'My Zone (मेरा जोन)', 
       items: [
         { id: 'dashboard', label: 'Home', icon: <DashboardIcon /> },
+        { id: 'profile', label: 'My Profile', icon: <User className="w-5 h-5 text-indigo-400" /> },
         { id: 'dailyProtocol', label: 'My Tasks', icon: <CalendarCheck className="w-5 h-5 text-amber-400" /> },
         { id: 'attendance', label: 'Attendance', icon: <Clock className="w-5 h-5 text-cyan-400" /> },
         { id: 'payments', label: 'Payments', icon: <DollarSign className="w-5 h-5 text-green-500" /> },
@@ -175,7 +179,9 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
             const isExpanded = expandedCategories.includes(section.category);
             return (
                 <div key={idx} className="relative z-10 mb-4">
-                    <button 
+                    <motion.button 
+                        whileHover={{ x: 4 }}
+                        whileTap={{ scale: 0.98 }}
                         onClick={() => toggleCategory(section.category)}
                         className={`w-full flex items-center justify-between px-6 py-3 rounded-2xl transition-all duration-300 group ${isExpanded ? 'bg-white/5 text-white' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
                     >
@@ -184,15 +190,25 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
                             <span className="text-[11px] font-black uppercase tracking-[0.1em]">{section.category}</span>
                         </div>
                         <ChevronDown className={`w-3 h-3 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-white' : 'text-gray-600'}`} />
-                    </button>
+                    </motion.button>
                   
-                  <div className={`space-y-1 mt-2 overflow-hidden transition-all duration-300 ${isExpanded ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div 
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                        className="space-y-1 mt-2 overflow-hidden"
+                      >
                         {section.items.map(item => {
                             const isActive = currentView === item.id;
                             
                             return (
-                              <button
+                              <motion.button
                                 key={item.id}
+                                whileHover={{ x: 8 }}
+                                whileTap={{ scale: 0.95 }}
                                 onClick={() => { setCurrentView(item.id as View); if (window.innerWidth < 768) setIsOpen(false); }}
                                 className={`group relative flex items-center w-full px-6 py-3.5 text-xs rounded-xl transition-all duration-300 overflow-hidden ${
                                     isActive 
@@ -205,11 +221,13 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
                                 </span>
                                 <span className="font-bold tracking-wider uppercase relative z-10 text-[11px]">{item.label}</span>
                                 
-                                {isActive && <div className="absolute right-4 w-1.5 h-1.5 bg-cyan-400 rounded-full shadow-[0_0_10px_#06b6d4] animate-pulse"></div>}
-                              </button>
+                                {isActive && <motion.div layoutId="active-indicator" className="absolute right-4 w-1.5 h-1.5 bg-cyan-400 rounded-full shadow-[0_0_10px_#06b6d4] animate-pulse"></motion.div>}
+                              </motion.button>
                             );
                         })}
-                  </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
             );
           })}

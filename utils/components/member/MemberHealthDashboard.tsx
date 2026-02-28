@@ -91,10 +91,26 @@ const MemberHealthDashboard: React.FC = () => {
             User: ${currentUser?.name}.
             Data: Readiness ${readinessScore}%, HRV ${liveHealthData.heartRate.hrv}ms, Sleep ${liveHealthData.sleep.totalHours}h.
             
-            Output a "Tactical Brief" (HTML):
-            1. System Status (1 sentence)
-            2. Recommended Protocol (e.g. "High Intensity" or "Active Recovery")
-            3. One Bio-Hack tip.
+            Based on the member's data, generate personalized workout suggestions and motivational prompts.
+            Output a "Tactical Brief" (HTML format, use Tailwind classes for styling, keep it clean and futuristic):
+            <div class="space-y-4">
+                <div class="p-4 bg-indigo-900/20 border border-indigo-500/30 rounded-2xl">
+                    <h4 class="text-xs font-black text-indigo-400 uppercase tracking-widest mb-2">System Status</h4>
+                    <p class="text-white text-sm">...</p>
+                </div>
+                <div class="p-4 bg-cyan-900/20 border border-cyan-500/30 rounded-2xl">
+                    <h4 class="text-xs font-black text-cyan-400 uppercase tracking-widest mb-2">Personalized Workout</h4>
+                    <p class="text-white text-sm">...</p>
+                </div>
+                <div class="p-4 bg-amber-900/20 border border-amber-500/30 rounded-2xl">
+                    <h4 class="text-xs font-black text-amber-400 uppercase tracking-widest mb-2">Motivational Override</h4>
+                    <p class="text-white text-sm italic">...</p>
+                </div>
+                <div class="p-4 bg-green-900/20 border border-green-500/30 rounded-2xl">
+                    <h4 class="text-xs font-black text-green-400 uppercase tracking-widest mb-2">Bio-Hack</h4>
+                    <p class="text-white text-sm">...</p>
+                </div>
+            </div>
         `;
 
         try {
@@ -268,7 +284,7 @@ const MemberHealthDashboard: React.FC = () => {
                                                 <p className="text-[10px] font-black uppercase tracking-widest">Running Bio-Audit...</p>
                                             </div>
                                         ) : coachVerdict ? (
-                                            <div className="prose prose-invert prose-sm text-indigo-200 italic leading-relaxed" dangerouslySetInnerHTML={{ __html: coachVerdict }} />
+                                            <div dangerouslySetInnerHTML={{ __html: coachVerdict }} />
                                         ) : (
                                             <p className="text-gray-500 text-xs text-center mt-10">"Initiate a scan to receive today's tactical health briefing."</p>
                                         )}

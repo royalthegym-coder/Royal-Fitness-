@@ -8,10 +8,12 @@ import {
     Smartphone, Cloud, BrainCircuit, User,
     MapPin, Radio, AlertTriangle, Trash2,
     Crosshair, Terminal, Power, Mic, ScanFace,
-    Layers, Fingerprint, Database
+    Layers, Fingerprint, Database, Send
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
+import { useData } from '../context/DataProvider';
 import ConfirmationDialog from './common/ConfirmationDialog';
+import { testWhatsAppConnection } from '../../lib/whatsapp';
 
 interface SettingsProps {
     setCurrentView: (view: View) => void;
@@ -20,12 +22,13 @@ interface SettingsProps {
 
 const Settings: React.FC<SettingsProps> = ({ setCurrentView, currentUser }) => {
     const { addToast } = useToast();
+    const { systemVersion } = useData();
     const [activeTab, setActiveTab] = useState<'neural_core' | 'security_grid' | 'comms_uplink' | 'identity'>('neural_core');
     
     // --- STATE MANAGEMENT ---
 
     // 1. Neural Core (AI)
-    const [aiProvider, setAiProvider] = useState(localStorage.getItem('royal_ai_provider') || 'HUGGINGFACE');
+    const [aiProvider, setAiProvider] = useState(localStorage.getItem('royal_ai_provider') || 'GEMINI');
     const [simMode, setSimMode] = useState(localStorage.getItem('royal_ai_mode') === 'SIMULATION');
     const [voiceEnabled, setVoiceEnabled] = useState(localStorage.getItem('royal_voice_enabled') !== 'false');
     const [reasoningBudget, setReasoningBudget] = useState(Number(localStorage.getItem('royal_reasoning_budget')) || 50);
@@ -40,6 +43,8 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, currentUser }) => {
     // 3. Comms Uplink (WhatsApp)
     const [waToken, setWaToken] = useState(localStorage.getItem('whatsapp_access_token') || '');
     const [waPhoneId, setWaPhoneId] = useState(localStorage.getItem('whatsapp_phone_id') || '');
+    const [testPhone, setTestPhone] = useState(localStorage.getItem('royal_test_phone') || '9785300123');
+    const [isTestingWa, setIsTestingWa] = useState(false);
 
     // 4. Identity
     const [name, setName] = useState(currentUser?.name || '');
@@ -87,7 +92,22 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, currentUser }) => {
     const handleSaveComms = () => {
         localStorage.setItem('whatsapp_access_token', waToken);
         localStorage.setItem('whatsapp_phone_id', waPhoneId);
+        localStorage.setItem('royal_test_phone', testPhone);
         addToast("Sub-Space Communication Channels Synced.", "success");
+    };
+
+    const handleTestWhatsApp = async () => {
+        if (!waToken || !waPhoneId) return addToast("Configure credentials first.", "error");
+        setIsTestingWa(true);
+        addToast("Sending 'hello_world' template...", "info");
+        
+        const success = await testWhatsAppConnection(testPhone);
+        if (success) {
+            addToast("Test message dispatched successfully.", "success");
+        } else {
+            addToast("Uplink failed. Check credentials and API status.", "error");
+        }
+        setIsTestingWa(false);
     };
 
     const handleFactoryReset = () => {
@@ -115,7 +135,7 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, currentUser }) => {
                                 <div className="px-4 py-1.5 bg-white/10 text-gray-300 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2 border border-white/5">
                                     <Terminal className="w-3 h-3" /> Root Access
                                 </div>
-                                <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">VER: 31.0.0</span>
+                                <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">VER: {systemVersion}</span>
                             </div>
                             <h1 className="text-5xl md:text-7xl font-black text-white italic uppercase tracking-tighter leading-none">
                                 Kernel <span className="text-gray-500">Config</span>
@@ -178,44 +198,44 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, currentUser }) => {
                     {activeTab === 'neural_core' && (
                         <Card title="Intelligence Engine" className="bg-[#0c0c0c] border-white/5 p-10 rounded-[3rem] h-full shadow-2xl">
                              <div className="space-y-8">
-                                <div className="p-6 bg-blue-900/10 border border-blue-500/30 rounded-3xl relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 p-4 opacity-10"><BrainCircuit className="w-32 h-32 text-blue-400"/></div>
+                                <div className="p-6 bg-green-900/10 border border-green-500/30 rounded-3xl relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-4 opacity-10"><BrainCircuit className="w-32 h-32 text-green-400"/></div>
                                     <div className="flex justify-between items-center mb-4 relative z-10">
                                         <div>
-                                            <h4 className="text-white font-bold text-lg">Cost Control Mode</h4>
-                                            <p className="text-xs text-gray-400 mt-1">Force Simulation to prevent API charges.</p>
+                                            <h4 className="text-white font-bold text-lg">100% Free Open-Source Mode</h4>
+                                            <p className="text-xs text-gray-400 mt-1">Force Local/Free APIs to prevent any charges.</p>
                                         </div>
                                         <button 
                                             onClick={() => setSimMode(!simMode)}
                                             className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase transition-all tracking-widest ${simMode ? 'bg-green-500 text-black shadow-[0_0_20px_#22c55e]' : 'bg-gray-800 text-gray-500'}`}
                                         >
-                                            {simMode ? 'Simulation: Active' : 'Online: Active'}
+                                            {simMode ? 'Free Mode: Active' : 'Paid APIs: Active'}
                                         </button>
                                     </div>
                                     <div className="flex items-center gap-2 text-[10px] font-mono">
                                         <div className={`w-2 h-2 rounded-full ${simMode ? 'bg-green-500' : 'bg-red-500'} animate-pulse`}></div>
                                         <span className={simMode ? 'text-green-400' : 'text-red-400'}>
-                                            {simMode ? 'Running Local Heuristics (Free)' : 'Connected to Hugging Face/OpenAI (Cloud)'}
+                                            {simMode ? 'Running Llama-3 / Mistral (Zero Cost)' : 'Connected to Paid Cloud APIs'}
                                         </span>
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div onClick={() => setAiProvider('HUGGINGFACE')} className={`p-6 rounded-3xl border-2 cursor-pointer transition-all ${aiProvider === 'HUGGINGFACE' || aiProvider === 'GEMINI' ? 'border-blue-500 bg-blue-900/10' : 'border-gray-800 bg-black/40 hover:border-gray-600'}`}>
-                                        <Globe className={`w-8 h-8 mb-4 ${aiProvider === 'HUGGINGFACE' || aiProvider === 'GEMINI' ? 'text-blue-400' : 'text-gray-600'}`} />
-                                        <h3 className="font-bold text-white">Hugging Face</h3>
-                                        <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-wider">Open Source Models. Free Tier.</p>
+                                    <div onClick={() => setAiProvider('HUGGINGFACE')} className={`p-6 rounded-3xl border-2 cursor-pointer transition-all ${aiProvider === 'HUGGINGFACE' || aiProvider === 'GEMINI' ? 'border-green-500 bg-green-900/10' : 'border-gray-800 bg-black/40 hover:border-gray-600'}`}>
+                                        <Globe className={`w-8 h-8 mb-4 ${aiProvider === 'HUGGINGFACE' || aiProvider === 'GEMINI' ? 'text-green-400' : 'text-gray-600'}`} />
+                                        <h3 className="font-bold text-white">Groq / Hugging Face</h3>
+                                        <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-wider">Llama-3 & Mistral. 100% Free Tier.</p>
                                     </div>
-                                    <div onClick={() => setAiProvider('OPENAI')} className={`p-6 rounded-3xl border-2 cursor-pointer transition-all ${aiProvider === 'OPENAI' ? 'border-green-500 bg-green-900/10' : 'border-gray-800 bg-black/40 hover:border-gray-600'}`}>
-                                        <Cloud className={`w-8 h-8 mb-4 ${aiProvider === 'OPENAI' ? 'text-green-400' : 'text-gray-600'}`} />
+                                    <div onClick={() => setAiProvider('OPENAI')} className={`p-6 rounded-3xl border-2 cursor-pointer transition-all ${aiProvider === 'OPENAI' ? 'border-red-500 bg-red-900/10' : 'border-gray-800 bg-black/40 hover:border-gray-600'}`}>
+                                        <Cloud className={`w-8 h-8 mb-4 ${aiProvider === 'OPENAI' ? 'text-red-400' : 'text-gray-600'}`} />
                                         <h3 className="font-bold text-white">OpenAI (GPT-4)</h3>
-                                        <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-wider">Requires External Key.</p>
+                                        <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-wider">Requires Paid External Key.</p>
                                     </div>
                                 </div>
 
                                 {aiProvider === 'HUGGINGFACE' && (
                                     <div>
-                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Hugging Face Token (Optional for Free Tier)</label>
+                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Groq / Hugging Face Token (Optional)</label>
                                         <input 
                                             type="password" 
                                             value={hfToken}
@@ -223,7 +243,7 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, currentUser }) => {
                                             placeholder="hf_..."
                                             className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-blue-500 transition-all"
                                         />
-                                        <p className="text-[10px] text-gray-500 mt-2">Get a free token at huggingface.co/settings/tokens</p>
+                                        <p className="text-[10px] text-gray-500 mt-2">Get a free token at huggingface.co/settings/tokens or console.groq.com</p>
                                     </div>
                                 )}
 
@@ -349,6 +369,27 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, currentUser }) => {
                                         rows={3}
                                         className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 text-white font-mono text-xs outline-none focus:border-green-500 transition-all resize-none"
                                     />
+                                </div>
+
+                                <div className="pt-4 border-t border-white/5">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Test Phone Number</label>
+                                    <div className="flex gap-3">
+                                        <input 
+                                            type="text" 
+                                            value={testPhone}
+                                            onChange={(e) => setTestPhone(e.target.value)}
+                                            placeholder="91..."
+                                            className="flex-1 bg-black/60 border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-green-500 transition-all"
+                                        />
+                                        <button 
+                                            onClick={handleTestWhatsApp}
+                                            disabled={isTestingWa}
+                                            className="px-6 bg-white text-black font-black rounded-2xl uppercase tracking-widest text-[10px] hover:bg-green-400 transition-all flex items-center gap-2 disabled:opacity-50"
+                                        >
+                                            {isTestingWa ? <RefreshCw className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4"/>}
+                                            Test
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <button onClick={handleSaveComms} className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-5 rounded-[2rem] uppercase tracking-widest text-xs shadow-xl transition-all flex items-center justify-center gap-2">

@@ -2,15 +2,16 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './common/Modal';
 import { Task } from '../../types';
-import { Target, Clock, AlertTriangle, Save, X, Trash2 } from 'lucide-react';
+import { Target, Clock, AlertTriangle, Save, X, Trash2, Link as LinkIcon, Check } from 'lucide-react';
 import ConfirmationDialog from './common/ConfirmationDialog';
 
 interface TaskFormModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (task: Omit<Task, 'id' | 'completed'> & { id?: number }) => void;
+    onSave: (task: Omit<Task, 'id' | 'completed'> & { id?: number, dependencies?: number[] }) => void;
     onDelete?: () => void;
     task: Task | null;
+    allTasks: Task[];
 }
 
 const getLocalToday = () => {
@@ -18,11 +19,12 @@ const getLocalToday = () => {
     return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
 };
 
-const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, onDelete, task }) => {
+const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, onDelete, task, allTasks }) => {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [priority, setPriority] = useState<'Low' | 'Medium' | 'High'>('Medium');
     const [dueDate, setDueDate] = useState('');
+    const [dependencies, setDependencies] = useState<number[]>([]);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     useEffect(() => {
@@ -31,19 +33,29 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
             setDescription(task.description || '');
             setPriority(task.priority);
             setDueDate(task.dueDate);
+            setDependencies(task.dependencies || []);
         } else {
             setTitle('');
             setDescription('');
             setPriority('Medium');
             setDueDate(getLocalToday());
+            setDependencies([]);
         }
     }, [task, isOpen]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!title.trim() || !dueDate) return;
-        onSave({ id: task?.id, title, description, priority, dueDate });
+        onSave({ id: task?.id, title, description, priority, dueDate, dependencies });
     };
+
+    const toggleDependency = (id: number) => {
+        setDependencies(prev => 
+            prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id]
+        );
+    };
+
+    const availableTasks = allTasks.filter(t => t.id !== task?.id);
 
     const handleDeleteClick = () => {
         setShowDeleteConfirm(true);
@@ -110,6 +122,34 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
                                 />
                                 <Clock className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
                             </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-gray-900/50 p-6 rounded-[2rem] border border-white/5">
+                        <label className={labelClass}>Task Dependencies (Prerequisites)</label>
+                        <div className="space-y-3 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                            {availableTasks.length === 0 ? (
+                                <p className="text-[10px] text-gray-600 italic uppercase p-4 text-center border border-dashed border-white/5 rounded-xl">No other tasks available</p>
+                            ) : (
+                                availableTasks.map(t => (
+                                    <button
+                                        key={t.id}
+                                        type="button"
+                                        onClick={() => toggleDependency(t.id)}
+                                        className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${
+                                            dependencies.includes(t.id)
+                                            ? 'bg-amber-500/20 border-amber-500/50 text-amber-500'
+                                            : 'bg-black/40 border-white/5 text-gray-500 hover:border-white/20'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <LinkIcon className={`w-3.5 h-3.5 ${dependencies.includes(t.id) ? 'text-amber-500' : 'text-gray-600'}`} />
+                                            <span className="text-[10px] font-bold uppercase truncate max-w-[180px]">{t.title}</span>
+                                        </div>
+                                        {dependencies.includes(t.id) && <Check className="w-3.5 h-3.5" />}
+                                    </button>
+                                ))
+                            )}
                         </div>
                     </div>
 

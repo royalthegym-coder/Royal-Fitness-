@@ -9,15 +9,16 @@ import {
     Fingerprint, Dna, Scan, Microscope, Globe,
     Plus, TestTube, Cross, Pill, Beaker, Mic, MicOff, Volume2,
     Cpu, Network, Layers, Sparkles, ChevronRight, Share2,
-    Binary, MessageSquare, Eye, Heart, Thermometer, Wind
+    Binary, MessageSquare, Eye, Heart, Thermometer, Wind, X
 } from 'lucide-react';
 import { BotIcon } from '../icons/BotIcon';
 import { useToast } from '../../hooks/useToast';
 import { MedicalConsultation } from '../../../types';
 import Modal from '../common/Modal';
-import { getComplexResponse, generateTextToSpeech } from '../../../lib/gemini';
-import { decode, decodeAudioData } from '../../audio';
+import { runAIDoctorCouncil, processMedicalReport, AIDoctorAnalysis } from '../../../lib/aiDoctor';
+import { generateTextToSpeech } from '../../../lib/gemini';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
+import { toBase64, decode, decodeAudioData } from '../../../lib/utils';
 
 const CrownIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-3-4 3-6-7z"/></svg>;
 
@@ -85,8 +86,10 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
     // AI Council State
     const [councilLogs, setCouncilLogs] = useState<string[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [diagnosis, setDiagnosis] = useState<any>(null);
+    const [diagnosis, setDiagnosis] = useState<AIDoctorAnalysis | null>(null);
     const [activeAgent, setActiveAgent] = useState<string | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [attachedFiles, setAttachedFiles] = useState<{name: string, data: string, type: string}[]>([]);
 
     // Audio Ref
     const recognitionRef = useRef<any>(null);
@@ -128,17 +131,18 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
         }
     };
 
-    // --- 3. THE COUNCIL LOGIC (SIMULATION) ---
+    // --- 3. THE COUNCIL LOGIC ---
     const runCouncilSession = async () => {
-        if (!symptoms) return;
+        if (!symptoms && attachedFiles.length === 0) return;
         setIsAnalyzing(true);
         setCouncilLogs([]);
         setDiagnosis(null);
 
         const sequence = [
-            { agent: 'Llama-3-Med', action: 'Parsing Symptom Vector...', delay: 800 },
+            { agent: 'Llama-3-Med', action: 'Parsing Symptom Vector & Reports...', delay: 800 },
             { agent: 'Bio-Mistral', action: 'Cross-referencing Anatomy DB...', delay: 1200 },
             { agent: 'DeepSeek-V3', action: 'Checking Pathology Markers...', delay: 1000 },
+            { agent: 'Grok-Med', action: 'Real-time Insights Sync...', delay: 1000 },
             { agent: 'Royal-Core', action: 'Synthesizing Final Verdict...', delay: 1000 }
         ];
 
@@ -148,45 +152,76 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
             setCouncilLogs(prev => [...prev, `[${step.agent}] ${step.action}`]);
         }
 
-        // Final Gemini Call
         try {
-            const context = `
-                User: ${member?.name}. 
-                Symptoms: ${selectedPart} - ${symptoms}. 
-                Vitals: HR ${liveHealthData.heartRate.avg}.
-            `;
-            const prompt = `
-                ACT AS A MEDICAL AI BOARD.
-                Context: ${context}.
-                Return JSON: {
-                    "diagnosis": "Technical name",
-                    "severity": "Low/Med/High",
-                    "treatment": "3 steps",
-                    "recovery_days": 2
-                }
-            `;
-            const res = await getComplexResponse(prompt);
-            const json = JSON.parse(res.replace(/```json|```/g, '').trim());
-            setDiagnosis(json);
+            const filesForAI = attachedFiles.map(f => ({ data: f.data, mimeType: f.type }));
+            
+            // Use the new comprehensive function
+            const { analyzeComprehensiveHealth } = await import('../../../lib/aiDoctor');
+            const analysis = await analyzeComprehensiveHealth(symptoms, filesForAI, {
+                ...member,
+                heartRate: liveHealthData.heartRate.avg
+            });
+            
+            setDiagnosis(analysis);
+            setCouncilLogs(prev => [...prev, `[System] GitHub Sync: ${analysis.github_sync_status}`, `[System] n8n Workflow: ${analysis.n8n_workflow_id}`]);
             
             // Speak result
-            const audio = await generateTextToSpeech(`Diagnosis complete. ${json.diagnosis}. Severity: ${json.severity}.`);
-            // Play audio logic (simplified)
+            const audio = await generateTextToSpeech(`Diagnosis complete. ${analysis.diagnosis}. Severity: ${analysis.severity}.`);
             if(audio) { 
                 const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-                const buffer = await decodeAudioData(decode(audio), ctx, 24000, 1);
+                const buffer = await decodeAudioData(ctx, decode(audio));
                 const source = ctx.createBufferSource();
                 source.buffer = buffer;
                 source.connect(ctx.destination);
                 source.start();
             }
-
         } catch (e) {
-            setDiagnosis({ diagnosis: "Neural Fatigue Analysis", severity: "Low", treatment: "Rest & Hydrate", recovery_days: 1 });
+            setDiagnosis({ diagnosis: "Neural Fatigue Analysis", severity: "Low", treatment: "Rest & Hydrate", recovery_days: 1, agents_involved: ["Royal-Core"], github_sync_status: "Failed", n8n_workflow_id: "N/A" });
         } finally {
             setIsAnalyzing(false);
             setActiveAgent(null);
         }
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []) as File[];
+        if (files.length === 0) return;
+        
+        setIsUploading(true);
+        setIsConsultOpen(true);
+        
+        try {
+            const newFiles: {name: string, data: string, type: string}[] = [];
+            
+            for (const file of files) {
+                const reader = new FileReader();
+                await new Promise<void>((resolve, reject) => {
+                    reader.onload = () => {
+                        const base64 = reader.result?.toString().split(',')[1];
+                        if (base64) {
+                            newFiles.push({ name: file.name, data: base64, type: file.type });
+                        }
+                        resolve();
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            }
+            
+            setAttachedFiles(prev => [...prev, ...newFiles]);
+            addToast(`${newFiles.length} report(s) attached.`, "success");
+            
+            // Reset input so same file can be selected again if needed
+            if (e.target) e.target.value = '';
+        } catch (error) {
+            addToast("Failed to read files.", "error");
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const removeFile = (index: number) => {
+        setAttachedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
     const handleSaveRecord = () => {
@@ -195,7 +230,7 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
             id: `DOC-${Date.now()}`,
             memberId: memberId,
             memberName: member?.name || 'User',
-            symptoms: symptoms,
+            symptoms: symptoms + (attachedFiles.length > 0 ? ` [Attached ${attachedFiles.length} reports]` : ''),
             duration: '1 day',
             severity: diagnosis.severity,
             historyContext: '',
@@ -205,6 +240,8 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
             timestamp: new Date().toISOString()
         });
         setIsConsultOpen(false);
+        setSymptoms('');
+        setAttachedFiles([]);
         addToast("Medical Record Encrypted & Stored.", "success");
     };
 
@@ -260,12 +297,19 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
                          </div>
                     </Card>
 
-                    <button 
-                        onClick={() => setIsConsultOpen(true)}
-                        className="w-full bg-white text-black font-black py-6 rounded-[2.5rem] shadow-[0_0_50px_rgba(255,255,255,0.3)] hover:bg-cyan-400 transition-all uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 active:scale-95"
-                    >
-                        <BotIcon className="w-5 h-5"/> Initiate Diagnosis
-                    </button>
+                    <div className="flex gap-4">
+                        <button 
+                            onClick={() => setIsConsultOpen(true)}
+                            className="flex-1 bg-white text-black font-black py-6 rounded-[2.5rem] shadow-[0_0_50px_rgba(255,255,255,0.3)] hover:bg-cyan-400 transition-all uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 active:scale-95"
+                        >
+                            <BotIcon className="w-5 h-5"/> Initiate Diagnosis
+                        </button>
+                        <label className="flex-1 bg-gray-900 border border-white/10 text-white font-black py-6 rounded-[2.5rem] hover:border-cyan-500/50 transition-all uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 active:scale-95 cursor-pointer">
+                            <FileText className="w-5 h-5"/>
+                            {isUploading ? 'Analyzing...' : 'Upload Report'}
+                            <input type="file" className="hidden" onChange={handleFileUpload} accept=".pdf,.jpg,.png" disabled={isUploading} />
+                        </label>
+                    </div>
                 </div>
 
                 {/* RIGHT: MEDICAL HISTORY & AI INSIGHTS */}
@@ -322,6 +366,16 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
                                              <p className="text-xs text-gray-400 uppercase font-bold mb-1">Treatment Plan</p>
                                              <p className="text-white text-sm leading-relaxed">{diagnosis.treatment}</p>
                                          </div>
+                                         <div className="grid grid-cols-2 gap-3">
+                                             <div className="p-3 bg-indigo-900/10 border border-indigo-500/20 rounded-xl">
+                                                 <p className="text-[8px] text-indigo-400 font-black uppercase tracking-widest mb-1">GitHub Sync</p>
+                                                 <p className="text-[10px] text-white font-mono">{diagnosis.github_sync_status}</p>
+                                             </div>
+                                             <div className="p-3 bg-cyan-900/10 border border-cyan-500/20 rounded-xl">
+                                                 <p className="text-[8px] text-cyan-400 font-black uppercase tracking-widest mb-1">n8n Workflow</p>
+                                                 <p className="text-[10px] text-white font-mono">{diagnosis.n8n_workflow_id}</p>
+                                             </div>
+                                         </div>
                                          <button onClick={handleSaveRecord} className="w-full py-3 bg-cyan-600 text-white font-black rounded-xl uppercase text-xs hover:bg-cyan-500 transition-all">Save to Ledger</button>
                                      </div>
                                  ) : (
@@ -359,14 +413,38 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
                                              </button>
                                          </div>
                                          
-                                         <button 
-                                            onClick={runCouncilSession}
-                                            disabled={!symptoms || isAnalyzing}
-                                            className="w-full mt-4 bg-white text-black font-black py-4 rounded-2xl uppercase tracking-widest text-xs flex items-center justify-center gap-2 disabled:opacity-50"
-                                         >
-                                             {isAnalyzing ? <RefreshCw className="w-4 h-4 animate-spin"/> : <Zap className="w-4 h-4 fill-current"/>}
-                                             {isAnalyzing ? 'THE COUNCIL IS THINKING...' : 'SUMMON THE COUNCIL'}
-                                         </button>
+                                         {/* Attached Files List */}
+                                         {attachedFiles.length > 0 && (
+                                             <div className="mt-4 space-y-2">
+                                                 <p className="text-[10px] font-black uppercase text-gray-500 tracking-widest">Attached Reports</p>
+                                                 <div className="flex flex-wrap gap-2">
+                                                     {attachedFiles.map((file, idx) => (
+                                                         <div key={idx} className="flex items-center gap-2 bg-gray-800 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-300">
+                                                             <FileText className="w-3 h-3 text-cyan-400" />
+                                                             <span className="truncate max-w-[150px]">{file.name}</span>
+                                                             <button onClick={() => removeFile(idx)} className="text-red-400 hover:text-red-300 ml-1">
+                                                                 <X className="w-3 h-3" />
+                                                             </button>
+                                                         </div>
+                                                     ))}
+                                                 </div>
+                                             </div>
+                                         )}
+
+                                         <div className="flex gap-3 mt-4">
+                                             <label className="flex-1 py-4 bg-gray-800 border border-white/10 text-white font-black rounded-2xl uppercase tracking-widest text-[10px] hover:bg-gray-700 transition-all flex items-center justify-center gap-2 cursor-pointer">
+                                                 <FileText className="w-4 h-4"/> Attach Reports
+                                                 <input type="file" multiple className="hidden" onChange={handleFileUpload} accept=".pdf,.jpg,.png" disabled={isUploading} />
+                                             </label>
+                                             <button 
+                                                onClick={runCouncilSession}
+                                                disabled={(!symptoms && attachedFiles.length === 0) || isAnalyzing}
+                                                className="flex-[2] bg-white text-black font-black py-4 rounded-2xl uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-cyan-400 transition-all"
+                                             >
+                                                 {isAnalyzing ? <RefreshCw className="w-4 h-4 animate-spin"/> : <Zap className="w-4 h-4 fill-current"/>}
+                                                 {isAnalyzing ? 'THE COUNCIL IS THINKING...' : 'SUMMON THE COUNCIL'}
+                                             </button>
+                                         </div>
                                      </>
                                  )}
                              </div>

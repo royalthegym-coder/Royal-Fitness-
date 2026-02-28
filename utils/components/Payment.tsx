@@ -29,7 +29,7 @@ const Payment: React.FC = () => {
     const [processStep, setProcessStep] = useState<'idle' | 'encrypting' | 'handshake' | 'finalizing' | 'fraud_check'>('idle');
     const [successData, setSuccessData] = useState<Transaction | null>(null);
     const [qrCode, setQrCode] = useState<string>('');
-    const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'Card' | 'Cash'>('UPI');
+    const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'Google Pay' | 'Card' | 'Cash'>('UPI');
 
     // POS State
     const [posCart, setPosCart] = useState<{item: InventoryItem, qty: number}[]>([]);
@@ -85,10 +85,11 @@ const Payment: React.FC = () => {
 
     // Inbuilt Google Node QR Generation
     useEffect(() => {
-        if (selectedInvoice && paymentMethod === 'UPI') {
+        if (selectedInvoice && (paymentMethod === 'UPI' || paymentMethod === 'Google Pay')) {
             const note = `Inv-${selectedInvoice.id}`;
             // Standard UPI String
-            const uri = `upi://pay?pa=${GYM_INFO.upiIds.gpay1}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${selectedInvoice.amount.toFixed(2)}&cu=INR&tn=${note}`;
+            const upiId = paymentMethod === 'Google Pay' ? (localStorage.getItem('google_pay_upi') || GYM_INFO.upiIds.gpay1) : GYM_INFO.upiIds.gpay1;
+            const uri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${selectedInvoice.amount.toFixed(2)}&cu=INR&tn=${note}`;
             
             toDataURL(uri, { width: 400, margin: 1, color: { dark: '#000000', light: '#ffffff' } }).then(url => setQrCode(url));
         }
@@ -115,7 +116,7 @@ const Payment: React.FC = () => {
         setProcessStep('finalizing');
         await new Promise(r => setTimeout(r, 600));
 
-        const methodStr = paymentMethod === 'UPI' ? 'QR Code' : paymentMethod === 'Card' ? 'Card' : 'Cash';
+        const methodStr = paymentMethod === 'UPI' ? 'QR Code' : paymentMethod === 'Google Pay' ? 'Google Pay' : paymentMethod === 'Card' ? 'Card' : 'Cash';
         const txnId = `TXN-${Date.now()}`;
         const timeNow = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
@@ -538,6 +539,7 @@ const Payment: React.FC = () => {
                                         <p className="text-[10px] font-black text-gray-600 uppercase tracking-[0.4em] mb-8">Select Entry Protocol</p>
                                         {[
                                             { id: 'UPI', icon: <Smartphone />, label: 'Neural Link' },
+                                            { id: 'Google Pay', icon: <Globe />, label: 'Google Business' },
                                             { id: 'Card', icon: <CreditCard />, label: 'Card Swiper' },
                                             { id: 'Cash', icon: <Banknote />, label: 'Physical Vault' }
                                         ].map((m) => (
@@ -579,10 +581,10 @@ const Payment: React.FC = () => {
                                                     </p>
                                                 </div>
                                             </div>
-                                        ) : paymentMethod === 'UPI' ? (
+                                        ) : (paymentMethod === 'UPI' || paymentMethod === 'Google Pay') ? (
                                             <div className="text-center animate-fade-in relative">
                                                 <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-green-500/10 text-green-400 px-4 py-1.5 rounded-full border border-green-500/30 text-[9px] font-black uppercase tracking-widest flex items-center gap-2">
-                                                    <ShieldCheck className="w-3 h-3" /> Google Business Node Verified
+                                                    <ShieldCheck className="w-3 h-3" /> {paymentMethod === 'Google Pay' ? 'Google Business Node Verified' : 'UPI Node Verified'}
                                                 </div>
                                                 <div className="bg-white p-8 rounded-[4rem] inline-block shadow-[0_0_80px_rgba(255,255,255,0.1)] border-[16px] border-white ring-4 ring-green-500/20 relative group mb-10 overflow-hidden">
                                                     <img src={qrCode} alt="QR" className="w-64 h-64 object-contain mix-blend-multiply relative z-10" />
