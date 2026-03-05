@@ -37,6 +37,9 @@ import WearableConnectHub from './SmartWatch';
 import NutritionAdvisor from './NutritionAdvisor';
 import FutureOFS from './FutureOFS';
 import ProfileView from './ProfileView'; // Added
+import { UniversalGadgetDashboard } from './UniversalGadgetDashboard';
+import { DigitalBioHealthPass } from './DigitalBioHealthPass';
+import { MetabolicDigitalTwin } from './MetabolicDigitalTwin';
 import VoiceAssistant from '../VoiceAssistant';
 import { useToast } from '../../hooks/useToast';
 import { sendThankYouForPayment } from '../../../lib/whatsapp';
@@ -195,7 +198,6 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId,
 
                     {/* HERO IDENTITY CARD */}
                     <div className="bg-black p-10 rounded-[3.5rem] border border-cyan-500/30 relative overflow-hidden shadow-[0_0_120px_rgba(6,182,212,0.15)] group">
-                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/circuit-board.png')] opacity-15"></div>
                         <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[150px] animate-pulse"></div>
                         
                         <div className="relative z-10 flex flex-col lg:flex-row justify-between items-center gap-10">
@@ -358,6 +360,9 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId,
             case 'neuralRep': return <NeuralRepAnalyst />;
             case 'wearables': return <WearableConnectHub />;
             case 'futureOFS': return <FutureOFS memberId={loggedInMemberId} />;
+            case 'universalGadgets': return <UniversalGadgetDashboard />;
+            case 'digitalBioPass': return <DigitalBioHealthPass memberId={loggedInMemberId} />;
+            case 'metabolicSimulator': return <MetabolicDigitalTwin />;
             case 'profile': return <ProfileView memberId={loggedInMemberId} />; // Added
             default: return <div className="text-center py-20 text-gray-500 uppercase font-black tracking-widest">Protocol Initializing...</div>;
         }

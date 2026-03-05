@@ -133,9 +133,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ memberId }) => {
                                     className="w-full h-full rounded-full object-cover"
                                 />
                             </div>
-                            <button className="absolute bottom-0 right-0 p-2 bg-indigo-600 rounded-full text-white shadow-lg hover:scale-110 transition-all">
-                                <Camera className="w-4 h-4" />
-                            </button>
                         </div>
                         <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter">{member.name}</h2>
                         <p className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Member ID: #{member.id}</p>
@@ -190,8 +187,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ memberId }) => {
                                         <input 
                                             type="text" 
                                             value={formData.name}
-                                            onChange={(e) => setFormData({...formData, name: e.target.value})}
-                                            className="w-full bg-black/50 border border-white/10 rounded-2xl py-3.5 pl-12 pr-4 text-white focus:outline-none focus:border-indigo-500 transition-all"
+                                            readOnly
+                                            className="w-full bg-black/30 border border-white/5 rounded-2xl py-3.5 pl-12 pr-4 text-gray-400 cursor-not-allowed focus:outline-none"
                                         />
                                     </div>
                                 </div>
@@ -202,8 +199,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ memberId }) => {
                                         <input 
                                             type="email" 
                                             value={formData.email}
-                                            onChange={(e) => setFormData({...formData, email: e.target.value})}
-                                            className="w-full bg-black/50 border border-white/10 rounded-2xl py-3.5 pl-12 pr-4 text-white focus:outline-none focus:border-indigo-500 transition-all"
+                                            readOnly
+                                            className="w-full bg-black/30 border border-white/5 rounded-2xl py-3.5 pl-12 pr-4 text-gray-400 cursor-not-allowed focus:outline-none"
                                         />
                                     </div>
                                 </div>
@@ -214,8 +211,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ memberId }) => {
                                         <input 
                                             type="tel" 
                                             value={formData.phone}
-                                            onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                                            className="w-full bg-black/50 border border-white/10 rounded-2xl py-3.5 pl-12 pr-4 text-white focus:outline-none focus:border-indigo-500 transition-all"
+                                            readOnly
+                                            className="w-full bg-black/30 border border-white/5 rounded-2xl py-3.5 pl-12 pr-4 text-gray-400 cursor-not-allowed focus:outline-none"
                                         />
                                     </div>
                                 </div>
@@ -225,51 +222,21 @@ const ProfileView: React.FC<ProfileViewProps> = ({ memberId }) => {
                                         <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                                         <input 
                                             type="text" 
-                                            disabled
+                                            readOnly
                                             value={member.joinDate}
-                                            className="w-full bg-black/30 border border-white/5 rounded-2xl py-3.5 pl-12 pr-4 text-gray-500 cursor-not-allowed"
+                                            className="w-full bg-black/30 border border-white/5 rounded-2xl py-3.5 pl-12 pr-4 text-gray-400 cursor-not-allowed focus:outline-none"
                                         />
                                     </div>
                                 </div>
                             </div>
 
                             <div className="pt-6 border-t border-white/5">
-                                <h3 className="text-sm font-black text-white uppercase italic tracking-wider mb-6 flex items-center gap-2">
-                                    <Lock className="w-4 h-4 text-amber-500" /> Change Password
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">New Password</label>
-                                        <input 
-                                            type="password" 
-                                            value={formData.newPassword}
-                                            onChange={(e) => setFormData({...formData, newPassword: e.target.value})}
-                                            placeholder="Leave blank to keep current"
-                                            className="w-full bg-black/50 border border-white/10 rounded-2xl py-3.5 px-4 text-white focus:outline-none focus:border-amber-500 transition-all"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Confirm New Password</label>
-                                        <input 
-                                            type="password" 
-                                            value={formData.confirmPassword}
-                                            onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
-                                            placeholder="Re-enter new password"
-                                            className="w-full bg-black/50 border border-white/10 rounded-2xl py-3.5 px-4 text-white focus:outline-none focus:border-amber-500 transition-all"
-                                        />
-                                    </div>
+                                <div className="flex items-center gap-2 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
+                                    <Lock className="w-5 h-5 text-amber-500" />
+                                    <p className="text-xs text-amber-200">
+                                        Profile details are locked for security. Please contact gym administration to update your information.
+                                    </p>
                                 </div>
-                            </div>
-
-                            <div className="flex justify-end pt-4">
-                                <button 
-                                    type="submit" 
-                                    disabled={isSaving}
-                                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-black px-10 py-4 rounded-2xl text-[10px] uppercase tracking-widest shadow-xl transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
-                                >
-                                    {isSaving ? <Activity className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                    {isSaving ? 'Updating...' : 'Save Changes'}
-                                </button>
                             </div>
                         </form>
                     </Card>

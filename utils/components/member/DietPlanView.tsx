@@ -14,6 +14,8 @@ import { getAIChefRecipe, getNutritionAnalysisFromImage, cleanAndParseJSON } fro
 import { useToast } from '../../hooks/useToast';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { BotIcon } from '../icons/BotIcon';
+import { generateDietPDF } from '../../pdfGenerator';
+import { Download } from 'lucide-react';
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b']; // Carbs, Protein, Fat
 
@@ -209,13 +211,28 @@ const NutriSyncGodTier: React.FC<{ memberId: number }> = ({ memberId }) => {
                             </p>
                         </div>
                     </div>
-
-                    <div className="flex bg-gray-900/80 p-2 rounded-3xl border border-white/10 backdrop-blur-3xl overflow-x-auto no-scrollbar max-w-full">
-                        <button onClick={() => setActiveTab('matrix')} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'matrix' ? 'bg-emerald-500 text-black shadow-2xl' : 'text-gray-500 hover:text-white'}`}>Metabolic Matrix</button>
-                        <button onClick={() => setActiveTab('scanner')} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'scanner' ? 'bg-emerald-500 text-black shadow-2xl' : 'text-gray-500 hover:text-white'}`}>Vision AI</button>
-                        <button onClick={() => setActiveTab('kitchen')} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'kitchen' ? 'bg-emerald-500 text-black shadow-2xl' : 'text-gray-500 hover:text-white'}`}>Smart Chef</button>
-                        <button onClick={() => setActiveTab('grocery')} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'grocery' ? 'bg-emerald-500 text-black shadow-2xl' : 'text-gray-500 hover:text-white'}`}>Auto-Procure</button>
-                    </div>
+                    
+                    {/* PDF Download Button */}
+                    <button 
+                        onClick={() => {
+                            if (activePlan) {
+                                generateDietPDF(activePlan, member);
+                                addToast('PDF Downloaded Successfully', 'success');
+                            } else {
+                                addToast('No active diet plan found.', 'error');
+                            }
+                        }}
+                        className="mt-6 md:mt-0 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center gap-2 border border-white/20 backdrop-blur-md transition-all active:scale-95"
+                    >
+                        <Download className="w-4 h-4" /> Download PDF
+                    </button>
+                </div>
+                
+                <div className="mt-8 flex bg-gray-900/80 p-2 rounded-3xl border border-white/10 backdrop-blur-3xl overflow-x-auto no-scrollbar max-w-full">
+                    <button onClick={() => setActiveTab('matrix')} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'matrix' ? 'bg-emerald-500 text-black shadow-2xl' : 'text-gray-500 hover:text-white'}`}>Metabolic Matrix</button>
+                    <button onClick={() => setActiveTab('scanner')} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'scanner' ? 'bg-emerald-500 text-black shadow-2xl' : 'text-gray-500 hover:text-white'}`}>Vision AI</button>
+                    <button onClick={() => setActiveTab('kitchen')} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'kitchen' ? 'bg-emerald-500 text-black shadow-2xl' : 'text-gray-500 hover:text-white'}`}>Smart Chef</button>
+                    <button onClick={() => setActiveTab('grocery')} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'grocery' ? 'bg-emerald-500 text-black shadow-2xl' : 'text-gray-500 hover:text-white'}`}>Auto-Procure</button>
                 </div>
             </div>
 
@@ -373,7 +390,12 @@ const NutriSyncGodTier: React.FC<{ memberId: number }> = ({ memberId }) => {
                         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/grid-noise.png')] opacity-10 pointer-events-none"></div>
                         <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleMealScan} />
                         {scanImage ? (
-                            <img src={scanImage} className="w-full h-80 object-cover rounded-[3rem] shadow-2xl border border-white/10" alt="meal" />
+                            <div className="w-full h-80 bg-emerald-900/20 rounded-[3rem] shadow-2xl border border-emerald-500/30 flex items-center justify-center">
+                                <div className="text-center">
+                                    <CheckCircle className="w-16 h-16 text-emerald-400 mx-auto mb-4" />
+                                    <p className="text-emerald-400 font-black uppercase tracking-widest">Image Captured</p>
+                                </div>
+                            </div>
                         ) : (
                             <>
                                 <div className="w-32 h-32 bg-gray-900 rounded-full flex items-center justify-center mb-8 shadow-2xl group-hover:scale-110 transition-transform relative">

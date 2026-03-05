@@ -1,4 +1,96 @@
 
+export interface AIRecommendation {
+    id?: string;
+    rec_id?: string;
+    report_id?: string;
+    type?: string;
+    message?: string;
+    priority?: string;
+    healthScore?: number;
+    bio_age?: number;
+    hormonal_analysis?: string;
+    clinical_protocol?: string;
+    deficiencies?: string[];
+    supplement_stack?: string[];
+    diet_modifications?: string[];
+    workout_adjust?: string[];
+    prediction?: string;
+    admin_approval?: boolean;
+}
+
+export interface MedicalReport {
+    id: string;
+    date: string;
+    title: string;
+    summary: string;
+}
+
+export interface BroadcastMessage {
+    id: string | number;
+    title?: string;
+    message: string;
+    date?: string;
+    audience?: string;
+    recipientCount?: number;
+    sentAt?: string;
+}
+
+export interface GoogleReview {
+    id: string;
+    author: string;
+    rating: number;
+    content: string;
+    comment?: string;
+    timestamp: string;
+}
+
+export interface GoogleBusinessPost {
+    id: string;
+    content: string;
+    timestamp: string;
+}
+
+export interface DailyRoutineLog {
+    id?: string;
+    log_id?: string;
+    member_id?: number;
+    date?: string;
+    activities?: any[];
+    is_done?: boolean;
+    task_type?: string;
+    task_name?: string;
+    task_desc?: string;
+    time_scheduled?: string;
+    task_time?: string;
+}
+
+export interface DailySchedule {
+    id: string;
+    date: string;
+    events: any[];
+}
+
+export interface MemberSchedules {
+    [memberId: number]: DailySchedule[];
+}
+
+export interface NutritionItem {
+    id: string;
+    food_name: string;
+    regional_name?: string;
+    category: string;
+    protein_per_100g: number;
+    carbs_per_100g: number;
+    fats_per_100g: number;
+    fiber_per_100g: number;
+    calories_per_100g: number;
+    glycemic_index?: number;
+    tags: string[];
+    is_local_rajasthani: boolean;
+    ayurvedic_nature?: 'Vata' | 'Pitta' | 'Kapha' | 'Tridoshic' | string;
+    seasonal_availability?: string[];
+}
+
 export type View = 
     | 'dashboard' | 'members' | 'billing' | 'packages' | 'staff' 
     | 'expenses' | 'settings' | 'futureOFSAdmin' | 'healthEngine' 
@@ -10,11 +102,11 @@ export type View =
     | 'neuralCore' | 'geminiHub' | 'autoProcurement' | 'quantumLedger' 
     | 'security' | 'debugEngine' | 'performance' | 'tasks' | 'storkTeam'
     | 'payment' | 'leads' | 'aiFitnessTracker' | 'hormonalClock' | 'metabolicTracker' | 'neuroRecovery'
-    | 'socialManager'
+    | 'socialManager' | 'medicalProfiling'
     // Member views
     | 'dailyProtocol' | 'attendance' | 'workout' | 'futureOFS' | 'neuralRep' | 'performanceLab'
     | 'health' | 'medicalHub' | 'biomarkerVault' | 'aetherCommunity' | 'wearables' | 'helpSupport'
-    | 'payments' | 'globalHealthPassport' | 'scheduler' | 'nutritionAdvisor' | 'profile'
+    | 'payments' | 'globalHealthPassport' | 'scheduler' | 'nutritionAdvisor' | 'profile' | 'universalGadgets' | 'digitalBioPass' | 'metabolicSimulator'
     ;
 
 export type Theme = 'dark' | 'light';
@@ -80,12 +172,25 @@ export interface Assessment {
 }
 
 export interface StructuredDietPlan {
+    id?: number;
     planId?: string;
+    level?: string;
     goal: string;
     caloriesTarget: number;
     macrosTarget: { protein: number; carbs: number; fats: number };
     meals: { name: string; time: string; items: { food: string; portion: string }[]; totalCalories: number, macros: { protein: number; carbs: number; fats: number } }[];
     scienceNote?: string;
+    scientificNote?: string;
+    aiGenerated?: boolean;
+}
+
+export interface AttendanceRecord {
+    id: string;
+    memberId: number;
+    date: string; // YYYY-MM-DD
+    time: string; // HH:MM AM/PM
+    status: 'Present' | 'Absent' | 'Late';
+    method: 'Manual' | 'QR' | 'Auto';
 }
 
 export interface Member {
@@ -206,100 +311,63 @@ export interface WorkoutExercise {
     name: string;
     sets: string;
     reps: string;
+    rest?: string;
+    notes?: string;
+    tempo?: string;
 }
 
 export interface WorkoutSection {
-    name?: string;
+    name: string;
     exercises: WorkoutExercise[];
+    duration?: string;
+    intensity?: 'Low' | 'Medium' | 'High' | 'Extreme';
 }
 
 export interface WorkoutTemplate {
     id: number;
     name: string;
-    level: 'Beginner' | 'Intermediate' | 'Advanced' | 'Elite';
-    category: string;
+    level: 'Beginner' | 'Intermediate' | 'Advanced' | 'Pro Advance';
+    category: string; // e.g., "Hypertrophy", "Strength", "Endurance"
     description: string;
-    exercises?: WorkoutExercise[];
-    sections?: WorkoutSection[];
+    duration?: string; // e.g., "4 Weeks"
+    frequency?: string; // e.g., "4 Days/Week"
+    
+    // Structured Sections
+    preWorkout?: WorkoutSection;
+    mainWorkout: WorkoutSection[]; // Array of sections (e.g., "Push Day", "Pull Day" or just "Main Routine")
+    finisher?: WorkoutSection;
+    
+    sections?: any[];
+    exercises?: any[];
+    
+    // Meta
+    scientificNote?: string;
+    aiGenerated?: boolean;
+    pdfUrl?: string; // Placeholder for PDF generation
 }
 
-export interface DailySchedule {
-    isRestDay: boolean;
-    templateId?: number;
-    exercises?: WorkoutExercise[];
-}
-
-export interface MemberSchedules {
-    [memberId: number]: {
-        [date: string]: DailySchedule;
-    };
-}
-
-export interface DailyRoutineLog {
-    log_id: string;
-    member_id: number;
-    task_time: string;
-    task_type: string;
-    task_desc: string;
-    is_done: boolean;
-}
-
-export interface AIRecommendation {
-    rec_id: string;
-    report_id: string;
-    healthScore: number;
-    bio_age: number;
-    hormonal_analysis?: string;
-    clinical_protocol?: string; 
-    deficiencies: string[];
-    supplement_stack: { name: string; dosage: string; reason: string }[];
-    diet_modifications: string[];
-    workout_adjust: string;
-    prediction: string;
-    admin_approval: boolean;
-}
-
-export interface MedicalReport {
-    report_id: string;
-    member_id: number;
-    file_url: string;
-    ocr_data: any;
-    status: 'Analyzed' | 'Pending';
-    upload_date: string;
-}
-
-export interface BroadcastMessage {
-    id: number;
-    message: string;
-    audience: 'all' | 'active' | 'expired';
-    recipientCount: number;
-    sentAt: string;
-}
-
-export interface GoogleReview {
-    id: string;
-    authorName: string;
-    rating: number;
-    comment: string;
-    timestamp: string;
-    reply?: { comment: string; timestamp: string };
-}
-
-export interface GoogleBusinessPost {
-    id: string;
-    content: string;
-    timestamp: string;
-    state: string;
-    imageUrl?: string;
+export interface DietMeal {
+    name: string;
+    time: string;
+    items: { food: string; portion: string; calories: number; protein: number; carbs: number; fats: number }[];
+    totalCalories: number;
+    macros: { protein: number; carbs: number; fats: number };
+    notes?: string;
 }
 
 export interface DietPlan {
     id: number;
     name: string;
-    category: string;
+    level: 'Beginner' | 'Intermediate' | 'Advanced' | 'Pro Advance';
+    goal: string; // e.g., "Fat Loss", "Muscle Gain"
     calories: number;
+    macros: { protein: number; carbs: number; fats: number };
     description: string;
-    assignedTo: number[];
+    duration: string;
+    meals: DietMeal[];
+    scientificNote?: string;
+    aiGenerated?: boolean;
+    pdfUrl?: string;
 }
 
 export interface WorkoutLog {
@@ -340,6 +408,7 @@ export interface Task {
     dueDate: string;
     completed: boolean;
     dependencies?: number[]; // IDs of prerequisite tasks
+    order?: number;
 }
 
 export interface MedicalTestMaster {

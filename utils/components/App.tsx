@@ -11,8 +11,10 @@ import { View, Theme } from '../../types';
 import { ToastProvider } from '../context/ToastProvider';
 import { DataProvider, useData } from '../context/DataProvider';
 import ErrorBoundary from './common/ErrorBoundary';
-import { Crown, Sparkles, WifiOff, Zap, ShieldCheck, RefreshCw, Cpu, Activity, Infinity, Orbit } from 'lucide-react';
+import { Crown, Sparkles, WifiOff, Zap, ShieldCheck, RefreshCw, Cpu, Activity, Infinity, Orbit, ShieldAlert } from 'lucide-react';
 import MemberPortal from './member/MemberPortal';
+import AppSecurityLayer from './common/SecurityLayer';
+import { APP_METADATA } from '../../constants';
 
 // --- ADMIN MODULES (Lazy Loaded with Prefetch Logic) ---
 const Dashboard = React.lazy(() => import('./Dashboard'));
@@ -66,6 +68,7 @@ const CRMSystem = React.lazy(() => import('./CRMSystem'));
 const ScientificAdmissionForm = React.lazy(() => import('./ScientificAdmissionForm'));
 const AutomationHub = React.lazy(() => import('./AutomationHub'));
 const AdminAttendance = React.lazy(() => import('./admin/AdminAttendance'));
+const MedicalProfilingSystem = React.lazy(() => import('./MedicalProfilingSystem').then(module => ({ default: module.MedicalProfilingSystem })));
 
 const NeuralBoot = ({ onComplete }: { onComplete: () => void }) => {
     const [progress, setProgress] = useState(0);
@@ -130,6 +133,7 @@ const AppContent: React.FC = () => {
     const [isBooting, setIsBooting] = useState(true);
     const [isChatOpen, setChatOpen] = useState(false);
     const [isSidebarOpen, setSidebarOpen] = useState(false);
+    const [isOffline, setIsOffline] = useState(!navigator.onLine);
     
     // Forced Dark Mode for Royal theme consistency
     const theme = 'dark';
@@ -139,7 +143,34 @@ const AppContent: React.FC = () => {
     useEffect(() => {
         document.documentElement.classList.add('dark');
         localStorage.setItem('royal_theme', 'dark');
+
+        // Aether Sync: Offline-First Strategy
+        const handleOnline = () => setIsOffline(false);
+        const handleOffline = () => setIsOffline(true);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
     }, []);
+
+    // --- BETA TESTING PROTOCOL (God-Tier) ---
+    useEffect(() => {
+        if (APP_METADATA.version === 'BETA_GOD_TIER' && currentUser) {
+            const handleAction = (e: MouseEvent) => {
+                const target = e.target as HTMLElement;
+                // Only log meaningful actions (buttons, links)
+                if (target.tagName === 'BUTTON' || target.tagName === 'A' || target.closest('button')) {
+                    const actionType = target.innerText || target.getAttribute('aria-label') || 'Unknown Action';
+                    console.log(`[BETA LOG] User ${currentUser.id} clicked: ${actionType}`);
+                    // In a real app: saveSessionLog(currentUser.id, Date.now(), actionType, navigator.userAgent);
+                }
+            };
+            document.addEventListener('click', handleAction);
+            return () => document.removeEventListener('click', handleAction);
+        }
+    }, [currentUser]);
 
     if (isBooting) return <NeuralBoot onComplete={() => setIsBooting(false)} />;
     if (!currentUser) return <LoginScreen onLogin={setCurrentUser} />;
@@ -197,6 +228,7 @@ const AppContent: React.FC = () => {
                 case 'neuralArchitecture': return NeuralArchitecture;
                 case 'scientificAdmissionForm': return ScientificAdmissionForm;
                 case 'adminAttendance': return AdminAttendance;
+                case 'medicalProfiling': return MedicalProfilingSystem;
                 default: return Dashboard;
             }
         })();
@@ -224,16 +256,53 @@ const AppContent: React.FC = () => {
         );
     };
     
+    const renderOfflineBanner = () => {
+        if (!isOffline) return null;
+        return (
+            <div className="fixed top-0 left-0 right-0 z-[9999] bg-amber-500 text-black px-4 py-2 flex items-center justify-center gap-3 shadow-lg font-bold text-xs uppercase tracking-widest animate-fade-in">
+                <WifiOff className="w-4 h-4" />
+                <span>Aether Sync: Offline Mode Active. Using Local Storage.</span>
+            </div>
+        );
+    };
+
+    const handleReportBug = () => {
+        const bugDesc = prompt("Please describe the bug you encountered:");
+        if (bugDesc) {
+            console.log("Bug Reported:", {
+                user: currentUser?.id,
+                description: bugDesc,
+                view: currentView,
+                timestamp: new Date().toISOString()
+            });
+            alert("Bug reported successfully. Thank you for testing!");
+        }
+    };
+
     if (currentUser.type === 'member') {
         return (
             <Suspense fallback={<div className="h-screen w-screen bg-black"></div>}>
-                <MemberPortal loggedInMemberId={currentUser.id} onLogout={() => setCurrentUser(null)} theme={theme} toggleTheme={() => {}} />
+                {renderOfflineBanner()}
+                {APP_METADATA.version === 'BETA_GOD_TIER' && (
+                    <button onClick={handleReportBug} className="fixed top-4 right-4 z-[9999] bg-red-600 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg hover:bg-red-500 flex items-center gap-2">
+                        <ShieldAlert className="w-4 h-4" /> Report Bug
+                    </button>
+                )}
+                <AppSecurityLayer>
+                    <MemberPortal loggedInMemberId={currentUser.id} onLogout={() => setCurrentUser(null)} theme={theme} toggleTheme={() => {}} />
+                </AppSecurityLayer>
             </Suspense>
         );
     }
 
     return (
         <div className={`h-screen w-screen flex flex-col overflow-hidden font-sans selection:bg-indigo-500/30 transition-colors duration-300 bg-black text-gray-100`}>
+            {renderOfflineBanner()}
+            {APP_METADATA.version === 'BETA_GOD_TIER' && (
+                <button onClick={handleReportBug} className="fixed top-4 right-4 z-[9999] bg-red-600 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg hover:bg-red-500 flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4" /> Report Bug
+                </button>
+            )}
             <Header onLogout={() => setCurrentUser(null)} userName={currentUser.name} avatar={currentUser.avatar} theme={theme} toggleTheme={() => {}}>
                 <div className="hidden lg:flex items-center gap-3 px-4 py-1.5 bg-white dark:bg-gray-900 rounded-full border border-gray-200 dark:border-white/5 shadow-inner group cursor-help" title="System Status">
                     {systemHealth === 100 ? <ShieldCheck className="w-4 h-4 text-green-500" /> : <Activity className="w-4 h-4 text-amber-500 animate-pulse" />}

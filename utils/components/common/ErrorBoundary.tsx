@@ -23,7 +23,43 @@ class ErrorBoundary extends React.Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
-    // In production, log to Sentry/LogRocket here
+    
+    // Mock Sentry/Crashlytics Integration ('The Sentinel Shield')
+    this.sendErrorToSentry(error.toString(), errorInfo.componentStack);
+  }
+
+  private sendErrorToSentry = async (errorMsg: string, stackTrace: string | null | undefined) => {
+      console.log("🚀 [Crashlytics/Sentry] Sending error report to server...");
+      
+      let batteryLevel = 'Unknown';
+      let netSpeed = 'Unknown';
+      
+      try {
+          // @ts-ignore - navigator.getBattery is not standard in all browsers
+          if (navigator.getBattery) {
+              const battery = await (navigator as any).getBattery();
+              batteryLevel = `${Math.round(battery.level * 100)}%`;
+          }
+          // @ts-ignore
+          if (navigator.connection) {
+              // @ts-ignore
+              netSpeed = (navigator as any).connection.downlink + ' Mbps';
+          }
+      } catch (e) {
+          console.warn("Could not fetch device metrics for crash report.");
+      }
+
+      const crashReport = {
+          error_log: errorMsg,
+          stack_trace: stackTrace,
+          battery_level: batteryLevel,
+          net_speed: netSpeed,
+          timestamp: new Date().toISOString()
+      };
+
+      console.log("Beta Bug Detected:", crashReport);
+      // In a real app, this would be an API call to Sentry, LogRocket, or Firebase Crashlytics
+      // sendToAdminDashboard(crashReport);
   }
 
   private handleHardReset = () => {

@@ -187,15 +187,51 @@ const BodySimulator: React.FC = () => {
         scene.add(group);
         mannequinRef.current = group;
 
+        // --- HOVER INTERACTION LOGIC ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        
+        const onMouseMove = (event: MouseEvent) => {
+            if (!mountRef.current) return;
+            const rect = mountRef.current.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / height) * 2 + 1;
+        };
+        
+        mountRef.current.addEventListener('mousemove', onMouseMove);
+
         const animate = () => {
             const time = Date.now() * 0.001;
             group.rotation.y = Math.sin(time * 0.2) * 0.2; 
+            
+            // Raycasting for Hover Glow
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(group.children, true);
+            
+            // Reset all emissive intensities
+            group.children.forEach((child) => {
+                if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshPhysicalMaterial) {
+                    child.material.emissiveIntensity = 0.5; // Default intensity
+                }
+            });
+
+            // Apply glow to intersected object
+            if (intersects.length > 0) {
+                const object = intersects[0].object;
+                if (object instanceof THREE.Mesh && object.material instanceof THREE.MeshPhysicalMaterial) {
+                    object.material.emissiveIntensity = 1.5; // Glow intensity
+                }
+            }
+
             renderer.render(scene, camera);
             frameIdRef.current = requestAnimationFrame(animate);
         };
         animate();
 
         return () => {
+            if (mountRef.current) {
+                mountRef.current.removeEventListener('mousemove', onMouseMove);
+            }
             cancelAnimationFrame(frameIdRef.current);
             renderer.dispose();
         };

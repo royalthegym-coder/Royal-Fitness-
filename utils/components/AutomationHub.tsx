@@ -21,7 +21,10 @@ const AutomationHub: React.FC = () => {
     
     // n8n State
     const [n8nStatus, setN8nStatus] = useState<'connected' | 'error' | 'idle'>('connected');
-    const [n8nWebhookUrl, setN8nWebhookUrl] = useState(localStorage.getItem('n8n_webhook_url') || import.meta.env.VITE_N8N_WEBHOOK_URL || '');
+    const [n8nPaymentSyncUrl, setN8nPaymentSyncUrl] = useState(localStorage.getItem('n8n_payment_sync_url') || import.meta.env.VITE_N8N_PAYMENT_SYNC_URL || 'https://royalthegym.app.n8n.cloud/webhook/payment-sync');
+    const [n8nOnboardingUrl, setN8nOnboardingUrl] = useState(localStorage.getItem('n8n_onboarding_url') || import.meta.env.VITE_N8N_ONBOARDING_URL || 'https://royalthegym.app.n8n.cloud/webhook/onboarding');
+    const [n8nWorkflowUrl, setN8nWorkflowUrl] = useState(localStorage.getItem('n8n_workflow_url') || import.meta.env.VITE_N8N_WORKFLOW_URL || 'https://royalthegym.app.n8n.cloud/workflow/aqLESKJDrp6xWaok');
+    
     const [workflows, setWorkflows] = useState([
         { id: 'wf1', name: 'Member Onboarding Flow', status: 'active', lastRun: '2 mins ago' },
         { id: 'wf2', name: 'Payment Reconciliation', status: 'active', lastRun: '1 hour ago' },
@@ -62,8 +65,10 @@ const AutomationHub: React.FC = () => {
 
     const handleSaveConfig = (type: 'n8n' | 'github' | 'whatsapp' | 'google') => {
         if (type === 'n8n') {
-            localStorage.setItem('n8n_webhook_url', n8nWebhookUrl);
-            addToast("n8n Webhook URL updated successfully.", "success");
+            localStorage.setItem('n8n_payment_sync_url', n8nPaymentSyncUrl);
+            localStorage.setItem('n8n_onboarding_url', n8nOnboardingUrl);
+            localStorage.setItem('n8n_workflow_url', n8nWorkflowUrl);
+            addToast("n8n Webhook URLs updated successfully.", "success");
             addLog("n8n Webhook configuration saved.");
         } else if (type === 'github') {
             localStorage.setItem('github_token', githubToken);
@@ -175,12 +180,32 @@ const AutomationHub: React.FC = () => {
                             <Card title="n8n Configuration" className="bg-black/40 border-white/5 p-8 rounded-[3rem]">
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">n8n Webhook URL</label>
+                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Payment Sync Webhook URL</label>
                                         <input 
                                             type="text" 
-                                            value={n8nWebhookUrl}
-                                            onChange={(e) => setN8nWebhookUrl(e.target.value)}
-                                            placeholder="https://your-n8n-instance.com/webhook/..."
+                                            value={n8nPaymentSyncUrl}
+                                            onChange={(e) => setN8nPaymentSyncUrl(e.target.value)}
+                                            placeholder="https://royalthegym.app.n8n.cloud/webhook/payment-sync"
+                                            className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-indigo-500 transition-all"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Onboarding Webhook URL</label>
+                                        <input 
+                                            type="text" 
+                                            value={n8nOnboardingUrl}
+                                            onChange={(e) => setN8nOnboardingUrl(e.target.value)}
+                                            placeholder="https://royalthegym.app.n8n.cloud/webhook/onboarding"
+                                            className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-indigo-500 transition-all"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Workflow URL</label>
+                                        <input 
+                                            type="text" 
+                                            value={n8nWorkflowUrl}
+                                            onChange={(e) => setN8nWorkflowUrl(e.target.value)}
+                                            placeholder="https://royalthegym.app.n8n.cloud/workflow/aqLESKJDrp6xWaok"
                                             className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-indigo-500 transition-all"
                                         />
                                     </div>

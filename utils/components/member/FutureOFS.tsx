@@ -100,7 +100,7 @@ const FutureOFS: React.FC<{ memberId: number }> = ({ memberId }) => {
     };
     
     if (phase === 'Live') {
-        return <LiveTrainingHUD exercise={targetMuscle} sets="5" onClose={() => setPhase('Diagnostics')} />;
+        return <LiveTrainingHUD exercise={targetMuscle} sets="5" memberId={memberId} onClose={() => setPhase('Diagnostics')} />;
     }
 
     return (

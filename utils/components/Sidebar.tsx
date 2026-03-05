@@ -9,7 +9,7 @@ import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { BrainCircuitIcon } from './icons/BrainCircuitIcon';
 import { ControlIcon } from './icons/ControlIcon';
-import { User, Microscope, Zap, Settings, Command, Activity, Heart, DollarSign, CalendarCheck, Stethoscope, TrendingUp, Cpu, ShieldAlert, MonitorPlay, HelpCircle, ScanFace, Globe, Glasses, Link, Shield, FlaskConical, Clock, Wind, Network, Moon, Eye, Truck, Map, Terminal, Gauge, Share2, Package, List, Users, ChevronDown, Utensils, Sparkles, Workflow } from 'lucide-react';
+import { User, Microscope, Zap, Settings, Command, Activity, Heart, DollarSign, CalendarCheck, Stethoscope, TrendingUp, Cpu, ShieldAlert, MonitorPlay, HelpCircle, ScanFace, Globe, Glasses, Link, Shield, FlaskConical, Clock, Wind, Network, Moon, Eye, Truck, Map, Terminal, Gauge, Share2, Package, List, Users, ChevronDown, Utensils, Sparkles, Workflow, ShieldCheck, BrainCircuit } from 'lucide-react';
 import { GoogleIcon } from './icons/GoogleIcon';
 import { View } from '../../types';
 import { CloudArrowUpIcon } from './icons/CloudArrowUpIcon';
@@ -38,6 +38,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
   const [expandedCategories, setExpandedCategories] = useState<string[]>(
       role === 'admin' ? ['Main (मुख्य)', 'Fitness (फिटनेस)', 'Marketing (मार्केटिंग)'] : ['My Zone (मेरा जोन)', 'Training (ट्रेनिंग)']
   );
+  const [searchQuery, setSearchQuery] = useState('');
 
   const toggleCategory = (category: string) => {
     setExpandedCategories(prev => 
@@ -86,6 +87,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
       category: 'Advanced AI (एडवांस्ड)',
       items: [
         { id: 'aetherMed', label: 'AI Doctor', icon: <Stethoscope className="w-5 h-5 text-cyan-400" /> },
+        { id: 'medicalProfiling', label: 'Medical Profiling', icon: <Microscope className="w-5 h-5 text-emerald-400" /> },
         { id: 'geniusMode', label: 'AI Planner', icon: <Zap className="w-5 h-5 text-amber-400" /> },
         { id: 'bioScout', label: 'Risk Alerts', icon: <Shield className="w-5 h-5 text-red-400" /> },
         { id: 'revenueOracle', label: 'Revenue AI', icon: <Eye className="w-5 h-5 text-green-500" /> }, 
@@ -122,6 +124,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
       items: [
         { id: 'workout', label: 'Start Workout', icon: <WorkoutIcon /> },
         { id: 'diet', label: 'My Diet', icon: <DietIcon /> },
+        { id: 'metabolicSimulator', label: 'Digital Twin', icon: <BrainCircuit className="w-5 h-5 text-purple-400" /> },
         { id: 'nutritionAdvisor', label: 'Nutritionist', icon: <Utensils className="w-5 h-5 text-green-400" /> },
         { id: "performanceLab", label: "Progress Lab", icon: <TrendingUp className="w-5 h-5 text-cyan-400" /> },
         { id: 'futureOFS', label: 'Recovery Test', icon: <Activity className="w-5 h-5 text-amber-400" /> },
@@ -132,7 +135,9 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
       items: [
         { id: 'health', label: 'Health Stats', icon: <Heart className="w-5 h-5 text-red-500" /> },
         { id: 'medicalHub', label: 'Medical Report', icon: <Stethoscope className="w-5 h-5 text-indigo-400" /> },
+        { id: 'digitalBioPass', label: 'Bio-Health Pass', icon: <ShieldCheck className="w-5 h-5 text-emerald-400" /> },
         { id: 'wearables', label: 'Connect Watch', icon: <SmartWatchIcon className="w-5 h-5 text-amber-400" /> },
+        { id: 'universalGadgets', label: 'Neural Sync', icon: <Cpu className="w-5 h-5 text-cyan-400" /> },
         { id: 'neuroRecovery', label: 'Relaxation', icon: <Moon className="w-5 h-5 text-indigo-400" /> }, 
       ]
     },
@@ -174,9 +179,31 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
           </div>
         </div>
         
-        <nav className="flex-1 px-4 py-8 space-y-2 overflow-y-auto custom-scrollbar relative">
+        <div className="px-6 pt-6 pb-2 relative z-10">
+            <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="w-4 h-4 text-gray-500 group-focus-within:text-cyan-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+                <input 
+                    type="text" 
+                    placeholder="Search features..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 text-white text-xs rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all placeholder-gray-600"
+                />
+            </div>
+        </div>
+        
+        <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto custom-scrollbar relative">
           {navItems.map((section, idx) => {
-            const isExpanded = expandedCategories.includes(section.category);
+            const filteredItems = section.items.filter(item => 
+                item.label.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+
+            if (filteredItems.length === 0 && searchQuery) return null;
+
+            const isExpanded = searchQuery ? true : expandedCategories.includes(section.category);
+            
             return (
                 <div key={idx} className="relative z-10 mb-4">
                     <motion.button 
@@ -201,7 +228,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
                         transition={{ duration: 0.3, ease: "easeInOut" }}
                         className="space-y-1 mt-2 overflow-hidden"
                       >
-                        {section.items.map(item => {
+                        {filteredItems.map(item => {
                             const isActive = currentView === item.id;
                             
                             return (

@@ -7,7 +7,8 @@ import {
     Calendar, CheckCircle2, Clock, 
     Zap, Database, ShieldAlert, Search, Check,
     BrainCircuit, Sparkles, RefreshCw, Cpu, Filter,
-    Link as LinkIcon, Lock
+    Link as LinkIcon, Lock, ArrowUp, ArrowDown,
+    AlertTriangle, TrendingUp, Coffee, LayoutTemplate
 } from 'lucide-react';
 import TaskFormModal from './TaskFormModal';
 import ConfirmationDialog from './common/ConfirmationDialog';
@@ -17,40 +18,148 @@ import { BotIcon } from './icons/BotIcon';
 
 const getPriorityConfig = (priority: Task['priority']) => {
     switch (priority) {
-        case 'High': return { color: 'text-red-500', border: 'border-red-500/50', bg: 'bg-red-500/10', glow: 'shadow-[0_0_20px_rgba(239,68,68,0.2)]' };
-        case 'Medium': return { color: 'text-amber-500', border: 'border-amber-500/50', bg: 'bg-amber-500/10', glow: 'shadow-[0_0_15px_rgba(245,158,11,0.15)]' };
-        case 'Low': return { color: 'text-cyan-500', border: 'border-cyan-500/50', bg: 'bg-cyan-500/10', glow: 'shadow-[0_0_15px_rgba(6,182,212,0.15)]' };
-        default: return { color: 'text-gray-500', border: 'border-gray-500/30', bg: 'bg-gray-500/10', glow: '' };
+        case 'High': return { color: 'text-red-500', border: 'border-red-500/50', bg: 'bg-red-500/10', glow: 'shadow-[0_0_20px_rgba(239,68,68,0.2)]', icon: <AlertTriangle className="w-3 h-3" /> };
+        case 'Medium': return { color: 'text-amber-500', border: 'border-amber-500/50', bg: 'bg-amber-500/10', glow: 'shadow-[0_0_15px_rgba(245,158,11,0.15)]', icon: <TrendingUp className="w-3 h-3" /> };
+        case 'Low': return { color: 'text-cyan-500', border: 'border-cyan-500/50', bg: 'bg-cyan-500/10', glow: 'shadow-[0_0_15px_rgba(6,182,212,0.15)]', icon: <Coffee className="w-3 h-3" /> };
+        default: return { color: 'text-gray-500', border: 'border-gray-500/30', bg: 'bg-gray-500/10', glow: '', icon: <Clock className="w-3 h-3" /> };
     }
 };
+
+const TASK_TEMPLATES = [
+    {
+        name: 'Organize Gym Schedule',
+        items: [
+            { title: 'Check Equipment Availability', description: 'Verify all machines are functional.', priority: 'High', type: 'sub' },
+            { title: 'Create Member Workout Plans', description: 'Generate weekly plans for active members.', priority: 'Medium', type: 'sub' },
+            { title: 'Finalize Weekly Schedule', description: 'Publish the roster and class timings.', priority: 'High', type: 'main' }
+        ]
+    }
+];
 
 const Tasks: React.FC = () => {
     const { addToast } = useToast();
     const [tasks, setTasks] = useState<Task[]>([
-        { id: 1, title: 'Calibrate Biometric Sensors', description: 'Perform full system calibration and check sensor alignment.', priority: 'High', dueDate: new Date().toISOString().split('T')[0], completed: false },
-        { id: 2, title: 'Restock Whey Isolate', description: 'Inventory level critical (Low).', priority: 'Medium', dueDate: '2024-08-10', completed: false }
+        { id: 1, title: 'Calibrate Biometric Sensors', description: 'Perform full system calibration and check sensor alignment.', priority: 'High', dueDate: new Date().toISOString().split('T')[0], completed: false, order: 0 },
+        { id: 2, title: 'Restock Whey Isolate', description: 'Inventory level critical (Low).', priority: 'Medium', dueDate: '2024-08-10', completed: false, order: 1 }
     ]);
     const [searchTerm, setSearchTerm] = useState('');
     const [filter, setFilter] = useState<'All' | 'Active' | 'Completed'>('All');
     const [priorityFilter, setPriorityFilter] = useState<'All' | 'Low' | 'Medium' | 'High'>('All');
+    const [sortBy, setSortBy] = useState<'dueDate' | 'priority'>('dueDate');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
     
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
     const [taskToComplete, setTaskToComplete] = useState<Task | null>(null);
+    const [showTemplates, setShowTemplates] = useState(false);
 
     // AI State
     const [aiInput, setAiInput] = useState('');
     const [isThinking, setIsThinking] = useState(false);
 
+    const handleApplyTemplate = (template: typeof TASK_TEMPLATES[0]) => {
+        const today = new Date().toISOString().split('T')[0];
+        const baseId = Date.now();
+        const newTasks: Task[] = [];
+        const subTaskIds: number[] = [];
+
+        // 1. Create Sub Tasks
+        template.items.filter(i => i.type === 'sub').forEach((item, index) => {
+            const id = baseId + index;
+            subTaskIds.push(id);
+            newTasks.push({
+                id,
+                title: item.title,
+                description: item.description,
+                priority: item.priority as any,
+                dueDate: today,
+                completed: false,
+                order: 0
+            });
+        });
+
+        // 2. Create Main Task with dependencies
+        template.items.filter(i => i.type === 'main').forEach((item, index) => {
+            newTasks.push({
+                id: baseId + 100 + index,
+                title: item.title,
+                description: item.description,
+                priority: item.priority as any,
+                dueDate: today,
+                completed: false,
+                dependencies: subTaskIds,
+                order: 0
+            });
+        });
+
+        setTasks(prev => [...newTasks, ...prev]);
+        addToast(`Template Applied: ${template.name}`, "success");
+        setShowTemplates(false);
+    };
+
+    const cyclePriority = (taskId: number, currentPriority: Task['priority']) => {
+        const priorities: Task['priority'][] = ['Low', 'Medium', 'High'];
+        const currentIndex = priorities.indexOf(currentPriority);
+        const nextPriority = priorities[(currentIndex + 1) % priorities.length];
+        
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, priority: nextPriority } : t));
+        addToast(`Priority Updated: ${nextPriority}`, "info");
+    };
+
+    const moveTask = (taskId: number, direction: 'up' | 'down') => {
+        const sortedTasks = [...filteredTasks];
+        const index = sortedTasks.findIndex(t => t.id === taskId);
+        if (index === -1) return;
+
+        const targetIndex = direction === 'up' ? index - 1 : index + 1;
+        if (targetIndex < 0 || targetIndex >= sortedTasks.length) return;
+
+        const targetTask = sortedTasks[targetIndex];
+        
+        // Swap priorities if different
+        if (targetTask.priority !== sortedTasks[index].priority) {
+            const tempPriority = sortedTasks[index].priority;
+            setTasks(prev => prev.map(t => {
+                if (t.id === taskId) return { ...t, priority: targetTask.priority };
+                if (t.id === targetTask.id) return { ...t, priority: tempPriority };
+                return t;
+            }));
+        } else {
+            // Swap order if same priority
+            const tempOrder = sortedTasks[index].order ?? 0;
+            const targetOrder = targetTask.order ?? 0;
+            setTasks(prev => prev.map(t => {
+                if (t.id === taskId) return { ...t, order: targetOrder };
+                if (t.id === targetTask.id) return { ...t, order: tempOrder };
+                return t;
+            }));
+        }
+    };
+
     const filteredTasks = useMemo(() => {
-        return tasks.filter(t => {
+        let result = tasks.filter(t => {
             const matchesSearch = t.title.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesStatus = filter === 'All' ? true : filter === 'Completed' ? t.completed : !t.completed;
             const matchesPriority = priorityFilter === 'All' ? true : t.priority === priorityFilter;
             return matchesSearch && matchesStatus && matchesPriority;
-        }).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-    }, [tasks, searchTerm, filter, priorityFilter]);
+        });
+
+        return result.sort((a, b) => {
+            let comparison = 0;
+            if (sortBy === 'dueDate') {
+                comparison = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+            } else if (sortBy === 'priority') {
+                const priorityWeight = { 'High': 3, 'Medium': 2, 'Low': 1 };
+                comparison = priorityWeight[a.priority] - priorityWeight[b.priority];
+                // Secondary sort by order
+                if (comparison === 0) {
+                    comparison = (a.order ?? 0) - (b.order ?? 0);
+                }
+            }
+            return sortOrder === 'asc' ? comparison : -comparison;
+        });
+    }, [tasks, searchTerm, filter, priorityFilter, sortBy, sortOrder]);
 
     const efficiencyScore = useMemo(() => {
         if (tasks.length === 0) return 100;
@@ -182,12 +291,47 @@ const Tasks: React.FC = () => {
                         </div>
                     </div>
                     
-                    <button 
-                        onClick={() => { setSelectedTask(null); setIsFormOpen(true); }}
-                        className="bg-white text-black font-black px-12 py-5 rounded-[2.5rem] text-[12px] uppercase tracking-widest hover:bg-amber-500 transition-all shadow-2xl active:scale-95 flex items-center gap-4 group"
-                    >
-                        <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" /> Initialize Task
-                    </button>
+                    <div className="flex gap-4">
+                        <div className="relative">
+                            <button 
+                                onClick={() => setShowTemplates(!showTemplates)}
+                                className="relative overflow-hidden bg-gray-900 border border-white/10 text-white font-bold px-6 py-5 rounded-[2.5rem] text-[12px] uppercase tracking-widest hover:bg-gray-800 transition-all shadow-xl active:scale-95 flex items-center gap-3 group"
+                            >
+                                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+                                <LayoutTemplate className="w-5 h-5 relative z-10" /> 
+                                <span className="relative z-10">Templates</span>
+                            </button>
+                            
+                            {showTemplates && (
+                                <div className="absolute top-full mt-4 right-0 w-72 bg-black border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden animate-fade-in">
+                                    <div className="p-4 border-b border-white/5">
+                                        <h4 className="text-[10px] font-black uppercase text-gray-500 tracking-widest">Quick Templates</h4>
+                                    </div>
+                                    <div className="p-2">
+                                        {TASK_TEMPLATES.map((template, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => handleApplyTemplate(template)}
+                                                className="w-full text-left p-3 hover:bg-gray-900 rounded-xl group transition-colors"
+                                            >
+                                                <div className="text-xs font-bold text-white group-hover:text-amber-500 transition-colors mb-1">{template.name}</div>
+                                                <div className="text-[10px] text-gray-600 italic">{template.items.length} tasks included</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <button 
+                            onClick={() => { setSelectedTask(null); setIsFormOpen(true); }}
+                            className="bg-white text-black font-black px-12 py-5 rounded-[2.5rem] text-[12px] uppercase tracking-widest hover:bg-amber-500 transition-all shadow-2xl active:scale-95 flex items-center gap-4 group"
+                        >
+                            <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+                            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform relative z-10" /> 
+                            <span className="relative z-10">Initialize Task</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -222,6 +366,26 @@ const Tasks: React.FC = () => {
                                     <option value="Low">Priority: Low</option>
                                 </select>
                                 <Filter className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-600 group-hover/filter:text-amber-500 transition-colors pointer-events-none" />
+                            </div>
+
+                            {/* Sorting Controls */}
+                            <div className="flex items-center gap-2 bg-black rounded-2xl p-1.5 border border-white/5 h-full">
+                                <select
+                                    value={sortBy}
+                                    onChange={(e) => setSortBy(e.target.value as 'dueDate' | 'priority')}
+                                    className="bg-transparent text-[10px] font-black uppercase tracking-widest text-gray-500 focus:outline-none focus:text-white hover:text-gray-300 transition-all cursor-pointer px-3 py-2 appearance-none"
+                                >
+                                    <option value="dueDate">Sort: Date</option>
+                                    <option value="priority">Sort: Priority</option>
+                                </select>
+                                <div className="w-px h-4 bg-gray-800"></div>
+                                <button
+                                    onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                                    className="p-2 rounded-xl hover:bg-gray-800 text-gray-500 hover:text-white transition-colors"
+                                    title={sortOrder === 'asc' ? "Ascending" : "Descending"}
+                                >
+                                    {sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
+                                </button>
                             </div>
                         </div>
 
@@ -300,9 +464,35 @@ const Tasks: React.FC = () => {
                                                     <h3 className={`text-xl font-black italic uppercase tracking-tight transition-all ${task.completed ? 'text-gray-500 line-through decoration-2 decoration-amber-500' : 'text-white'}`}>
                                                         {task.title}
                                                     </h3>
-                                                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${config.bg} ${config.color} ${config.border}`}>
+                                                    <button 
+                                                        onClick={() => cyclePriority(task.id, task.priority)}
+                                                        className={`flex items-center gap-1.5 text-[9px] font-black uppercase px-2 py-0.5 rounded border ${config.bg} ${config.color} ${config.border} hover:opacity-80 transition-opacity`}
+                                                        title="Click to cycle priority"
+                                                    >
+                                                        {config.icon}
                                                         {task.priority}
-                                                    </span>
+                                                    </button>
+                                                    
+                                                    {/* Reorder Controls (Only visible when sorting by priority) */}
+                                                    {sortBy === 'priority' && (
+                                                        <div className="flex items-center gap-1 ml-2">
+                                                            <button 
+                                                                onClick={() => moveTask(task.id, 'up')}
+                                                                className="p-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
+                                                                title="Move Up (Increases Priority)"
+                                                            >
+                                                                <ArrowUp className="w-3 h-3" />
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => moveTask(task.id, 'down')}
+                                                                className="p-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
+                                                                title="Move Down (Decreases Priority)"
+                                                            >
+                                                                <ArrowDown className="w-3 h-3" />
+                                                            </button>
+                                                        </div>
+                                                    )}
+
                                                     {hasUnmetDeps && (
                                                         <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 rounded text-amber-500 text-[8px] font-black uppercase tracking-widest">
                                                             <LinkIcon className="w-2.5 h-2.5" />

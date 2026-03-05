@@ -9,7 +9,7 @@ import {
     Fingerprint, Dna, Scan, Microscope, Globe,
     Plus, TestTube, Cross, Pill, Beaker, Mic, MicOff, Volume2,
     Cpu, Network, Layers, Sparkles, ChevronRight, Share2,
-    Binary, MessageSquare, Eye, Heart, Thermometer, Wind, X
+    Binary, MessageSquare, Eye, Heart, Thermometer, Wind, X, Camera
 } from 'lucide-react';
 import { BotIcon } from '../icons/BotIcon';
 import { useToast } from '../../hooks/useToast';
@@ -192,14 +192,23 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
         
         try {
             const newFiles: {name: string, data: string, type: string}[] = [];
-            
+            const MAX_SIZE = 10 * 1024 * 1024; // 10MB limit to prevent crashes
+
             for (const file of files) {
+                if (file.size > MAX_SIZE) {
+                    addToast(`Skipped ${file.name}: File too large (>10MB)`, "error");
+                    continue;
+                }
+
                 const reader = new FileReader();
                 await new Promise<void>((resolve, reject) => {
                     reader.onload = () => {
-                        const base64 = reader.result?.toString().split(',')[1];
-                        if (base64) {
-                            newFiles.push({ name: file.name, data: base64, type: file.type });
+                        const res = reader.result?.toString();
+                        if (res) {
+                            const base64 = res.split(',')[1];
+                            if (base64) {
+                                newFiles.push({ name: file.name, data: base64, type: file.type });
+                            }
                         }
                         resolve();
                     };
@@ -208,13 +217,16 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
                 });
             }
             
-            setAttachedFiles(prev => [...prev, ...newFiles]);
-            addToast(`${newFiles.length} report(s) attached.`, "success");
+            if (newFiles.length > 0) {
+                setAttachedFiles(prev => [...prev, ...newFiles]);
+                addToast(`${newFiles.length} report(s) attached.`, "success");
+            }
             
             // Reset input so same file can be selected again if needed
             if (e.target) e.target.value = '';
         } catch (error) {
-            addToast("Failed to read files.", "error");
+            console.error(error);
+            addToast("Failed to read files. Please try again.", "error");
         } finally {
             setIsUploading(false);
         }
@@ -307,7 +319,7 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
                         <label className="flex-1 bg-gray-900 border border-white/10 text-white font-black py-6 rounded-[2.5rem] hover:border-cyan-500/50 transition-all uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 active:scale-95 cursor-pointer">
                             <FileText className="w-5 h-5"/>
                             {isUploading ? 'Analyzing...' : 'Upload Report'}
-                            <input type="file" className="hidden" onChange={handleFileUpload} accept=".pdf,.jpg,.png" disabled={isUploading} />
+                            <input type="file" multiple className="hidden" onChange={handleFileUpload} accept="image/*,.pdf,.doc,.docx,.txt,.csv,.xls,.xlsx" disabled={isUploading} />
                         </label>
                     </div>
                 </div>
@@ -433,8 +445,12 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
 
                                          <div className="flex gap-3 mt-4">
                                              <label className="flex-1 py-4 bg-gray-800 border border-white/10 text-white font-black rounded-2xl uppercase tracking-widest text-[10px] hover:bg-gray-700 transition-all flex items-center justify-center gap-2 cursor-pointer">
-                                                 <FileText className="w-4 h-4"/> Attach Reports
-                                                 <input type="file" multiple className="hidden" onChange={handleFileUpload} accept=".pdf,.jpg,.png" disabled={isUploading} />
+                                                 <FileText className="w-4 h-4"/> Upload Files
+                                                 <input type="file" multiple className="hidden" onChange={handleFileUpload} accept="image/*,.pdf,.doc,.docx,.txt,.csv,.xls,.xlsx" disabled={isUploading} />
+                                             </label>
+                                             <label className="flex-1 py-4 bg-gray-800 border border-white/10 text-white font-black rounded-2xl uppercase tracking-widest text-[10px] hover:bg-gray-700 transition-all flex items-center justify-center gap-2 cursor-pointer">
+                                                 <Camera className="w-4 h-4"/> Camera
+                                                 <input type="file" capture="environment" className="hidden" onChange={handleFileUpload} accept="image/*" disabled={isUploading} />
                                              </label>
                                              <button 
                                                 onClick={runCouncilSession}

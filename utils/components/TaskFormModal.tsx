@@ -127,29 +127,58 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
 
                     <div className="bg-gray-900/50 p-6 rounded-[2rem] border border-white/5">
                         <label className={labelClass}>Task Dependencies (Prerequisites)</label>
-                        <div className="space-y-3 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-                            {availableTasks.length === 0 ? (
-                                <p className="text-[10px] text-gray-600 italic uppercase p-4 text-center border border-dashed border-white/5 rounded-xl">No other tasks available</p>
-                            ) : (
-                                availableTasks.map(t => (
-                                    <button
-                                        key={t.id}
-                                        type="button"
-                                        onClick={() => toggleDependency(t.id)}
-                                        className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${
-                                            dependencies.includes(t.id)
-                                            ? 'bg-amber-500/20 border-amber-500/50 text-amber-500'
-                                            : 'bg-black/40 border-white/5 text-gray-500 hover:border-white/20'
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <LinkIcon className={`w-3.5 h-3.5 ${dependencies.includes(t.id) ? 'text-amber-500' : 'text-gray-600'}`} />
-                                            <span className="text-[10px] font-bold uppercase truncate max-w-[180px]">{t.title}</span>
-                                        </div>
-                                        {dependencies.includes(t.id) && <Check className="w-3.5 h-3.5" />}
-                                    </button>
-                                ))
+                        
+                        {/* Selected Dependencies Tags */}
+                        <div className="flex flex-wrap gap-2 mb-3">
+                            {dependencies.map(depId => {
+                                const depTask = allTasks.find(t => t.id === depId);
+                                return (
+                                    <div key={depId} className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 text-amber-500 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase">
+                                        <LinkIcon className="w-3 h-3" />
+                                        <span className="truncate max-w-[150px]">{depTask?.title || 'Unknown Task'}</span>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => toggleDependency(depId)}
+                                            className="hover:text-white transition-colors"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                            {dependencies.length === 0 && (
+                                <span className="text-[10px] text-gray-600 italic p-1">No dependencies linked.</span>
                             )}
+                        </div>
+
+                        {/* Dropdown for Selection */}
+                        <div className="relative group">
+                            <select
+                                onChange={(e) => {
+                                    if (e.target.value) {
+                                        toggleDependency(Number(e.target.value));
+                                        e.target.value = ''; // Reset select
+                                    }
+                                }}
+                                className={inputClass}
+                                defaultValue=""
+                            >
+                                <option value="" disabled>Select a prerequisite task...</option>
+                                {availableTasks
+                                    .filter(t => !dependencies.includes(t.id))
+                                    .map(t => (
+                                        <option key={t.id} value={t.id}>
+                                            [{t.priority}] {t.title}
+                                        </option>
+                                    ))
+                                }
+                                {availableTasks.filter(t => !dependencies.includes(t.id)).length === 0 && (
+                                    <option disabled>No other available tasks</option>
+                                )}
+                            </select>
+                            <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none">
+                                <LinkIcon className="w-5 h-5 text-gray-500 group-hover:text-amber-500 transition-colors" />
+                            </div>
                         </div>
                     </div>
 

@@ -20,7 +20,16 @@ export const triggerAutomation = async (trigger: AutomationTrigger) => {
     console.log(`[Neural OS] AI Automation Logic:`, aiLogic);
 
     // 2. N8N Webhook Integration
-    const n8nWebhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL || localStorage.getItem('n8n_webhook_url');
+    let n8nWebhookUrl = '';
+    
+    if (trigger.event === 'payment_received') {
+        n8nWebhookUrl = import.meta.env.VITE_N8N_PAYMENT_SYNC_URL || localStorage.getItem('n8n_payment_sync_url') || 'https://royalthegym.app.n8n.cloud/webhook/payment-sync';
+    } else if (trigger.event === 'member_created') {
+        n8nWebhookUrl = import.meta.env.VITE_N8N_ONBOARDING_URL || localStorage.getItem('n8n_onboarding_url') || 'https://royalthegym.app.n8n.cloud/webhook/onboarding';
+    } else {
+        n8nWebhookUrl = import.meta.env.VITE_N8N_WORKFLOW_URL || localStorage.getItem('n8n_workflow_url') || 'https://royalthegym.app.n8n.cloud/workflow/aqLESKJDrp6xWaok';
+    }
+    
     if (n8nWebhookUrl) {
         try {
             await fetch(n8nWebhookUrl, {

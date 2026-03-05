@@ -10,7 +10,7 @@ import {
     Play, RotateCcw, PartyPopper, Plus, Settings, Calendar, Layers, 
     Video, ArrowRight, Activity, PlayCircle, Clock, Users, Flame, 
     Save, BarChart3, Radio, Check, Minus, X, Info, BarChart2,
-    ClipboardList, BrainCircuit, Target, RefreshCw, FileText, Zap
+    ClipboardList, BrainCircuit, Target, RefreshCw, FileText, Zap, MessageCircle
 } from 'lucide-react';
 import AIWorkoutGeneratorModal from '../common/AIWorkoutGeneratorModal';
 import { SparkleIcon } from '../icons/SparkleIcon';
@@ -18,6 +18,9 @@ import { ResponsiveContainer, LineChart, Line, YAxis, Tooltip, CartesianGrid, XA
 import { useToast } from '../../hooks/useToast';
 import Modal from '../common/Modal';
 import LiveTrainingHUD from './LiveTrainingHUD';
+import TitanVision from './TitanVision';
+import { generateWorkoutPDF } from '../../pdfGenerator';
+import { Download, Camera } from 'lucide-react';
 
 // --- SUB-COMPONENT: HISTORY CHART MODAL ---
 const ExerciseHistoryModal: React.FC<{
@@ -281,7 +284,7 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
     const progress = totalSets > 0 ? Math.round((completedSetsCount / totalSets) * 100) : 0;
 
     if (liveModeExercise) {
-        return <LiveTrainingHUD exercise={liveModeExercise.name} sets={liveModeExercise.sets} onClose={() => setLiveModeExercise(null)} />;
+        return <LiveTrainingHUD exercise={liveModeExercise.name} sets={liveModeExercise.sets} memberId={memberId} onClose={() => setLiveModeExercise(null)} />;
     }
 
     if (sessionComplete) {
@@ -330,6 +333,28 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                             </h1>
                         </div>
                     </div>
+                    
+                    {/* PDF Download Button */}
+                    <button 
+                        onClick={() => {
+                            // Convert generatedWorkout to WorkoutTemplate format for PDF
+                            const template = {
+                                id: 1,
+                                name: `Battle Deck - ${userLevel}`,
+                                level: userLevel as any,
+                                category: 'Daily Protocol',
+                                description: 'AI-Generated Daily Workout Protocol synced via N8N.',
+                                preWorkout: { name: Object.keys(generatedWorkout)[0] || 'Warmup', exercises: Object.values(generatedWorkout)[0] || [] },
+                                mainWorkout: Object.entries(generatedWorkout).slice(1, -1).map(([name, exercises]) => ({ name, exercises })),
+                                finisher: { name: Object.keys(generatedWorkout)[Object.keys(generatedWorkout).length - 1] || 'Finisher', exercises: Object.values(generatedWorkout)[Object.keys(generatedWorkout).length - 1] || [] }
+                            };
+                            generateWorkoutPDF(template, member);
+                            addToast('PDF Downloaded Successfully', 'success');
+                        }}
+                        className="mt-6 md:mt-0 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center gap-2 border border-white/20 backdrop-blur-md transition-all active:scale-95"
+                    >
+                        <Download className="w-4 h-4" /> Download PDF
+                    </button>
                 </div>
             </div>
 
@@ -349,13 +374,13 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                             return (
                                 <div key={i} className="bg-[#0a0a0a] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-xl hover:border-white/10 transition-all">
                                     <div className="flex flex-col sm:flex-row">
-                                        <div className="sm:w-1/3 h-56 sm:h-auto relative group cursor-pointer bg-black overflow-hidden">
-                                            <img 
-                                                src={exerciseData.thumbnailUrl} 
-                                                className="w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity duration-700"
-                                                alt="thumb" 
-                                            />
-                                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                                        <div className="sm:w-1/3 h-56 sm:h-auto relative group cursor-pointer bg-black overflow-hidden border-r border-white/5 flex flex-col items-center justify-center">
+                                            <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/20 to-blue-900/20 opacity-50"></div>
+                                            <div className="w-20 h-20 rounded-full border-2 border-cyan-500/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-500 bg-black/50 backdrop-blur-sm">
+                                                <Activity className="w-10 h-10 text-cyan-400" />
+                                            </div>
+                                            <p className="text-xs font-black text-white uppercase tracking-widest z-10">{exName}</p>
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/80 backdrop-blur-sm">
                                                  <button onClick={() => setLiveModeExercise(ex)} className="text-[9px] font-black text-white uppercase tracking-[0.3em] bg-black/60 px-4 py-2 rounded-full border border-cyan-500/30 hover:bg-cyan-500 hover:text-black hover:border-cyan-400 transition-all shadow-lg flex items-center gap-2">
                                                      <Zap className="w-3 h-3"/> Neural Mirror
                                                  </button>
@@ -382,35 +407,35 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                                             <div className="space-y-4">
                                             {setsData.map((set, sIdx) => (
                                                 <div key={sIdx} className={`p-4 rounded-2xl border transition-all duration-300 ${set.completed ? 'bg-green-950/20 border-green-500/30' : 'bg-black/40 border-white/5'}`}>
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-xs font-black text-gray-500 w-12">SET {set.setNumber}</span>
+                                                    <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                                                        <span className="text-xs font-black text-gray-500 w-12 text-center md:text-left">SET {set.setNumber}</span>
                                                         
-                                                        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 mx-4">
-                                                            <div className="flex items-center gap-1 bg-gray-900 border border-white/10 rounded-xl p-1">
-                                                                <button type="button" onClick={() => handleUpdateSet(exName, sIdx, 'weight', Math.max(0, set.weight - 2.5))} disabled={set.completed} className="px-2 text-gray-400 disabled:opacity-30">-</button>
-                                                                <input type="number" value={set.weight || ''} onChange={(e) => handleUpdateSet(exName, sIdx, 'weight', Number(e.target.value))} readOnly={set.completed} className="w-full bg-transparent text-lg font-bold text-white text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="0"/>
-                                                                <button type="button" onClick={() => handleUpdateSet(exName, sIdx, 'weight', set.weight + 2.5)} disabled={set.completed} className="px-2 text-gray-400 disabled:opacity-30">+</button>
-                                                                <span className="text-[10px] text-gray-600 font-black pr-1">KG</span>
+                                                        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+                                                            <div className="flex items-center justify-between bg-gray-900 border border-white/10 rounded-xl p-1">
+                                                                <button type="button" onClick={() => handleUpdateSet(exName, sIdx, 'weight', Math.max(0, set.weight - 2.5))} disabled={set.completed} className="px-3 py-1 text-gray-400 disabled:opacity-30 hover:bg-white/10 rounded-lg">-</button>
+                                                                <input type="number" value={set.weight || ''} onChange={(e) => handleUpdateSet(exName, sIdx, 'weight', Number(e.target.value))} readOnly={set.completed} className="w-16 bg-transparent text-lg font-bold text-white text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="0"/>
+                                                                <button type="button" onClick={() => handleUpdateSet(exName, sIdx, 'weight', set.weight + 2.5)} disabled={set.completed} className="px-3 py-1 text-gray-400 disabled:opacity-30 hover:bg-white/10 rounded-lg">+</button>
+                                                                <span className="text-[10px] text-gray-600 font-black pr-2">KG</span>
                                                             </div>
 
-                                                            <div className="flex items-center gap-1 bg-gray-900 border border-white/10 rounded-xl p-1">
-                                                                <button type="button" onClick={() => handleUpdateSet(exName, sIdx, 'reps', Math.max(0, set.reps - 1))} disabled={set.completed} className="px-2 text-gray-400 disabled:opacity-30">-</button>
-                                                                <input type="number" value={set.reps || ''} onChange={(e) => handleUpdateSet(exName, sIdx, 'reps', Number(e.target.value))} readOnly={set.completed} className="w-full bg-transparent text-lg font-bold text-white text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="0"/>
-                                                                <button type="button" onClick={() => handleUpdateSet(exName, sIdx, 'reps', set.reps + 1)} disabled={set.completed} className="px-2 text-gray-400 disabled:opacity-30">+</button>
-                                                                <span className="text-[10px] text-gray-600 font-black pr-1">REPS</span>
+                                                            <div className="flex items-center justify-between bg-gray-900 border border-white/10 rounded-xl p-1">
+                                                                <button type="button" onClick={() => handleUpdateSet(exName, sIdx, 'reps', Math.max(0, set.reps - 1))} disabled={set.completed} className="px-3 py-1 text-gray-400 disabled:opacity-30 hover:bg-white/10 rounded-lg">-</button>
+                                                                <input type="number" value={set.reps || ''} onChange={(e) => handleUpdateSet(exName, sIdx, 'reps', Number(e.target.value))} readOnly={set.completed} className="w-16 bg-transparent text-lg font-bold text-white text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="0"/>
+                                                                <button type="button" onClick={() => handleUpdateSet(exName, sIdx, 'reps', set.reps + 1)} disabled={set.completed} className="px-3 py-1 text-gray-400 disabled:opacity-30 hover:bg-white/10 rounded-lg">+</button>
+                                                                <span className="text-[10px] text-gray-600 font-black pr-2">REPS</span>
                                                             </div>
                                                             
-                                                            <div className="flex items-center gap-1 bg-gray-900 border border-white/10 rounded-xl p-1">
-                                                                <button type="button" onClick={() => handleUpdateSet(exName, sIdx, 'rpe', Math.max(0, set.rpe - 1))} disabled={set.completed} className="px-2 text-gray-400 disabled:opacity-30">-</button>
-                                                                <input type="number" value={set.rpe || ''} onChange={(e) => handleUpdateSet(exName, sIdx, 'rpe', Number(e.target.value))} readOnly={set.completed} className="w-full bg-transparent text-lg font-bold text-white text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="-"/>
-                                                                <button type="button" onClick={() => handleUpdateSet(exName, sIdx, 'rpe', Math.min(10, set.rpe + 1))} disabled={set.completed} className="px-2 text-gray-400 disabled:opacity-30">+</button>
-                                                                <span className="text-[10px] text-gray-600 font-black pr-1">RPE</span>
+                                                            <div className="flex items-center justify-between bg-gray-900 border border-white/10 rounded-xl p-1">
+                                                                <button type="button" onClick={() => handleUpdateSet(exName, sIdx, 'rpe', Math.max(0, set.rpe - 1))} disabled={set.completed} className="px-3 py-1 text-gray-400 disabled:opacity-30 hover:bg-white/10 rounded-lg">-</button>
+                                                                <input type="number" value={set.rpe || ''} onChange={(e) => handleUpdateSet(exName, sIdx, 'rpe', Number(e.target.value))} readOnly={set.completed} className="w-16 bg-transparent text-lg font-bold text-white text-center outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="-"/>
+                                                                <button type="button" onClick={() => handleUpdateSet(exName, sIdx, 'rpe', Math.min(10, set.rpe + 1))} disabled={set.completed} className="px-3 py-1 text-gray-400 disabled:opacity-30 hover:bg-white/10 rounded-lg">+</button>
+                                                                <span className="text-[10px] text-gray-600 font-black pr-2">RPE</span>
                                                             </div>
                                                         </div>
                                                         
                                                         <button 
                                                             onClick={() => handleCompleteSet(exName, sIdx)}
-                                                            className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-lg ${set.completed ? 'bg-green-500 text-black shadow-green-500/20' : 'bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-white'}`}
+                                                            className={`w-full md:w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-lg ${set.completed ? 'bg-green-500 text-black shadow-green-500/20' : 'bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-white'}`}
                                                         >
                                                             <Check className="w-6 h-6" strokeWidth={3} />
                                                         </button>
@@ -480,6 +505,17 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                 note={notesModalEx ? (exerciseNotes[notesModalEx] || '') : ''}
                 onSave={(text) => notesModalEx && setExerciseNotes(prev => ({ ...prev, [notesModalEx]: text }))}
             />
+
+            {/* Contact Trainer Button */}
+            <a 
+                href="https://wa.me/919876543210?text=I%20need%20help%20with%20my%20workout" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="fixed bottom-32 right-6 z-50 bg-green-500 text-white p-4 rounded-full shadow-lg hover:bg-green-600 transition-all active:scale-95 border-2 border-white animate-bounce-slow"
+                title="Contact Trainer"
+            >
+                <MessageCircle className="w-6 h-6" />
+            </a>
         </div>
     );
 };

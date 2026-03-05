@@ -137,7 +137,35 @@ export async function generateDeepDiveGenius(member: any, context: any) {
 }
 
 export async function generateHyperPersonalizedDiet(profile: any): Promise<string> {
-    const prompt = `Act as an elite sports nutritionist and biochemist. Create a highly advanced, scientific, hyper-personalized diet plan designed to completely transform body structure for: ${JSON.stringify(profile)}. The plan must be elite-level, utilizing nutrient timing and metabolic optimization. Structure: { goal, caloriesTarget, macrosTarget, scienceNote, meals: [{name, time, totalCalories, macros, items: [{food, portion}]}] }`;
+    const prompt = `Act as an elite sports nutritionist and biochemist. Create a highly advanced, scientific, hyper-personalized diet plan designed to completely transform body structure for: ${JSON.stringify(profile)}. 
+    The plan must be elite-level, utilizing nutrient timing and metabolic optimization.
+    
+    CRITICAL: The user has the following allergies/intolerances: ${JSON.stringify(profile.allergies || [])}. 
+    DO NOT include any of these ingredients in the meal plan.
+    
+    Return a JSON object with this EXACT structure:
+    {
+        "name": "Plan Name",
+        "level": "${profile.level || 'Advanced'}", 
+        "goal": "${profile.goal}",
+        "duration": "4 Weeks",
+        "caloriesTarget": 2500,
+        "macrosTarget": { "protein": 200, "carbs": 250, "fats": 80 },
+        "scientificNote": "Detailed scientific explanation of the metabolic strategy...",
+        "meals": [
+            {
+                "id": "unique_id",
+                "name": "Meal Name (e.g., Pre-Workout Fuel)",
+                "time": "08:00 AM",
+                "calories": 500,
+                "protein": 40,
+                "carbs": 60,
+                "fats": 10,
+                "items": ["100g Oats", "1 Scoop Whey Isolate", "Berries"],
+                "notes": "Eat 60 mins before training"
+            }
+        ]
+    }`;
     
     try {
         const response = await ai.models.generateContent({
@@ -145,11 +173,60 @@ export async function generateHyperPersonalizedDiet(profile: any): Promise<strin
             contents: prompt,
             config: { responseMimeType: "application/json" }
         });
-        return response.text || "{}";
+        
+        const dietText = response.text || "{}";
+        const dietJson = JSON.parse(dietText);
+        
+        // Validate against allergies
+        const allergies = profile.allergies || [];
+        if (allergies.length > 0) {
+            const { isValid, message } = validateDiet(dietJson, allergies);
+            if (!isValid) {
+                console.warn("AI generated an unsafe diet:", message);
+                // In a real app, we might retry generation here. 
+                // For now, we return a modified JSON with a warning.
+                dietJson.scientificNote = `WARNING: ${message}. ` + dietJson.scientificNote;
+                return JSON.stringify(dietJson);
+            }
+        }
+        
+        return dietText;
     } catch (e) {
         console.error("Diet Generation Error:", e);
         return "{}";
     }
+}
+
+/**
+ * Validates an AI-generated diet plan against a list of known allergies.
+ * @param dietJson The parsed JSON of the diet plan.
+ * @param allergies An array of allergy strings (e.g., ["Peanuts", "Milk"]).
+ * @returns An object containing a boolean isValid and a message.
+ */
+export function validateDiet(dietJson: any, allergies: string[]): { isValid: boolean, message: string } {
+    if (!dietJson || !dietJson.meals || !Array.isArray(dietJson.meals)) {
+        return { isValid: true, message: "No meals to validate." };
+    }
+
+    const lowerAllergies = allergies.map(a => a.toLowerCase());
+
+    for (const meal of dietJson.meals) {
+        if (meal.items && Array.isArray(meal.items)) {
+            for (const item of meal.items) {
+                const lowerItem = item.toLowerCase();
+                for (const allergy of lowerAllergies) {
+                    if (lowerItem.includes(allergy)) {
+                        return { 
+                            isValid: false, 
+                            message: `Alert: AI suggested '${item}' in meal '${meal.name}' which contains an allergy ('${allergy}')!` 
+                        };
+                    }
+                }
+            }
+        }
+    }
+
+    return { isValid: true, message: "Safe Diet" };
 }
 
 // --- FALLBACKS & SIMPLIFIED UTILS ---
@@ -197,6 +274,26 @@ export async function analyzeReadinessAndModify(data: any): Promise<ReadinessOut
         feedback: score > 70 ? "You are ready to train hard." : "Take it easy today.", 
         modifiedWorkout: score > 70 ? "Standard Protocol" : "Light Recovery Session" 
     }; 
+}
+
+/**
+ * Edge Case: Safe Mode Workout Generation for Injured Members
+ */
+export async function generateSafeModeWorkout(memberContext: any, injuries: string): Promise<string> {
+    const prompt = `Act as an elite physical therapist and rehabilitation specialist.
+    The member has the following injuries/conditions: ${injuries}.
+    Generate a 'Safe Mode' workout protocol that COMPLETELY AVOIDS stressing the injured areas while maintaining cardiovascular health and uninjured muscle mass.
+    Context: ${JSON.stringify(memberContext)}.
+    Return JSON: {
+        "workoutName": "Safe Mode Recovery Protocol",
+        "focus": "Rehabilitation & Maintenance",
+        "contraindications": ["List of movements to absolutely avoid"],
+        "exercises": [
+            { "name": "Exercise Name", "sets": 3, "reps": "12-15", "notes": "Specific safety instructions" }
+        ],
+        "safetyWarning": "A brief medical disclaimer"
+    }`;
+    return getComplexResponse(prompt);
 }
 
 export async function generateClinicalFitnessProtocol(base64: string, memberContext: any): Promise<string> {

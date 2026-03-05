@@ -32,56 +32,134 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         }
     }, []);
 
-    const handleMemberSignupLogin = (e: React.FormEvent) => {
+    const generateRandomBuffer = (length: number) => {
+        const array = new Uint8Array(length);
+        crypto.getRandomValues(array);
+        return array;
+    };
+
+    const handleMemberSignupLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
         setIsAuthenticating(true);
 
-        setTimeout(() => {
-            // Trim inputs to avoid whitespace issues
-            const trimmedEmail = email.trim().toLowerCase();
-            const trimmedPhone = phone.trim();
-            const trimmedPass = password.trim();
+        // Trim inputs to avoid whitespace issues
+        const trimmedEmail = email.trim().toLowerCase();
+        const trimmedPhone = phone.trim();
+        const trimmedPass = password.trim();
 
-            const member = members.find(m => 
-                ((m.email && m.email.toLowerCase() === trimmedEmail) || 
-                (m.phone && m.phone === trimmedPhone)) &&
-                m.password === trimmedPass
-            );
-            
-            if (member) {
-                // Register device
-                localStorage.setItem('registered_device_member_id', member.id.toString());
-                setIsDeviceRegistered(true);
-                setIsAuthenticating(false);
-                // Proceed to biometric
-            } else {
-                setError('Invalid Email or Registered Mobile Number.');
-                setIsAuthenticating(false);
+        const member = members.find(m => 
+            ((m.email && m.email.toLowerCase() === trimmedEmail) || 
+            (m.phone && m.phone === trimmedPhone)) &&
+            m.password === trimmedPass
+        );
+        
+        if (member) {
+            try {
+                if (window.PublicKeyCredential) {
+                    const challenge = generateRandomBuffer(32);
+                    const userId = generateRandomBuffer(16);
+                    
+                    const credential = await navigator.credentials.create({
+                        publicKey: {
+                            challenge,
+                            rp: { name: "Royal The Gym", id: window.location.hostname },
+                            user: {
+                                id: userId,
+                                name: member.email || member.phone || 'member',
+                                displayName: member.name
+                            },
+                            pubKeyCredParams: [
+                                { type: "public-key", alg: -7 },
+                                { type: "public-key", alg: -257 }
+                            ],
+                            authenticatorSelection: {
+                                authenticatorAttachment: "platform",
+                                userVerification: "required"
+                            },
+                            timeout: 60000,
+                            attestation: "none"
+                        }
+                    });
+                    
+                    if (credential) {
+                        const rawId = new Uint8Array((credential as PublicKeyCredential).rawId);
+                        const base64Id = btoa(Array.from(rawId).map(b => String.fromCharCode(b)).join(''));
+                        localStorage.setItem('webauthn_credential_id', base64Id);
+                    }
+                }
+            } catch (e) {
+                console.warn("WebAuthn not supported or failed, falling back to simple binding", e);
             }
-        }, 1500);
+
+            // Register device
+            localStorage.setItem('registered_device_member_id', member.id.toString());
+            setIsDeviceRegistered(true);
+            setIsAuthenticating(false);
+        } else {
+            setError('Invalid Email or Registered Mobile Number.');
+            setIsAuthenticating(false);
+        }
     };
 
-    const handleMemberBiometricLogin = () => {
+    const handleMemberBiometricLogin = async () => {
         setError('');
         setIsAuthenticating(true);
         
-        setTimeout(() => {
-            const registeredMemberId = localStorage.getItem('registered_device_member_id');
-            if (registeredMemberId) {
+        const registeredMemberId = localStorage.getItem('registered_device_member_id');
+        const credentialIdStr = localStorage.getItem('webauthn_credential_id');
+        
+        if (registeredMemberId) {
+            if (credentialIdStr && window.PublicKeyCredential) {
+                try {
+                    const challenge = generateRandomBuffer(32);
+                    const credentialId = Uint8Array.from(atob(credentialIdStr), c => c.charCodeAt(0));
+                    
+                    const assertion = await navigator.credentials.get({
+                        publicKey: {
+                            challenge,
+                            rpId: window.location.hostname,
+                            allowCredentials: [{
+                                type: "public-key",
+                                id: credentialId
+                            }],
+                            userVerification: "required",
+                            timeout: 60000
+                        }
+                    });
+                    
+                    if (assertion) {
+                        const member = members.find(m => m.id.toString() === registeredMemberId);
+                        if (member) {
+                            onLogin({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Biometric login failed", e);
+                    setError('Biometric authentication failed. Please try again.');
+                    setIsAuthenticating(false);
+                    return;
+                }
+            }
+            
+            // Fallback if WebAuthn not used or failed
+            setTimeout(() => {
                 const member = members.find(m => m.id.toString() === registeredMemberId);
                 if (member) {
                     onLogin({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
                 } else {
                     setError('Member data not found. Please re-register device.');
                     localStorage.removeItem('registered_device_member_id');
+                    localStorage.removeItem('webauthn_credential_id');
                     setIsDeviceRegistered(false);
                 }
-            } else {
-                setError('Device not registered.');
-            }
+                setIsAuthenticating(false);
+            }, 1000);
+        } else {
+            setError('Device not registered.');
             setIsAuthenticating(false);
-        }, 2000);
+        }
     };
 
     const handleAdminLoginStep1 = (e: React.FormEvent) => {

@@ -8,24 +8,33 @@ import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { BotIcon } from '../icons/BotIcon';
 import { getMediaForExercise } from './ExerciseDemoModal';
 import { VideoCameraIcon } from '../icons/VideoCameraIcon';
-import { WorkoutExercise } from '../../../types';
+import { WorkoutExercise, WorkoutSection } from '../../../types';
 
 interface AIWorkoutGeneratorModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (template: { name: string; level: 'Beginner' | 'Intermediate' | 'Advanced'; content?: string; exercises?: WorkoutExercise[] }) => void;
+    onSave: (template: { 
+        name: string; 
+        level: 'Beginner' | 'Intermediate' | 'Advanced' | 'Pro Advance'; 
+        content?: string; 
+        preWorkout?: WorkoutSection;
+        mainWorkout?: WorkoutSection[];
+        finisher?: WorkoutSection;
+    }) => void;
 }
 
 interface GeneratedPlan {
     name: string;
     description: string;
-    exercises: WorkoutExercise[];
+    preWorkout?: WorkoutSection;
+    mainWorkout: WorkoutSection[];
+    finisher?: WorkoutSection;
 }
 
 const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpen, onClose, onSave }) => {
     // Form State
     const [name, setName] = useState('');
-    const [level, setLevel] = useState<'Beginner' | 'Intermediate' | 'Advanced'>('Intermediate');
+    const [level, setLevel] = useState<'Beginner' | 'Intermediate' | 'Advanced' | 'Pro Advance'>('Intermediate');
     const [goal, setGoal] = useState<'Muscle Gain' | 'Fat Loss' | 'Strength' | 'General Fitness' | 'Endurance' | 'Flexibility'>('General Fitness');
     const [structure, setStructure] = useState<'Full Body' | 'Push/Pull/Legs' | 'Upper/Lower Split' | 'Cardio Focus' | 'Core & Abs' | 'HIIT'>('Push/Pull/Legs');
     const [daysPerWeek, setDaysPerWeek] = useState(3);
@@ -79,9 +88,11 @@ const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpe
                 {
                     "name": "string",
                     "description": "string (Explain the science/periodization)",
-                    "exercises": [
-                        { "name": "string", "sets": "string", "reps": "string (include RPE or Tempo if applicable e.g. '10 @ RPE 8')" }
-                    ]
+                    "preWorkout": { "name": "Warmup", "exercises": [{ "name": "string", "sets": "string", "reps": "string" }] },
+                    "mainWorkout": [
+                        { "name": "Section Name (e.g. Compound Lifts)", "exercises": [{ "name": "string", "sets": "string", "reps": "string" }] }
+                    ],
+                    "finisher": { "name": "Finisher", "exercises": [{ "name": "string", "sets": "string", "reps": "string" }] }
                 }
                 
                 Ensure exercises are standard gym movements.
@@ -112,10 +123,31 @@ const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpe
             name: generatedPlan.name || name, 
             level, 
             content: generatedPlan.description,
-            exercises: generatedPlan.exercises
+            preWorkout: generatedPlan.preWorkout,
+            mainWorkout: generatedPlan.mainWorkout,
+            finisher: generatedPlan.finisher
         });
         onClose();
     };
+
+    const renderExerciseSection = (title: string, exercises: WorkoutExercise[], colorClass: string) => (
+        <div className="mb-4">
+            <h5 className={`font-bold text-xs uppercase tracking-widest mb-2 ${colorClass}`}>{title}</h5>
+            <div className="space-y-2">
+                {exercises.map((ex, idx) => (
+                    <div key={idx} className="flex items-center gap-3 bg-gray-800/50 p-2 rounded-xl border border-gray-700">
+                        <div className="flex-grow">
+                            <h5 className="font-bold text-white text-xs">{ex.name}</h5>
+                            <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400">
+                                <span className="bg-gray-700 px-1.5 py-0.5 rounded text-gray-300 font-mono">{ex.sets} Sets</span>
+                                <span className="bg-gray-700 px-1.5 py-0.5 rounded text-gray-300 font-mono">{ex.reps} Reps</span>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="AI Workout Architect">
@@ -164,6 +196,7 @@ const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpe
                                     <option>Beginner</option>
                                     <option>Intermediate</option>
                                     <option>Advanced</option>
+                                    <option>Pro Advance</option>
                                 </select>
                             </div>
                             
@@ -229,28 +262,16 @@ const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpe
                             <p className="text-sm text-gray-400 italic">{generatedPlan.description}</p>
                         </div>
                         
-                        <div className="flex-grow overflow-y-auto bg-gray-900 p-4 border border-gray-700 border-t-0 custom-scrollbar space-y-4">
-                            {generatedPlan.exercises.map((ex, idx) => (
-                                <div key={idx} className="flex items-center gap-3 bg-gray-800/50 p-3 rounded-xl border border-gray-700">
-                                    <div className="w-16 h-16 bg-black rounded-lg overflow-hidden flex-shrink-0 relative group">
-                                        <img 
-                                            src={getMediaForExercise(ex.name)} 
-                                            alt={ex.name} 
-                                            className="w-full h-full object-cover opacity-80"
-                                        />
-                                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                                            <VideoCameraIcon className="w-6 h-6 text-white opacity-80" />
-                                        </div>
-                                    </div>
-                                    <div className="flex-grow">
-                                        <h5 className="font-bold text-white text-sm">{ex.name}</h5>
-                                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                                            <span className="bg-gray-700 px-2 py-0.5 rounded text-amber-400 font-mono">{ex.sets} Sets</span>
-                                            <span className="bg-gray-700 px-2 py-0.5 rounded text-green-400 font-mono">{ex.reps} Reps</span>
-                                        </div>
-                                    </div>
+                        <div className="flex-grow overflow-y-auto bg-gray-900 p-4 border border-gray-700 border-t-0 custom-scrollbar">
+                            {generatedPlan.preWorkout && renderExerciseSection(generatedPlan.preWorkout.name || 'Pre-Workout', generatedPlan.preWorkout.exercises, 'text-cyan-400')}
+                            
+                            {generatedPlan.mainWorkout.map((section, idx) => (
+                                <div key={idx}>
+                                    {renderExerciseSection(section.name || 'Main Routine', section.exercises, 'text-amber-400')}
                                 </div>
                             ))}
+
+                            {generatedPlan.finisher && renderExerciseSection(generatedPlan.finisher.name || 'Finisher', generatedPlan.finisher.exercises, 'text-red-400')}
                         </div>
                     </div>
                 )}

@@ -27,12 +27,19 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       host: '0.0.0.0', // Essential for Cloud Run
-      port: 8080,
+      port: 3000,
       strictPort: true, // Fail if port is busy
+      proxy: {
+        '/whatsapp-api': {
+          target: 'https://graph.facebook.com',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/whatsapp-api/, '')
+        }
+      }
     },
     preview: {
       host: '0.0.0.0', // Essential for Cloud Run preview mode
-      port: 8080,
+      port: 3000,
       strictPort: true,
       allowedHosts: ['.run.app', 'localhost'], // Allow Cloud Run domains
     },

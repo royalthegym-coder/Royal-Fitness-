@@ -1,5 +1,5 @@
 
-import { Package, Member, Invoice, Staff, Expense, Lead, Transaction, HealthData, WorkoutTemplate, MemberSchedules, DailyRoutineLog, AIRecommendation, MedicalReport, BroadcastMessage, GoogleReview, GoogleBusinessPost, DietPlan, MemberFitnessData, ActivityEvent, Task, MedicalTestMaster, InventoryItem } from './types';
+import { Package, Member, Invoice, Staff, Expense, Lead, Transaction, HealthData, WorkoutTemplate, DietPlan, MemberFitnessData, ActivityEvent, Task, MedicalTestMaster, InventoryItem, BroadcastMessage } from './types';
 
 export const APP_METADATA = {
     version: "1.0.0", // Stable Origin Release
@@ -33,222 +33,74 @@ export const MEDICAL_TEST_MASTER: MedicalTestMaster[] = [
     { test_id: 't5', test_name: 'Lipid Profile & Glucose', category: 'Cardiovascular', description: 'Heart health and insulin sensitivity for diet planning.' },
 ];
 
-export const INITIAL_PACKAGES: Package[] = [
-  // --- STRENGTH CATEGORY ---
-  { id: 1, name: 'Strength: Temperature Member', category: 'Strength', price: 1200, duration: '1 Month', features: ['Gym Access', 'Temporary Validity'] },
-  { id: 2, name: 'Strength: New Member (1st Month)', category: 'Strength', price: 1500, duration: '1 Month', features: ['Registration Fee Included', 'Gym Access'] },
-  { id: 3, name: 'Strength: Regular Monthly', category: 'Strength', price: 1000, duration: '1 Month', features: ['Gym Access', 'Standard Fee'] },
-  { id: 4, name: 'Strength: Quarterly', category: 'Strength', price: 3000, duration: '3 Months', features: ['3 Month Access', 'Strength Area'] },
-  { id: 5, name: 'Strength: Half-Yearly', category: 'Strength', price: 5000, duration: '6 Months', features: ['6 Month Access', 'Saver Pack'] },
-  { id: 6, name: 'Strength: Yearly', category: 'Strength', price: 9000, duration: '12 Months', features: ['1 Year Access', 'Best Value'] },
-  
-  // --- CARDIO CATEGORY ---
-  { id: 7, name: 'Cardio: Monthly', category: 'Cardio', price: 2000, duration: '1 Month', features: ['Treadmills', 'Ellipticals', 'Cycles'] },
-  { id: 8, name: 'Cardio: Quarterly', category: 'Cardio', price: 5000, duration: '3 Months', features: ['Cardio Section', 'Weight Loss Focus'] },
-  { id: 9, name: 'Cardio: Half-Yearly', category: 'Cardio', price: 9000, duration: '6 Months', features: ['Long Term Cardio', 'Fat Loss'] },
-  { id: 10, name: 'Cardio: Yearly', category: 'Cardio', price: 16000, duration: '12 Months', features: ['Full Year Cardio', 'Ultimate Endurance'] },
-  
-  // --- AEROBICS CATEGORY ---
-  { id: 11, name: 'Aerobics Workout', category: 'Aerobics', price: 2000, duration: '1 Month', features: ['Group Classes', 'Rhythmic Cardio'] },
-
-  // --- AURA BOOST CATEGORY ---
-  { id: 20, name: 'Aura Boost: Energy & Focus', category: 'Aura Boost', price: 1500, duration: '1 Month', features: ['Pre-workout Consultation', 'Energy Drink Access', 'Focus Training'] },
-  { id: 21, name: 'Aura Boost: Recovery & Zen', category: 'Aura Boost', price: 2500, duration: '1 Month', features: ['Post-workout Massage', 'Yoga Sessions', 'Meditation Guide'] },
-
-  // --- SUPPLEMENTS CATEGORY ---
-  { id: 22, name: 'Whey Protein Isolate (2kg)', category: 'Supplements', price: 6500, duration: 'Item', features: ['High Quality Protein', 'Fast Absorption'] },
-  { id: 23, name: 'Creatine Monohydrate (300g)', category: 'Supplements', price: 1200, duration: 'Item', features: ['Strength Gain', 'Muscle Volume'] },
-  { id: 24, name: 'BCAA Energy (30 Servings)', category: 'Supplements', price: 1800, duration: 'Item', features: ['Intra-workout Recovery', 'Electrolytes'] },
-
-  // --- ACCESSORIES CATEGORY ---
-  { id: 25, name: 'Premium Lifting Belt', category: 'Accessories', price: 1500, duration: 'Item', features: ['Leather Core Support', 'Adjustable'] },
-  { id: 26, name: 'Wrist Wraps (Pair)', category: 'Accessories', price: 500, duration: 'Item', features: ['Heavy Lifting Support', 'Durable'] },
-  { id: 27, name: 'Gym Shaker Bottle (700ml)', category: 'Accessories', price: 300, duration: 'Item', features: ['BPA Free', 'Leak Proof'] },
-
-  // --- APPAREL CATEGORY ---
-  { id: 28, name: 'Royal Gym T-Shirt (Dry Fit)', category: 'Apparel', price: 800, duration: 'Item', features: ['Sweat Wicking', 'Athletic Fit'] },
-  { id: 29, name: 'Compression Shorts', category: 'Apparel', price: 1000, duration: 'Item', features: ['Muscle Support', 'Breathable'] },
-  { id: 30, name: 'Gym Towel (Microfiber)', category: 'Apparel', price: 250, duration: 'Item', features: ['Quick Dry', 'Soft Texture'] },
-
-  // --- PERSONAL TRAINING CATEGORY ---
-  { id: 12, name: 'PT: Weight Loss (Monthly)', category: 'PT: Weight Loss', price: 3000, duration: '1 Month', features: ['Fat Loss Focus', 'Custom Diet', 'Weekly Check-in'] },
-  { id: 13, name: 'PT: Muscle Gain (Monthly)', category: 'PT: Muscle Gain', price: 5000, duration: '1 Month', features: ['Hypertrophy Focus', 'High Protein Diet', 'Form Correction'] },
-  { id: 14, name: 'PT: Bodybuilding (Monthly)', category: 'PT: Bodybuilding', price: 8000, duration: '1 Month', features: ['Competition Prep', 'Advanced Supplementation', 'Posing'] },
-  { id: 15, name: 'PT: Powerlifting (Monthly)', category: 'PT: Powerlifting', price: 5000, duration: '1 Month', features: ['Strength Focus', 'SBD Specialization', 'Meet Prep'] },
-  { id: 16, name: 'PT: General Fitness (Monthly)', category: 'PT: General Fitness', price: 3000, duration: '1 Month', features: ['Overall Health', 'Mobility', 'Functional Training'] },
-  { id: 17, name: 'Personal Training: Quarterly', category: 'Personal Training', price: 12000, duration: '3 Months', features: ['3 Month PT', 'Advanced Diet', 'Body Composition Analysis'] },
-  { id: 18, name: 'Personal Training: Half-Yearly', category: 'Personal Training', price: 22000, duration: '6 Months', features: ['6 Month PT', 'Supplement Guide', 'Priority Support'] },
-  { id: 19, name: 'Personal Training: Yearly', category: 'Personal Training', price: 40000, duration: '12 Months', features: ['Ultimate Transformation', 'All Access', '24/7 Coach Access'] },
+export const INITIAL_MEMBERS: Member[] = [
+    {
+        id: 1,
+        name: "Rohan Kumar",
+        email: "rohan@example.com",
+        phone: "9876543210",
+        joinDate: "2023-01-15",
+        packageId: 1,
+        status: "Active",
+        avatar: "https://i.pravatar.cc/150?u=1",
+        whatsappConsent: true,
+        xp: 1250,
+        level: 5,
+        achievements: ["Early Bird", "Strength Master"],
+        hrv: 75,
+        lbm: 62,
+        health_score: 88,
+        bio_age: 24,
+        assigned_tests: [],
+        medical_history: { conditions: [], pastInjuries: "None", medications: "", lifestyle: {} },
+        physical_metrics: { height: 175, weight: 70, body_fat: 15, muscle_mass: 60, target_weight: 75, body_type: "Mesomorph", activity_level: "High" },
+        automation_settings: { remind_12hrs_before: true, auto_renewal: true, ai_coaching: true, sync_id: "SYNC-001" },
+        rpeHistory: [],
+        anatomicalStatus: {},
+        emergency_contact: { name: "Raj Kumar", phone: "9999999999", relation: "Father" },
+        initial_assessment: { fitness_level: "Intermediate", pushup_count: 25, plank_time: "60s", squat_count: 30, comments: "Good form" }
+    },
+    {
+        id: 2,
+        name: "Priya Singh",
+        email: "priya@example.com",
+        phone: "9876543211",
+        joinDate: "2023-02-20",
+        packageId: 2,
+        status: "Active",
+        avatar: "https://i.pravatar.cc/150?u=2",
+        whatsappConsent: true,
+        xp: 800,
+        level: 3,
+        achievements: ["Cardio Queen"],
+        hrv: 65,
+        lbm: 45,
+        health_score: 92,
+        bio_age: 26,
+        assigned_tests: [],
+        medical_history: { conditions: [], pastInjuries: "None", medications: "", lifestyle: {} },
+        physical_metrics: { height: 165, weight: 55, body_fat: 22, muscle_mass: 40, target_weight: 52, body_type: "Ectomorph", activity_level: "Moderate" },
+        automation_settings: { remind_12hrs_before: true, auto_renewal: false, ai_coaching: true, sync_id: "SYNC-002" },
+        rpeHistory: [],
+        anatomicalStatus: {},
+        emergency_contact: { name: "Amit Singh", phone: "8888888888", relation: "Husband" },
+        initial_assessment: { fitness_level: "Beginner", pushup_count: 10, plank_time: "30s", squat_count: 20, comments: "Needs core work" }
+    }
 ];
 
-// SCIENTIFIC WORKOUT MATRIX
-export const INITIAL_WORKOUT_TEMPLATES: WorkoutTemplate[] = [
-  { 
-    id: 101, name: 'Beginner: Full Body Genesis (15-20 Workouts)', level: 'Beginner', category: 'Foundation',
-    description: 'Neural adaptation phase. 15-20 exercises. Focus on compound movements to build CNS efficiency. (Available in PDF & Video format)',
-    exercises: [], 
-    sections: [
-        { name: 'Pre-Workout Plan', exercises: [
-            { name: 'Jumping Jacks', sets: '2', reps: '1 min' }, 
-            { name: 'Arm Circles', sets: '2', reps: '30s each way' },
-            { name: 'High Knees', sets: '2', reps: '30s' },
-            { name: 'Dynamic Lunges', sets: '2', reps: '10 per leg' },
-            { name: 'Cat-Cow Stretch', sets: '2', reps: '10 reps' },
-            { name: 'Thoracic Rotations', sets: '2', reps: '10 per side' }
-        ] },
-        { name: 'Real-Time Routine Workout Plan', exercises: [
-            { name: 'Goblet Squat', sets: '3', reps: '12-15' }, 
-            { name: 'Push Up (or Knee Push-up)', sets: '3', reps: 'Failure' }, 
-            { name: 'Lat Pulldown', sets: '3', reps: '12' }, 
-            { name: 'Dumbbell Shoulder Press', sets: '3', reps: '10' },
-            { name: 'Leg Press', sets: '3', reps: '15' },
-            { name: 'Dumbbell Row', sets: '3', reps: '12 per arm' },
-            { name: 'Dumbbell Bicep Curl', sets: '3', reps: '12' },
-            { name: 'Tricep Rope Pushdown', sets: '3', reps: '15' },
-            { name: 'Lying Leg Curl', sets: '3', reps: '15' },
-            { name: 'Dumbbell Lateral Raise', sets: '3', reps: '15' }
-        ] },
-        { name: 'Finisher Workout Plan', exercises: [
-            { name: 'Plank', sets: '3', reps: '45s' },
-            { name: 'Mountain Climbers', sets: '3', reps: '20 per leg' },
-            { name: 'Bicycle Crunches', sets: '3', reps: '20 reps' },
-            { name: 'Child\'s Pose (Cooldown)', sets: '1', reps: '1 min' },
-            { name: 'Cobra Stretch (Cooldown)', sets: '1', reps: '1 min' }
-        ] }
-    ]
-  },
-  { 
-    id: 201, name: 'Intermediate: Hypertrophy Matrix (20+ Workouts)', level: 'Intermediate', category: 'Hypertrophy',
-    description: 'Volume-centric session targeting muscle growth. 20+ exercises. (Available in PDF & Video format)',
-    sections: [
-        { name: 'Pre-Workout Plan', exercises: [
-            { name: 'Jump Rope', sets: '1', reps: '3 mins' }, 
-            { name: 'Band Pull-Aparts', sets: '2', reps: '20' },
-            { name: 'Inchworms', sets: '2', reps: '10 reps' },
-            { name: 'Spiderman Lunges', sets: '2', reps: '10 per leg' },
-            { name: 'Shoulder Dislocates', sets: '2', reps: '15 reps' },
-            { name: 'Glute Bridges', sets: '2', reps: '15 reps' }
-        ] },
-        { name: 'Real-Time Routine Workout Plan', exercises: [
-            { name: 'Barbell Back Squat', sets: '4', reps: '8-10' }, 
-            { name: 'Barbell Bench Press', sets: '4', reps: '8-10' }, 
-            { name: 'Pull-ups / Assisted Pull-ups', sets: '4', reps: '8-12' },
-            { name: 'Seated Cable Row', sets: '4', reps: '12' },
-            { name: 'Overhead Barbell Press', sets: '4', reps: '10' },
-            { name: 'Romanian Deadlift', sets: '4', reps: '10-12' },
-            { name: 'Leg Extension', sets: '3', reps: '15' },
-            { name: 'Seated Leg Curl', sets: '3', reps: '15' },
-            { name: 'Incline Dumbbell Press', sets: '3', reps: '12' },
-            { name: 'Cable Lateral Raise', sets: '4', reps: '15' },
-            { name: 'EZ Bar Bicep Curl', sets: '3', reps: '12' },
-            { name: 'Overhead Tricep Extension', sets: '3', reps: '12' },
-            { name: 'Dumbbell Flyes', sets: '3', reps: '12' },
-            { name: 'Standing Calf Raises', sets: '4', reps: '20' }
-        ] },
-        { name: 'Finisher Workout Plan', exercises: [
-            { name: 'Hanging Knee Raise', sets: '3', reps: '15' }, 
-            { name: 'Russian Twist', sets: '3', reps: '20 per side' },
-            { name: 'Kettlebell Swings', sets: '3', reps: '20' },
-            { name: 'Burpees', sets: '3', reps: '15' },
-            { name: 'Foam Rolling (Cooldown)', sets: '1', reps: '5 mins' }
-        ] }
-    ]
-  },
-  { 
-    id: 301, name: 'Advanced: Titan Evolution (22-25 Workouts)', level: 'Advanced', category: 'Pro Split',
-    description: 'High volume destruction. Time under tension focus. 22-25 Exercises. (Available in PDF & Video format)',
-    sections: [
-        { name: 'Pre-Workout Plan', exercises: [
-            { name: 'Assault Bike', sets: '1', reps: '5 mins' }, 
-            { name: 'Dynamic Stretching', sets: '1', reps: '5 mins' },
-            { name: 'Scapular Pull-ups', sets: '3', reps: '10' },
-            { name: 'Cossack Squats', sets: '3', reps: '8 per leg' },
-            { name: 'Medicine Ball Slams', sets: '3', reps: '15' },
-            { name: 'Box Jumps', sets: '3', reps: '10' },
-            { name: 'Kettlebell Halos', sets: '2', reps: '10 per side' }
-        ] },
-        { name: 'Real-Time Routine Workout Plan', exercises: [
-            { name: 'Deadlift (Conventional/Sumo)', sets: '5', reps: '5-8' }, 
-            { name: 'Front Squat', sets: '4', reps: '8-10' }, 
-            { name: 'Incline Barbell Press', sets: '4', reps: '8-10' },
-            { name: 'Weighted Pull-ups', sets: '4', reps: '8' },
-            { name: 'T-Bar Row', sets: '4', reps: '10-12' },
-            { name: 'Dumbbell Arnold Press', sets: '4', reps: '10-12' },
-            { name: 'Bulgarian Split Squat', sets: '4', reps: '10 per leg' },
-            { name: 'Hack Squat', sets: '3', reps: '12' },
-            { name: 'Cable Crossover', sets: '4', reps: '15' },
-            { name: 'Face Pulls', sets: '4', reps: '15' },
-            { name: 'Preacher Curl', sets: '4', reps: '12' },
-            { name: 'Skull Crusher', sets: '4', reps: '12' },
-            { name: 'Standing Calf Raise', sets: '5', reps: '20' },
-            { name: 'Seated Calf Raise', sets: '4', reps: '15' }
-        ] },
-        { name: 'Finisher Workout Plan', exercises: [
-            { name: 'Toes to Bar', sets: '4', reps: '12' }, 
-            { name: 'Cable Woodchopper', sets: '4', reps: '15 per side' },
-            { name: 'Battle Ropes', sets: '4', reps: '45s' },
-            { name: 'Sled Push', sets: '4', reps: '20 meters' },
-            { name: 'Static Stretching (Cooldown)', sets: '1', reps: '5 mins' }
-        ] }
-    ]
-  },
-  { 
-    id: 401, name: 'Pro Advanced: God Tier Structure (25-30 Workouts)', level: 'Advanced', category: 'Elite',
-    description: 'Elite level scientific routine designed to completely change body structure. 25-30 Exercises. (Available in PDF & Video format)',
-    sections: [
-        { name: 'Pre-Workout Plan', exercises: [
-            { name: 'Rowing Machine', sets: '1', reps: '5 mins' }, 
-            { name: 'Plyometric Push-ups', sets: '3', reps: '10' },
-            { name: 'Broad Jumps', sets: '3', reps: '8' },
-            { name: 'Banded Good Mornings', sets: '3', reps: '15' },
-            { name: 'Turkish Get-Ups', sets: '2', reps: '5 per side' },
-            { name: 'Overhead Squat (Empty Bar)', sets: '3', reps: '10' },
-            { name: 'Bear Crawls', sets: '2', reps: '20 meters' },
-            { name: 'Medicine Ball Throws', sets: '3', reps: '15' }
-        ] },
-        { name: 'Real-Time Routine Workout Plan', exercises: [
-            { name: 'Snatch / Clean & Jerk', sets: '5', reps: '3-5' }, 
-            { name: 'Zercher Squats', sets: '5', reps: '8' }, 
-            { name: 'Deficit Deadlifts', sets: '5', reps: '6-8' },
-            { name: 'Weighted Dips', sets: '5', reps: '8-10' },
-            { name: 'Pendlay Rows', sets: '5', reps: '8-10' },
-            { name: 'Z-Press', sets: '4', reps: '10' },
-            { name: 'Pistol Squats', sets: '4', reps: '8 per leg' },
-            { name: 'Glute Ham Raise (GHR)', sets: '4', reps: '10-12' },
-            { name: 'Guillotine Press', sets: '4', reps: '10-12' },
-            { name: 'Meadows Row', sets: '4', reps: '10 per arm' },
-            { name: 'Spider Curls', sets: '4', reps: '12' },
-            { name: 'JM Press', sets: '4', reps: '12' },
-            { name: 'Sissy Squats', sets: '4', reps: '15' },
-            { name: 'Donkey Calf Raises', sets: '5', reps: '20' },
-            { name: 'Tibialis Raises', sets: '4', reps: '20' },
-            { name: 'Neck Harness Extensions', sets: '3', reps: '15' },
-            { name: 'Farmers Walk', sets: '4', reps: '40 meters' }
-        ] },
-        { name: 'Finisher Workout Plan', exercises: [
-            { name: 'Dragon Flags', sets: '4', reps: '10' }, 
-            { name: 'Ab Wheel Rollouts', sets: '4', reps: '15' },
-            { name: 'Heavy Sled Pulls', sets: '4', reps: '20 meters' },
-            { name: 'Assault Bike Sprint', sets: '5', reps: '20s on / 10s off' },
-            { name: 'Advanced Mobility Flow', sets: '1', reps: '10 mins' }
-        ] }
-    ]
-  }
+export const INITIAL_INVOICES: Invoice[] = [
+    {
+        id: 1001,
+        memberId: 1,
+        memberName: "Rohan Kumar",
+        packageId: 1,
+        packageName: "Gold Membership",
+        amount: 5000,
+        date: "2023-01-15",
+        status: "Paid",
+        items: [{ description: "Gold Membership", amount: 5000, type: "Membership" }]
+    }
 ];
-
-export const INITIAL_MEMBERS: Member[] = [];
-
-export const INITIAL_HEALTH_DATA: HealthData = {
-  date: new Date().toISOString().split('T')[0],
-  steps: 0,
-  heartRate: { avg: 0, hrv: 0, max: 0, min: 0, history: [] },
-  caloriesBurned: 0,
-  glucose: { current: 0, trend: 'stable', history: [] },
-  circadian: { phase: 'Neutral', efficiency: 0 },
-  sleep: { totalHours: 0, deepHours: 0, remHours: 0 }
-};
-
-export const INITIAL_INVOICES: Invoice[] = [];
 
 export const INITIAL_TRANSACTIONS: Transaction[] = [];
 
@@ -258,23 +110,124 @@ export const INITIAL_EXPENSES: Expense[] = [];
 
 export const INITIAL_LEADS: Lead[] = [];
 
-export const INITIAL_BROADCASTS: BroadcastMessage[] = [];
-
-export const INITIAL_GOOGLE_REVIEWS: GoogleReview[] = [];
-
-export const INITIAL_GOOGLE_POSTS: GoogleBusinessPost[] = [];
-
-export const INITIAL_GOOGLE_INSIGHTS = {
-  searchViews: 0,
-  profileViews: 0,
-  actions: 0,
-  averageRating: 0,
-  totalReviews: 0
+export const INITIAL_HEALTH_DATA: HealthData = {
+    date: new Date().toISOString().split('T')[0],
+    steps: 0,
+    heartRate: { avg: 0, hrv: 0, max: 0, min: 0, history: [] },
+    caloriesBurned: 0,
+    glucose: { current: 0, trend: 'stable', history: [] },
+    circadian: { phase: 'Awake', efficiency: 0 },
+    sleep: { totalHours: 0, deepHours: 0, remHours: 0 }
 };
 
-export const INITIAL_DIETS: DietPlan[] = [];
+export const INITIAL_GOOGLE_REVIEWS: any[] = [];
 
-export const INITIAL_MEMBER_SCHEDULES: MemberSchedules = {};
+export const INITIAL_GOOGLE_POSTS: any[] = [];
+
+export const INITIAL_GOOGLE_INSIGHTS = {
+    views: 1200,
+    searches: 450,
+    actions: 85,
+    calls: 25,
+    directions: 40,
+    websiteClicks: 20
+};
+
+export const INITIAL_PACKAGES: Package[] = [];
+
+const generateWorkouts = (): WorkoutTemplate[] => {
+    const templates: WorkoutTemplate[] = [];
+    let idCounter = 1;
+
+    const levels = [
+        { name: 'Beginner', count: 18, prefix: 'Foundation Phase' },
+        { name: 'Intermediate', count: 20, prefix: 'Hypertrophy Protocol' },
+        { name: 'Advanced', count: 24, prefix: 'Elite Strength Matrix' },
+        { name: 'Pro Advance', count: 28, prefix: 'Singularity CNS Overdrive' }
+    ];
+
+    levels.forEach(level => {
+        for (let i = 1; i <= level.count; i++) {
+            templates.push({
+                id: idCounter++,
+                name: `${level.prefix} v${i}.0`,
+                level: level.name as any,
+                category: 'Scientific Periodization',
+                description: `Advanced AI-generated ${level.name} protocol utilizing N8N workflow automation and GitHub version control for optimal neuromuscular adaptation. Phase ${i}.`,
+                duration: '4 Weeks',
+                frequency: '4 Days/Week',
+                preWorkout: {
+                    name: 'Neural Activation',
+                    exercises: [
+                        { name: 'Dynamic CNS Warmup', sets: '2', reps: '60s' },
+                        { name: 'Mobility Flow', sets: '2', reps: '10' }
+                    ]
+                },
+                mainWorkout: [
+                    {
+                        name: 'Primary Load Vector',
+                        exercises: [
+                            { name: 'Compound Movement A', sets: '4', reps: '8-10' },
+                            { name: 'Compound Movement B', sets: '4', reps: '8-10' },
+                            { name: 'Isolation Matrix C', sets: '3', reps: '12-15' }
+                        ]
+                    }
+                ],
+                finisher: {
+                    name: 'Metabolic Flush',
+                    exercises: [
+                        { name: 'HIIT Protocol Alpha', sets: '3', reps: 'Failure' }
+                    ]
+                }
+            });
+        }
+    });
+    return templates;
+};
+
+export const INITIAL_WORKOUT_TEMPLATES: WorkoutTemplate[] = generateWorkouts();
+
+const generateDiets = (): DietPlan[] => {
+    const diets: DietPlan[] = [];
+    let idCounter = 1;
+    const levels = ['Beginner', 'Intermediate', 'Advanced', 'Pro Advance'];
+    
+    levels.forEach(level => {
+        for(let i=1; i<=20; i++) {
+            diets.push({
+                id: idCounter++,
+                name: `Nutritional Matrix ${level} v${i}.0`,
+                level: level as any,
+                goal: 'Metabolic Optimization',
+                calories: 2000 + (i * 50),
+                macros: { protein: 150 + i*2, carbs: 200 + i*5, fats: 60 + i },
+                description: `AI-optimized macronutrient partitioning protocol. Synced via N8N data pipelines. Phase ${i}.`,
+                duration: '4 Weeks',
+                meals: [
+                    {
+                        name: 'Pre-Training Fuel',
+                        time: '08:00 AM',
+                        totalCalories: 400,
+                        macros: { protein: 30, carbs: 50, fats: 10 },
+                        items: [{ food: 'Engineered Oats', portion: '100g', calories: 350, protein: 15, carbs: 60, fats: 5 }]
+                    },
+                    {
+                        name: 'Post-Training Recovery',
+                        time: '01:00 PM',
+                        totalCalories: 600,
+                        macros: { protein: 50, carbs: 80, fats: 10 },
+                        items: [{ food: 'Lean Protein Synthesis Bowl', portion: '1 serving', calories: 600, protein: 50, carbs: 80, fats: 10 }]
+                    }
+                ]
+            });
+        }
+    });
+    return diets;
+};
+
+export const INITIAL_DIETS: DietPlan[] = generateDiets();
+
+export const INITIAL_MEMBER_SCHEDULES: any = {};
 
 export const INITIAL_MEMBER_FITNESS_DATA: MemberFitnessData = {};
 
@@ -282,19 +235,7 @@ export const INITIAL_ACTIVITY_EVENTS: ActivityEvent[] = [];
 
 export const INITIAL_TASKS: Task[] = [];
 
+export const INITIAL_BROADCASTS: BroadcastMessage[] = [];
+
 // Initial Inventory with new Medicine Category
-export const INITIAL_INVENTORY: InventoryItem[] = [
-    { id: 'inv_1', name: 'Whey Protein Isolate (2kg)', category: 'Supplement', stock: 25, price: 6500, threshold: 10, maxCapacity: 50, status: 'In Stock' },
-    { id: 'inv_2', name: 'Creatine Monohydrate (300g)', category: 'Supplement', stock: 15, price: 1200, threshold: 8, maxCapacity: 30, status: 'In Stock' },
-    { id: 'inv_3', name: 'BCAA Energy (30 Servings)', category: 'Supplement', stock: 10, price: 1800, threshold: 5, maxCapacity: 20, status: 'In Stock' },
-    { id: 'inv_4', name: 'Premium Lifting Belt', category: 'Accessory', stock: 5, price: 1500, threshold: 3, maxCapacity: 10, status: 'Low Stock' },
-    { id: 'inv_5', name: 'Gym Shaker Bottle (700ml)', category: 'Accessory', stock: 40, price: 300, threshold: 15, maxCapacity: 100, status: 'In Stock' },
-    { id: 'inv_6', name: 'Wrist Wraps (Pair)', category: 'Accessory', stock: 12, price: 500, threshold: 5, maxCapacity: 20, status: 'In Stock' },
-    { id: 'inv_7', name: 'Royal Gym T-Shirt (Dry Fit)', category: 'Apparel', stock: 20, price: 800, threshold: 8, maxCapacity: 50, status: 'In Stock' },
-    { id: 'inv_8', name: 'Compression Shorts', category: 'Apparel', stock: 15, price: 1000, threshold: 4, maxCapacity: 30, status: 'In Stock' },
-    { id: 'inv_9', name: 'Gym Towel (Microfiber)', category: 'Apparel', stock: 50, price: 250, threshold: 10, maxCapacity: 100, status: 'In Stock' },
-    // New Medicine Items
-    { id: 'inv_10', name: 'Multivitamin Complex', category: 'Medicine', stock: 50, price: 800, threshold: 10, maxCapacity: 100, status: 'In Stock' },
-    { id: 'inv_11', name: 'Pain Relief Spray', category: 'Medicine', stock: 20, price: 300, threshold: 5, maxCapacity: 50, status: 'In Stock' },
-    { id: 'inv_12', name: 'Omega-3 Fish Oil', category: 'Medicine', stock: 30, price: 1100, threshold: 8, maxCapacity: 60, status: 'In Stock' },
-];
+export const INITIAL_INVENTORY: InventoryItem[] = [];

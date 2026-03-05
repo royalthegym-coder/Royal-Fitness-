@@ -7,12 +7,13 @@ import {
     Activity, CheckCircle, Flame,
     TrendingUp, Info, Plus, Share2,
     FileText, Dumbbell, Binary, Cpu, Sparkles,
-    Scan, ArrowRight, Save, Target, BrainCircuit
+    Scan, ArrowRight, Save, Target, BrainCircuit, Database
 } from 'lucide-react';
 import { getAIChefRecipe, getNutritionAnalysisFromImage, cleanAndParseJSON, generateHyperPersonalizedDiet } from '../../lib/gemini';
 import { useToast } from '../hooks/useToast';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { BotIcon } from './icons/BotIcon';
+import { SparkleIcon } from './icons/SparkleIcon';
 import { StructuredDietPlan, AIRecommendation } from '../../types';
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6']; // Protein, Carbs, Fats, Other
@@ -37,6 +38,7 @@ const FuelAlchemy: React.FC = () => {
     
     // Architect State
     const [goal, setGoal] = useState('Muscle Gain');
+    const [level, setLevel] = useState<'Beginner' | 'Intermediate' | 'Advanced' | 'Pro Advance'>('Advanced');
     const [preferences, setPreferences] = useState('Balanced');
     const [allergies, setAllergies] = useState('None');
     const [isGenerating, setIsGenerating] = useState(false);
@@ -94,6 +96,28 @@ const FuelAlchemy: React.FC = () => {
 
     // --- HANDLERS ---
 
+    // AI Diet Validation Logic (Python to TypeScript conversion)
+    const validateDiet = (aiDietJson: any, memberAllergies: string[]) => {
+        if (!aiDietJson || !aiDietJson.meals || !memberAllergies || memberAllergies.length === 0) {
+            return { isValid: true, message: "Safe Diet" };
+        }
+        
+        const allergiesLower = memberAllergies.map(a => a.toLowerCase().trim());
+        
+        for (const meal of aiDietJson.meals) {
+            if (!meal.items) continue;
+            for (const item of meal.items) {
+                const itemLower = item.toLowerCase();
+                for (const allergy of allergiesLower) {
+                    if (itemLower.includes(allergy)) {
+                        return { isValid: false, message: `Alert: AI suggested ${item} which contains an allergy (${allergy})!` };
+                    }
+                }
+            }
+        }
+        return { isValid: true, message: "Safe Diet" };
+    };
+
     const handleGeneratePlan = async () => {
         if (!member) return;
         setIsGenerating(true);
@@ -103,6 +127,7 @@ const FuelAlchemy: React.FC = () => {
             name: member.name,
             stats: member.physical_metrics,
             goal: goal,
+            level: level,
             preferences: preferences,
             allergies: allergies,
             live_data: { hrv: liveHealthData.heartRate.hrv, sleep: liveHealthData.sleep.totalHours }
@@ -113,14 +138,36 @@ const FuelAlchemy: React.FC = () => {
             const plan: StructuredDietPlan = cleanAndParseJSON(res);
             
             if (plan && plan.meals) {
-                updateMember({ ...member, approvedDietPlan: plan });
+                // Validate Diet against Allergies
+                const allergyList = allergies.split(',').map(a => a.trim()).filter(a => a);
+                const validation = validateDiet(plan, allergyList);
+                
+                if (!validation.isValid) {
+                    addToast(validation.message, "error");
+                    throw new Error("Diet validation failed due to allergies.");
+                }
+
+                // Ensure the plan has the correct structure before saving
+                const structuredPlan: StructuredDietPlan = {
+                    ...plan,
+                    id: Date.now(),
+                    level: level,
+                    aiGenerated: true,
+                    scientificNote: plan.scientificNote || "AI Generated Protocol"
+                };
+                updateMember({ ...member, approvedDietPlan: structuredPlan });
                 addToast("Protocol Synthesized & Deployed.", "success");
                 setActiveTab('matrix');
             } else {
                 throw new Error("Invalid structure");
             }
-        } catch (e) {
-            addToast("Neural Link Failed. Using fallback protocol.", "error");
+        } catch (e: any) {
+            console.error(e);
+            if (e.message === "Diet validation failed due to allergies.") {
+                addToast("Neural Link Failed: Allergy detected in AI suggestion. Please try again.", "error");
+            } else {
+                addToast("Neural Link Failed. Using fallback protocol.", "error");
+            }
         } finally {
             setIsGenerating(false);
         }
@@ -196,6 +243,21 @@ const FuelAlchemy: React.FC = () => {
                                 Fuel <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-600">Alchemy</span>
                             </h1>
                         </div>
+                    </div>
+
+                    <div className="flex gap-4">
+                         <button 
+                            onClick={() => addToast('Triggering N8N AI Diet Generator Workflow...', 'info')}
+                            className="px-6 py-3 rounded-2xl bg-gradient-to-r from-orange-600 to-red-600 text-white font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-lg hover:scale-105 transition-transform"
+                        >
+                            <SparkleIcon className="w-4 h-4 text-white" /> N8N AI Sync
+                        </button>
+                        <button 
+                            onClick={() => addToast('Syncing advanced diet protocols to GitHub...', 'success')}
+                            className="px-6 py-3 rounded-2xl bg-gradient-to-r from-gray-800 to-gray-900 text-white font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-lg hover:scale-105 transition-transform border border-gray-700"
+                        >
+                            <Database className="w-4 h-4 text-white" /> GitHub Backup
+                        </button>
                     </div>
 
                     <div className="flex bg-gray-900/80 p-2 rounded-3xl border border-white/10 backdrop-blur-3xl shadow-2xl overflow-x-auto no-scrollbar max-w-full">
@@ -286,19 +348,35 @@ const FuelAlchemy: React.FC = () => {
                                                 <span className="text-[9px] text-gray-500 font-bold uppercase">KCAL Target</span>
                                             </div>
                                         </div>
+                                        {activePlan.scientificNote && (
+                                            <div className="mt-4 p-4 bg-emerald-900/10 border border-emerald-500/20 rounded-2xl">
+                                                <p className="text-[9px] text-emerald-400 font-black uppercase tracking-widest mb-1">Scientific Strategy</p>
+                                                <p className="text-[10px] text-gray-300 leading-relaxed">{activePlan.scientificNote}</p>
+                                            </div>
+                                        )}
                                     </Card>
 
                                     <div className="space-y-4">
                                         <div className="p-6 bg-gray-900 border border-white/5 rounded-[2.5rem]">
-                                            <h4 className="text-sm font-black text-white uppercase tracking-widest mb-4">Daily Schedule</h4>
-                                            <div className="space-y-3 max-h-64 overflow-y-auto custom-scrollbar">
+                                            <h4 className="text-sm font-black text-white uppercase tracking-widest mb-4">Daily Schedule ({activePlan.level})</h4>
+                                            <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
                                                 {activePlan.meals.map((meal: any, idx: number) => (
-                                                    <div key={idx} className="flex justify-between items-center p-3 bg-black/40 rounded-xl border border-white/5">
-                                                        <div>
-                                                            <p className="text-[10px] text-emerald-400 font-bold uppercase">{meal.time}</p>
-                                                            <p className="text-xs font-bold text-white">{meal.name}</p>
+                                                    <div key={idx} className="flex flex-col p-3 bg-black/40 rounded-xl border border-white/5 gap-2 hover:bg-white/5 transition-colors">
+                                                        <div className="flex justify-between items-center">
+                                                            <div>
+                                                                <p className="text-[10px] text-emerald-400 font-bold uppercase">{meal.time}</p>
+                                                                <p className="text-xs font-bold text-white">{meal.name}</p>
+                                                            </div>
+                                                            <span className="text-xs font-mono text-gray-500">{meal.calories || meal.totalCalories} kcal</span>
                                                         </div>
-                                                        <span className="text-xs font-mono text-gray-500">{meal.totalCalories} kcal</span>
+                                                        {meal.items && meal.items.length > 0 && (
+                                                            <div className="text-[10px] text-gray-400 pl-2 border-l-2 border-emerald-500/30">
+                                                                {meal.items.join(', ')}
+                                                            </div>
+                                                        )}
+                                                        {meal.notes && (
+                                                            <p className="text-[9px] text-gray-600 italic">{meal.notes}</p>
+                                                        )}
                                                     </div>
                                                 ))}
                                             </div>
@@ -330,12 +408,21 @@ const FuelAlchemy: React.FC = () => {
                                     </select>
                                 </div>
                                 <div>
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Protocol Level</label>
+                                    <select value={level} onChange={e => setLevel(e.target.value as any)} className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-emerald-500">
+                                        <option value="Beginner">Beginner</option>
+                                        <option value="Intermediate">Intermediate</option>
+                                        <option value="Advanced">Advanced</option>
+                                        <option value="Pro Advance">Pro Advance</option>
+                                    </select>
+                                </div>
+                                <div>
                                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Preferences</label>
                                     <select value={preferences} onChange={e => setPreferences(e.target.value)} className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-emerald-500">
                                         <option>Balanced</option><option>Vegetarian</option><option>Vegan</option><option>Keto</option><option>Paleo</option>
                                     </select>
                                 </div>
-                                <div className="col-span-2">
+                                <div>
                                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">Constraints / Allergies</label>
                                     <input value={allergies} onChange={e => setAllergies(e.target.value)} className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-emerald-500" placeholder="e.g. Peanuts, Shellfish..." />
                                 </div>

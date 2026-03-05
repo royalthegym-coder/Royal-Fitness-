@@ -15,6 +15,7 @@ import {
     INITIAL_INVENTORY
 } from '../../constants';
 import { sendWhatsAppWelcomeMessage, sendPaymentRequest, sendPaymentReceipt } from '../../lib/whatsapp';
+import { syncData } from '../../lib/supabase';
 
 interface DeviceCapabilities {
     heartRate: boolean;
@@ -243,6 +244,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const addMember = (m: Member) => {
         setMembers(prev => [...prev, m]);
         logEvent(`New Member ${m.name} Added (Admin).`);
+        // Supabase के साथ स्थानीय संग्रहण (LocalStorage) का उपयोग
+        syncData('members', m);
     };
 
     const signupMember = async (data: any): Promise<boolean> => {
@@ -278,6 +281,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setMembers(prev => [...prev, newMember]);
             logEvent(`New Signup: ${newMember.name}. Status: PENDING APPROVAL.`);
             
+            // Supabase के साथ स्थानीय संग्रहण (LocalStorage) का उपयोग
+            syncData('members', newMember);
+            
             // Send Audit Log
             addAuditLog({
                 member_id: newId,
@@ -289,8 +295,66 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
     };
 
-    const updateMember = (m: Member) => setMembers(prev => prev.map(mem => mem.id === m.id ? m : mem));
-    const deleteMember = (id: number) => setMembers(prev => prev.filter(m => m.id !== id));
+    const updateMember = (m: Member) => {
+        setMembers(prev => prev.map(mem => mem.id === m.id ? m : mem));
+        // Supabase के साथ स्थानीय संग्रहण (LocalStorage) का उपयोग
+        syncData('members', m);
+    };
+    const deleteMember = (id: number) => {
+        // 1. Get Member Name for Transaction Deletion
+        const member = members.find(m => m.id === id);
+        const memberName = member ? member.name : null;
+
+        // 2. Delete Member
+        setMembers(prev => prev.filter(m => m.id !== id));
+
+        // 3. Cascade Delete Invoices
+        setInvoices(prev => prev.filter(i => i.memberId !== id));
+
+        // 4. Cascade Delete Transactions (by Name)
+        if (memberName) {
+            setTransactions(prev => prev.filter(t => t.memberName !== memberName));
+        }
+
+        // 5. Cascade Delete Routine Logs
+        setDailyRoutineLogs(prev => prev.filter(l => l.member_id !== id));
+
+        // 6. Cascade Delete Detailed Workout Logs
+        setDetailedWorkoutLogs(prev => prev.filter(l => l.memberId !== id));
+
+        // 7. Cascade Delete Wearable Logs
+        setMemberWearableLogs(prev => {
+            const newState = { ...prev };
+            delete newState[id];
+            return newState;
+        });
+
+        // 8. Cascade Delete Medical Reports & Recommendations
+        // First find reports to be deleted to link to recommendations
+        const memberReportIds = medicalReports.filter(r => r.member_id === id).map(r => r.report_id);
+        
+        setMedicalReports(prev => prev.filter(r => r.member_id !== id));
+        setAiRecommendations(prev => prev.filter(rec => !memberReportIds.includes(rec.report_id)));
+
+        // 9. Cascade Delete Medical Consultations
+        setMedicalConsultations(prev => prev.filter(c => c.memberId !== id));
+
+        // 10. Cascade Delete Attendance Records
+        setAttendanceRecords(prev => prev.filter(r => r.memberId !== id));
+
+        // 11. Cascade Delete Audit Logs
+        setAuditLogs(prev => prev.filter(l => l.member_id !== id));
+
+        // 12. Cascade Delete OFS Logs
+        setOfsLogs(prev => prev.filter(l => l.memberId !== id));
+
+        // 13. Cascade Delete Leads (if converted)
+        if (member) {
+            setLeads(prev => prev.filter(l => l.email !== member.email && l.phone !== member.phone));
+        }
+
+        logEvent(`Member ID ${id} (${memberName}) and all associated data permanently deleted.`);
+    };
 
     const addPackage = (p: Package) => setPackages(prev => [...prev, p]);
     const updatePackage = (p: Package) => setPackages(prev => prev.map(pkg => pkg.id === p.id ? p : pkg));

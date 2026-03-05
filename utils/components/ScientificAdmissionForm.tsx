@@ -5,7 +5,7 @@ import {
     User, Activity, HeartPulse, Coffee, Target, Brain, 
     ChevronRight, ChevronLeft, CheckCircle2, Sparkles, Upload, RefreshCw, Wallet, Fingerprint, Nfc,
     Dumbbell, ShoppingBag, Apple, Pill, Minus, Plus, ShieldCheck, Smartphone,
-    ExternalLink, Star, MessageCircle, Globe, Flame, Crown, Zap
+    ExternalLink, Star, MessageCircle, Globe, Flame, Crown, Zap, Camera, FileText, X
 } from 'lucide-react';
 import { useData } from '../context/DataProvider';
 import { useToast } from '../hooks/useToast';
@@ -16,7 +16,7 @@ import { analyzeMemberPhoto, generatePersonalizedHealthVision } from '../../lib/
 import { triggerAutomation } from '../../lib/automation';
 
 const ScientificAdmissionForm: React.FC = () => {
-    const { members, packages, inventory, addMember, addInvoice, addTransaction, updateInventory } = useData();
+    const { members, packages, inventory, addMember, addInvoice, addTransaction, updateInventory, addMedicalReport } = useData();
     const { addToast } = useToast();
     const [currentStep, setCurrentStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,6 +51,7 @@ const ScientificAdmissionForm: React.FC = () => {
         stressLevel: '5',
         sleepQuality: '',
         metabolicRate: '',
+        medicalReports: [] as { name: string; type: string; data: string }[], // Added for reports
         // Payment State
         packageId: '',
         trainingPackageId: '',
@@ -131,6 +132,37 @@ const ScientificAdmissionForm: React.FC = () => {
         }));
     };
 
+    const [manualItem, setManualItem] = useState({ name: '', price: '', category: 'Accessories' });
+
+    const addManualItem = () => {
+        if (!manualItem.name || !manualItem.price) return;
+        addToCart({ 
+            id: `manual-${Date.now()}`, 
+            name: manualItem.name, 
+            price: Number(manualItem.price), 
+            category: manualItem.category 
+        });
+        setManualItem({ name: '', price: '', category: 'Accessories' });
+    };
+
+    const cartCategories = useMemo(() => {
+        const cats = {
+            'Accessories': 0,
+            'Supplements': 0,
+            'Apparel': 0,
+            'Other': 0
+        };
+        formData.cart.forEach(item => {
+            const cat = item.type || 'Other';
+            if (cat in cats) {
+                cats[cat as keyof typeof cats] += item.price * item.qty;
+            } else {
+                cats['Other'] += item.price * item.qty;
+            }
+        });
+        return cats;
+    }, [formData.cart]);
+
     const steps = [
         { id: 1, title: 'मूल जानकारी', icon: <User className="w-5 h-5" /> },
         { id: 2, title: 'बायोमेट्रिक्स', icon: <Activity className="w-5 h-5" /> },
@@ -165,6 +197,53 @@ const ScientificAdmissionForm: React.FC = () => {
                 return { ...prev, conditions: [...newConditions, condition] };
             }
         });
+    };
+
+    const handleReportUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []) as File[];
+        if (files.length === 0) return;
+
+        const MAX_SIZE = 5 * 1024 * 1024; // 5MB limit per file
+        const newReports: { name: string; type: string; data: string }[] = [];
+
+        for (const file of files) {
+            if (file.size > MAX_SIZE) {
+                addToast(`Skipped ${file.name}: File too large (>5MB)`, "error");
+                continue;
+            }
+
+            try {
+                const reader = new FileReader();
+                await new Promise<void>((resolve, reject) => {
+                    reader.onload = () => {
+                        const res = reader.result?.toString();
+                        if (res) {
+                            newReports.push({ name: file.name, type: file.type, data: res });
+                        }
+                        resolve();
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            } catch (err) {
+                console.error("Error reading file", err);
+                addToast(`Failed to upload ${file.name}`, "error");
+            }
+        }
+
+        if (newReports.length > 0) {
+            setFormData(prev => ({ ...prev, medicalReports: [...prev.medicalReports, ...newReports] }));
+            addToast(`${newReports.length} reports attached.`, "success");
+        }
+        
+        if (e.target) e.target.value = '';
+    };
+
+    const removeReport = (index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            medicalReports: prev.medicalReports.filter((_, i) => i !== index)
+        }));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -249,6 +328,20 @@ const ScientificAdmissionForm: React.FC = () => {
                     comments: aiResults.analysis_summary
                 }
             };
+
+            // Save Medical Reports
+            if (formData.medicalReports.length > 0) {
+                formData.medicalReports.forEach(report => {
+                    addMedicalReport({
+                        report_id: `REP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                        member_id: newId,
+                        file_url: report.data,
+                        ocr_data: {},
+                        status: 'Pending',
+                        upload_date: new Date().toISOString()
+                    });
+                });
+            }
 
             addMember(newMember);
 
@@ -605,6 +698,43 @@ const ScientificAdmissionForm: React.FC = () => {
                                     <label className="text-sm font-medium text-gray-300">एलर्जी (Allergies)</label>
                                     <input type="text" value={formData.allergies} onChange={(e) => handleInputChange('allergies', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-rose-500" placeholder="जैसे: दूध (Lactose), मूंगफली, ग्लूटेन..." />
                                 </div>
+
+                                {/* Medical Reports Upload Section */}
+                                <div className="space-y-3 pt-4 border-t border-gray-800">
+                                    <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                                        <FileText className="w-4 h-4 text-rose-400" />
+                                        मेडिकल रिपोर्ट्स (Medical Reports)
+                                    </label>
+                                    <p className="text-xs text-gray-500">पुरानी रिपोर्ट्स, ब्लड टेस्ट या डॉक्टर की पर्ची अपलोड करें।</p>
+                                    
+                                    <div className="flex gap-3">
+                                        <label className="flex-1 py-3 bg-gray-800 border border-gray-700 text-gray-300 rounded-lg hover:bg-gray-700 hover:border-rose-500 transition-all flex items-center justify-center gap-2 cursor-pointer text-sm font-medium">
+                                            <Upload className="w-4 h-4"/> Upload Files
+                                            <input type="file" multiple className="hidden" onChange={handleReportUpload} accept="image/*,.pdf,.doc,.docx" />
+                                        </label>
+                                        <label className="flex-1 py-3 bg-gray-800 border border-gray-700 text-gray-300 rounded-lg hover:bg-gray-700 hover:border-rose-500 transition-all flex items-center justify-center gap-2 cursor-pointer text-sm font-medium">
+                                            <Camera className="w-4 h-4"/> Camera
+                                            <input type="file" capture="environment" className="hidden" onChange={handleReportUpload} accept="image/*" />
+                                        </label>
+                                    </div>
+
+                                    {/* Attached Files List */}
+                                    {formData.medicalReports.length > 0 && (
+                                        <div className="space-y-2 mt-2">
+                                            {formData.medicalReports.map((file, idx) => (
+                                                <div key={idx} className="flex items-center justify-between bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-300">
+                                                    <div className="flex items-center gap-2 overflow-hidden">
+                                                        <FileText className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                                                        <span className="truncate">{file.name}</span>
+                                                    </div>
+                                                    <button type="button" onClick={() => removeReport(idx)} className="text-gray-500 hover:text-rose-400 p-1">
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </motion.div>
                     )}
@@ -862,10 +992,45 @@ const ScientificAdmissionForm: React.FC = () => {
                                 </div>
 
                                 {/* Inventory / POS */}
-                                <div className="space-y-3">
+                                <div className="space-y-4">
                                     <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
                                         <ShoppingBag className="w-4 h-4 text-cyan-400" /> अतिरिक्त आइटम (Accessories & Supplements)
                                     </label>
+                                    
+                                    {/* Manual Item Entry */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 bg-gray-900/30 p-3 rounded-xl border border-white/5">
+                                        <input 
+                                            type="text" 
+                                            placeholder="Item Name" 
+                                            value={manualItem.name} 
+                                            onChange={e => setManualItem({...manualItem, name: e.target.value})} 
+                                            className="bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 sm:col-span-2"
+                                        />
+                                        <input 
+                                            type="number" 
+                                            placeholder="Price" 
+                                            value={manualItem.price} 
+                                            onChange={e => setManualItem({...manualItem, price: e.target.value})} 
+                                            className="bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                                        />
+                                        <select 
+                                            value={manualItem.category} 
+                                            onChange={e => setManualItem({...manualItem, category: e.target.value})} 
+                                            className="bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                                        >
+                                            <option value="Accessories">Accessories</option>
+                                            <option value="Supplements">Supplements</option>
+                                            <option value="Apparel">Apparel</option>
+                                        </select>
+                                        <button 
+                                            type="button" 
+                                            onClick={addManualItem} 
+                                            className="bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wider sm:col-span-4"
+                                        >
+                                            + Add Manual Item
+                                        </button>
+                                    </div>
+
                                     <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
                                         {inventory.map(item => (
                                             <button 
@@ -874,7 +1039,7 @@ const ScientificAdmissionForm: React.FC = () => {
                                                 onClick={() => addToCart(item)} 
                                                 className="bg-gray-800/50 text-xs px-3 py-1.5 rounded-full whitespace-nowrap hover:bg-gray-700 transition-colors text-white border border-white/5 flex items-center gap-2"
                                             >
-                                                {item.category === 'Supplement' ? <Apple className="w-3 h-3 text-green-400"/> : <ShoppingBag className="w-3 h-3 text-cyan-400"/>}
+                                                {item.category === 'Supplements' ? <Apple className="w-3 h-3 text-green-400"/> : <ShoppingBag className="w-3 h-3 text-cyan-400"/>}
                                                 {item.name} <span className="text-gray-500">₹{item.price}</span>
                                             </button>
                                         ))}
@@ -884,7 +1049,7 @@ const ScientificAdmissionForm: React.FC = () => {
                                         <div className="bg-black/40 p-3 rounded-xl border border-white/5 space-y-2">
                                             {formData.cart.map(c => (
                                                 <div key={c.itemId} className="flex justify-between items-center text-xs">
-                                                    <span className="text-gray-300">{c.name} x{c.qty}</span>
+                                                    <span className="text-gray-300">{c.name} <span className="text-gray-500">({c.type})</span> x{c.qty}</span>
                                                     <div className="flex items-center gap-3">
                                                         <span className="text-amber-500 font-mono">₹{c.price * c.qty}</span>
                                                         <div className="flex items-center gap-1">
@@ -915,12 +1080,33 @@ const ScientificAdmissionForm: React.FC = () => {
                                             <span className="text-white">₹{registrationFee}</span>
                                         </div>
                                     )}
-                                    {cartTotal > 0 && (
+                                    
+                                    {/* Breakdown of Cart Categories */}
+                                    {cartCategories['Accessories'] > 0 && (
                                         <div className="flex justify-between text-sm">
-                                            <span className="text-cyan-400">Inventory Items</span>
-                                            <span className="text-white">₹{cartTotal}</span>
+                                            <span className="text-cyan-400">Accessories</span>
+                                            <span className="text-white">₹{cartCategories['Accessories']}</span>
                                         </div>
                                     )}
+                                    {cartCategories['Supplements'] > 0 && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-green-400">Supplements</span>
+                                            <span className="text-white">₹{cartCategories['Supplements']}</span>
+                                        </div>
+                                    )}
+                                    {cartCategories['Apparel'] > 0 && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-purple-400">Apparel</span>
+                                            <span className="text-white">₹{cartCategories['Apparel']}</span>
+                                        </div>
+                                    )}
+                                    {cartCategories['Other'] > 0 && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-400">Other Items</span>
+                                            <span className="text-white">₹{cartCategories['Other']}</span>
+                                        </div>
+                                    )}
+
                                     <div className="h-px bg-gray-800 my-1"></div>
                                     <div className="flex justify-between items-center">
                                         <span className="text-sm font-bold text-amber-500 uppercase tracking-widest">Total Amount</span>
