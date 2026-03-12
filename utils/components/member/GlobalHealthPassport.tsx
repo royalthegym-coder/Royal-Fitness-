@@ -328,7 +328,7 @@ const GlobalHealthPassport: React.FC<{ memberId: number }> = ({ memberId }) => {
                                  { loc: 'Recovery Pod B', time: 'Yesterday, 07:30 PM', status: 'Approved' },
                                  { loc: 'Dietary Kiosk', time: 'Yesterday, 07:15 PM', status: 'Approved' },
                                  { loc: 'Royal Gym Main Gate', time: 'Yesterday, 06:00 PM', status: 'Approved' },
-                                 { loc: 'Aether Medical Scan', time: '3 Days Ago', status: 'Verified' }
+                                 { loc: 'Bio-Aether Oracle Scan', time: '3 Days Ago', status: 'Verified' }
                              ].map((log, i) => (
                                  <div key={i} className="flex justify-between items-center p-3 bg-black/40 rounded-xl border border-white/5">
                                      <div className="flex items-center gap-3">

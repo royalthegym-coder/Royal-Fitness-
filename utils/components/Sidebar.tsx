@@ -9,7 +9,7 @@ import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { BrainCircuitIcon } from './icons/BrainCircuitIcon';
 import { ControlIcon } from './icons/ControlIcon';
-import { User, Microscope, Zap, Settings, Command, Activity, Heart, DollarSign, CalendarCheck, Stethoscope, TrendingUp, Cpu, ShieldAlert, MonitorPlay, HelpCircle, ScanFace, Globe, Glasses, Link, Shield, FlaskConical, Clock, Wind, Network, Moon, Eye, Truck, Map, Terminal, Gauge, Share2, Package, List, Users, ChevronDown, Utensils, Sparkles, Workflow, ShieldCheck, BrainCircuit } from 'lucide-react';
+import { User, Microscope, Zap, Settings, Command, Activity, Heart, DollarSign, CalendarCheck, Stethoscope, TrendingUp, Cpu, ShieldAlert, MonitorPlay, HelpCircle, ScanFace, Globe, Glasses, Link, Shield, FlaskConical, Clock, Wind, Network, Moon, Eye, Truck, Map, Terminal, Gauge, Share2, Package, List, Users, ChevronDown, Utensils, Sparkles, Workflow, ShieldCheck, BrainCircuit, Power, BookOpen, Dna, Rocket, FileCode2, MessageCircle } from 'lucide-react';
 import { GoogleIcon } from './icons/GoogleIcon';
 import { View } from '../../types';
 import { CloudArrowUpIcon } from './icons/CloudArrowUpIcon';
@@ -33,6 +33,12 @@ interface SidebarProps {
   role?: 'admin' | 'member';
 }
 
+const SparkleText = ({ children }: { children: React.ReactNode }) => (
+  <span className="font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-amber-400 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] tracking-wide">
+    {children}
+  </span>
+);
+
 const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isOpen, setIsOpen, role = 'admin' }) => {
   
   const [expandedCategories, setExpandedCategories] = useState<string[]>(
@@ -52,13 +58,14 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
     { 
       category: 'Main (मुख्य)', 
       items: [
-        { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
-        { id: 'scientificAdmissionForm', label: 'AI Admission Form', icon: <Sparkles className="w-5 h-5 text-indigo-400" /> },
-        { id: 'members', label: 'Members List', icon: <MembersIcon /> },
+        { id: 'dashboard', label: 'Home', icon: <DashboardIcon /> },
+        { id: 'scientificAdmissionForm', label: 'Add Member', icon: <Sparkles className="w-5 h-5 text-indigo-400" /> },
+        { id: 'members', label: 'Members', icon: <MembersIcon /> },
         { id: 'adminAttendance', label: 'Attendance', icon: <Clock className="w-5 h-5 text-cyan-400" /> },
-        { id: 'billing', label: 'Billing & Fees', icon: <BillingIcon /> },
-        { id: 'payment', label: 'Take Payment', icon: <DollarSignIcon className="text-green-500" /> },
-        { id: 'staff', label: 'Staff Management', icon: <Users className="w-5 h-5 text-indigo-400" /> },
+        { id: 'adminScheduler', label: 'Schedules', icon: <CalendarCheck className="w-5 h-5 text-amber-400" /> },
+        { id: 'billing', label: 'Billing', icon: <BillingIcon /> },
+        { id: 'payment', label: 'Payment', icon: <DollarSignIcon className="text-green-500" /> },
+        { id: 'staff', label: 'Staff', icon: <Users className="w-5 h-5 text-indigo-400" /> },
         { id: 'expenses', label: 'Expenses', icon: <ExpensesIcon /> },
         { id: 'tasks', label: 'Tasks', icon: <List className="w-5 h-5 text-amber-500" /> },
       ]
@@ -66,8 +73,8 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
     {
       category: 'Fitness (फिटनेस)',
       items: [
-        { id: 'workouts', label: 'Workout Plans', icon: <WorkoutIcon /> },
-        { id: 'diet', label: 'Diet Plans', icon: <DietIcon /> },
+        { id: 'workouts', label: 'Workouts', icon: <WorkoutIcon /> },
+        { id: 'diet', label: 'Diet', icon: <DietIcon /> },
         { id: 'packages', label: 'Packages', icon: <PackageIcon /> },
         { id: 'aiFitnessTracker', label: 'AI Progress', icon: <Activity className="w-5 h-5 text-amber-400"/> },
         { id: 'healthEngine', label: 'Health Scan', icon: <Microscope className="w-5 h-5 text-green-400" /> },
@@ -76,31 +83,57 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
     {
       category: 'Marketing (मार्केटिंग)',
       items: [
-        { id: 'leads', label: 'Leads (Enquiry)', icon: <LeadsIcon /> },
-        { id: 'socialManager', label: 'Social Media', icon: <Share2 className="w-5 h-5 text-pink-500" /> }, 
-        { id: 'crm', label: 'CRM System', icon: <CRMIcon className="w-5 h-5 text-pink-400" /> },
-        { id: 'googleBusiness', label: 'Google Maps', icon: <GoogleIcon className="w-5 h-5" /> },
+        { id: 'viralMarketing', label: 'Marketing', icon: <Rocket className="w-5 h-5 text-orange-500" /> },
+        { id: 'leads', label: 'Leads', icon: <LeadsIcon /> },
+        { id: 'socialManager', label: 'Social', icon: <Share2 className="w-5 h-5 text-pink-500" /> }, 
+        { id: 'crm', label: 'CRM', icon: <CRMIcon className="w-5 h-5 text-pink-400" /> },
+        { id: 'googleBusiness', label: 'Google', icon: <GoogleIcon className="w-5 h-5" /> },
         { id: 'whatsapp', label: 'WhatsApp', icon: <WhatsAppIcon className="w-5 h-5" /> },
       ]
     },
     {
       category: 'Advanced AI (एडवांस्ड)',
       items: [
-        { id: 'aetherMed', label: 'AI Doctor', icon: <Stethoscope className="w-5 h-5 text-cyan-400" /> },
-        { id: 'medicalProfiling', label: 'Medical Profiling', icon: <Microscope className="w-5 h-5 text-emerald-400" /> },
+        { id: 'geniusEngine', label: 'AI Engine', icon: <BrainCircuit className="w-5 h-5 text-indigo-400" /> },
+        { id: 'aetherMed', label: 'Bio Oracle', icon: <Stethoscope className="w-5 h-5 text-cyan-400" /> },
+        { id: 'medicalProfiling', label: 'Medical', icon: <Microscope className="w-5 h-5 text-emerald-400" /> },
+        { id: 'quantumDNA', label: 'DNA Scan', icon: <Dna className="w-5 h-5 text-emerald-400" /> },
+        { id: 'digitalBioPass', label: 'Bio Pass', icon: <ShieldCheck className="w-5 h-5 text-emerald-400" /> },
+        { id: 'aiDoctor', label: 'AI Doctor', icon: <Activity className="w-5 h-5 text-indigo-400" /> },
         { id: 'geniusMode', label: 'AI Planner', icon: <Zap className="w-5 h-5 text-amber-400" /> },
-        { id: 'bioScout', label: 'Risk Alerts', icon: <Shield className="w-5 h-5 text-red-400" /> },
+        { id: 'bioScout', label: 'Alerts', icon: <Shield className="w-5 h-5 text-red-400" /> },
         { id: 'revenueOracle', label: 'Revenue AI', icon: <Eye className="w-5 h-5 text-green-500" /> }, 
-        { id: 'bots', label: 'My AI Bots', icon: <BotIcon className="w-5 h-5 text-purple-400" /> },
+        { id: 'bots', label: 'AI Bots', icon: <BotIcon className="w-5 h-5 text-purple-400" /> },
+      ]
+    },
+    {
+      category: 'God-Tier AI (गॉड-टियर)',
+      items: [
+        { id: 'sentinelIntakeBot', label: 'Intake Bot', icon: <MessageCircle className="w-5 h-5 text-emerald-400" /> },
+        { id: 'injuryOracle', label: 'Injury AI', icon: <Activity className="w-5 h-5 text-red-500" /> },
+        { id: 'ghostSensor', label: 'Sensor', icon: <Eye className="w-5 h-5 text-cyan-400" /> },
+        { id: 'digitalTwin', label: '3D Twin', icon: <User className="w-5 h-5 text-purple-400" /> },
+        { id: 'ghostSocial', label: 'Auto Market', icon: <Share2 className="w-5 h-5 text-pink-500" /> },
+        { id: 'neuralEdge', label: 'Neural', icon: <Cpu className="w-5 h-5 text-emerald-400" /> },
+        { id: 'universalGadgets', label: 'Sync', icon: <Cpu className="w-5 h-5 text-cyan-400" /> },
       ]
     },
     {
       category: 'System (सिस्टम)',
       items: [
-        { id: 'automationHub', label: 'Automation Hub', icon: <Workflow className="w-5 h-5 text-indigo-400" /> },
-        { id: 'neuralArchitecture', label: 'Neural OS Stack', icon: <Cpu className="w-5 h-5 text-indigo-400" /> },
-        { id: 'autoProcurement', label: 'Auto-Orders', icon: <Truck className="w-5 h-5 text-amber-500" /> }, 
+        { id: 'automationHub', label: 'Automation', icon: <Workflow className="w-5 h-5 text-indigo-400" /> },
+        { id: 'nexusMaster', label: 'Nexus', icon: <Network className="w-5 h-5 text-fuchsia-400" /> },
+        { id: 'quantumCore', label: 'OS Core', icon: <Cpu className="w-5 h-5 text-fuchsia-500" /> },
+        { id: 'neuralArchitecture', label: 'OS Stack', icon: <Cpu className="w-5 h-5 text-indigo-400" /> },
+        { id: 'autoProcurement', label: 'Orders', icon: <Truck className="w-5 h-5 text-amber-500" /> }, 
         { id: 'security', label: 'Security', icon: <ShieldAlert className="w-5 h-5 text-red-400" /> },
+        { id: 'emergencyOverride', label: 'Override', icon: <Power className="w-5 h-5 text-red-500" /> },
+        { id: 'finalStressTest', label: 'Stress Test', icon: <Activity className="w-5 h-5 text-indigo-400" /> },
+        { id: 'launchCommandCenter', label: 'Launch', icon: <Rocket className="w-5 h-5 text-orange-500" /> },
+        { id: 'staffAITraining', label: 'Staff Manual', icon: <BookOpen className="w-5 h-5 text-blue-400" /> },
+        { id: 'projectHandover', label: 'Handover', icon: <FileCode2 className="w-5 h-5 text-indigo-400" /> },
+        { id: 'devRoadmap', label: 'Roadmap', icon: <Terminal className="w-5 h-5 text-emerald-400" /> },
+        { id: 'osUploads', label: 'OS Uploads', icon: <CloudArrowUpIcon className="w-5 h-5 text-cyan-400" /> },
         { id: 'settings', label: 'Settings', icon: <Settings className="w-5 h-5" /> },
       ]
     }
@@ -111,8 +144,8 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
       category: 'My Zone (मेरा जोन)', 
       items: [
         { id: 'dashboard', label: 'Home', icon: <DashboardIcon /> },
-        { id: 'profile', label: 'My Profile', icon: <User className="w-5 h-5 text-indigo-400" /> },
-        { id: 'dailyProtocol', label: 'My Tasks', icon: <CalendarCheck className="w-5 h-5 text-amber-400" /> },
+        { id: 'profile', label: 'Profile', icon: <User className="w-5 h-5 text-indigo-400" /> },
+        { id: 'dailyProtocol', label: 'Tasks', icon: <CalendarCheck className="w-5 h-5 text-amber-400" /> },
         { id: 'attendance', label: 'Attendance', icon: <Clock className="w-5 h-5 text-cyan-400" /> },
         { id: 'payments', label: 'Payments', icon: <DollarSign className="w-5 h-5 text-green-500" /> },
         { id: 'packages', label: 'My Plan', icon: <PackageIcon /> },
@@ -122,9 +155,9 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
     {
       category: 'Training (ट्रेनिंग)',
       items: [
-        { id: 'workout', label: 'Start Workout', icon: <WorkoutIcon /> },
-        { id: 'diet', label: 'My Diet', icon: <DietIcon /> },
-        { id: 'metabolicSimulator', label: 'Digital Twin', icon: <BrainCircuit className="w-5 h-5 text-purple-400" /> },
+        { id: 'workout', label: 'Workout', icon: <WorkoutIcon /> },
+        { id: 'diet', label: 'Diet', icon: <DietIcon /> },
+        { id: 'metabolicTracker', label: 'Digital Twin', icon: <BrainCircuit className="w-5 h-5 text-purple-400" /> },
         { id: 'nutritionAdvisor', label: 'Nutritionist', icon: <Utensils className="w-5 h-5 text-green-400" /> },
         { id: "performanceLab", label: "Progress Lab", icon: <TrendingUp className="w-5 h-5 text-cyan-400" /> },
         { id: 'futureOFS', label: 'Recovery Test', icon: <Activity className="w-5 h-5 text-amber-400" /> },
@@ -133,12 +166,23 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
     {
       category: 'Health (स्वास्थ्य)',
       items: [
+        { id: 'geniusEngine', label: 'AI Engine', icon: <BrainCircuit className="w-5 h-5 text-indigo-400" /> },
         { id: 'health', label: 'Health Stats', icon: <Heart className="w-5 h-5 text-red-500" /> },
         { id: 'medicalHub', label: 'Medical Report', icon: <Stethoscope className="w-5 h-5 text-indigo-400" /> },
-        { id: 'digitalBioPass', label: 'Bio-Health Pass', icon: <ShieldCheck className="w-5 h-5 text-emerald-400" /> },
+        { id: 'quantumDNA', label: 'DNA Scan', icon: <Dna className="w-5 h-5 text-emerald-400" /> },
+        { id: 'digitalBioPass', label: 'Bio Pass', icon: <ShieldCheck className="w-5 h-5 text-emerald-400" /> },
         { id: 'wearables', label: 'Connect Watch', icon: <SmartWatchIcon className="w-5 h-5 text-amber-400" /> },
         { id: 'universalGadgets', label: 'Neural Sync', icon: <Cpu className="w-5 h-5 text-cyan-400" /> },
         { id: 'neuroRecovery', label: 'Relaxation', icon: <Moon className="w-5 h-5 text-indigo-400" /> }, 
+      ]
+    },
+    {
+      category: 'God-Tier AI (गॉड-टियर)',
+      items: [
+        { id: 'injuryOracle', label: 'Injury AI', icon: <Activity className="w-5 h-5 text-red-500" /> },
+        { id: 'ghostSensor', label: 'Sensor', icon: <Eye className="w-5 h-5 text-cyan-400" /> },
+        { id: 'digitalTwin', label: '3D Twin', icon: <User className="w-5 h-5 text-purple-400" /> },
+        { id: 'neuralEdge', label: 'Neural', icon: <Cpu className="w-5 h-5 text-emerald-400" /> },
       ]
     },
     {
@@ -246,7 +290,7 @@ const Sidebar: React.FC<SidebarProps> = memo(({ currentView, setCurrentView, isO
                                 <span className={`mr-4 transition-transform duration-300 group-hover:scale-110 relative z-10 ${isActive ? 'text-cyan-400 drop-shadow-[0_0_8px_rgba(6,182,212,0.5)]' : 'text-gray-600 group-hover:text-cyan-200'}`}>
                                     {item.icon}
                                 </span>
-                                <span className="font-bold tracking-wider uppercase relative z-10 text-[11px]">{item.label}</span>
+                                <span className="font-bold tracking-wider uppercase relative z-10 text-[11px]"><SparkleText>{item.label}</SparkleText></span>
                                 
                                 {isActive && <motion.div layoutId="active-indicator" className="absolute right-4 w-1.5 h-1.5 bg-cyan-400 rounded-full shadow-[0_0_10px_#06b6d4] animate-pulse"></motion.div>}
                               </motion.button>

@@ -57,7 +57,7 @@ const GoogleBusiness: React.FC = () => {
     // Q&A State (New)
     const [questions, setQuestions] = useState([
         { id: 1, user: 'Amit S.', question: 'Do you have a steam bath?', answer: '', date: '2 days ago' },
-        { id: 2, user: 'Neha K.', question: 'Is personal training included in the yearly package?', answer: 'Yes, basic guidance is included. Dedicated PT is separate.', date: '1 week ago' }
+        { id: 2, user: 'Neha K.', question: 'Is diet plan included in the yearly package?', answer: 'Yes, basic guidance is included.', date: '1 week ago' }
     ]);
     const [answeringId, setAnsweringId] = useState<number | null>(null);
     const [answerInput, setAnswerInput] = useState('');

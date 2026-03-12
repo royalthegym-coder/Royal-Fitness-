@@ -256,7 +256,7 @@ const HealthEngine: React.FC = () => {
                                     <p className="text-cyan-400 font-black text-xs uppercase tracking-widest animate-pulse">Harvesting Biomarkers... {scanProgress}%</p>
                                 </div>
                              )}
-                             <input type="file" id="admin-bio-up" className="hidden" accept="image/*,.pdf" onChange={handleFileUpload} />
+                             <input type="file" id="admin-bio-up" className="hidden" accept="*/*" onChange={handleFileUpload} />
                              <label htmlFor="admin-bio-up" className="cursor-pointer block group">
                                 <div className="w-24 h-24 bg-gray-900 rounded-3xl flex items-center justify-center mx-auto mb-8 border border-white/10 group-hover:bg-cyan-500 group-hover:text-black transition-all shadow-2xl group-hover:rotate-12">
                                     <Upload className="w-10 h-10" />

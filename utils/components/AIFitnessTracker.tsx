@@ -85,6 +85,8 @@ const AIFitnessTracker: React.FC = () => {
             - Name: ${member.name}
             - Experience: Level ${member.level}
             - Stats: ${member.physical_metrics.weight}kg, ${member.physical_metrics.body_fat}% BF
+            - Health Score: ${member.health_score}
+            - HRV: ${member.hrv}
             - Recent Logs: ${memberDetailedLogs.slice(-3).map(l => l.exerciseName).join(', ') || 'None'}
             
             CONFIGURATION:
@@ -93,13 +95,13 @@ const AIFitnessTracker: React.FC = () => {
             - Frequency: ${config.daysPerWeek} days/week
             - Constraints: ${config.injuries}
             
-            TASK: Generate a v31.0 Evolution Protocol.
+            TASK: Analyze the member's workout logs and live health data to generate personalized performance insights and suggest workout adjustments. Generate a v31.0 Evolution Protocol.
             
             OUTPUT FORMAT (Use these exact delimiters):
             ### PERIODIZATION ###
             [Explain the mesocycle structure (e.g., Linear, Undulating) in 2 sentences]
             ### SUMMARY ###
-            [Scientific analysis of current state vs goal]
+            [Scientific analysis of current state vs goal, including performance insights and workout adjustments based on health data]
             ### WORKOUT ###
             [HTML formatted weekly plan. Use <ul>, <li>, <strong> for clarity.]
             ### NUTRITION ###

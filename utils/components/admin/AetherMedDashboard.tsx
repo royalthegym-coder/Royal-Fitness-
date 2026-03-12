@@ -4,7 +4,7 @@ import {
     Stethoscope, FileText, Check, X, Clock, Zap, 
     AlertTriangle, Network, Globe, Activity, 
     BrainCircuit, Dna, Scan, ChevronRight, CheckCircle, RefreshCw,
-    UserPlus, Upload, ShieldCheck, Binary, Search
+    UserPlus, Upload, ShieldCheck, Binary, Search, Camera, Link2, Database, Cpu, Radio
 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { useToast } from '../../hooks/useToast';
@@ -26,6 +26,9 @@ const AetherMedDashboard: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [adminSymptoms, setAdminSymptoms] = useState('');
     const [adminAttachedFiles, setAdminAttachedFiles] = useState<{name: string, data: string, type: string}[]>([]);
+    const [isCameraOpen, setIsCameraOpen] = useState(false);
+    const videoRef = React.useRef<HTMLVideoElement>(null);
+    const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
     // Filter Logic
     const pendingConsults = useMemo(() => medicalConsultations.filter(c => c.status === 'Pending Analysis'), [medicalConsultations]);
@@ -66,19 +69,34 @@ const AetherMedDashboard: React.FC = () => {
     };
 
     const handleAdminReportUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []) as File[];
+        const target = e.target;
+        const files = Array.from(target.files || []) as File[];
         if (files.length === 0) return;
 
         try {
             const newFiles: {name: string, data: string, type: string}[] = [];
+            const MAX_SIZE = 1 * 1024 * 1024; // 1MB limit
             
             for (const file of files) {
+                if (file.size > MAX_SIZE) {
+                    addToast(`Skipped ${file.name}: File too large (>1MB)`, "error");
+                    continue;
+                }
+
+                let mimeType = file.type;
+                if (!mimeType) {
+                    if (file.name.endsWith('.pdf')) mimeType = 'application/pdf';
+                    else if (file.name.endsWith('.csv')) mimeType = 'text/csv';
+                    else if (file.name.endsWith('.txt')) mimeType = 'text/plain';
+                    else mimeType = 'application/octet-stream';
+                }
+
                 const reader = new FileReader();
                 await new Promise<void>((resolve, reject) => {
                     reader.onload = () => {
-                        const base64 = reader.result?.toString().split(',')[1];
-                        if (base64) {
-                            newFiles.push({ name: file.name, data: base64, type: file.type });
+                        const res = reader.result?.toString();
+                        if (res) {
+                            newFiles.push({ name: file.name, data: res, type: mimeType });
                         }
                         resolve();
                     };
@@ -90,7 +108,7 @@ const AetherMedDashboard: React.FC = () => {
             setAdminAttachedFiles(prev => [...prev, ...newFiles]);
             addToast(`${newFiles.length} report(s) attached.`, "success");
             
-            if (e.target) e.target.value = '';
+            try { if (target) target.value = ''; } catch(e) {}
         } catch (error) {
             addToast("Failed to read files.", "error");
         }
@@ -105,7 +123,7 @@ const AetherMedDashboard: React.FC = () => {
         if (!adminSymptoms && adminAttachedFiles.length === 0) return addToast("Provide symptoms or attach reports.", "error");
 
         setIsAnalyzing(true);
-        addToast("Microscope-AI Initializing...", "info");
+        addToast("Bio-Aether Oracle Initializing...", "info");
 
         try {
             const filesForAI = adminAttachedFiles.map(f => ({ data: f.data, mimeType: f.type }));
@@ -142,6 +160,43 @@ const AetherMedDashboard: React.FC = () => {
         }
     };
 
+    const startCamera = async () => {
+        setIsCameraOpen(true);
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+            }
+        } catch (err) {
+            addToast("Camera access denied or unavailable.", "error");
+            setIsCameraOpen(false);
+        }
+    };
+
+    const stopCamera = () => {
+        if (videoRef.current && videoRef.current.srcObject) {
+            const stream = videoRef.current.srcObject as MediaStream;
+            stream.getTracks().forEach(track => track.stop());
+        }
+        setIsCameraOpen(false);
+    };
+
+    const captureImage = () => {
+        if (videoRef.current && canvasRef.current) {
+            const context = canvasRef.current.getContext('2d');
+            if (context) {
+                canvasRef.current.width = videoRef.current.videoWidth;
+                canvasRef.current.height = videoRef.current.videoHeight;
+                context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
+                const dataUrl = canvasRef.current.toDataURL('image/jpeg');
+                const base64 = dataUrl.split(',')[1];
+                setAdminAttachedFiles(prev => [...prev, { name: `Scan_${Date.now()}.jpg`, data: base64, type: 'image/jpeg' }]);
+                addToast("Scan captured successfully.", "success");
+                stopCamera();
+            }
+        }
+    };
+
     const filteredMembers = useMemo(() => {
         return members.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()));
     }, [members, searchQuery]);
@@ -161,12 +216,12 @@ const AetherMedDashboard: React.FC = () => {
                         <div>
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="px-4 py-1.5 bg-cyan-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
-                                    <Network className="w-3 h-3" /> Neural Diagnostics
+                                    <Network className="w-3 h-3" /> AI Medical Super-Intelligence
                                 </div>
                                 <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">SYSTEM: ONLINE</span>
                             </div>
                             <h1 className="text-5xl md:text-7xl font-black text-white italic uppercase tracking-tighter leading-none">
-                                Aether <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Med AI</span>
+                                The Bio-Aether <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Oracle</span>
                             </h1>
                         </div>
                     </div>
@@ -181,9 +236,9 @@ const AetherMedDashboard: React.FC = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 
-                {/* LEFT: INCOMING STREAM */}
+                {/* LEFT: INCOMING STREAM & AI SWARM */}
                 <div className="lg:col-span-4 space-y-6">
-                    <Card title="Triage Queue" className="bg-gray-950 border-white/5 p-8 rounded-[3rem] h-[700px] flex flex-col shadow-2xl">
+                    <Card title="Triage Queue" className="bg-gray-950 border-white/5 p-8 rounded-[3rem] h-[400px] flex flex-col shadow-2xl">
                         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-2">
                             {pendingConsults.length === 0 && (
                                 <div className="h-full flex flex-col items-center justify-center text-gray-600 opacity-50">
@@ -220,6 +275,51 @@ const AetherMedDashboard: React.FC = () => {
                                     {selectedConsultId === c.id && <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500"></div>}
                                 </div>
                             ))}
+                        </div>
+                    </Card>
+
+                    {/* AI Autonomous Swarm Widget */}
+                    <Card title="Autonomous AI Swarm" className="bg-[#050505] border-cyan-500/20 p-6 rounded-[3rem] shadow-2xl relative overflow-hidden h-[276px]">
+                        <div className="absolute top-0 right-0 p-4 opacity-10"><Network className="w-32 h-32 text-cyan-400 animate-pulse" /></div>
+                        <div className="relative z-10 space-y-4 mt-2">
+                            <div className="flex items-center justify-between bg-black/50 p-3 rounded-2xl border border-white/5">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-blue-900/30 flex items-center justify-center border border-blue-500/30">
+                                        <Database className="w-4 h-4 text-blue-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-white">PubMed Crawler</p>
+                                        <p className="text-[9px] text-gray-500 uppercase tracking-widest">Fetching Latest Trials</p>
+                                    </div>
+                                </div>
+                                <div className="w-2 h-2 rounded-full bg-blue-500 animate-ping"></div>
+                            </div>
+                            
+                            <div className="flex items-center justify-between bg-black/50 p-3 rounded-2xl border border-white/5">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-purple-900/30 flex items-center justify-center border border-purple-500/30">
+                                        <Cpu className="w-4 h-4 text-purple-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-white">Protocol Auto-Updater</p>
+                                        <p className="text-[9px] text-gray-500 uppercase tracking-widest">Syncing Global Standards</p>
+                                    </div>
+                                </div>
+                                <div className="w-2 h-2 rounded-full bg-purple-500 animate-ping" style={{ animationDelay: '0.5s' }}></div>
+                            </div>
+
+                            <div className="flex items-center justify-between bg-black/50 p-3 rounded-2xl border border-white/5">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-emerald-900/30 flex items-center justify-center border border-emerald-500/30">
+                                        <Radio className="w-4 h-4 text-emerald-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-white">Genomic AI Sync</p>
+                                        <p className="text-[9px] text-emerald-500 uppercase tracking-widest">System Integrated</p>
+                                    </div>
+                                </div>
+                                <CheckCircle className="w-4 h-4 text-emerald-500" />
+                            </div>
                         </div>
                     </Card>
                 </div>
@@ -270,7 +370,7 @@ const AetherMedDashboard: React.FC = () => {
                                 
                                 <div className="relative z-10">
                                     <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter mb-6 flex items-center gap-3">
-                                        <BotIcon className="w-8 h-8 text-cyan-400"/> Neural Diagnosis
+                                        <BotIcon className="w-8 h-8 text-cyan-400"/> Oracle Diagnosis
                                     </h3>
 
                                     {selectedConsult.aiDiagnosis ? (
@@ -322,6 +422,25 @@ const AetherMedDashboard: React.FC = () => {
                                                                     {selectedConsult.aiPrescription || analysis.treatment}
                                                                 </div>
                                                             </div>
+
+                                                            {/* Latest Research Links */}
+                                                            {analysis.latest_research_links && analysis.latest_research_links.length > 0 && (
+                                                                <div className="bg-blue-900/10 border border-blue-500/20 p-6 rounded-3xl">
+                                                                    <p className="text-[10px] text-blue-400 font-black uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                                        <Link2 className="w-3 h-3"/> Global Medical Research Sources
+                                                                    </p>
+                                                                    <ul className="space-y-2">
+                                                                        {analysis.latest_research_links.map((link: string, idx: number) => (
+                                                                            <li key={idx} className="flex items-start gap-2">
+                                                                                <div className="mt-1 w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></div>
+                                                                                <a href={link} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-300 hover:text-blue-200 hover:underline break-all">
+                                                                                    {link}
+                                                                                </a>
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     );
                                                 } catch (e) {
@@ -424,15 +543,23 @@ const AetherMedDashboard: React.FC = () => {
                             <label className={`flex-1 py-4 rounded-2xl border-2 border-dashed flex items-center justify-center gap-2 transition-all cursor-pointer ${selectedMemberId ? 'border-cyan-500/30 hover:border-cyan-500 bg-cyan-500/5 text-cyan-400' : 'border-gray-800 text-gray-600 opacity-50 cursor-not-allowed'}`}>
                                 <Upload className="w-4 h-4" />
                                 <span className="text-[10px] font-black uppercase tracking-widest">Attach Files</span>
-                                <input 
-                                    type="file" 
-                                    multiple
-                                    className="hidden" 
-                                    onChange={handleAdminReportUpload} 
-                                    disabled={!selectedMemberId || isAnalyzing} 
-                                    accept=".pdf,.jpg,.png"
-                                />
+                                     <input 
+                                         type="file" 
+                                         multiple
+                                         className="hidden" 
+                                         onChange={handleAdminReportUpload} 
+                                         disabled={!selectedMemberId || isAnalyzing} 
+                                         accept="*/*"
+                                     />
                             </label>
+                            <button 
+                                onClick={isCameraOpen ? captureImage : startCamera}
+                                disabled={!selectedMemberId || isAnalyzing}
+                                className={`flex-1 py-4 rounded-2xl border-2 border-dashed flex items-center justify-center gap-2 transition-all cursor-pointer ${selectedMemberId ? 'border-purple-500/30 hover:border-purple-500 bg-purple-500/5 text-purple-400' : 'border-gray-800 text-gray-600 opacity-50 cursor-not-allowed'}`}
+                            >
+                                <Camera className="w-4 h-4" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">{isCameraOpen ? 'Capture Scan' : 'Live Scan'}</span>
+                            </button>
                             <button 
                                 onClick={handleAdminAnalyze}
                                 disabled={!selectedMemberId || (!adminSymptoms && adminAttachedFiles.length === 0) || isAnalyzing}
@@ -442,6 +569,23 @@ const AetherMedDashboard: React.FC = () => {
                                 {isAnalyzing ? 'ANALYZING...' : 'ANALYZE DATA'}
                             </button>
                         </div>
+                        
+                        {isCameraOpen && (
+                            <div className="relative rounded-2xl overflow-hidden border border-purple-500/30 bg-black aspect-video mt-4">
+                                <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 border-2 border-purple-500/50 rounded-2xl pointer-events-none"></div>
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border border-purple-400/50 rounded-lg pointer-events-none flex items-center justify-center">
+                                    <Scan className="w-12 h-12 text-purple-400/50 animate-pulse" />
+                                </div>
+                                <button 
+                                    onClick={stopCamera}
+                                    className="absolute top-4 right-4 bg-black/50 p-2 rounded-full text-white hover:bg-red-500/50 transition-colors"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                        )}
+                        <canvas ref={canvasRef} className="hidden" />
                     </div>
                 </div>
             </Modal>

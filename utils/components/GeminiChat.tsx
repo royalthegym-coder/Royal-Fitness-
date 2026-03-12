@@ -35,7 +35,7 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
             const roleTitle = context?.role === 'admin' ? 'Commander' : 'Athlete';
             setHistory([{ 
                 role: 'model', 
-                text: `**Neural Overlord v32.0 Online.**\nBiometric handshake successful. Welcome back, ${roleTitle} ${context?.memberName || ''}. All systems are operating at peak efficiency. How shall we optimize the fitness matrix today?` 
+                text: `**Quantum Overlord v32.0 Online.**\nBiometric handshake successful. Welcome back, ${roleTitle} ${context?.memberName || ''}. All systems are operating at peak efficiency. How shall we optimize the fitness matrix today?` 
             }]);
         }
     }, [isOpen, context]);
@@ -56,7 +56,7 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
         setCurrentThoughts([]);
 
         const thoughts = [
-            "Accessing encrypted bio-ledger...",
+            "Accessing encrypted quantum-ledger...",
             "Analyzing kinetic data patterns...",
             "Synthesizing nutritional variables...",
             "Optimizing neural response architecture...",
@@ -77,14 +77,14 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
 
     const generateResponse = async (text: string) => {
         try {
-            const prompt = `You are "Neural Overlord", the supreme AI consciousness of 'Royal The Gym'.
+            const prompt = `You are "Quantum Overlord", the supreme AI consciousness of 'Royal The Gym'.
             User Role: ${context?.role}. User ID: ${context?.memberId}. 
             User Query: ${text}
             
             Guidelines:
             - Speak with authority, precision, and a futuristic tone.
             - Address the user as "Commander" (if admin) or "Athlete" (if member).
-            - Reference "Neural OS" and "The Singularity" where appropriate.
+            - Reference "Quantum OS" and "The Singularity" where appropriate.
             - Keep response under 60 words. Use markdown.
             - Gym Info: Gandhi Chowk, Jhunjhunu. Fees: 1200/mo.`;
 
@@ -125,7 +125,7 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
                             </div>
                         </div>
                         <div>
-                            <h3 className="text-white font-black text-base uppercase tracking-[0.3em] italic">Neural Overlord</h3>
+                            <h3 className="text-white font-black text-base uppercase tracking-[0.3em] italic">Quantum Overlord</h3>
                             <div className="flex items-center gap-2 mt-1">
                                 <div className="flex gap-0.5">
                                     {[1,2,3].map(i => <div key={i} className="w-1 h-1 rounded-full bg-indigo-500 animate-pulse" style={{ animationDelay: `${i * 0.2}s` }}></div>)}
@@ -185,7 +185,7 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
                             <div className="bg-gray-900/40 border border-indigo-500/20 rounded-[2rem] rounded-bl-none p-6 max-w-[85%] backdrop-blur-sm">
                                 <div className="flex items-center gap-3 mb-4">
                                     <Activity className="w-3 h-3 text-indigo-500 animate-pulse" />
-                                    <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest">Neural Trace Active</span>
+                                    <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest">Quantum Trace Active</span>
                                 </div>
                                 <div className="space-y-3">
                                     {currentThoughts.map((thought, i) => (
@@ -230,7 +230,7 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
                         </button>
                     </div>
                     <p className="text-center text-[8px] text-gray-600 uppercase tracking-[0.3em] mt-4 font-black">
-                        Authorized Personnel Only • Neural OS v32.0
+                        Authorized Personnel Only • Quantum OS v32.0
                     </p>
                 </div>
             </motion.div>

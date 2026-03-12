@@ -135,9 +135,14 @@ const AutomationHub: React.FC = () => {
                                     Live Sync Active
                                 </span>
                             </div>
-                            <h1 className="text-5xl font-black text-white italic uppercase tracking-tighter">
+                            <h1 className="text-5xl font-black text-white italic uppercase tracking-tighter mb-4">
                                 Automation <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-600">Singularity</span>
                             </h1>
+                            <div className="space-y-1">
+                                <p className="text-[10px] font-black text-cyan-400 uppercase tracking-[0.3em] animate-pulse">
+                                    World's Fastest & Latest Open-Source AI-POWERED Quantum Computer OS
+                                </p>
+                            </div>
                         </div>
                     </div>
 

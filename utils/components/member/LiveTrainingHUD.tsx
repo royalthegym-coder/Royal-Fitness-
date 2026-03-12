@@ -40,6 +40,12 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
     const [formScore, setFormScore] = useState(100);
     const [liveFeedback, setLiveFeedback] = useState("Awaiting Motion...");
     
+    // Autonomous Intensity Bot State
+    const [currentWeight, setCurrentWeight] = useState(50); // Default starting weight
+    const [targetReps, setTargetReps] = useState(parseInt(sets.split('x')[1] || '10'));
+    const [intensityAlert, setIntensityAlert] = useState<{message: string, type: 'increase' | 'decrease' | 'maintain'} | null>(null);
+    const velocityHistory = useRef<number[]>([]);
+
     // AI Audit Report
     const [aiAuditReport, setAiAuditReport] = useState<string | null>(null);
     const [isThinking, setIsThinking] = useState(false);
@@ -82,6 +88,49 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
             }
         } catch (e) { console.warn("Voice link interrupted"); }
     };
+
+    // --- 1.5 AUTONOMOUS INTENSITY BOT LOGIC ---
+    useEffect(() => {
+        if (phase !== 'Active' || velocity === 0) return;
+
+        // Track velocity over time
+        velocityHistory.current.push(velocity);
+        if (velocityHistory.current.length > 10) {
+            velocityHistory.current.shift();
+        }
+
+        // Analyze velocity trend every 5 reps or if velocity drops significantly
+        if (repCount > 0 && repCount % 3 === 0) {
+            const avgVelocity = velocityHistory.current.reduce((a, b) => a + b, 0) / velocityHistory.current.length;
+            
+            if (avgVelocity > 1.2) {
+                // Moving too fast - weight is too light
+                setIntensityAlert({ message: "Velocity high. Increase weight by 5kg.", type: 'increase' });
+                setCurrentWeight(prev => prev + 5);
+                speak("Weight is too light. Increasing load by 5 kilograms for optimal hypertrophy.");
+                velocityHistory.current = []; // Reset history after adjustment
+            } else if (avgVelocity < 0.4 && formScore > 80) {
+                // Moving too slow but form is good - approaching failure
+                setIntensityAlert({ message: "Velocity dropping. Pushing to failure. Maintain form.", type: 'maintain' });
+                speak("Velocity dropping. You are approaching failure. Push through.");
+                velocityHistory.current = [];
+            } else if (avgVelocity < 0.3 && formScore < 70) {
+                // Moving too slow and form is breaking down - weight is too heavy
+                setIntensityAlert({ message: "Form breakdown detected. Decrease weight by 5kg.", type: 'decrease' });
+                setCurrentWeight(prev => Math.max(0, prev - 5));
+                speak("Form breakdown detected. Decreasing load by 5 kilograms to prevent injury.");
+                velocityHistory.current = [];
+            }
+        }
+    }, [repCount, velocity, formScore, phase]);
+
+    // Clear alert after 5 seconds
+    useEffect(() => {
+        if (intensityAlert) {
+            const timer = setTimeout(() => setIntensityAlert(null), 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [intensityAlert]);
 
     // --- 2. OPTICAL SENSOR HANDSHAKE (MediaPipe Integration) ---
     useEffect(() => {
@@ -527,6 +576,22 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
                                      style={{ left: `${symmetry}%` }}
                                  ></div>
                              </div>
+                         </div>
+                         
+                         {/* Autonomous Intensity Bot Display */}
+                         <div className="bg-black/60 backdrop-blur-xl p-5 rounded-[2rem] border border-white/10 w-48 shadow-2xl relative overflow-hidden">
+                             {intensityAlert && (
+                                 <div className={`absolute inset-0 z-0 opacity-20 animate-pulse ${intensityAlert.type === 'increase' ? 'bg-cyan-500' : intensityAlert.type === 'decrease' ? 'bg-red-500' : 'bg-amber-500'}`}></div>
+                             )}
+                             <p className="text-[9px] font-black text-cyan-400 uppercase tracking-widest mb-1 relative z-10 flex items-center gap-2">
+                                 <BrainCircuit className="w-3 h-3"/> Auto-Load
+                             </p>
+                             <p className="text-3xl font-black text-white italic relative z-10">{currentWeight} <span className="text-sm text-gray-500">kg</span></p>
+                             {intensityAlert && (
+                                 <p className={`text-[8px] font-bold uppercase mt-1 relative z-10 ${intensityAlert.type === 'increase' ? 'text-cyan-400' : intensityAlert.type === 'decrease' ? 'text-red-400' : 'text-amber-400'}`}>
+                                     {intensityAlert.message}
+                                 </p>
+                             )}
                          </div>
                      </div>
 

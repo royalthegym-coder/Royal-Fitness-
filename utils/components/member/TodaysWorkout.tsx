@@ -99,7 +99,7 @@ const NotesModal: React.FC<{
 };
 
 const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => void }> = ({ memberId, setActiveView }) => {
-    const { addRoutineLog, liveHealthData, addDetailedWorkoutLog, members, detailedWorkoutLogs, workoutTemplates } = useData();
+    const { addRoutineLog, liveHealthData, addDetailedWorkoutLog, members, detailedWorkoutLogs, workoutTemplates, updateMember } = useData();
     const { addToast } = useToast();
     const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 1000 / 60 / 60 / 24);
     
@@ -133,11 +133,27 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
     // Modals
     const [notesModalEx, setNotesModalEx] = useState<string | null>(null);
     const [historyModalEx, setHistoryModalEx] = useState<string | null>(null);
+    const [isAiAdjustModalOpen, setIsAiAdjustModalOpen] = useState(false);
+    const [isOptimizeFutureModalOpen, setIsOptimizeFutureModalOpen] = useState(false);
+    const [userFeedback, setUserFeedback] = useState('');
+    const [isAdjusting, setIsAdjusting] = useState(false);
+    const [isOptimizingFuture, setIsOptimizingFuture] = useState(false);
+    const [aiModifiedWorkout, setAiModifiedWorkout] = useState<Record<string, WorkoutExercise[]> | null>(null);
     
     // --- LOGIC: BUILD THE DYNAMIC WORKOUT STRUCTURE ---
     const generatedWorkout: Record<string, WorkoutExercise[]> = useMemo(() => {
         // 1. Check for Admin Assigned Plan
         if (member?.approvedAiPlan) {
+            try {
+                // Try parsing it as JSON first (from Optimize Future Plan)
+                const parsedPlan = JSON.parse(member.approvedAiPlan);
+                if (typeof parsedPlan === 'object' && !Array.isArray(parsedPlan)) {
+                    return parsedPlan;
+                }
+            } catch (e) {
+                // Not JSON, continue to template matching
+            }
+
             const assignedTemplate = workoutTemplates.find(t => t.name === member.approvedAiPlan);
             if (assignedTemplate) {
                 // Return the assigned template structure
@@ -181,10 +197,12 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
         return structure;
     }, [userLevel, dayOfYear, member, workoutTemplates]);
 
+    const activeWorkout = useMemo(() => aiModifiedWorkout || generatedWorkout, [aiModifiedWorkout, generatedWorkout]);
+
     // Init Logs
     useEffect(() => {
         const init: Record<string, DetailedSetLog[]> = {};
-        Object.values(generatedWorkout).flat().forEach(ex => {
+        (Object.values(activeWorkout).flat() as WorkoutExercise[]).forEach(ex => {
             const targetSets = parseInt(ex.sets || '3');
             init[ex.name] = Array(targetSets).fill(null).map((_, i) => ({
                 setNumber: i + 1,
@@ -195,7 +213,7 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
             }));
         });
         setActiveLogs(prev => ({ ...init, ...prev }));
-    }, [generatedWorkout]);
+    }, [activeWorkout]);
 
     // Timer Logic
     useEffect(() => {
@@ -258,7 +276,7 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                 log_id: `WORKOUT_${Date.now()}`,
                 member_id: memberId,
                 task_type: 'Workout',
-                task_desc: `Completed: ${Object.keys(generatedWorkout)[1]}`,
+                task_desc: `Completed: ${Object.keys(activeWorkout)[1] || 'Workout'}`,
                 task_time: new Date().toLocaleTimeString(),
                 is_done: true
             });
@@ -334,35 +352,62 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                         </div>
                     </div>
                     
-                    {/* PDF Download Button */}
-                    <button 
-                        onClick={() => {
-                            // Convert generatedWorkout to WorkoutTemplate format for PDF
-                            const template = {
-                                id: 1,
-                                name: `Battle Deck - ${userLevel}`,
-                                level: userLevel as any,
-                                category: 'Daily Protocol',
-                                description: 'AI-Generated Daily Workout Protocol synced via N8N.',
-                                preWorkout: { name: Object.keys(generatedWorkout)[0] || 'Warmup', exercises: Object.values(generatedWorkout)[0] || [] },
-                                mainWorkout: Object.entries(generatedWorkout).slice(1, -1).map(([name, exercises]) => ({ name, exercises })),
-                                finisher: { name: Object.keys(generatedWorkout)[Object.keys(generatedWorkout).length - 1] || 'Finisher', exercises: Object.values(generatedWorkout)[Object.keys(generatedWorkout).length - 1] || [] }
-                            };
-                            generateWorkoutPDF(template, member);
-                            addToast('PDF Downloaded Successfully', 'success');
-                        }}
-                        className="mt-6 md:mt-0 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center gap-2 border border-white/20 backdrop-blur-md transition-all active:scale-95"
-                    >
-                        <Download className="w-4 h-4" /> Download PDF
-                    </button>
+                    <div className="flex flex-col md:flex-row gap-4 mt-6 md:mt-0">
+                        <button 
+                            onClick={() => setIsOptimizeFutureModalOpen(true)}
+                            className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 px-6 py-3 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center gap-2 border border-purple-500/30 backdrop-blur-md transition-all active:scale-95"
+                        >
+                            <SparkleIcon className="w-4 h-4" /> Optimize Future Plan
+                        </button>
+                        <button 
+                            onClick={() => setIsAiAdjustModalOpen(true)}
+                            className="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 px-6 py-3 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center gap-2 border border-cyan-500/30 backdrop-blur-md transition-all active:scale-95"
+                        >
+                            <BrainCircuit className="w-4 h-4" /> AI Adjust Workout
+                        </button>
+                        <button 
+                            onClick={() => {
+                                // Convert activeWorkout to WorkoutTemplate format for PDF
+                                const template = {
+                                    id: 1,
+                                    name: `Battle Deck - ${userLevel}`,
+                                    level: userLevel as any,
+                                    category: 'Daily Protocol',
+                                    description: 'AI-Generated Daily Workout Protocol synced via N8N.',
+                                    preWorkout: { name: Object.keys(activeWorkout)[0] || 'Warmup', exercises: (Object.values(activeWorkout)[0] as WorkoutExercise[]) || [] },
+                                    mainWorkout: Object.entries(activeWorkout).slice(1, -1).map(([name, exercises]) => ({ name, exercises: exercises as WorkoutExercise[] })),
+                                    finisher: { name: Object.keys(activeWorkout)[Object.keys(activeWorkout).length - 1] || 'Finisher', exercises: (Object.values(activeWorkout)[Object.keys(activeWorkout).length - 1] as WorkoutExercise[]) || [] }
+                                };
+                                generateWorkoutPDF(template, member);
+                                addToast('PDF Downloaded Successfully', 'success');
+                            }}
+                            className="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center gap-2 border border-white/20 backdrop-blur-md transition-all active:scale-95"
+                        >
+                            <Download className="w-4 h-4" /> Download PDF
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {Object.entries(generatedWorkout).map(([phaseName, exercises], phaseIdx) => (
-                <div key={phaseIdx} className="space-y-6">
-                    <div className="flex justify-between items-center pl-4 border-l-4 border-amber-500 bg-gray-900/20 p-4 rounded-r-2xl">
-                        <h3 className="text-xl font-black text-white uppercase tracking-[0.2em] italic">{phaseName}</h3>
-                        {phaseName.includes('Finisher') && <span className="text-[10px] font-black bg-red-600 text-white px-3 py-1 rounded-full uppercase tracking-widest">Mandatory</span>}
+            {Object.entries(activeWorkout).map(([phaseName, exercisesRaw], phaseIdx) => {
+                const exercises = exercisesRaw as WorkoutExercise[];
+                const isSectionComplete = exercises.every(ex => {
+                    const setsData = activeLogs[ex.name || 'Exercise'] || [];
+                    return setsData.length > 0 && setsData.every(set => set.completed);
+                });
+
+                return (
+                <div key={phaseIdx} className={`space-y-6 transition-all duration-500 ${isSectionComplete ? 'opacity-80' : ''}`}>
+                    <div className={`flex justify-between items-center pl-4 border-l-4 ${isSectionComplete ? 'border-green-500 bg-green-900/20' : 'border-amber-500 bg-gray-900/20'} p-4 rounded-r-2xl transition-colors duration-500`}>
+                        <div className="flex items-center gap-3">
+                            <h3 className={`text-xl font-black uppercase tracking-[0.2em] italic ${isSectionComplete ? 'text-green-400' : 'text-white'}`}>{phaseName}</h3>
+                            {isSectionComplete && (
+                                <span className="flex items-center gap-1 text-[10px] font-black bg-green-500/20 text-green-400 px-2 py-1 rounded-full uppercase tracking-widest border border-green-500/30 animate-pulse">
+                                    <Check className="w-3 h-3" /> Cleared
+                                </span>
+                            )}
+                        </div>
+                        {phaseName.includes('Finisher') && !isSectionComplete && <span className="text-[10px] font-black bg-red-600 text-white px-3 py-1 rounded-full uppercase tracking-widest">Mandatory</span>}
                     </div>
                     
                     <div className="grid grid-cols-1 gap-6">
@@ -450,7 +495,8 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                         })}
                     </div>
                 </div>
-            ))}
+                );
+            })}
 
             <div className="pt-24 pb-12">
                 <button 
@@ -516,6 +562,137 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
             >
                 <MessageCircle className="w-6 h-6" />
             </a>
+
+            {/* AI Adjust Workout Modal */}
+            <Modal isOpen={isAiAdjustModalOpen} onClose={() => setIsAiAdjustModalOpen(false)} title="AI Workout Adjuster">
+                <div className="space-y-6">
+                    <div className="bg-cyan-900/10 border border-cyan-500/30 p-4 rounded-xl">
+                        <p className="text-[10px] font-black text-cyan-500 uppercase tracking-widest flex items-center gap-2">
+                            <BrainCircuit className="w-4 h-4" /> Royal-Core AI
+                        </p>
+                        <p className="text-xs text-gray-300 mt-2">
+                            Describe how you are feeling today. Any pain, fatigue, or specific requests? I will analyze your past performance and adjust today's protocol.
+                        </p>
+                    </div>
+                    
+                    <textarea 
+                        value={userFeedback}
+                        onChange={(e) => setUserFeedback(e.target.value)}
+                        className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white text-sm outline-none focus:border-cyan-500 min-h-[120px]"
+                        placeholder="e.g., My lower back feels tight today, can we avoid heavy squats?"
+                    />
+                    
+                    <div className="flex gap-3">
+                        <button 
+                            onClick={() => setIsAiAdjustModalOpen(false)} 
+                            className="flex-1 py-4 bg-gray-900 rounded-xl text-xs font-bold text-gray-400 hover:text-white"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={async () => {
+                                setIsAdjusting(true);
+                                addToast("Analyzing past logs and feedback...", "info");
+                                try {
+                                    const { suggestWorkoutModification } = await import('../../../lib/aiWorkout');
+                                    const pastLogs = detailedWorkoutLogs.filter(l => l.memberId === memberId);
+                                    const result = await suggestWorkoutModification(activeWorkout, pastLogs, userFeedback, member);
+                                    
+                                    if (result.modified_workout && result.modified_workout.length > 0) {
+                                        const newWorkout: Record<string, WorkoutExercise[]> = {};
+                                        result.modified_workout.forEach(phase => {
+                                            newWorkout[phase.category] = phase.exercises.map(ex => ({
+                                                name: ex.name,
+                                                sets: ex.sets,
+                                                reps: ex.reps
+                                            }));
+                                        });
+                                        setAiModifiedWorkout(newWorkout);
+                                        addToast("Workout Adjusted Successfully", "success");
+                                    } else {
+                                        addToast("Could not generate a new workout.", "error");
+                                    }
+                                } catch (e) {
+                                    addToast("AI Adjustment Failed.", "error");
+                                } finally {
+                                    setIsAdjusting(false);
+                                    setIsAiAdjustModalOpen(false);
+                                    setUserFeedback('');
+                                }
+                            }} 
+                            disabled={isAdjusting || !userFeedback.trim()}
+                            className="flex-[2] py-4 bg-cyan-500 text-black rounded-xl text-xs font-black uppercase flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {isAdjusting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                            {isAdjusting ? 'Re-calibrating...' : 'Adjust Protocol'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Optimize Future Plan Modal */}
+            <Modal isOpen={isOptimizeFutureModalOpen} onClose={() => setIsOptimizeFutureModalOpen(false)} title="Optimize Future Plan">
+                <div className="space-y-6">
+                    <div className="bg-purple-900/10 border border-purple-500/30 p-4 rounded-xl">
+                        <p className="text-[10px] font-black text-purple-500 uppercase tracking-widest flex items-center gap-2">
+                            <BrainCircuit className="w-4 h-4" /> Royal-Core AI
+                        </p>
+                        <p className="text-xs text-gray-300 mt-2">
+                            I will analyze your historical performance logs to automatically adjust intensity, volume, and exercise selection for your future workout plans.
+                        </p>
+                    </div>
+                    
+                    <div className="flex gap-3">
+                        <button 
+                            onClick={() => setIsOptimizeFutureModalOpen(false)} 
+                            className="flex-1 py-4 bg-gray-900 rounded-xl text-xs font-bold text-gray-400 hover:text-white"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={async () => {
+                                setIsOptimizingFuture(true);
+                                addToast("Analyzing historical performance data...", "info");
+                                try {
+                                    const { analyzeAndAdjustFuturePlans } = await import('../../../lib/aiWorkout');
+                                    const pastLogs = detailedWorkoutLogs.filter(l => l.memberId === memberId);
+                                    const result = await analyzeAndAdjustFuturePlans(pastLogs, member);
+                                    
+                                    if (result.modified_workout && result.modified_workout.length > 0) {
+                                        const newWorkout: Record<string, WorkoutExercise[]> = {};
+                                        result.modified_workout.forEach(phase => {
+                                            newWorkout[phase.category] = phase.exercises.map(ex => ({
+                                                name: ex.name,
+                                                sets: ex.sets,
+                                                reps: ex.reps
+                                            }));
+                                        });
+                                        
+                                        // Save to member profile or just set it as active for now
+                                        const updatedMember = { ...member, approvedAiPlan: JSON.stringify(newWorkout) };
+                                        updateMember(updatedMember);
+                                        
+                                        setAiModifiedWorkout(newWorkout);
+                                        addToast("Future Plan Optimized & Saved Successfully", "success");
+                                    } else {
+                                        addToast("Could not optimize future plan.", "error");
+                                    }
+                                } catch (e) {
+                                    addToast("Optimization Failed.", "error");
+                                } finally {
+                                    setIsOptimizingFuture(false);
+                                    setIsOptimizeFutureModalOpen(false);
+                                }
+                            }} 
+                            disabled={isOptimizingFuture}
+                            className="flex-[2] py-4 bg-purple-500 text-white rounded-xl text-xs font-black uppercase flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {isOptimizingFuture ? <RefreshCw className="w-4 h-4 animate-spin" /> : <SparkleIcon className="w-4 h-4" />}
+                            {isOptimizingFuture ? 'Optimizing...' : 'Optimize Plan'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 };

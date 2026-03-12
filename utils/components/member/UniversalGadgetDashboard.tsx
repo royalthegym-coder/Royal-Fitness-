@@ -200,7 +200,7 @@ export const UniversalGadgetDashboard: React.FC = () => {
                         {aiAlert.type === 'warning' ? <AlertTriangle className="w-6 h-6" /> : <BrainCircuit className="w-6 h-6" />}
                     </div>
                     <div>
-                        <h4 className="text-xs font-black uppercase tracking-widest mb-1">AI Doctor Pivot</h4>
+                        <h4 className="text-xs font-black uppercase tracking-widest mb-1">Bio-Aether Oracle Pivot</h4>
                         <p className="text-sm font-medium">{aiAlert.message}</p>
                     </div>
                 </div>

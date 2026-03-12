@@ -1,10 +1,11 @@
 {
-  "name": "Royal The Gym",
-  "description": "Stable Origin v1.0 - The Living Digital Organism.",
-  "version": "1.0.0",
+  "name": "Royal The Gym Management",
+  "description": "Gym management system with biometric authentication",
   "requestFramePermissions": [
     "camera",
     "microphone",
-    "geolocation"
+    "geolocation",
+    "publickey-credentials-create",
+    "publickey-credentials-get"
   ]
 }

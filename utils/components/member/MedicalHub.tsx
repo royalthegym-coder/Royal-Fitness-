@@ -184,7 +184,8 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []) as File[];
+        const target = e.target;
+        const files = Array.from(target.files || []) as File[];
         if (files.length === 0) return;
         
         setIsUploading(true);
@@ -192,12 +193,20 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
         
         try {
             const newFiles: {name: string, data: string, type: string}[] = [];
-            const MAX_SIZE = 10 * 1024 * 1024; // 10MB limit to prevent crashes
+            const MAX_SIZE = 1 * 1024 * 1024; // 1MB limit to prevent crashes
 
             for (const file of files) {
                 if (file.size > MAX_SIZE) {
-                    addToast(`Skipped ${file.name}: File too large (>10MB)`, "error");
+                    addToast(`Skipped ${file.name}: File too large (>1MB)`, "error");
                     continue;
+                }
+
+                let mimeType = file.type;
+                if (!mimeType) {
+                    if (file.name.endsWith('.pdf')) mimeType = 'application/pdf';
+                    else if (file.name.endsWith('.csv')) mimeType = 'text/csv';
+                    else if (file.name.endsWith('.txt')) mimeType = 'text/plain';
+                    else mimeType = 'application/octet-stream';
                 }
 
                 const reader = new FileReader();
@@ -205,10 +214,7 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
                     reader.onload = () => {
                         const res = reader.result?.toString();
                         if (res) {
-                            const base64 = res.split(',')[1];
-                            if (base64) {
-                                newFiles.push({ name: file.name, data: base64, type: file.type });
-                            }
+                            newFiles.push({ name: file.name, data: res, type: mimeType });
                         }
                         resolve();
                     };
@@ -223,7 +229,7 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
             }
             
             // Reset input so same file can be selected again if needed
-            if (e.target) e.target.value = '';
+            try { if (target) target.value = ''; } catch(e) {}
         } catch (error) {
             console.error(error);
             addToast("Failed to read files. Please try again.", "error");
@@ -319,7 +325,7 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
                         <label className="flex-1 bg-gray-900 border border-white/10 text-white font-black py-6 rounded-[2.5rem] hover:border-cyan-500/50 transition-all uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 active:scale-95 cursor-pointer">
                             <FileText className="w-5 h-5"/>
                             {isUploading ? 'Analyzing...' : 'Upload Report'}
-                            <input type="file" multiple className="hidden" onChange={handleFileUpload} accept="image/*,.pdf,.doc,.docx,.txt,.csv,.xls,.xlsx" disabled={isUploading} />
+                            <input type="file" multiple className="hidden" onChange={handleFileUpload} accept="*/*" disabled={isUploading} />
                         </label>
                     </div>
                 </div>
@@ -446,7 +452,7 @@ const MedicalHub: React.FC<{ memberId: number }> = ({ memberId }) => {
                                          <div className="flex gap-3 mt-4">
                                              <label className="flex-1 py-4 bg-gray-800 border border-white/10 text-white font-black rounded-2xl uppercase tracking-widest text-[10px] hover:bg-gray-700 transition-all flex items-center justify-center gap-2 cursor-pointer">
                                                  <FileText className="w-4 h-4"/> Upload Files
-                                                 <input type="file" multiple className="hidden" onChange={handleFileUpload} accept="image/*,.pdf,.doc,.docx,.txt,.csv,.xls,.xlsx" disabled={isUploading} />
+                                                 <input type="file" multiple className="hidden" onChange={handleFileUpload} accept="*/*" disabled={isUploading} />
                                              </label>
                                              <label className="flex-1 py-4 bg-gray-800 border border-white/10 text-white font-black rounded-2xl uppercase tracking-widest text-[10px] hover:bg-gray-700 transition-all flex items-center justify-center gap-2 cursor-pointer">
                                                  <Camera className="w-4 h-4"/> Camera

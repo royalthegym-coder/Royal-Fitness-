@@ -1,0 +1,10 @@
+{
+  "name": "Royal The Gym",
+  "description": "Stable Origin v1.0 - The Living Digital Organism.",
+  "version": "1.0.0",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

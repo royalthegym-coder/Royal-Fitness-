@@ -45,21 +45,15 @@ const AIPostureCorrection = () => {
 
     // Camera Lifecycle Management
     useEffect(() => {
-        let analysisInterval: ReturnType<typeof setInterval>;
-
         if (isScanning) {
             startCamera();
-            // Gemini Vision Analysis Loop (Every 4 seconds to avoid rate limits but keep it updated)
-            analysisInterval = setInterval(captureAndAnalyze, 4000);
             // Visual Animation Loop (60fps)
             renderLoop();
         } else {
             stopCamera();
             if (frameIdRef.current) cancelAnimationFrame(frameIdRef.current);
-            if (analysisInterval) clearInterval(analysisInterval);
         }
         return () => {
-            if (analysisInterval) clearInterval(analysisInterval);
             if (frameIdRef.current) cancelAnimationFrame(frameIdRef.current);
             stopCamera();
         };
@@ -353,20 +347,30 @@ const AIPostureCorrection = () => {
                 )}
             </div>
 
-            <button 
-                onClick={() => setIsScanning(!isScanning)}
-                className={`w-full py-4 font-bold rounded-xl transition-all flex items-center justify-center tracking-widest text-sm shadow-lg ${
-                    isScanning 
-                    ? 'bg-red-600/90 hover:bg-red-500 text-white shadow-red-900/50' 
-                    : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-900/50'
-                }`}
-            >
-                {isScanning ? (
-                    <><div className="w-3 h-3 bg-white rounded-full mr-2 animate-pulse"></div> END SESSION</>
-                ) : (
-                    <><SparkleIcon className="w-5 h-5 mr-2" /> ACTIVATE VISION CORE</>
+            <div className="flex gap-2">
+                <button 
+                    onClick={() => setIsScanning(!isScanning)}
+                    className={`flex-1 py-4 font-bold rounded-xl transition-all flex items-center justify-center tracking-widest text-sm shadow-lg ${
+                        isScanning 
+                        ? 'bg-red-600/90 hover:bg-red-500 text-white shadow-red-900/50' 
+                        : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-900/50'
+                    }`}
+                >
+                    {isScanning ? (
+                        <><div className="w-3 h-3 bg-white rounded-full mr-2 animate-pulse"></div> END SESSION</>
+                    ) : (
+                        <><SparkleIcon className="w-5 h-5 mr-2" /> ACTIVATE VISION CORE</>
+                    )}
+                </button>
+                {isScanning && (
+                    <button
+                        onClick={captureAndAnalyze}
+                        className="flex-1 py-4 font-bold rounded-xl transition-all flex items-center justify-center tracking-widest text-sm shadow-lg bg-green-600/90 hover:bg-green-500 text-white shadow-green-900/50"
+                    >
+                        <CameraIcon className="w-5 h-5 mr-2" /> ANALYZE FRAME
+                    </button>
                 )}
-            </button>
+            </div>
         </Card>
     );
 };

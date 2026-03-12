@@ -27,6 +27,9 @@ const AutomationDashboard: React.FC = () => {
                         Auto-<span className="text-amber-400">Flow</span>
                     </h1>
                     <p className="text-gray-500 text-xs font-mono mt-2 tracking-widest uppercase">Logic Gate Management</p>
+                    <p className="text-cyan-400 text-[10px] font-black mt-4 uppercase tracking-[0.2em] animate-pulse">
+                        Powered by GitHub & N8N Mixed Full Automation & Auto Optimization
+                    </p>
                  </div>
                  <button className="bg-white text-black px-6 py-3 rounded-2xl font-black uppercase text-xs flex items-center gap-2 hover:bg-amber-400 transition-all">
                      <Plus className="w-4 h-4"/> Create Flow

@@ -15,7 +15,7 @@ export type View =
     // Member views
     | 'dailyProtocol' | 'attendance' | 'workout' | 'futureOFS' | 'neuralRep' | 'performanceLab'
     | 'health' | 'medicalHub' | 'biomarkerVault' | 'aetherCommunity' | 'wearables' | 'helpSupport'
-    | 'payments' | 'globalHealthPassport' | 'scheduler' | 'nutritionAdvisor'
+    | 'payments' | 'globalHealthPassport' | 'scheduler' | 'nutritionAdvisor' | 'quantumDNA' | 'digitalTwin'
     ;
 
 export type Theme = 'dark' | 'light';

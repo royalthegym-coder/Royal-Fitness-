@@ -33,74 +33,9 @@ export const MEDICAL_TEST_MASTER: MedicalTestMaster[] = [
     { test_id: 't5', test_name: 'Lipid Profile & Glucose', category: 'Cardiovascular', description: 'Heart health and insulin sensitivity for diet planning.' },
 ];
 
-export const INITIAL_MEMBERS: Member[] = [
-    {
-        id: 1,
-        name: "Rohan Kumar",
-        email: "rohan@example.com",
-        phone: "9876543210",
-        joinDate: "2023-01-15",
-        packageId: 1,
-        status: "Active",
-        avatar: "https://i.pravatar.cc/150?u=1",
-        whatsappConsent: true,
-        xp: 1250,
-        level: 5,
-        achievements: ["Early Bird", "Strength Master"],
-        hrv: 75,
-        lbm: 62,
-        health_score: 88,
-        bio_age: 24,
-        assigned_tests: [],
-        medical_history: { conditions: [], pastInjuries: "None", medications: "", lifestyle: {} },
-        physical_metrics: { height: 175, weight: 70, body_fat: 15, muscle_mass: 60, target_weight: 75, body_type: "Mesomorph", activity_level: "High" },
-        automation_settings: { remind_12hrs_before: true, auto_renewal: true, ai_coaching: true, sync_id: "SYNC-001" },
-        rpeHistory: [],
-        anatomicalStatus: {},
-        emergency_contact: { name: "Raj Kumar", phone: "9999999999", relation: "Father" },
-        initial_assessment: { fitness_level: "Intermediate", pushup_count: 25, plank_time: "60s", squat_count: 30, comments: "Good form" }
-    },
-    {
-        id: 2,
-        name: "Priya Singh",
-        email: "priya@example.com",
-        phone: "9876543211",
-        joinDate: "2023-02-20",
-        packageId: 2,
-        status: "Active",
-        avatar: "https://i.pravatar.cc/150?u=2",
-        whatsappConsent: true,
-        xp: 800,
-        level: 3,
-        achievements: ["Cardio Queen"],
-        hrv: 65,
-        lbm: 45,
-        health_score: 92,
-        bio_age: 26,
-        assigned_tests: [],
-        medical_history: { conditions: [], pastInjuries: "None", medications: "", lifestyle: {} },
-        physical_metrics: { height: 165, weight: 55, body_fat: 22, muscle_mass: 40, target_weight: 52, body_type: "Ectomorph", activity_level: "Moderate" },
-        automation_settings: { remind_12hrs_before: true, auto_renewal: false, ai_coaching: true, sync_id: "SYNC-002" },
-        rpeHistory: [],
-        anatomicalStatus: {},
-        emergency_contact: { name: "Amit Singh", phone: "8888888888", relation: "Husband" },
-        initial_assessment: { fitness_level: "Beginner", pushup_count: 10, plank_time: "30s", squat_count: 20, comments: "Needs core work" }
-    }
-];
+export const INITIAL_MEMBERS: Member[] = [];
 
-export const INITIAL_INVOICES: Invoice[] = [
-    {
-        id: 1001,
-        memberId: 1,
-        memberName: "Rohan Kumar",
-        packageId: 1,
-        packageName: "Gold Membership",
-        amount: 5000,
-        date: "2023-01-15",
-        status: "Paid",
-        items: [{ description: "Gold Membership", amount: 5000, type: "Membership" }]
-    }
-];
+export const INITIAL_INVOICES: Invoice[] = [];
 
 export const INITIAL_TRANSACTIONS: Transaction[] = [];
 
@@ -133,7 +68,40 @@ export const INITIAL_GOOGLE_INSIGHTS = {
     websiteClicks: 20
 };
 
-export const INITIAL_PACKAGES: Package[] = [];
+export const INITIAL_PACKAGES: Package[] = [
+    {
+        id: 1,
+        name: "Quantum Starter",
+        category: "Basic",
+        price: 1500,
+        duration: "1 Month",
+        features: ["Access to Gym Floor", "Basic Diet Plan", "1 AI Body Scan/Month", "Standard Support"]
+    },
+    {
+        id: 2,
+        name: "Neural Pro",
+        category: "Pro",
+        price: 4000,
+        duration: "3 Months",
+        features: ["Access to Gym Floor", "Advanced Diet Plan", "Weekly AI Body Scans", "Priority Support"]
+    },
+    {
+        id: 3,
+        name: "Singularity Elite",
+        category: "Elite",
+        price: 7500,
+        duration: "6 Months",
+        features: ["24/7 Access", "Hyper-Personalized Diet", "Daily AI Vitals Tracking", "Dedicated AI Coach", "Free Supplements Starter Kit"]
+    },
+    {
+        id: 4,
+        name: "Royal Overmind",
+        category: "VIP",
+        price: 12000,
+        duration: "1 Year",
+        features: ["Unlimited 24/7 Access", "Quantum DNA Analysis", "Full Medical Profiling", "Unlimited AI Coaching", "VIP Locker", "Free Merchandise"]
+    }
+];
 
 const generateWorkouts = (): WorkoutTemplate[] => {
     const templates: WorkoutTemplate[] = [];

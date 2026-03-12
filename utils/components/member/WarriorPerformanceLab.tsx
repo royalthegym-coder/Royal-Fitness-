@@ -41,7 +41,7 @@ const WarriorPerformanceLab: React.FC<{ memberId: number }> = ({ memberId }) => 
     const member = members.find(m => m.id === memberId);
     
     // --- STATE MANAGEMENT ---
-    const [activeSection, setActiveSection] = useState<'visual' | 'vitals' | 'memories' | 'oracle'>('visual');
+    const [activeSection, setActiveSection] = useState<'visual' | 'vitals' | 'memories' | 'oracle' | 'history'>('visual');
     const [oracleInsight, setOracleInsight] = useState<string | null>(null);
     const [isOracleThinking, setIsOracleThinking] = useState(false);
     const [syncStatus, setSyncStatus] = useState(0);
@@ -161,6 +161,9 @@ const WarriorPerformanceLab: React.FC<{ memberId: number }> = ({ memberId }) => 
                  </button>
                  <button onClick={() => setActiveSection('memories')} className={`px-8 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeSection === 'memories' ? 'bg-cyan-600 text-white shadow-xl' : 'text-gray-500 hover:text-white'}`}>
                      <Film className="w-4 h-4" /> Chrono-Log
+                 </button>
+                 <button onClick={() => setActiveSection('history')} className={`px-8 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeSection === 'history' ? 'bg-amber-600 text-white shadow-xl' : 'text-gray-500 hover:text-white'}`}>
+                     <BarChart3 className="w-4 h-4" /> Progress Charts
                  </button>
                  <button onClick={() => setActiveSection('oracle')} className={`px-8 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeSection === 'oracle' ? 'bg-purple-600 text-white shadow-xl' : 'text-gray-500 hover:text-white'}`}>
                      <BrainCircuit className="w-4 h-4" /> Neural Oracle
@@ -329,6 +332,86 @@ const WarriorPerformanceLab: React.FC<{ memberId: number }> = ({ memberId }) => 
                                      </div>
                                  ))}
                              </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 3.5 PROGRESS CHARTS & PERSONAL BESTS */}
+                {activeSection === 'history' && (
+                    <div className="lg:col-span-12 space-y-8 animate-slide-up">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <Card title="Bench Press Progress" className="bg-gray-950 border-white/5 p-8 rounded-[3rem] shadow-2xl h-[400px]">
+                                <div className="flex justify-between items-center mb-4">
+                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Personal Best: <span className="text-amber-400 text-lg">120 KG</span></p>
+                                </div>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={[
+                                        { date: 'Jan', weight: 80 }, { date: 'Feb', weight: 90 },
+                                        { date: 'Mar', weight: 95 }, { date: 'Apr', weight: 105 },
+                                        { date: 'May', weight: 110 }, { date: 'Jun', weight: 120 }
+                                    ]}>
+                                        <defs>
+                                            <linearGradient id="colorBench" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.5}/>
+                                                <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                                        <XAxis dataKey="date" stroke="#555" fontSize={10} axisLine={false} tickLine={false} />
+                                        <YAxis stroke="#555" fontSize={10} axisLine={false} tickLine={false} domain={['dataMin - 10', 'dataMax + 10']} />
+                                        <Tooltip content={<LabTooltip />} />
+                                        <Area type="monotone" dataKey="weight" stroke="#f59e0b" fillOpacity={1} fill="url(#colorBench)" strokeWidth={3} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </Card>
+                            <Card title="Squat Progress" className="bg-gray-950 border-white/5 p-8 rounded-[3rem] shadow-2xl h-[400px]">
+                                <div className="flex justify-between items-center mb-4">
+                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Personal Best: <span className="text-cyan-400 text-lg">160 KG</span></p>
+                                </div>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={[
+                                        { date: 'Jan', weight: 100 }, { date: 'Feb', weight: 115 },
+                                        { date: 'Mar', weight: 130 }, { date: 'Apr', weight: 140 },
+                                        { date: 'May', weight: 150 }, { date: 'Jun', weight: 160 }
+                                    ]}>
+                                        <defs>
+                                            <linearGradient id="colorSquat" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.5}/>
+                                                <stop offset="95%" stopColor="#22d3ee" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                                        <XAxis dataKey="date" stroke="#555" fontSize={10} axisLine={false} tickLine={false} />
+                                        <YAxis stroke="#555" fontSize={10} axisLine={false} tickLine={false} domain={['dataMin - 10', 'dataMax + 10']} />
+                                        <Tooltip content={<LabTooltip />} />
+                                        <Area type="monotone" dataKey="weight" stroke="#22d3ee" fillOpacity={1} fill="url(#colorSquat)" strokeWidth={3} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </Card>
+                            <Card title="Deadlift Progress" className="bg-gray-950 border-white/5 p-8 rounded-[3rem] shadow-2xl h-[400px] md:col-span-2">
+                                <div className="flex justify-between items-center mb-4">
+                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Personal Best: <span className="text-purple-400 text-lg">200 KG</span></p>
+                                </div>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={[
+                                        { date: 'Jan', weight: 120 }, { date: 'Feb', weight: 140 },
+                                        { date: 'Mar', weight: 160 }, { date: 'Apr', weight: 175 },
+                                        { date: 'May', weight: 190 }, { date: 'Jun', weight: 200 }
+                                    ]}>
+                                        <defs>
+                                            <linearGradient id="colorDeadlift" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#a855f7" stopOpacity={0.5}/>
+                                                <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                                        <XAxis dataKey="date" stroke="#555" fontSize={10} axisLine={false} tickLine={false} />
+                                        <YAxis stroke="#555" fontSize={10} axisLine={false} tickLine={false} domain={['dataMin - 10', 'dataMax + 10']} />
+                                        <Tooltip content={<LabTooltip />} />
+                                        <Area type="monotone" dataKey="weight" stroke="#a855f7" fillOpacity={1} fill="url(#colorDeadlift)" strokeWidth={3} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </Card>
                         </div>
                     </div>
                 )}

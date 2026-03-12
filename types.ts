@@ -102,11 +102,13 @@ export type View =
     | 'neuralCore' | 'geminiHub' | 'autoProcurement' | 'quantumLedger' 
     | 'security' | 'debugEngine' | 'performance' | 'tasks' | 'storkTeam'
     | 'payment' | 'leads' | 'aiFitnessTracker' | 'hormonalClock' | 'metabolicTracker' | 'neuroRecovery'
-    | 'socialManager' | 'medicalProfiling'
+    | 'socialManager' | 'medicalProfiling' | 'geniusEngine'
+    | 'injuryOracle' | 'ghostSensor' | 'digitalTwin' | 'ghostSocial' | 'neuralEdge'
+    | 'adminAttendance' | 'adminScheduler' | 'scientificAdmissionForm' | 'osUploads' | 'launchCommandCenter' | 'sentinelIntakeBot' | 'finalStressTest' | 'staffAITraining' | 'projectHandover' | 'devRoadmap' | 'nexusMaster' | 'emergencyOverride' | 'quantumCore' | 'viralMarketing' | 'aiDoctor'
     // Member views
     | 'dailyProtocol' | 'attendance' | 'workout' | 'futureOFS' | 'neuralRep' | 'performanceLab'
     | 'health' | 'medicalHub' | 'biomarkerVault' | 'aetherCommunity' | 'wearables' | 'helpSupport'
-    | 'payments' | 'globalHealthPassport' | 'scheduler' | 'nutritionAdvisor' | 'profile' | 'universalGadgets' | 'digitalBioPass' | 'metabolicSimulator'
+    | 'payments' | 'globalHealthPassport' | 'scheduler' | 'nutritionAdvisor' | 'profile' | 'universalGadgets' | 'digitalBioPass' | 'metabolicSimulator' | 'quantumDNA'
     ;
 
 export type Theme = 'dark' | 'light';
@@ -204,11 +206,12 @@ export interface Member {
     address?: string; // Added
     joinDate: string;
     packageId: number;
-    trainingPackageId?: number; // Added for Personal Training
     status: 'Active' | 'Pending' | 'Expired' | 'Inactive';
     avatar: string;
     password?: string; // Added for authentication
     whatsappConsent: boolean;
+    hipaaConsent?: boolean; // Added for Medical Compliance
+    gdprConsent?: boolean; // Added for Medical Compliance
     xp: number;
     level: number;
     achievements: string[];

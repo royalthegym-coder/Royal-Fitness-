@@ -6,7 +6,8 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 // --- CONFIGURATION ---
 const TEXT_MODEL = 'gemini-3-flash-preview';
-const VISION_MODEL = 'gemini-2.5-flash-image'; // For image analysis
+const VISION_MODEL = 'gemini-3-flash-preview'; // For image analysis
+const IMAGE_GEN_MODEL = 'gemini-2.5-flash-image'; // For image generation
 
 // --- CACHE ---
 const RESPONSE_CACHE = new Map<string, string>();
@@ -80,7 +81,7 @@ export async function analyzeExerciseForm(base64: string): Promise<any> {
             contents: {
                 parts: [
                     { inlineData: { data: cleanBase64(base64), mimeType: "image/jpeg" } },
-                    { text: "Analyze this exercise form. Provide brief feedback (max 10 words) and a status (Good/Correction Needed). Return JSON: {feedback, status}" }
+                    { text: "Analyze this exercise form. Provide brief feedback (max 10 words) and a status (Good/Correction Needed). Return JSON: {\"feedback\": \"...\", \"status\": \"...\"}" }
                 ]
             },
             config: { responseMimeType: "application/json" }
@@ -100,7 +101,7 @@ export async function analyzeMemberPhoto(base64: string): Promise<any> {
             contents: {
                 parts: [
                     { inlineData: { data: cleanBase64(base64), mimeType: "image/jpeg" } },
-                    { text: "Analyze this person's physical condition for gym admission. Estimate health_score (0-100), bio_age, and body_fat percentage. Identify primary body type (Ectomorph/Mesomorph/Endomorph). Return JSON: {health_score, bio_age, body_fat, body_type, analysis_summary}" }
+                    { text: "Analyze this person's physical condition for gym admission. Estimate health_score (0-100), bio_age, and body_fat percentage. Identify primary body type (Ectomorph/Mesomorph/Endomorph). Return JSON: {\"health_score\": 75, \"bio_age\": 25, \"body_fat\": 20, \"body_type\": \"Mesomorph\", \"analysis_summary\": \"...\"}" }
                 ]
             },
             config: { responseMimeType: "application/json" }
@@ -114,7 +115,7 @@ export async function analyzeMemberPhoto(base64: string): Promise<any> {
 }
 
 export async function generateDeepDiveGenius(member: any, context: any) {
-    const prompt = `Analyze member ${member.name}. Logs: ${JSON.stringify(context)}. Provide a deep dive analysis including thought process, summary, weaknesses, a 4-week workout plan (HTML), nutrition strategy (HTML), and a short WhatsApp message. Return JSON: {thought_process: string[], analysis_summary: string, identified_weakness: string, workout_plan_4weeks: string, nutrition_strategy_html: string, whatsapp_message_text: string}`;
+    const prompt = `Analyze member ${member.name}. Health Score: ${member.health_score}, HRV: ${member.hrv}. Logs: ${JSON.stringify(context)}. Analyze the member's workout logs and live health data to generate personalized performance insights and suggest workout adjustments. Provide a deep dive analysis including thought process, summary, weaknesses, a 4-week workout plan (HTML), nutrition strategy (HTML), and a short WhatsApp message. Return JSON: {thought_process: string[], analysis_summary: string, identified_weakness: string, workout_plan_4weeks: string, nutrition_strategy_html: string, whatsapp_message_text: string}`;
     
     try {
         const response = await ai.models.generateContent({
@@ -313,7 +314,7 @@ export async function generateBodyTransformationAnalysis(member: any, ...args: a
 export async function generateFutureSelfImage(base64: string, targetGoal: string): Promise<string> {
     try {
         const response = await ai.models.generateContent({
-            model: VISION_MODEL,
+            model: IMAGE_GEN_MODEL,
             contents: {
                 parts: [
                     { inlineData: { data: cleanBase64(base64), mimeType: "image/jpeg" } },
@@ -322,7 +323,8 @@ export async function generateFutureSelfImage(base64: string, targetGoal: string
             }
         });
         
-        for (const part of response.candidates[0].content.parts) {
+        const parts = response.candidates?.[0]?.content?.parts || [];
+        for (const part of parts) {
             if (part.inlineData) {
                 return `data:image/png;base64,${part.inlineData.data}`;
             }
@@ -341,7 +343,7 @@ export async function getNutritionAnalysisFromImage(base64: string, ...args: any
             contents: {
                 parts: [
                     { inlineData: { data: cleanBase64(base64), mimeType: "image/jpeg" } },
-                    { text: `Analyze this food image. Context: ${JSON.stringify(args)}. Estimate calories and macros. Return JSON: {food_name, calories, protein, carbs, fats, health_rating}` }
+                    { text: `Analyze this food image. Context: ${JSON.stringify(args)}. Estimate calories and macros. Return JSON: {\"food_name\": \"...\", \"calories\": 0, \"protein\": 0, \"carbs\": 0, \"fats\": 0, \"health_rating\": 0}` }
                 ]
             },
             config: { responseMimeType: "application/json" }
@@ -363,7 +365,7 @@ export async function analyzeMedicalRecord(base64: string, ...args: any[]): Prom
             contents: {
                 parts: [
                     { inlineData: { data: cleanBase64(base64), mimeType: "image/jpeg" } },
-                    { text: `Analyze this medical record. Context: ${JSON.stringify(args)}. Summarize key findings for a fitness trainer. Return JSON: {findings: string[], precautions: string[], recommended_exercises: string[]}` }
+                    { text: `Analyze this medical record. Context: ${JSON.stringify(args)}. Summarize key findings for a fitness trainer. Return JSON: {\"findings\": [\"...\"], \"precautions\": [\"...\"], \"recommended_exercises\": [\"...\"]}` }
                 ]
             },
             config: { responseMimeType: "application/json" }

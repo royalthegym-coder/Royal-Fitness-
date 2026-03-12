@@ -336,8 +336,8 @@ const HealthIntelligence: React.FC = () => {
                                 >
                                     <UploadIcon className="w-12 h-12 text-gray-500 mb-4" />
                                     <span className="text-lg font-semibold text-gray-300">Click to Upload Lab Report</span>
-                                    <span className="text-sm text-gray-500 mt-2">Supports JPG, PNG (Max 5MB)</span>
-                                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
+                                    <span className="text-sm text-gray-500 mt-2">Supports All Formats (Max 5MB)</span>
+                                    <input type="file" ref={fileInputRef} className="hidden" accept="*/*" onChange={handleFileUpload} />
                                 </div>
                             )}
 

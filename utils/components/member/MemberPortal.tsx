@@ -39,8 +39,13 @@ import FutureOFS from './FutureOFS';
 import ProfileView from './ProfileView'; // Added
 import { UniversalGadgetDashboard } from './UniversalGadgetDashboard';
 import { DigitalBioHealthPass } from './DigitalBioHealthPass';
-import { MetabolicDigitalTwin } from './MetabolicDigitalTwin';
+import { QuantumDNA } from '../QuantumDNA';
 import VoiceAssistant from '../VoiceAssistant';
+import GeniusEngine from '../GeniusEngine';
+import InjuryOracle from '../InjuryOracle';
+import GhostSensor from '../GhostSensor';
+import DigitalTwin from '../DigitalTwin';
+import NeuralEdge from '../NeuralEdge';
 import { useToast } from '../../hooks/useToast';
 import { sendThankYouForPayment } from '../../../lib/whatsapp';
 import { 
@@ -49,7 +54,8 @@ import {
     TrendingUp, ShieldCheck, Clock, Crown, Infinity, Fingerprint, 
     Smartphone, ScanFace, Lock, Wifi, Binary, Layers, Server, Radio,
     Bot, Flame, Wind, Droplets, BrainCircuit, Play, BarChart, FileText,
-    Sun, Moon, Sunrise, Sunset, Sparkles, Utensils, X, Target, ArrowRight
+    Sun, Moon, Sunrise, Sunset, Sparkles, Utensils, X, Target, ArrowRight,
+    Workflow
 } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
 import BioSyncBanner from './BioSyncBanner';
@@ -202,15 +208,26 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId,
                         
                         <div className="relative z-10 flex flex-col lg:flex-row justify-between items-center gap-10">
                             <div>
-                                <div className="flex items-center gap-3 mb-4">
+                                <div className="flex flex-col md:flex-row items-start md:items-center gap-3 mb-4">
                                     <div className="px-5 py-2 bg-cyan-900/30 border border-cyan-500/30 text-cyan-400 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2 backdrop-blur-md">
                                         <Infinity className="w-3 h-3 animate-spin-slow" /> {systemVersion}
                                     </div>
-                                    <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">NODE: {selectedMember?.name.split(' ')[0].toUpperCase()}</span>
+                                    <div className="px-5 py-2 bg-fuchsia-900/30 border border-fuchsia-500/30 text-fuchsia-400 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-[0_0_15px_rgba(217,70,239,0.2)] flex items-center gap-2 backdrop-blur-md">
+                                        <Globe className="w-3 h-3 animate-pulse" /> Diplomat Mode
+                                    </div>
+                                    <div className="px-5 py-2 bg-green-900/30 border border-green-500/30 text-green-400 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-[0_0_15px_rgba(34,197,94,0.2)] flex items-center gap-2 backdrop-blur-md">
+                                        <Workflow className="w-3 h-3 animate-spin-slow" /> Auto-Pilot ON
+                                    </div>
+                                    <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase ml-auto">NODE: {selectedMember?.name.split(' ')[0].toUpperCase()}</span>
                                 </div>
                                 <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none mb-4">
                                     {selectedMember?.name}
                                 </h1>
+                                <div className="space-y-1 mb-6">
+                                    <p className="text-[9px] font-black text-cyan-400 uppercase tracking-[0.3em] animate-pulse">
+                                        World's Fastest & Latest Open-Source AI-POWERED Quantum Computer OS
+                                    </p>
+                                </div>
                                 <div className="flex gap-4">
                                     <button 
                                         onClick={() => setIsIdCardOpen(true)}
@@ -344,6 +361,7 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId,
             case 'nutritionAdvisor': return <NutritionAdvisor memberId={loggedInMemberId} />;
             case 'dailyProtocol': return <DailyRoutineLogView memberId={loggedInMemberId} />;
             case 'medicalHub': return <MedicalHub memberId={loggedInMemberId} />;
+            case 'quantumDNA': return <QuantumDNA memberId={loggedInMemberId} />;
             case 'biomarkerVault': return <BiomarkerVault memberId={loggedInMemberId} />;
             case 'metabolicTracker': return <MetabolicTracker />; 
             case 'aetherCommunity': return <AetherCommunityHive memberId={loggedInMemberId} />; 
@@ -362,8 +380,12 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId,
             case 'futureOFS': return <FutureOFS memberId={loggedInMemberId} />;
             case 'universalGadgets': return <UniversalGadgetDashboard />;
             case 'digitalBioPass': return <DigitalBioHealthPass memberId={loggedInMemberId} />;
-            case 'metabolicSimulator': return <MetabolicDigitalTwin />;
             case 'profile': return <ProfileView memberId={loggedInMemberId} />; // Added
+            case 'geniusEngine': return <GeniusEngine />;
+            case 'injuryOracle': return <InjuryOracle />;
+            case 'ghostSensor': return <GhostSensor />;
+            case 'digitalTwin': return <DigitalTwin />;
+            case 'neuralEdge': return <NeuralEdge />;
             default: return <div className="text-center py-20 text-gray-500 uppercase font-black tracking-widest">Protocol Initializing...</div>;
         }
     };
@@ -377,7 +399,7 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ onLogout, loggedInMemberId,
                     <button onClick={() => setSidebarOpen(true)} className="md:hidden p-2 text-gray-400"><MenuIcon /></button>
                 </Header>
                 
-                <main className="flex-1 overflow-y-auto p-4 sm:p-8 custom-scrollbar bg-[#050505]">
+                <main className="flex-1 overflow-y-scroll overflow-x-hidden p-4 sm:p-8 custom-scrollbar bg-[#050505]">
                     <div className="max-w-7xl mx-auto">{renderMemberView()}</div>
                 </main>
                 

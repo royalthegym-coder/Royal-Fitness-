@@ -16,6 +16,7 @@ import {
 } from '../../constants';
 import { sendWhatsAppWelcomeMessage, sendPaymentRequest, sendPaymentReceipt } from '../../lib/whatsapp';
 import { syncData } from '../../lib/supabase';
+import { syncToFirebase } from '../../lib/firebase';
 
 interface DeviceCapabilities {
     heartRate: boolean;
@@ -142,28 +143,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return saved ? JSON.parse(saved) : fallback;
     };
 
-    // --- ONE-TIME SYSTEM RESET ---
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const hasReset = localStorage.getItem('has_reset_v32_final');
-            if (!hasReset) {
-                console.log("Performing full system reset for final launch...");
-                const keysToRemove = [];
-                for (let i = 0; i < localStorage.length; i++) {
-                    const key = localStorage.key(i);
-                    if (key && key.startsWith('royal_')) {
-                        keysToRemove.push(key);
-                    }
-                }
-                keysToRemove.forEach(key => localStorage.removeItem(key));
-                localStorage.setItem('has_reset_v32_final', 'true');
-                window.location.reload();
-            }
-        }
-    }, []);
+    // --- ONE-TIME SYSTEM RESET REMOVED TO PREVENT IFRAME RELOAD LOOPS ---
 
     const [members, setMembers] = useState<Member[]>(() => loadState('royal_members', INITIAL_MEMBERS));
-    const [packages, setPackages] = useState<Package[]>(() => loadState('royal_packages', INITIAL_PACKAGES));
+    const [packages, setPackages] = useState<Package[]>(() => {
+        const loaded = loadState('royal_packages', INITIAL_PACKAGES);
+        return loaded.length > 0 ? loaded : INITIAL_PACKAGES;
+    });
     const [invoices, setInvoices] = useState<Invoice[]>(() => loadState('royal_invoices', INITIAL_INVOICES));
     const [transactions, setTransactions] = useState<Transaction[]>(() => loadState('royal_transactions', INITIAL_TRANSACTIONS));
     const [staff, setStaff] = useState<Staff[]>(() => loadState('royal_staff', INITIAL_STAFF));
@@ -196,22 +182,34 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [evolutionLevel, setEvolutionLevel] = useState(1.0);
     const [systemVersion, setSystemVersion] = useState("v1.0 STABLE ORIGIN");
 
-    const [aiProvider, setAiProvider] = useState(localStorage.getItem('royal_ai_provider') || 'HUGGINGFACE');
+    const [aiProvider, setAiProvider] = useState(localStorage.getItem('royal_ai_provider') || 'GEMINI');
 
     // --- PERSISTENCE EFFECTS ---
-    useEffect(() => { localStorage.setItem('royal_members', JSON.stringify(members)); }, [members]);
-    useEffect(() => { localStorage.setItem('royal_packages', JSON.stringify(packages)); }, [packages]);
-    useEffect(() => { localStorage.setItem('royal_invoices', JSON.stringify(invoices)); }, [invoices]);
-    useEffect(() => { localStorage.setItem('royal_transactions', JSON.stringify(transactions)); }, [transactions]);
-    useEffect(() => { localStorage.setItem('royal_staff', JSON.stringify(staff)); }, [staff]);
-    useEffect(() => { localStorage.setItem('royal_expenses', JSON.stringify(expenses)); }, [expenses]);
-    useEffect(() => { localStorage.setItem('royal_leads', JSON.stringify(leads)); }, [leads]);
-    useEffect(() => { localStorage.setItem('royal_inventory', JSON.stringify(inventory)); }, [inventory]);
-    useEffect(() => { localStorage.setItem('royal_workout_templates', JSON.stringify(workoutTemplates)); }, [workoutTemplates]);
-    useEffect(() => { localStorage.setItem('royal_attendance', JSON.stringify(attendanceRecords)); }, [attendanceRecords]);
+    const safeSetItem = (key: string, value: any) => {
+        try {
+            localStorage.setItem(key, JSON.stringify(value));
+        } catch (e: any) {
+            console.error(`[Storage Error] Failed to save ${key}:`, e);
+            if (e.name === 'QuotaExceededError') {
+                // Handle quota exceeded gracefully without crashing
+                console.warn(`Quota exceeded for ${key}. Try clearing some data or uploading smaller files.`);
+            }
+        }
+    };
+
+    useEffect(() => { safeSetItem('royal_members', members); }, [members]);
+    useEffect(() => { safeSetItem('royal_packages', packages); }, [packages]);
+    useEffect(() => { safeSetItem('royal_invoices', invoices); }, [invoices]);
+    useEffect(() => { safeSetItem('royal_transactions', transactions); }, [transactions]);
+    useEffect(() => { safeSetItem('royal_staff', staff); }, [staff]);
+    useEffect(() => { safeSetItem('royal_expenses', expenses); }, [expenses]);
+    useEffect(() => { safeSetItem('royal_leads', leads); }, [leads]);
+    useEffect(() => { safeSetItem('royal_inventory', inventory); }, [inventory]);
+    useEffect(() => { safeSetItem('royal_workout_templates', workoutTemplates); }, [workoutTemplates]);
+    useEffect(() => { safeSetItem('royal_attendance', attendanceRecords); }, [attendanceRecords]);
 
     useEffect(() => {
-        const handleStorage = () => setAiProvider(localStorage.getItem('royal_ai_provider') || 'HUGGINGFACE');
+        const handleStorage = () => setAiProvider(localStorage.getItem('royal_ai_provider') || 'GEMINI');
         window.addEventListener('storage', handleStorage);
         return () => window.removeEventListener('storage', handleStorage);
     }, []);
@@ -244,8 +242,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const addMember = (m: Member) => {
         setMembers(prev => [...prev, m]);
         logEvent(`New Member ${m.name} Added (Admin).`);
-        // Supabase के साथ स्थानीय संग्रहण (LocalStorage) का उपयोग
+        // Supabase & Firebase Automation
         syncData('members', m);
+        syncToFirebase('members', m.id.toString(), m);
     };
 
     const signupMember = async (data: any): Promise<boolean> => {
@@ -281,8 +280,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setMembers(prev => [...prev, newMember]);
             logEvent(`New Signup: ${newMember.name}. Status: PENDING APPROVAL.`);
             
-            // Supabase के साथ स्थानीय संग्रहण (LocalStorage) का उपयोग
+            // Supabase & Firebase Automation
             syncData('members', newMember);
+            syncToFirebase('members', newMember.id.toString(), newMember);
             
             // Send Audit Log
             addAuditLog({
@@ -297,8 +297,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const updateMember = (m: Member) => {
         setMembers(prev => prev.map(mem => mem.id === m.id ? m : mem));
-        // Supabase के साथ स्थानीय संग्रहण (LocalStorage) का उपयोग
+        // Supabase & Firebase Automation
         syncData('members', m);
+        syncToFirebase('members', m.id.toString(), m);
     };
     const deleteMember = (id: number) => {
         // 1. Get Member Name for Transaction Deletion

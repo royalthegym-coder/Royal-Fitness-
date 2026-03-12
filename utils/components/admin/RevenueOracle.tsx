@@ -117,19 +117,11 @@ const RevenueOracle: React.FC = () => {
                             </div>
 
                             <div className="flex items-center justify-between">
-                                <span className="text-sm font-bold text-gray-400">Personal Training</span>
-                                <span className="text-white font-mono">25%</span>
-                            </div>
-                            <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
-                                <div className="bg-blue-500 h-full" style={{width: '25%'}}></div>
-                            </div>
-
-                            <div className="flex items-center justify-between">
                                 <span className="text-sm font-bold text-gray-400">Merchandise/Supps</span>
-                                <span className="text-white font-mono">10%</span>
+                                <span className="text-white font-mono">35%</span>
                             </div>
                             <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
-                                <div className="bg-amber-500 h-full" style={{width: '10%'}}></div>
+                                <div className="bg-amber-500 h-full" style={{width: '35%'}}></div>
                             </div>
                         </div>
                     </Card>

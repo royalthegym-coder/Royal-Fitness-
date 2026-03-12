@@ -54,66 +54,18 @@ const ScientificAdmissionForm: React.FC = () => {
         medicalReports: [] as { name: string; type: string; data: string }[], // Added for reports
         // Payment State
         packageId: '',
-        trainingPackageId: '',
         includeRegFee: false,
         cart: [] as { itemId: string; name: string; price: number; qty: number; type: string }[],
         paymentMethod: 'UPI' as 'UPI' | 'Cash' | 'Card (NFC)',
         isPaid: false
     });
 
-    const [trainingCategory, setTrainingCategory] = useState<string>('Personal Training');
-
-    const gymPackages = useMemo(() => {
-        return packages.filter(p => 
-            !p.category.toLowerCase().includes('personal') && 
-            !p.category.toLowerCase().includes('training') &&
-            !p.category.toLowerCase().includes('pt ') &&
-            p.category.toLowerCase() !== 'pt'
-        );
-    }, [packages]);
-
-    const ptPackages = useMemo(() => {
-        return packages.filter(p => 
-            p.category.toLowerCase().includes('personal') || 
-            p.category.toLowerCase().includes('training') ||
-            p.category.toLowerCase().includes('pt ') ||
-            p.category.toLowerCase() === 'pt'
-        );
-    }, [packages]);
-
-    const PT_CATEGORY_INFO: Record<string, { desc: string, icon: React.ReactNode }> = {
-        'PT: Weight Loss': { desc: 'वजन घटाने और फैट लॉस पर केंद्रित (Focus on Fat Loss & Weight Reduction) - ₹3000/Month', icon: <Flame className="w-4 h-4 text-orange-500" /> },
-        'PT: Muscle Gain': { desc: 'मांसपेशियों के निर्माण और स्ट्रेंथ पर केंद्रित (Focus on Muscle Building & Hypertrophy) - ₹5000/Month', icon: <Dumbbell className="w-4 h-4 text-blue-500" /> },
-        'PT: Bodybuilding': { desc: 'प्रतियोगिता स्तर की तैयारी और सिमिट्री (Competition Prep & Aesthetic Symmetry) - ₹8000/Month', icon: <Crown className="w-4 h-4 text-amber-500" /> },
-        'PT: Powerlifting': { desc: 'अधिकतम शक्ति और लिफ्टिंग तकनीक (Max Strength & Lifting Technique) - ₹5000/Month', icon: <Zap className="w-4 h-4 text-yellow-500" /> },
-        'PT: General Fitness': { desc: 'सामान्य स्वास्थ्य और गतिशीलता (Overall Health, Mobility & Longevity) - ₹3000/Month', icon: <HeartPulse className="w-4 h-4 text-rose-500" /> },
-        'Personal Training': { desc: 'अनुकूलित व्यक्तिगत प्रशिक्षण (Customized 1-on-1 Coaching)', icon: <User className="w-4 h-4 text-indigo-500" /> }
-    };
-
-    const uniqueTrainingCategories = useMemo(() => {
-        const categories = Array.from(new Set(ptPackages.map(p => p.category)));
-        return categories.length > 0 ? categories : ['Personal Training'];
-    }, [ptPackages]);
-
-    const availableTrainingPackages = useMemo(() => {
-        return ptPackages.filter(p => p.category === trainingCategory);
-    }, [ptPackages, trainingCategory]);
-
-    // Ensure trainingCategory is valid
-    React.useEffect(() => {
-        if (uniqueTrainingCategories.length > 0 && !uniqueTrainingCategories.includes(trainingCategory)) {
-            setTrainingCategory(uniqueTrainingCategories[0]);
-        }
-    }, [uniqueTrainingCategories, trainingCategory]);
-
     const selectedPkg = packages.find(p => p.id === Number(formData.packageId));
-    const selectedPtPkg = packages.find(p => p.id === Number(formData.trainingPackageId));
     
     const pkgPrice = selectedPkg?.price || 0;
-    const ptPrice = selectedPtPkg?.price || 0;
     const registrationFee = formData.includeRegFee ? 1000 : 0;
     const cartTotal = formData.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-    const totalAmount = pkgPrice + ptPrice + registrationFee + cartTotal;
+    const totalAmount = pkgPrice + registrationFee + cartTotal;
 
     const addToCart = (item: any) => {
         setFormData(prev => {
@@ -200,16 +152,25 @@ const ScientificAdmissionForm: React.FC = () => {
     };
 
     const handleReportUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []) as File[];
+        const target = e.target;
+        const files = Array.from(target.files || []) as File[];
         if (files.length === 0) return;
 
-        const MAX_SIZE = 5 * 1024 * 1024; // 5MB limit per file
+        const MAX_SIZE = 1 * 1024 * 1024; // 1MB limit per file
         const newReports: { name: string; type: string; data: string }[] = [];
 
         for (const file of files) {
             if (file.size > MAX_SIZE) {
-                addToast(`Skipped ${file.name}: File too large (>5MB)`, "error");
+                addToast(`Skipped ${file.name}: File too large (>1MB)`, "error");
                 continue;
+            }
+
+            let mimeType = file.type;
+            if (!mimeType) {
+                if (file.name.endsWith('.pdf')) mimeType = 'application/pdf';
+                else if (file.name.endsWith('.csv')) mimeType = 'text/csv';
+                else if (file.name.endsWith('.txt')) mimeType = 'text/plain';
+                else mimeType = 'application/octet-stream';
             }
 
             try {
@@ -218,7 +179,7 @@ const ScientificAdmissionForm: React.FC = () => {
                     reader.onload = () => {
                         const res = reader.result?.toString();
                         if (res) {
-                            newReports.push({ name: file.name, type: file.type, data: res });
+                            newReports.push({ name: file.name, type: mimeType, data: res });
                         }
                         resolve();
                     };
@@ -236,7 +197,7 @@ const ScientificAdmissionForm: React.FC = () => {
             addToast(`${newReports.length} reports attached.`, "success");
         }
         
-        if (e.target) e.target.value = '';
+        try { if (target) target.value = ''; } catch(e) {}
     };
 
     const removeReport = (index: number) => {
@@ -282,7 +243,6 @@ const ScientificAdmissionForm: React.FC = () => {
                 status: 'Active',
                 password: formData.password || 'royal123', // Default password
                 packageId: Number(formData.packageId),
-                trainingPackageId: formData.trainingPackageId ? Number(formData.trainingPackageId) : undefined,
                 avatar: formData.avatar || `https://i.pravatar.cc/150?u=${newId}`,
                 gender: formData.gender,
                 dob: '', // Calculate from age if needed
@@ -364,7 +324,6 @@ const ScientificAdmissionForm: React.FC = () => {
                     status: formData.isPaid ? 'Paid' : 'Pending', 
                     items: [
                         { description: `Membership: ${selectedPkg?.name}`, amount: pkgPrice, type: 'Membership' },
-                        ...(ptPrice > 0 ? [{ description: `Training: ${selectedPtPkg?.name}`, amount: ptPrice, type: 'Training' }] : []),
                         ...(registrationFee > 0 ? [{ description: 'Registration Fee', amount: registrationFee, type: 'Fee' }] : []),
                         ...formData.cart.map(c => ({ description: `${c.name} x${c.qty}`, amount: c.price * c.qty, type: c.type }))
                     ]
@@ -710,7 +669,7 @@ const ScientificAdmissionForm: React.FC = () => {
                                     <div className="flex gap-3">
                                         <label className="flex-1 py-3 bg-gray-800 border border-gray-700 text-gray-300 rounded-lg hover:bg-gray-700 hover:border-rose-500 transition-all flex items-center justify-center gap-2 cursor-pointer text-sm font-medium">
                                             <Upload className="w-4 h-4"/> Upload Files
-                                            <input type="file" multiple className="hidden" onChange={handleReportUpload} accept="image/*,.pdf,.doc,.docx" />
+                                            <input type="file" multiple className="hidden" onChange={handleReportUpload} accept="*/*" />
                                         </label>
                                         <label className="flex-1 py-3 bg-gray-800 border border-gray-700 text-gray-300 rounded-lg hover:bg-gray-700 hover:border-rose-500 transition-all flex items-center justify-center gap-2 cursor-pointer text-sm font-medium">
                                             <Camera className="w-4 h-4"/> Camera
@@ -923,66 +882,10 @@ const ScientificAdmissionForm: React.FC = () => {
                                         <label className="text-sm font-medium text-gray-300">जिम पैकेज चुनें</label>
                                         <select value={formData.packageId} onChange={(e) => handleInputChange('packageId', e.target.value)} className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-amber-500" required>
                                             <option value="">-- Select Gym Plan --</option>
-                                            {gymPackages.map(p => (
+                                            {packages.map(p => (
                                                 <option key={p.id} value={p.id}>{p.name} - ₹{p.price}</option>
                                             ))}
                                         </select>
-                                    </div>
-
-                                    <div className="space-y-3">
-                                        <label className="text-sm font-bold text-amber-400 flex items-center gap-2">
-                                            <Dumbbell className="w-4 h-4" /> पर्सनल ट्रेनिंग (Personal Training) - Optional
-                                        </label>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold ml-1">Category</label>
-                                                <select 
-                                                    value={trainingCategory} 
-                                                    onChange={e => { setTrainingCategory(e.target.value); handleInputChange('trainingPackageId', ''); }} 
-                                                    className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-all"
-                                                >
-                                                    {uniqueTrainingCategories.map(cat => (
-                                                        <option key={cat} value={cat}>{cat}</option>
-                                                    ))}
-                                                </select>
-                                                {PT_CATEGORY_INFO[trainingCategory] && (
-                                                    <div className="mt-2 flex items-start gap-2 bg-gray-900/50 p-2 rounded-lg border border-white/5 animate-in fade-in slide-in-from-top-1">
-                                                        <div className="mt-0.5">{PT_CATEGORY_INFO[trainingCategory].icon}</div>
-                                                        <p className="text-[10px] text-gray-400 font-medium leading-tight">
-                                                            {PT_CATEGORY_INFO[trainingCategory].desc}
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold ml-1">Select Plan</label>
-                                                <select 
-                                                    value={formData.trainingPackageId} 
-                                                    onChange={e => handleInputChange('trainingPackageId', e.target.value)} 
-                                                    className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-all"
-                                                >
-                                                    <option value="">-- No Personal Training --</option>
-                                                    {availableTrainingPackages.map(p => (
-                                                        <option key={p.id} value={p.id}>{p.name} (₹{p.price})</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                        </div>
-                                        {selectedPtPkg && (
-                                            <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 animate-in fade-in slide-in-from-top-2">
-                                                <div className="flex justify-between items-center mb-2">
-                                                    <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Plan Details:</span>
-                                                    <span className="text-lg font-black text-white">₹{selectedPtPkg.price}</span>
-                                                </div>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {selectedPtPkg.features?.map((f, i) => (
-                                                        <span key={i} className="text-[9px] bg-amber-500/10 text-amber-200 px-2 py-1 rounded-md border border-amber-500/10">
-                                                            {f}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
 
@@ -1068,12 +971,6 @@ const ScientificAdmissionForm: React.FC = () => {
                                         <span className="text-gray-400">Gym Package</span>
                                         <span className="text-white">₹{pkgPrice}</span>
                                     </div>
-                                    {ptPrice > 0 && (
-                                        <div className="flex justify-between text-sm">
-                                            <span className="text-amber-400">Training ({selectedPtPkg?.name})</span>
-                                            <span className="text-white">₹{ptPrice}</span>
-                                        </div>
-                                    )}
                                     {registrationFee > 0 && (
                                         <div className="flex justify-between text-sm">
                                             <span className="text-gray-400">Registration Fee</span>

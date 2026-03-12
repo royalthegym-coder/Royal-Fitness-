@@ -8,7 +8,7 @@ import ExerciseDemoModal, { getExerciseByName } from './common/ExerciseDemoModal
 import SmartExerciseLibrary from './SmartExerciseLibrary';
 import { useData } from '../context/DataProvider';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
-import { Zap, ShieldCheck, Trophy, Layers, Video, ArrowRight, Activity, PlayCircle, Calendar, Clock, Users, Flame, Plus, Trash2, Edit3, Save, BarChart3, Radio, Grip, X, Database, FileText, Cpu, GitBranch, MessageCircle, Lock } from 'lucide-react';
+import { Zap, ShieldCheck, Trophy, Layers, Video, ArrowRight, Activity, PlayCircle, Calendar, Clock, Users, Flame, Plus, Trash2, Edit3, Save, BarChart3, Radio, Grip, X, Database, FileText, Cpu, GitBranch, MessageCircle, Lock, BrainCircuit } from 'lucide-react';
 import AIWorkoutGeneratorModal from './common/AIWorkoutGeneratorModal';
 import SecurityLayer from './common/SecurityLayer';
 import { SparkleIcon } from './icons/SparkleIcon';
@@ -38,8 +38,9 @@ const WorkoutTemplateCard: React.FC<{
     template: WorkoutTemplate; 
     onAssign?: () => void;
     onEdit?: () => void;
+    onAnalyze?: () => void;
     isAdmin?: boolean;
-}> = ({ template, onAssign, onEdit, isAdmin }) => {
+}> = ({ template, onAssign, onEdit, onAnalyze, isAdmin }) => {
     const [demoModalExercise, setDemoModalExercise] = useState<string | null>(null);
     const [videoModalExercise, setVideoModalExercise] = useState<string | null>(null);
 
@@ -164,6 +165,11 @@ const WorkoutTemplateCard: React.FC<{
                         </h3>
                     </div>
                     <div className="flex gap-2">
+                        {onAnalyze && (
+                            <button onClick={onAnalyze} className="p-2 bg-indigo-900/50 rounded-full hover:bg-indigo-800 text-indigo-400 hover:text-white transition-colors border border-indigo-500/30" title="Analyze Progressive Overload">
+                                <BrainCircuit className="w-4 h-4" />
+                            </button>
+                        )}
                         <button onClick={handleDownloadPDF} className="p-2 bg-gray-800 rounded-full hover:bg-gray-700 text-gray-400 hover:text-white transition-colors" title="Download PDF Protocol">
                             <Download className="w-4 h-4" />
                         </button>
@@ -728,6 +734,35 @@ const Workouts: React.FC = () => {
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [assignTemplate, setAssignTemplate] = useState<WorkoutTemplate | null>(null);
 
+    // Analysis State
+    const [analyzingTemplate, setAnalyzingTemplate] = useState<WorkoutTemplate | null>(null);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+
+    const handleAnalyze = async (template: WorkoutTemplate) => {
+        setAnalyzingTemplate(template);
+        setIsAnalyzing(true);
+        setAnalysisResult(null);
+        try {
+            const { getComplexResponse } = await import('../../lib/gemini');
+            const prompt = `Analyze this workout template and suggest progressive overload strategies for the next 4 weeks. Include specific weight increases, rep changes, or tempo modifications.
+            Template Name: ${template.name}
+            Level: ${template.level}
+            Goal: ${template.category}
+            Description: ${template.description}
+            
+            Format the response in clean HTML with Tailwind classes for styling (use text-gray-300, text-cyan-400 for highlights, bg-white/5 for cards). Keep it concise and actionable.`;
+            
+            const response = await getComplexResponse(prompt);
+            setAnalysisResult(response);
+        } catch (error) {
+            console.error("Analysis failed", error);
+            setAnalysisResult("<div class='text-red-400'>Failed to generate analysis. Please try again.</div>");
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
     const filteredTemplates = useMemo(() => {
         return workoutTemplates.filter(t => t.level === selectedLevel);
     }, [selectedLevel, workoutTemplates]);
@@ -914,6 +949,7 @@ const Workouts: React.FC = () => {
                                 isAdmin={true}
                                 onEdit={() => { setEditingTemplate(template); setActiveTab('editor'); }}
                                 onAssign={() => { setAssignTemplate(template); setIsAssignModalOpen(true); }} 
+                                onAnalyze={() => handleAnalyze(template)}
                             />
                         ))}
                         
@@ -944,6 +980,35 @@ const Workouts: React.FC = () => {
                 members={members}
                 onConfirm={handleAssign}
             />
+
+            {/* Progressive Overload Analysis Modal */}
+            <Modal isOpen={!!analyzingTemplate} onClose={() => setAnalyzingTemplate(null)} title="Progressive Overload Analysis">
+                <div className="p-6">
+                    {isAnalyzing ? (
+                        <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                            <BrainCircuit className="w-12 h-12 text-indigo-500 animate-pulse" />
+                            <p className="text-indigo-400 font-mono text-sm uppercase tracking-widest animate-pulse">Analyzing Template...</p>
+                        </div>
+                    ) : analysisResult ? (
+                        <div className="space-y-6">
+                            <div className="bg-indigo-900/20 border border-indigo-500/30 p-4 rounded-xl flex items-start gap-4">
+                                <BrainCircuit className="w-6 h-6 text-indigo-400 shrink-0 mt-1" />
+                                <div>
+                                    <h4 className="text-indigo-400 font-black uppercase text-sm tracking-widest">AI Overload Strategy</h4>
+                                    <p className="text-indigo-300/70 text-xs mt-1">Based on {analyzingTemplate?.name}</p>
+                                </div>
+                            </div>
+                            <div className="prose prose-invert prose-sm max-w-none text-gray-300" dangerouslySetInnerHTML={{ __html: analysisResult }} />
+                        </div>
+                    ) : null}
+                    
+                    <div className="mt-8 flex justify-end">
+                        <button onClick={() => setAnalyzingTemplate(null)} className="px-6 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-black uppercase tracking-widest transition-colors">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </SecurityLayer>
     );
 };

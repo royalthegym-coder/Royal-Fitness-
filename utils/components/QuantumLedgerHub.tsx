@@ -257,7 +257,6 @@ const WalletView: React.FC<{
     const marketItems: MarketItem[] = [
         { id: 'm1', name: 'Whey Protein (1 Scoop)', cost: 500, type: 'Product', image: 'https://images.unsplash.com/photo-1593095948071-474c5cc2989d?q=80&w=200' },
         { id: 'm2', name: '1 Month Membership', cost: 5000, type: 'Discount', image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=200' },
-        { id: 'm3', name: 'Personal Training Session', cost: 1500, type: 'Discount', image: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=200' },
         { id: 'm4', name: 'Royal Gym Shaker', cost: 800, type: 'Product', image: 'https://images.unsplash.com/photo-1598633333333-e1d5a7d57065?q=80&w=200' },
     ];
 

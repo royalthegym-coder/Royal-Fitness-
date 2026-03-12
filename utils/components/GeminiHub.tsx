@@ -28,7 +28,7 @@ interface ChatMessage {
 const GeminiHub: React.FC = () => {
     const { addToast } = useToast();
     const { members, activeMemberCount, totalRevenue, invoices, systemHealth } = useData();
-    const [aiProvider] = useState(localStorage.getItem('royal_ai_provider') || 'HUGGINGFACE');
+    const [aiProvider] = useState(localStorage.getItem('royal_ai_provider') || 'GEMINI');
     
     const [activeModel, setActiveModel] = useState<ModelType>('reasoning');
     const [messages, setMessages] = useState<ChatMessage[]>([]);

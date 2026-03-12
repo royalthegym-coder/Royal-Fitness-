@@ -221,29 +221,21 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, currentUser }) => {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div onClick={() => setAiProvider('HUGGINGFACE')} className={`p-6 rounded-3xl border-2 cursor-pointer transition-all ${aiProvider === 'HUGGINGFACE' || aiProvider === 'GEMINI' ? 'border-green-500 bg-green-900/10' : 'border-gray-800 bg-black/40 hover:border-gray-600'}`}>
-                                        <Globe className={`w-8 h-8 mb-4 ${aiProvider === 'HUGGINGFACE' || aiProvider === 'GEMINI' ? 'text-green-400' : 'text-gray-600'}`} />
-                                        <h3 className="font-bold text-white">Groq / Hugging Face</h3>
-                                        <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-wider">Llama-3 & Mistral. 100% Free Tier.</p>
+                                    <div onClick={() => setAiProvider('GEMINI')} className={`p-6 rounded-3xl border-2 cursor-pointer transition-all ${aiProvider === 'GEMINI' ? 'border-green-500 bg-green-900/10' : 'border-gray-800 bg-black/40 hover:border-gray-600'}`}>
+                                        <Globe className={`w-8 h-8 mb-4 ${aiProvider === 'GEMINI' ? 'text-green-400' : 'text-gray-600'}`} />
+                                        <h3 className="font-bold text-white">Google Gemini</h3>
+                                        <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-wider">Gemini Flash. 100% Free Tier.</p>
                                     </div>
-                                    <div onClick={() => setAiProvider('OPENAI')} className={`p-6 rounded-3xl border-2 cursor-pointer transition-all ${aiProvider === 'OPENAI' ? 'border-red-500 bg-red-900/10' : 'border-gray-800 bg-black/40 hover:border-gray-600'}`}>
-                                        <Cloud className={`w-8 h-8 mb-4 ${aiProvider === 'OPENAI' ? 'text-red-400' : 'text-gray-600'}`} />
+                                    <div className={`p-6 rounded-3xl border-2 cursor-not-allowed transition-all border-gray-800 bg-black/40 opacity-50`}>
+                                        <Cloud className={`w-8 h-8 mb-4 text-gray-600`} />
                                         <h3 className="font-bold text-white">OpenAI (GPT-4)</h3>
-                                        <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-wider">Requires Paid External Key.</p>
+                                        <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-wider">Disabled to prevent costs.</p>
                                     </div>
                                 </div>
 
-                                {aiProvider === 'HUGGINGFACE' && (
+                                {aiProvider === 'GEMINI' && (
                                     <div>
-                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Groq / Hugging Face Token (Optional)</label>
-                                        <input 
-                                            type="password" 
-                                            value={hfToken}
-                                            onChange={(e) => setHfToken(e.target.value)}
-                                            placeholder="hf_..."
-                                            className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-blue-500 transition-all"
-                                        />
-                                        <p className="text-[10px] text-gray-500 mt-2">Get a free token at huggingface.co/settings/tokens or console.groq.com</p>
+                                        <p className="text-[10px] text-green-500 mt-2">Gemini API is active and running at zero cost.</p>
                                     </div>
                                 )}
 

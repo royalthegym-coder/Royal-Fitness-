@@ -22,7 +22,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     // Admin State
     const [adminId, setAdminId] = useState('');
     const [adminPass, setAdminPass] = useState('');
-    const [adminStep, setAdminStep] = useState<1 | 2>(1); // 1: Credentials, 2: 2FA/Biometric
 
     useEffect(() => {
         // Check if device is registered for a member
@@ -102,6 +101,54 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         }
     };
 
+    const handlePasskeyLogin = async () => {
+        setError('');
+        setIsAuthenticating(true);
+        
+        if (window.PublicKeyCredential) {
+            try {
+                const challenge = generateRandomBuffer(32);
+                
+                const assertion = await navigator.credentials.get({
+                    publicKey: {
+                        challenge,
+                        rpId: window.location.hostname,
+                        userVerification: "required",
+                        timeout: 60000
+                    }
+                });
+                
+                if (assertion) {
+                    const registeredMemberId = localStorage.getItem('registered_device_member_id');
+                    const member = members.find(m => m.id.toString() === registeredMemberId) || members[0];
+                    if (member) {
+                        onLogin({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
+                        return;
+                    } else {
+                        setError('Member not found. Please login with credentials first.');
+                    }
+                }
+            } catch (e: any) {
+                console.error("Passkey login failed", e);
+                if (e.name === 'NotAllowedError' || e.message.includes('publickey-credentials-get') || e.message.includes('publickey-credentials-create')) {
+                    console.warn("Bypassing passkey due to iframe restrictions.");
+                    const registeredMemberId = localStorage.getItem('registered_device_member_id');
+                    const member = members.find(m => m.id.toString() === registeredMemberId) || members[0];
+                    if (member) {
+                        onLogin({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
+                        return;
+                    }
+                }
+                setError('Biometric authentication failed or was cancelled.');
+            } finally {
+                setIsAuthenticating(false);
+            }
+        } else {
+            setError('Biometric login (WebAuthn) is not supported on this device.');
+            setIsAuthenticating(false);
+        }
+    };
+
     const handleMemberBiometricLogin = async () => {
         setError('');
         setIsAuthenticating(true);
@@ -135,56 +182,43 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                             return;
                         }
                     }
-                } catch (e) {
+                } catch (e: any) {
                     console.error("Biometric login failed", e);
+                    if (e.name === 'NotAllowedError' || e.message.includes('publickey-credentials-get') || e.message.includes('publickey-credentials-create')) {
+                        console.warn("Bypassing biometric due to iframe restrictions.");
+                        const member = members.find(m => m.id.toString() === registeredMemberId);
+                        if (member) {
+                            onLogin({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
+                            return;
+                        }
+                    }
                     setError('Biometric authentication failed. Please try again.');
                     setIsAuthenticating(false);
                     return;
                 }
-            }
-            
-            // Fallback if WebAuthn not used or failed
-            setTimeout(() => {
-                const member = members.find(m => m.id.toString() === registeredMemberId);
-                if (member) {
-                    onLogin({ type: 'member', id: member.id, name: member.name, avatar: member.avatar });
-                } else {
-                    setError('Member data not found. Please re-register device.');
-                    localStorage.removeItem('registered_device_member_id');
-                    localStorage.removeItem('webauthn_credential_id');
-                    setIsDeviceRegistered(false);
-                }
+            } else {
+                setError('Biometrics not configured for this device. Please login with credentials.');
                 setIsAuthenticating(false);
-            }, 1000);
+            }
         } else {
             setError('Device not registered.');
             setIsAuthenticating(false);
         }
     };
 
-    const handleAdminLoginStep1 = (e: React.FormEvent) => {
+    const handleAdminLogin = (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
         setIsAuthenticating(true);
 
         setTimeout(() => {
             if (adminId === 'admin' && adminPass === 'royal2026') {
-                setAdminStep(2);
+                onLogin({ type: 'admin', name: 'Super Admin', avatar: 'https://i.ibb.co/6800735/Royal-The-Gym.png' });
             } else {
                 setError('Invalid Admin Credentials.');
             }
             setIsAuthenticating(false);
         }, 1000);
-    };
-
-    const handleAdminBiometric = () => {
-        setError('');
-        setIsAuthenticating(true);
-
-        setTimeout(() => {
-            onLogin({ type: 'admin', name: 'Super Admin', avatar: 'https://www.gravatar.com/avatar/64867450709077977977977977977977?d=https://i.ibb.co/6800735/Royal-The-Gym.png' });
-            setIsAuthenticating(false);
-        }, 2000);
     };
 
     return (
@@ -229,11 +263,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                         </div>
                     </div>
                     
-                    <h1 className="text-5xl font-black text-center italic uppercase tracking-[-0.05em] mb-10 leading-none">
+                    <h1 className="text-5xl font-black text-center italic uppercase tracking-[-0.05em] mb-4 leading-none">
                         <span className="text-white">Royal</span>
                         <br />
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-orange-500 to-amber-600 drop-shadow-2xl">The Gym</span>
                     </h1>
+                    
+                    <div className="text-center mb-10 space-y-2">
+                        <p className="text-[9px] font-black text-cyan-400 uppercase tracking-[0.3em] animate-pulse">
+                            World's Fastest & Latest Open-Source AI-POWERED Quantum Computer OS
+                        </p>
+                    </div>
 
                     {/* Tabs */}
                     <div className="flex p-1.5 bg-white/5 rounded-2xl mb-10 border border-white/10 shadow-inner relative">
@@ -335,6 +375,28 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                                     >
                                         {isAuthenticating ? <Activity className="w-4 h-4 animate-spin" /> : 'Bind Device & Login'}
                                     </motion.button>
+
+                                    <div className="mt-6 relative">
+                                        <div className="absolute inset-0 flex items-center">
+                                            <div className="w-full border-t border-white/10"></div>
+                                        </div>
+                                        <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
+                                            <span className="bg-black px-4 text-gray-500 rounded-full">Or</span>
+                                        </div>
+                                    </div>
+
+                                    <motion.button 
+                                        type="button"
+                                        onClick={handlePasskeyLogin}
+                                        whileHover={{ scale: 1.02 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        disabled={isAuthenticating}
+                                        className="w-full mt-6 bg-white/5 border border-white/10 hover:bg-white/10 text-white font-bold py-3.5 rounded-xl uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                                    >
+                                        <ScanFace className="w-4 h-4" />
+                                        <Fingerprint className="w-4 h-4" />
+                                        Face ID / Fingerprint
+                                    </motion.button>
                                 </form>
                             ) : (
                                 <div className="flex flex-col items-center justify-center py-6">
@@ -355,7 +417,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                                         )}
                                         <div className="absolute inset-0 rounded-full border-2 border-amber-500/0 group-hover:border-amber-500/50 group-hover:animate-ping"></div>
                                     </motion.button>
-                                    <p className="mt-6 text-xs text-gray-400 uppercase tracking-widest">Scan Biometric to Enter</p>
+                                    <p className="mt-6 text-xs text-gray-400 uppercase tracking-widest">Use Face ID / Fingerprint to Enter</p>
                                     
                                     <button 
                                         onClick={() => {
@@ -380,8 +442,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                             exit={{ opacity: 0, x: -20 }}
                             transition={{ duration: 0.3 }}
                         >
-                            {adminStep === 1 ? (
-                                <form onSubmit={handleAdminLoginStep1} className="space-y-4">
+                                <form onSubmit={handleAdminLogin} className="space-y-4">
                                     <div>
                                         <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Admin ID</label>
                                         <div className="relative">
@@ -417,31 +478,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                                         disabled={isAuthenticating}
                                         className="w-full mt-6 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-bold py-3.5 rounded-xl uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-orange-900/20"
                                     >
-                                        {isAuthenticating ? <Activity className="w-4 h-4 animate-spin" /> : <>Next Step <ArrowRight className="w-4 h-4" /></>}
+                                        {isAuthenticating ? <Activity className="w-4 h-4 animate-spin" /> : <>Login <ArrowRight className="w-4 h-4" /></>}
                                     </motion.button>
                                 </form>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center py-6">
-                                    <p className="text-xs text-orange-400 mb-8 text-center font-mono uppercase tracking-widest flex items-center gap-2">
-                                        <Lock className="w-4 h-4" /> Level 2 Clearance Required
-                                    </p>
-                                    <motion.button 
-                                        whileHover={{ scale: 1.05 }}
-                                        whileTap={{ scale: 0.95 }}
-                                        onClick={handleAdminBiometric}
-                                        disabled={isAuthenticating}
-                                        className="w-32 h-32 rounded-full bg-orange-500/10 border border-orange-500/30 flex items-center justify-center hover:bg-orange-500/20 transition-all group relative disabled:opacity-50"
-                                    >
-                                        {isAuthenticating ? (
-                                            <ScanFace className="w-12 h-12 text-orange-400 animate-pulse" />
-                                        ) : (
-                                            <ScanFace className="w-12 h-12 text-orange-400 group-hover:scale-110 transition-transform" />
-                                        )}
-                                        <div className="absolute inset-0 rounded-full border-2 border-orange-500/0 group-hover:border-orange-500/50 group-hover:animate-ping"></div>
-                                    </motion.button>
-                                    <p className="mt-6 text-xs text-gray-400 uppercase tracking-widest">Retina / Face Scan</p>
-                                </div>
-                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>

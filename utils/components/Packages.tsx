@@ -236,16 +236,16 @@ const Packages: React.FC = () => {
 
             {activeTab === 'grid' ? (
                 <div className="space-y-16">
-                    {categories.map(category => (
-                        <div key={category} className="space-y-8 animate-slide-up">
+                    {categories.map((category, index) => (
+                        <div key={`${category}-${index}`} className="space-y-8 animate-slide-up">
                             <div className="flex items-center gap-4">
                                 <h2 className="text-2xl font-black text-white uppercase italic tracking-widest flex-shrink-0">{category} Modules</h2>
                                 <div className="h-px bg-white/10 flex-grow"></div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                                {packages.filter(p => p.category === category).map(pkg => (
+                                {packages.filter(p => p.category === category).map((pkg, index) => (
                                     <ProtocolCard 
-                                        key={pkg.id} 
+                                        key={`${pkg.id}-${index}`} 
                                         pkg={pkg}
                                         activeCount={members.filter(m => m.packageId === pkg.id && m.status === 'Active').length} 
                                         isRecommended={pkg.id === recPackageId}
@@ -272,8 +272,8 @@ const Packages: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
-                                {packages.map(pkg => (
-                                    <tr key={pkg.id} className="hover:bg-white/5 transition-all">
+                                {packages.map((pkg, index) => (
+                                    <tr key={`${pkg.id}-${index}`} className="hover:bg-white/5 transition-all">
                                         <td className="p-10">
                                             <p className="text-lg font-black text-white uppercase italic tracking-tighter">{pkg.name}</p>
                                             <p className="text-[9px] text-gray-500 font-mono mt-1">CAT: {pkg.category}</p>
@@ -404,12 +404,6 @@ const PackageFormModal: React.FC<{
                             <option>Strength</option>
                             <option>Cardio</option>
                             <option>Aerobics</option>
-                            <option>Personal Training</option>
-                            <option>PT: Weight Loss</option>
-                            <option>PT: Muscle Gain</option>
-                            <option>PT: Bodybuilding</option>
-                            <option>PT: Powerlifting</option>
-                            <option>PT: General Fitness</option>
                         </select>
                     </div>
                     <div>

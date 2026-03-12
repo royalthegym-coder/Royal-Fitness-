@@ -5,11 +5,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#09090b" />
-    <meta name="description" content="Royal The Gym - AI Powered Fitness Ecosystem v31.0 (Singularity)" />
+    <meta name="description" content="Royal The Gym - AI Powered Fitness Ecosystem v32.0 (Quantum OS)" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     
-    <title>Royal Neural OS v31.0</title>
+    <title>Royal Quantum OS v32.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -67,6 +67,27 @@
     <script>
       // Using a setter to ensure process.env is handled by the platform injection
       window.process = window.process || { env: {}, cwd: () => '/' };
+
+      // --- 5-LAYER QUANTUM SECURITY PROTOCOL ---
+      document.addEventListener('contextmenu', event => event.preventDefault()); // Block Right Click
+      document.addEventListener('keydown', (e) => {
+        // Block F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
+        if (e.key === 'F12' || 
+           (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) || 
+           (e.ctrlKey && e.key === 'U')) {
+          e.preventDefault();
+          return false;
+        }
+      });
+      // Anti-Debugger Loop
+      setInterval(() => {
+        const before = new Date().getTime();
+        debugger;
+        const after = new Date().getTime();
+        if (after - before > 100) {
+            document.body.innerHTML = "<div style='color:red; text-align:center; margin-top:20%; font-family:monospace; font-size:24px;'>SECURITY BREACH DETECTED. ACCESS DENIED.</div>";
+        }
+      }, 2000);
     </script>
     <style>
       :root {
@@ -206,7 +227,6 @@
 </head>
   <body class="overflow-hidden m-0 p-0 bg-black text-gray-100 transition-colors duration-300">
     <div id="root"></div>
-    <script type="module" src="./index.tsx"></script>
-  <script type="module" src="/index.tsx"></script>
-</body>
+    <script type="module" src="/lib/index.tsx"></script>
+  </body>
 </html>

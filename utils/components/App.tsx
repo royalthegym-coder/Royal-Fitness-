@@ -68,11 +68,33 @@ const CRMSystem = React.lazy(() => import('./CRMSystem'));
 const ScientificAdmissionForm = React.lazy(() => import('./ScientificAdmissionForm'));
 const AutomationHub = React.lazy(() => import('./AutomationHub'));
 const AdminAttendance = React.lazy(() => import('./admin/AdminAttendance'));
+const AdminScheduler = React.lazy(() => import('./admin/AdminScheduler'));
 const MedicalProfilingSystem = React.lazy(() => import('./MedicalProfilingSystem').then(module => ({ default: module.MedicalProfilingSystem })));
+const GeniusEngine = React.lazy(() => import('./GeniusEngine'));
+const InjuryOracle = React.lazy(() => import('./InjuryOracle'));
+const GhostSensor = React.lazy(() => import('./GhostSensor'));
+const DigitalTwin = React.lazy(() => import('./DigitalTwin'));
+const GhostSocial = React.lazy(() => import('./GhostSocial'));
+const QuantumDNA = React.lazy(() => import('./QuantumDNA').then(m => ({ default: m.QuantumDNA })));
+const NeuralEdge = React.lazy(() => import('./NeuralEdge'));
+const UniversalGadgetDashboard = React.lazy(() => import('./UniversalGadgetDashboard').then(module => ({ default: module.UniversalGadgetDashboard })));
+const DigitalBioHealthPass = React.lazy(() => import('./DigitalBioHealthPass').then(module => ({ default: module.DigitalBioHealthPass })));
+const AIDoctorConsultation = React.lazy(() => import('./AIDoctorConsultation').then(module => ({ default: module.AIDoctorConsultation })));
+const FinalImplementationRoadmap = React.lazy(() => import('./FinalImplementationRoadmap').then(module => ({ default: module.FinalImplementationRoadmap })));
+const NexusMasterDashboard = React.lazy(() => import('./NexusMasterDashboard').then(module => ({ default: module.NexusMasterDashboard })));
+const EmergencyOverride = React.lazy(() => import('./EmergencyOverride').then(module => ({ default: module.EmergencyOverride })));
+const StaffAITrainingManual = React.lazy(() => import('./StaffAITrainingManual').then(module => ({ default: module.StaffAITrainingManual })));
+const QuantumOSCore = React.lazy(() => import('./QuantumOSCore').then(module => ({ default: module.QuantumOSCore })));
+const ViralMarketingCampaign = React.lazy(() => import('./admin/ViralMarketingCampaign').then(module => ({ default: module.ViralMarketingCampaign })));
+const ProjectHandover = React.lazy(() => import('./admin/ProjectHandover').then(module => ({ default: module.ProjectHandover })));
+const LaunchCommandCenter = React.lazy(() => import('./admin/LaunchCommandCenter').then(module => ({ default: module.LaunchCommandCenter })));
+const SentinelIntakeBot = React.lazy(() => import('./admin/SentinelIntakeBot').then(module => ({ default: module.SentinelIntakeBot })));
+const FinalStressTest = React.lazy(() => import('./admin/FinalStressTest').then(module => ({ default: module.FinalStressTest })));
+const OSUploads = React.lazy(() => import('./OSUploads'));
 
 const NeuralBoot = ({ onComplete }: { onComplete: () => void }) => {
     const [progress, setProgress] = useState(0);
-    const [phase, setPhase] = useState('Initializing Apex-Continuum v32.0 (The Singularity)...');
+    const [phase, setPhase] = useState('Initializing Quantum OS v32.0...');
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -83,9 +105,9 @@ const NeuralBoot = ({ onComplete }: { onComplete: () => void }) => {
                     return 100;
                 }
                 
-                if (prev > 10) setPhase('Establishing Immutable Ledger...');
-                if (prev > 30) setPhase('Entangling Data Nodes...');
-                if (prev > 60) setPhase('Activating Self-Evolution Engine...');
+                if (prev > 10) setPhase('Establishing Quantum Ledger...');
+                if (prev > 30) setPhase('Entangling Qubit Nodes...');
+                if (prev > 60) setPhase('Activating AI Overmind...');
                 if (prev > 90) setPhase('Sovereign Clearance Granted.');
 
                 const inc = Math.random() * 20 + 10; 
@@ -97,27 +119,27 @@ const NeuralBoot = ({ onComplete }: { onComplete: () => void }) => {
 
     return (
         <div className="h-screen w-screen bg-[#000000] flex flex-col items-center justify-center relative overflow-hidden z-[9999]">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-900/40 via-black to-black animate-pulse"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-fuchsia-900/40 via-black to-black animate-pulse"></div>
             
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] border border-indigo-500/10 rounded-full animate-spin-slow"></div>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] border border-fuchsia-500/10 rounded-full animate-spin-slow"></div>
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] border border-cyan-500/10 rounded-full animate-spin-reverse-slow"></div>
 
             <div className="relative z-10 flex flex-col items-center text-center">
                 <div className="mb-10 relative group">
-                    <div className="absolute inset-0 bg-indigo-500/30 rounded-full blur-[100px] opacity-60 animate-pulse"></div>
-                    <Orbit className="w-32 h-32 text-white relative z-10 drop-shadow-[0_0_60px_rgba(99,102,241,0.8)] animate-spin-slow" />
+                    <div className="absolute inset-0 bg-fuchsia-500/30 rounded-full blur-[100px] opacity-60 animate-pulse"></div>
+                    <Orbit className="w-32 h-32 text-white relative z-10 drop-shadow-[0_0_60px_rgba(217,70,239,0.8)] animate-spin-slow" />
                 </div>
                 <h1 className="text-7xl font-black text-white italic uppercase tracking-[0.2em] mb-2 leading-none">
-                    Apex <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-500">Continuum</span>
+                    Quantum <span className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-400 to-cyan-500">OS</span>
                 </h1>
-                <p className="text-xs font-mono text-indigo-500/60 uppercase tracking-[1em] mb-12">The Singularity Update v32.0</p>
+                <p className="text-xs font-mono text-fuchsia-500/60 uppercase tracking-[0.5em] mb-12">World's Fastest & Latest Open-Source AI-POWERED</p>
                 
                 <div className="w-96 h-1 bg-gray-900 rounded-full overflow-hidden relative border border-white/10">
-                    <div className="h-full bg-gradient-to-r from-indigo-500 via-white to-cyan-500 transition-all duration-100 shadow-[0_0_20px_white]" style={{ width: `${progress}%` }}></div>
+                    <div className="h-full bg-gradient-to-r from-fuchsia-500 via-white to-cyan-500 transition-all duration-100 shadow-[0_0_20px_white]" style={{ width: `${progress}%` }}></div>
                 </div>
                 
                 <div className="mt-6 flex items-center gap-4">
-                    <Activity className="w-4 h-4 text-indigo-500 animate-pulse" />
+                    <Activity className="w-4 h-4 text-fuchsia-500 animate-pulse" />
                     <p className="text-[10px] font-mono text-gray-500 uppercase tracking-[0.2em]">
                         {phase}
                     </p>
@@ -129,7 +151,7 @@ const NeuralBoot = ({ onComplete }: { onComplete: () => void }) => {
 
 const AppContent: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<any>(null);
-    const [currentView, setCurrentView] = useState<View>('dashboard');
+    const [currentView, setCurrentView] = useState<View>('quantumCore');
     const [isBooting, setIsBooting] = useState(true);
     const [isChatOpen, setChatOpen] = useState(false);
     const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -228,31 +250,53 @@ const AppContent: React.FC = () => {
                 case 'neuralArchitecture': return NeuralArchitecture;
                 case 'scientificAdmissionForm': return ScientificAdmissionForm;
                 case 'adminAttendance': return AdminAttendance;
+                case 'adminScheduler': return AdminScheduler;
                 case 'medicalProfiling': return MedicalProfilingSystem;
+                case 'quantumDNA': return QuantumDNA;
+                case 'geniusEngine': return GeniusEngine;
+                case 'injuryOracle': return InjuryOracle;
+                case 'ghostSensor': return GhostSensor;
+                case 'digitalTwin': return DigitalTwin;
+                case 'ghostSocial': return GhostSocial;
+                case 'neuralEdge': return NeuralEdge;
+                case 'universalGadgets': return UniversalGadgetDashboard;
+                case 'digitalBioPass': return DigitalBioHealthPass;
+                case 'aiDoctor': return AIDoctorConsultation;
+                case 'devRoadmap': return FinalImplementationRoadmap;
+                case 'nexusMaster': return NexusMasterDashboard;
+                case 'emergencyOverride': return EmergencyOverride;
+                case 'staffAITraining': return StaffAITrainingManual;
+                case 'quantumCore': return QuantumOSCore;
+                case 'viralMarketing': return ViralMarketingCampaign;
+                case 'projectHandover': return ProjectHandover;
+                case 'launchCommandCenter': return LaunchCommandCenter;
+                case 'sentinelIntakeBot': return SentinelIntakeBot;
+                case 'finalStressTest': return FinalStressTest;
+                case 'osUploads': return OSUploads;
                 default: return Dashboard;
             }
         })();
 
         return (
-            <Suspense fallback={
-                <div className="h-full w-full flex flex-col items-center justify-center text-indigo-500 opacity-80">
-                    <RefreshCw className="animate-spin w-12 h-12 mb-4" />
-                    <p className="text-xs font-black uppercase tracking-[0.3em]">Entangling Module...</p>
-                </div>
-            }>
-                <AnimatePresence mode="wait">
-                    <motion.div
-                        key={currentView}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.3, ease: "easeOut" }}
-                        className="h-full"
-                    >
+            <AnimatePresence mode="wait">
+                <motion.div
+                    key={currentView}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                    className="h-full"
+                >
+                    <Suspense fallback={
+                        <div className="h-full w-full flex flex-col items-center justify-center text-indigo-500 opacity-80 min-h-[400px]">
+                            <RefreshCw className="animate-spin w-12 h-12 mb-4" />
+                            <p className="text-xs font-black uppercase tracking-[0.3em]">Entangling Module...</p>
+                        </div>
+                    }>
                         <ViewComponent setCurrentView={setCurrentView} currentUser={currentUser} theme={theme} />
-                    </motion.div>
-                </AnimatePresence>
-            </Suspense>
+                    </Suspense>
+                </motion.div>
+            </AnimatePresence>
         );
     };
     
@@ -282,6 +326,12 @@ const AppContent: React.FC = () => {
     if (currentUser.type === 'member') {
         return (
             <Suspense fallback={<div className="h-screen w-screen bg-black"></div>}>
+                <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-black">
+                    <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+                    <div className="absolute -top-40 -left-40 w-[800px] h-[800px] bg-cyan-900/10 rounded-full blur-[150px] animate-pulse-slow"></div>
+                    <div className="absolute -bottom-40 -right-40 w-[800px] h-[800px] bg-fuchsia-900/10 rounded-full blur-[150px] animate-pulse-slow animation-delay-2000"></div>
+                    <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff02_1px,transparent_1px),linear-gradient(to_bottom,#ffffff02_1px,transparent_1px)] bg-[size:60px_60px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_50%,#000_70%,transparent_100%)]"></div>
+                </div>
                 {renderOfflineBanner()}
                 {APP_METADATA.version === 'BETA_GOD_TIER' && (
                     <button onClick={handleReportBug} className="fixed top-4 right-4 z-[9999] bg-red-600 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg hover:bg-red-500 flex items-center gap-2">
@@ -289,14 +339,24 @@ const AppContent: React.FC = () => {
                     </button>
                 )}
                 <AppSecurityLayer>
-                    <MemberPortal loggedInMemberId={currentUser.id} onLogout={() => setCurrentUser(null)} theme={theme} toggleTheme={() => {}} />
+                    <div className="relative z-10 h-screen w-screen overflow-y-scroll overflow-x-hidden">
+                        <MemberPortal loggedInMemberId={currentUser.id} onLogout={() => setCurrentUser(null)} theme={theme} toggleTheme={() => {}} />
+                    </div>
                 </AppSecurityLayer>
             </Suspense>
         );
     }
 
     return (
-        <div className={`h-screen w-screen flex flex-col overflow-hidden font-sans selection:bg-indigo-500/30 transition-colors duration-300 bg-black text-gray-100`}>
+        <div className={`h-screen w-screen flex flex-col overflow-hidden font-sans selection:bg-indigo-500/30 transition-colors duration-300 bg-black text-gray-100 relative`}>
+            {/* GLOBAL DIPLOMAT MODE & FULL AUTOMATION BACKGROUND */}
+            <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+                <div className="absolute -top-40 -right-40 w-[800px] h-[800px] bg-cyan-900/10 rounded-full blur-[150px] animate-pulse-slow"></div>
+                <div className="absolute -bottom-40 -left-40 w-[800px] h-[800px] bg-fuchsia-900/10 rounded-full blur-[150px] animate-pulse-slow animation-delay-2000"></div>
+                <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff02_1px,transparent_1px),linear-gradient(to_bottom,#ffffff02_1px,transparent_1px)] bg-[size:60px_60px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_50%,#000_70%,transparent_100%)]"></div>
+            </div>
+
             {renderOfflineBanner()}
             {APP_METADATA.version === 'BETA_GOD_TIER' && (
                 <button onClick={handleReportBug} className="fixed top-4 right-4 z-[9999] bg-red-600 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg hover:bg-red-500 flex items-center gap-2">
@@ -304,17 +364,23 @@ const AppContent: React.FC = () => {
                 </button>
             )}
             <Header onLogout={() => setCurrentUser(null)} userName={currentUser.name} avatar={currentUser.avatar} theme={theme} toggleTheme={() => {}}>
+                <div className="hidden lg:flex items-center gap-3 px-4 py-1.5 bg-black/50 backdrop-blur-md rounded-full border border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.2)] group cursor-help" title="System Status">
+                    <Activity className="w-4 h-4 text-cyan-400 animate-pulse" />
+                    <span className="text-[9px] font-black text-cyan-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                        Diplomat Mode <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping"></span>
+                    </span>
+                </div>
                 <div className="hidden lg:flex items-center gap-3 px-4 py-1.5 bg-white dark:bg-gray-900 rounded-full border border-gray-200 dark:border-white/5 shadow-inner group cursor-help" title="System Status">
                     {systemHealth === 100 ? <ShieldCheck className="w-4 h-4 text-green-500" /> : <Activity className="w-4 h-4 text-amber-500 animate-pulse" />}
                     <span className="text-[9px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                        {isSyncing ? 'EVOLVING...' : `APEX v32.0 (The Singularity)`}
+                        {isSyncing ? 'EVOLVING...' : `QUANTUM OS v32.0`}
                     </span>
                 </div>
             </Header>
             <div className="flex-1 flex overflow-hidden">
                 <Sidebar currentView={currentView} setCurrentView={setCurrentView} isOpen={isSidebarOpen} setIsOpen={setSidebarOpen} role={currentUser.type} />
                 
-                <main className={`flex-1 overflow-y-auto p-4 sm:p-6 md:p-10 custom-scrollbar relative bg-black`}>
+                <main className={`flex-1 overflow-y-scroll overflow-x-hidden p-4 sm:p-6 md:p-10 custom-scrollbar relative bg-black`}>
                     <ErrorBoundary>
                         {renderAdminView()}
                     </ErrorBoundary>

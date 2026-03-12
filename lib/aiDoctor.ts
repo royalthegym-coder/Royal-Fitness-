@@ -11,6 +11,7 @@ export interface AIDoctorAnalysis {
     agents_involved: string[];
     github_sync_status: string;
     n8n_workflow_id: string;
+    latest_research_links?: string[];
 }
 
 export interface MedicalFile {
@@ -18,7 +19,12 @@ export interface MedicalFile {
     mimeType: string;
 }
 
-const cleanBase64 = (b64: string) => b64.replace(/^data:image\/\w+;base64,/, "").replace(/^data:application\/\w+;base64,/, "");
+const cleanBase64 = (b64: string) => {
+    if (b64.includes(',')) {
+        return b64.split(',')[1];
+    }
+    return b64;
+};
 
 export const analyzeComprehensiveHealth = async (
     symptoms: string,
@@ -27,19 +33,22 @@ export const analyzeComprehensiveHealth = async (
 ): Promise<AIDoctorAnalysis> => {
     try {
         const prompt = `You are an elite AI Medical Council (Llama-3-Med, Bio-Mistral, DeepSeek-V3, Royal-Core).
+        CRITICAL INSTRUCTION: You MUST use the Google Search tool to fetch the absolute latest global medical research, clinical trials, and scientific developments related to these symptoms before providing a diagnosis.
+        
         Analyze the following symptoms, member data, and any attached medical reports/images.
         
         Symptoms/Notes: ${symptoms || "None provided."}
         Member Data: ${JSON.stringify(memberData)}
         
-        Provide a comprehensive diagnosis combining all available information.
+        Provide a comprehensive diagnosis combining all available information, integrating the latest global medical science updates.
         Return a JSON object with the following structure:
         {
-            "diagnosis": "string (detailed diagnosis combining symptoms and reports)",
+            "diagnosis": "string (detailed diagnosis combining symptoms, reports, and latest research)",
             "severity": "string (Low, Medium, High, Critical)",
-            "treatment": "string (recommended treatment plan)",
+            "treatment": "string (recommended treatment plan based on latest medical developments)",
             "recovery_days": number (estimated days to recover),
-            "agents_involved": ["Llama-3-Med", "Bio-Mistral", "DeepSeek-V3", "Royal-Core"]
+            "agents_involved": ["Llama-3-Med", "Bio-Mistral", "DeepSeek-V3", "Royal-Core", "PubMed-Crawler"],
+            "latest_research_links": ["url1", "url2"]
         }`;
 
         const parts: any[] = [];
@@ -62,7 +71,10 @@ export const analyzeComprehensiveHealth = async (
         const response = await ai.models.generateContent({
             model: 'gemini-3.1-pro-preview',
             contents: { parts },
-            config: { responseMimeType: "application/json" }
+            config: { 
+                responseMimeType: "application/json",
+                tools: [{ googleSearch: {} }]
+            }
         });
 
         const result = cleanAndParseJSON(response.text || "{}");
@@ -72,9 +84,10 @@ export const analyzeComprehensiveHealth = async (
             severity: result.severity || "Unknown",
             treatment: result.treatment || "Consult a human doctor.",
             recovery_days: result.recovery_days || 0,
-            agents_involved: result.agents_involved || ["Royal-Core"],
+            agents_involved: result.agents_involved || ["Royal-Core", "PubMed-Crawler"],
             github_sync_status: "Synced",
-            n8n_workflow_id: "wf_" + Math.random().toString(36).substring(7)
+            n8n_workflow_id: "wf_" + Math.random().toString(36).substring(7),
+            latest_research_links: result.latest_research_links || []
         };
     } catch (e) {
         console.error("Comprehensive Health Analysis Error:", e);
@@ -85,7 +98,8 @@ export const analyzeComprehensiveHealth = async (
             recovery_days: 1,
             agents_involved: ["Royal-Core"],
             github_sync_status: "Failed",
-            n8n_workflow_id: "N/A"
+            n8n_workflow_id: "N/A",
+            latest_research_links: []
         };
     }
 };

@@ -48,26 +48,17 @@ const MemberForm: React.FC<{
     const [gender, setGender] = useState(member?.gender || 'Male');
     
     const [selectedPkgId, setSelectedPkgId] = useState<number | ''>(member?.packageId || '');
-    const [selectedPtPkgId, setSelectedPtPkgId] = useState<number | ''>(member?.trainingPackageId || '');
     const [includeRegFee, setIncludeRegFee] = useState(false);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'Cash' | 'Card (NFC)'>('UPI');
     const [isPaid, setIsPaid] = useState(false);
     const [isCameraOpen, setIsCameraOpen] = useState(false);
-    const [trainingCategory, setTrainingCategory] = useState<string>('Personal Training');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Derived State for Packages
     const selectedPkg = packages.find(p => p.id === Number(selectedPkgId));
-    const selectedPtPkg = packages.find(p => p.id === Number(selectedPtPkgId));
-    
-    // Improved Filtering Logic
-    const gymPackages = useMemo(() => packages.filter(p => !p.category.toLowerCase().includes('personal') && !p.category.toLowerCase().includes('training')), [packages]);
-    const uniqueTrainingCategories = useMemo(() => Array.from(new Set(packages.filter(p => !gymPackages.includes(p)).map(p => p.category))), [packages, gymPackages]);
-    const availableTrainingPackages = useMemo(() => packages.filter(p => p.category === trainingCategory), [packages, trainingCategory]);
 
     const pkgPrice = selectedPkg?.price || 0;
-    const ptPrice = selectedPtPkg?.price || 0;
     const registrationFee = includeRegFee ? 1000 : 0; 
     
     const accessoriesTotal = cart.filter(i => i.type === 'Accessory' || i.type === 'Apparel').reduce((sum, i) => sum + (i.price * i.qty), 0);
@@ -75,7 +66,7 @@ const MemberForm: React.FC<{
     const medicineTotal = cart.filter(i => i.type === 'Medicine').reduce((sum, i) => sum + (i.price * i.qty), 0);
 
     const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-    const totalAmount = pkgPrice + ptPrice + registrationFee + cartTotal;
+    const totalAmount = pkgPrice + registrationFee + cartTotal;
 
     const labelClass = "text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block ml-1";
     const inputClass = "w-full bg-[#0a0a0a] border border-white/10 rounded-xl p-3 text-white font-medium text-sm focus:border-amber-500 outline-none transition-all";
@@ -121,27 +112,15 @@ const MemberForm: React.FC<{
             ...formData,
             gender, 
             packageId: Number(selectedPkgId),
-            trainingPackageId: selectedPtPkgId ? Number(selectedPtPkgId) : undefined,
             paymentDetails: {
                 totalAmount,
                 paymentMethod,
                 isPaid,
                 cart,
                 pkgPrice,
-                registrationFee,
-                ptPrice,
-                ptPackageName: selectedPtPkg?.name
+                registrationFee
             }
         });
-    };
-
-    const PT_CATEGORY_INFO: Record<string, { desc: string, icon: React.ReactNode }> = {
-        'PT: Weight Loss': { desc: 'वजन घटाने और फैट लॉस पर केंद्रित (Focus on Fat Loss & Weight Reduction) - ₹3000/Month', icon: <Flame className="w-4 h-4 text-orange-500" /> },
-        'PT: Muscle Gain': { desc: 'मांसपेशियों के निर्माण और स्ट्रेंथ पर केंद्रित (Focus on Muscle Building & Hypertrophy) - ₹5000/Month', icon: <Dumbbell className="w-4 h-4 text-blue-500" /> },
-        'PT: Bodybuilding': { desc: 'प्रतियोगिता स्तर की तैयारी और सिमिट्री (Competition Prep & Aesthetic Symmetry) - ₹8000/Month', icon: <Crown className="w-4 h-4 text-amber-500" /> },
-        'PT: Powerlifting': { desc: 'अधिकतम शक्ति और लिफ्टिंग तकनीक (Max Strength & Lifting Technique) - ₹5000/Month', icon: <Zap className="w-4 h-4 text-yellow-500" /> },
-        'PT: General Fitness': { desc: 'सामान्य स्वास्थ्य और गतिशीलता (Overall Health, Mobility & Longevity) - ₹3000/Month', icon: <Activity className="w-4 h-4 text-rose-500" /> },
-        'Personal Training': { desc: 'अनुकूलित व्यक्तिगत प्रशिक्षण (Customized 1-on-1 Coaching)', icon: <User className="w-4 h-4 text-indigo-500" /> }
     };
 
     const accessories = inventory.filter(i => i.category === 'Accessory' || i.category === 'Apparel');
@@ -310,7 +289,7 @@ const MemberForm: React.FC<{
                 {/* Billing Tab */}
                 {activeTab === 'billing' && (
                     <div className="space-y-6 animate-fade-in">
-                        {/* Membership & PT Structure */}
+                        {/* Membership Structure */}
                         <div className="bg-gray-900/50 p-5 rounded-3xl border border-white/5 space-y-5">
                     
                     {/* Standard Membership */}
@@ -319,59 +298,12 @@ const MemberForm: React.FC<{
                         <div className="relative">
                             <select value={selectedPkgId} onChange={e => setSelectedPkgId(e.target.value === '' ? '' : Number(e.target.value))} className={inputClass}>
                                 <option value="">-- Select Gym Plan --</option>
-                                {gymPackages.map(p => <option key={p.id} value={p.id}>{p.name} - ₹{p.price}</option>)}
+                                {packages.map(p => <option key={p.id} value={p.id}>{p.name} - ₹{p.price}</option>)}
                             </select>
                             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
                                 <Wallet className="w-4 h-4"/>
                             </div>
                         </div>
-                    </div>
-
-                    {/* Personal Training / Training Fees Section */}
-                    <div>
-                        <label className={labelClass}>
-                            <span className="flex items-center gap-2"><Dumbbell className="w-3 h-3 text-amber-500"/> Training Fees (Category Wise)</span>
-                        </label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                             {/* Category Selector */}
-                             <select 
-                                value={trainingCategory} 
-                                onChange={e => { setTrainingCategory(e.target.value); setSelectedPtPkgId(''); }} 
-                                className={`${inputClass} border-amber-500/30 focus:border-amber-500`}
-                            >
-                                <option value="">-- Select Category --</option>
-                                {uniqueTrainingCategories.map(cat => (
-                                    <option key={cat} value={cat}>{cat}</option>
-                                ))}
-                            </select>
-                            {PT_CATEGORY_INFO[trainingCategory] && (
-                                <div className="mt-2 flex items-start gap-2 bg-black/40 p-2 rounded-xl border border-white/5">
-                                    <div className="mt-0.5">{PT_CATEGORY_INFO[trainingCategory].icon}</div>
-                                    <p className="text-[9px] text-gray-500 font-medium leading-tight">
-                                        {PT_CATEGORY_INFO[trainingCategory].desc}
-                                    </p>
-                                </div>
-                            )}
-
-                            {/* Package Selector */}
-                             <select 
-                                value={selectedPtPkgId} 
-                                onChange={e => setSelectedPtPkgId(e.target.value === '' ? '' : Number(e.target.value))} 
-                                className={`${inputClass} border-amber-500/30 focus:border-amber-500`}
-                                disabled={!trainingCategory}
-                            >
-                                <option value="">-- Select Plan --</option>
-                                {availableTrainingPackages.map(p => (
-                                    <option key={p.id} value={p.id}>{p.name} - ₹{p.price}</option>
-                                ))}
-                            </select>
-                        </div>
-                        {selectedPtPkg && (
-                            <div className="mt-2 text-[10px] text-amber-400 bg-amber-900/20 p-2 rounded-lg border border-amber-500/20 flex justify-between items-center">
-                                <span>Selected: {selectedPtPkg.name} ({selectedPtPkg.category})</span>
-                                <span className="font-bold text-white">₹{selectedPtPkg.price}</span>
-                            </div>
-                        )}
                     </div>
 
                     <div className="flex items-center gap-3 pt-2">
@@ -442,12 +374,6 @@ const MemberForm: React.FC<{
                                  <span>Gym Fee ({selectedPkg?.name || 'None'})</span>
                                  <span>₹{pkgPrice}</span>
                              </div>
-                             {ptPrice > 0 && (
-                                 <div className="flex justify-between text-xs text-amber-400 font-medium">
-                                     <span>Personal Training ({selectedPtPkg?.name})</span>
-                                     <span>₹{ptPrice}</span>
-                                 </div>
-                             )}
                              {registrationFee > 0 && (
                                  <div className="flex justify-between text-xs text-gray-400">
                                      <span>Registration</span>
@@ -720,8 +646,7 @@ const Members: React.FC<{ setCurrentView: (view: any) => void }> = ({ setCurrent
                 gender: memberData.gender,
                 aadhaar: memberData.aadhaar,
                 dob: memberData.dob,
-                address: memberData.address,
-                trainingPackageId: memberData.trainingPackageId
+                address: memberData.address
             };
             addMember(newMember);
             
@@ -737,7 +662,6 @@ const Members: React.FC<{ setCurrentView: (view: any) => void }> = ({ setCurrent
                     status: paymentDetails.isPaid ? 'Paid' : 'Pending', 
                     items: [
                         { description: `Membership: ${packages.find(p => p.id === newMember.packageId)?.name}`, amount: paymentDetails.pkgPrice, type: 'Membership' },
-                        ...(paymentDetails.ptPrice > 0 ? [{ description: `Personal Training: ${paymentDetails.ptPackageName}`, amount: paymentDetails.ptPrice, type: 'Training' }] : []),
                         ...(paymentDetails.registrationFee > 0 ? [{ description: 'Registration Fee', amount: paymentDetails.registrationFee, type: 'Fee' }] : []),
                         ...paymentDetails.cart.map((c: CartItem) => ({ description: `${c.name} x${c.qty}`, amount: c.price * c.qty, type: c.type }))
                     ]

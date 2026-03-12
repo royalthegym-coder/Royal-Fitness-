@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Activity, Dna, HeartPulse, Brain, Droplets, Zap, ChevronRight, Download, Share2, Lock, Fingerprint, ScanFace } from 'lucide-react';
+import { ShieldCheck, Activity, Dna, HeartPulse, Brain, Droplets, Zap, ChevronRight, Download, Share2, Lock, Fingerprint, ScanFace, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { useToast } from '../../hooks/useToast';
 
@@ -8,27 +8,123 @@ interface DigitalBioHealthPassProps {
 }
 
 export const DigitalBioHealthPass: React.FC<DigitalBioHealthPassProps> = ({ memberId }) => {
-    const { members, liveHealthData } = useData();
+    const { members, liveHealthData, updateMember, addAuditLog } = useData();
     const { addToast } = useToast();
     const [isGenerating, setIsGenerating] = useState(true);
     const [securityHash, setSecurityHash] = useState('');
+    const [showConsent, setShowConsent] = useState(false);
 
     const member = members.find(m => m.id === memberId);
 
     useEffect(() => {
-        // Simulate secure generation of the pass
-        const timer = setTimeout(() => {
-            setIsGenerating(false);
-            setSecurityHash(Math.random().toString(36).substring(2, 15).toUpperCase() + '-' + Date.now().toString(36).toUpperCase());
-        }, 2500);
-        return () => clearTimeout(timer);
-    }, []);
+        if (member) {
+            if (!member.hipaaConsent || !member.gdprConsent) {
+                setShowConsent(true);
+                setIsGenerating(false);
+            } else {
+                // Simulate secure generation of the pass
+                const timer = setTimeout(() => {
+                    setIsGenerating(false);
+                    setSecurityHash(Math.random().toString(36).substring(2, 15).toUpperCase() + '-' + Date.now().toString(36).toUpperCase());
+                    
+                    // Log access for HIPAA compliance
+                    addAuditLog({
+                        action: 'VIEW_MEDICAL_PASS',
+                        memberId: member.id,
+                        timestamp: new Date().toISOString(),
+                        details: 'Digital Bio-Health Pass accessed securely.'
+                    });
+                }, 2500);
+                return () => clearTimeout(timer);
+            }
+        }
+    }, [member]);
 
     const handleShare = () => {
         addToast("Secure link generated. Ready to share with Medical Professionals.", "success");
+        addAuditLog({
+            action: 'SHARE_MEDICAL_PASS',
+            memberId: member?.id,
+            timestamp: new Date().toISOString(),
+            details: 'Digital Bio-Health Pass shared externally.'
+        });
+    };
+
+    const handleAcceptConsent = () => {
+        if (member) {
+            updateMember({
+                ...member,
+                hipaaConsent: true,
+                gdprConsent: true
+            });
+            addToast("Medical data processing consent recorded.", "success");
+            addAuditLog({
+                action: 'CONSENT_GRANTED',
+                memberId: member.id,
+                timestamp: new Date().toISOString(),
+                details: 'HIPAA and GDPR consent granted by user.'
+            });
+            setShowConsent(false);
+            setIsGenerating(true);
+            
+            // Trigger generation after consent
+            setTimeout(() => {
+                setIsGenerating(false);
+                setSecurityHash(Math.random().toString(36).substring(2, 15).toUpperCase() + '-' + Date.now().toString(36).toUpperCase());
+            }, 2500);
+        }
     };
 
     if (!member) return <div className="text-white p-8">Member not found.</div>;
+
+    if (showConsent) {
+        return (
+            <div className="max-w-2xl mx-auto mt-20 p-8 bg-zinc-900 border border-emerald-500/30 rounded-3xl shadow-2xl animate-fade-in">
+                <div className="flex items-center gap-4 mb-6">
+                    <div className="p-3 bg-emerald-500/10 rounded-xl">
+                        <ShieldCheck className="w-8 h-8 text-emerald-500" />
+                    </div>
+                    <div>
+                        <h2 className="text-2xl font-black text-white uppercase tracking-widest">Medical Data Consent</h2>
+                        <p className="text-sm text-zinc-400">HIPAA & GDPR Compliance Required</p>
+                    </div>
+                </div>
+                
+                <div className="space-y-4 mb-8 text-sm text-zinc-300">
+                    <p>To generate your Digital Bio-Health Pass and utilize the AI Oracle, we require your explicit consent to process and store your sensitive medical data.</p>
+                    <ul className="space-y-3 bg-black/30 p-4 rounded-xl border border-white/5">
+                        <li className="flex gap-3">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                            <span><strong>HIPAA Compliance:</strong> Your health data is encrypted end-to-end. Access is strictly logged and monitored.</span>
+                        </li>
+                        <li className="flex gap-3">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                            <span><strong>GDPR Compliance:</strong> You have the right to be forgotten. You can request deletion of your medical data at any time.</span>
+                        </li>
+                        <li className="flex gap-3">
+                            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+                            <span><strong>AI Processing:</strong> Your anonymized data will be processed by our Bio-Aether Oracle to generate health insights.</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div className="flex justify-end gap-4">
+                    <button 
+                        onClick={() => window.history.back()}
+                        className="px-6 py-3 rounded-xl text-white font-bold uppercase tracking-widest text-xs hover:bg-white/5 transition-colors"
+                    >
+                        Decline & Go Back
+                    </button>
+                    <button 
+                        onClick={handleAcceptConsent}
+                        className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-black rounded-xl font-black uppercase tracking-widest text-xs transition-colors flex items-center gap-2"
+                    >
+                        <Lock className="w-4 h-4" /> I Consent & Agree
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     if (isGenerating) {
         return (
