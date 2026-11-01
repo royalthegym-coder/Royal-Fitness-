@@ -371,7 +371,7 @@ async function assignForm(id) {
 async function vSuperAudit() {
   const [rows, gyms] = await Promise.all([Q.audit(), Q.gyms()]);
   const gm = new Map(gyms.map((g) => [g.id, g]));
-  const txt = (r) => ({ create_gym: L('Gym created', 'जिम बना'), set_lock: L('Lock changed', 'लॉक बदला'), set_subscription: L('Subscription changed', 'सब्सक्रिप्शन बदला'), assign_user: L('User assigned', 'यूज़र तय हुआ') }[r.action] || r.action);
+  const txt = (r) => ({ create_gym: L('Gym created', 'जिम बना'), set_lock: L('Lock changed', 'लॉक बदला'), set_subscription: L('Subscription changed', 'सब्सक्रिप्शन बदला'), assign_user: L('User assigned', 'यूज़र तय हुआ'), update_gym: L('Gym details changed', 'जिम का ब्योरा बदला') }[r.action] || r.action);
   return pageHead(L('Super admin', 'सुपर एडमिन'), L('Audit log', 'ऑडिट लॉग'), L('Every admin action, newest first. This log cannot be edited.', 'हर एडमिन कार्रवाई, नई सबसे ऊपर। इस लॉग को बदला नहीं जा सकता।'))
     + `<div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('When', 'कब'))}</th><th>${esc(L('Action', 'कार्रवाई'))}</th><th>${esc(L('Gym', 'जिम'))}</th><th>${esc(L('Detail', 'ब्योरा'))}</th></tr></thead><tbody>${rows.map((r) => `<tr><td class="num">${esc(fmtShort(r.at))} ${esc(fmtTime(r.at))}</td><td>${esc(txt(r))}</td><td>${esc((gm.get(r.gym_id) || {}).name || '—')}</td><td><small class="hash">${esc(JSON.stringify(r.detail || {}))}</small></td></tr>`).join('')}</tbody></table></div>` : empty(L('Nothing logged yet', 'अभी कुछ दर्ज नहीं'), '')}</div>`;
 }
