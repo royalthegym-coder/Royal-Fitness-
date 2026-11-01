@@ -33,6 +33,7 @@ function handler(db, role) {
     if (m === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
     db.calls.push(`${m} ${p}${u.search ? '?' + u.search.slice(1, 40) : ''}`);
     if (p === '/auth/v1/token') { const b = JSON.parse(req.postData() || '{}'); if (b.password === 'bad') return json({ msg: 'Invalid login credentials' }, 400); return json({ access_token: jwt(db.me), refresh_token: 'r', expires_in: 3600, user: { email: 't@x.in' } }); }
+    if (p === '/auth/v1/user' && m === 'PUT') { db.pwChanged = JSON.parse(req.postData()).password; return json({ id: db.me }); }
     if (p === '/auth/v1/logout') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
     if (p.startsWith('/rest/v1/rpc/')) {
       const fn = p.split('/').pop(), a = JSON.parse(req.postData() || '{}');
@@ -123,6 +124,13 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('a[href="#peak"]'); await page.waitForSelector('.heat'); ok(true, 'peak heatmap renders');
     await page.click('a[href="#settings"]'); await page.click('[data-act=editGym]'); await page.fill('#f_city', 'Jaipur'); await page.click('[data-ok]');
     await page.waitForFunction(() => /Jaipur/.test(document.body.innerText)); ok(db.gyms[0].city === 'Jaipur', 'gym settings saved via RPC');
+    // change password
+    await page.click('#pwBtn'); await page.fill('#f_pw', 'short'); await page.fill('#f_pw2', 'short'); await page.click('[data-ok]');
+    ok((await page.textContent('#e_pw')).length > 0, 'short new password rejected');
+    await page.fill('#f_pw', 'LongEnough123'); await page.fill('#f_pw2', 'Different123'); await page.click('[data-ok]');
+    ok((await page.textContent('#e_pw2')).length > 0, 'mismatched passwords rejected');
+    await page.fill('#f_pw2', 'LongEnough123'); await page.click('[data-ok]'); await page.waitForFunction(() => !document.querySelector('#modals .md'));
+    ok(db.pwChanged === 'LongEnough123', 'password change sent to auth API');
     // language + overflow
     await page.click('#langBtn'); ok(!(await overflow(page)), 'no horizontal overflow (desktop, EN)');
     await page.click('#outBtn'); await page.waitForSelector('#loginForm'); ok(true, 'sign out returns to login');

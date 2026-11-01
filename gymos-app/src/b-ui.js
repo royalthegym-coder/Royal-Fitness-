@@ -64,7 +64,7 @@ function fieldHtml(f, v) {
   if (f.type === 'select') inner = `<select class="sel" id="${id}">${f.options.map((o) => `<option value="${esc(o.v)}"${String(o.v) === String(val) ? ' selected' : ''}>${esc(o.l)}</option>`).join('')}</select>`;
   else if (f.type === 'textarea') inner = `<textarea class="ta" id="${id}" placeholder="${esc(f.ph || '')}">${esc(val)}</textarea>`;
   else if (f.type === 'check') return `<label class="ck fl${f.full ? ' full' : ''}"><input type="checkbox" id="${id}"${val ? ' checked' : ''}> ${esc(f.label)}</label>`;
-  else inner = `<input class="in" id="${id}" type="${f.type || 'text'}" value="${esc(val)}" placeholder="${esc(f.ph || '')}"${f.type === 'number' ? ` step="${f.step || 'any'}" min="${f.min ?? 0}" inputmode="decimal"` : ''}${f.type === 'tel' ? ' inputmode="tel" autocomplete="off"' : ''}${f.type === 'password' ? ' autocomplete="current-password"' : ''}${f.type === 'email' ? ' autocomplete="username"' : ''}>`;
+  else inner = `<input class="in" id="${id}" type="${f.type || 'text'}" value="${esc(val)}" placeholder="${esc(f.ph || '')}"${f.type === 'number' ? ` step="${f.step || 'any'}" min="${f.min ?? 0}" inputmode="decimal"` : ''}${f.type === 'tel' ? ' inputmode="tel" autocomplete="off"' : ''}${f.type === 'password' ? ' autocomplete="new-password"' : ''}${f.type === 'email' ? ' autocomplete="username"' : ''}>`;
   return `<label class="fl${f.full ? ' full' : ''}"><span>${esc(f.label)}${f.req ? ' *' : ''}</span>${inner}<small class="err" id="e_${f.k}"></small></label>`;
 }
 function readForm(root, fields) {

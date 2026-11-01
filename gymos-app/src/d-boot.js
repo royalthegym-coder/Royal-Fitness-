@@ -53,6 +53,7 @@ function chrome() {
   $('#langBtn').setAttribute('aria-label', L('Switch language', 'भाषा बदलें'));
   $('#themeBtn').innerHTML = ic(document.documentElement.dataset.theme === 'light' ? 'moon' : 'sun');
   $('#themeBtn').setAttribute('aria-label', L('Switch theme', 'थीम बदलें'));
+  $('#pwBtn').innerHTML = ic('lock'); $('#pwBtn').setAttribute('aria-label', L('Change password', 'पासवर्ड बदलें')); $('#pwBtn').title = L('Change password', 'पासवर्ड बदलें');
   $('#outBtn').innerHTML = `${ic('out')}`; $('#outBtn').setAttribute('aria-label', L('Sign out', 'लॉग आउट'));
   document.documentElement.lang = LANG === 'hi' ? 'hi' : 'en';
 }
@@ -106,6 +107,14 @@ const ACTIONS = {
   retry: () => { bust(); CTX.profile ? render() : enter(); },
   lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
   theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
+  changePw: () => openForm({
+    title: L('Change password', 'पासवर्ड बदलें'),
+    fields: [
+      { k: 'pw', label: L('New password (8+ characters)', 'नया पासवर्ड (कम से कम 8 अक्षर)'), type: 'password', req: true, full: true, check: (v) => (v.length < 8 ? L('At least 8 characters', 'कम से कम 8 अक्षर') : '') },
+      { k: 'pw2', label: L('Repeat new password', 'नया पासवर्ड दोबारा'), type: 'password', req: true, full: true, check: (v, o) => (v !== o.pw ? L('Passwords do not match', 'पासवर्ड मेल नहीं खाते') : '') },
+    ],
+    onSubmit: async (v) => { const ok = await act(() => Auth.changePassword(v.pw), L('Password changed', 'पासवर्ड बदल गया')); return !!ok; },
+  }),
   signOut: async () => { await Auth.signOut(); bust(); CTX.profile = null; RENDER_TOKEN++; loginScreen(); },
 };
 document.addEventListener('click', (e) => {
@@ -135,6 +144,6 @@ window.addEventListener('hashchange', () => { closeAllModals(); if (CTX.profile)
 /* ---------- start ---------- */
 (function start() {
   try { const t = localStorage.getItem('gymos-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
-  $('#langBtn').onclick = () => ACTIONS.lang(); $('#themeBtn').onclick = () => ACTIONS.theme(); $('#outBtn').onclick = () => ACTIONS.signOut();
+  $('#langBtn').onclick = () => ACTIONS.lang(); $('#themeBtn').onclick = () => ACTIONS.theme(); $('#outBtn').onclick = () => ACTIONS.signOut(); $('#pwBtn').onclick = () => ACTIONS.changePw();
   if (SESSION && SESSION.refresh_token) enter(); else loginScreen();
 })();

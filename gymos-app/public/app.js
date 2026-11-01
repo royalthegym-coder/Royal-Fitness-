@@ -113,6 +113,7 @@ const Auth = {
     if (!res.ok) throw new ApiError(j.msg || j.error_description || j.message || 'Invalid login credentials', res.status, j.error_code || 'auth');
     saveSession({ access_token: j.access_token, refresh_token: j.refresh_token, expires_at: Math.floor(Date.now() / 1000) + (j.expires_in || 3600), user_id: jwtPayload(j.access_token).sub, email });
   },
+  async changePassword(password) { await api('/auth/v1/user', { method: 'PUT', body: { password } }); },
   async signOut() { try { if (SESSION) await rawFetch('/auth/v1/logout', { method: 'POST', headers: { apikey: CFG.key, Authorization: 'Bearer ' + SESSION.access_token } }); } catch (e) {} saveSession(null); },
 };
 
@@ -184,7 +185,7 @@ function fieldHtml(f, v) {
   if (f.type === 'select') inner = `<select class="sel" id="${id}">${f.options.map((o) => `<option value="${esc(o.v)}"${String(o.v) === String(val) ? ' selected' : ''}>${esc(o.l)}</option>`).join('')}</select>`;
   else if (f.type === 'textarea') inner = `<textarea class="ta" id="${id}" placeholder="${esc(f.ph || '')}">${esc(val)}</textarea>`;
   else if (f.type === 'check') return `<label class="ck fl${f.full ? ' full' : ''}"><input type="checkbox" id="${id}"${val ? ' checked' : ''}> ${esc(f.label)}</label>`;
-  else inner = `<input class="in" id="${id}" type="${f.type || 'text'}" value="${esc(val)}" placeholder="${esc(f.ph || '')}"${f.type === 'number' ? ` step="${f.step || 'any'}" min="${f.min ?? 0}" inputmode="decimal"` : ''}${f.type === 'tel' ? ' inputmode="tel" autocomplete="off"' : ''}${f.type === 'password' ? ' autocomplete="current-password"' : ''}${f.type === 'email' ? ' autocomplete="username"' : ''}>`;
+  else inner = `<input class="in" id="${id}" type="${f.type || 'text'}" value="${esc(val)}" placeholder="${esc(f.ph || '')}"${f.type === 'number' ? ` step="${f.step || 'any'}" min="${f.min ?? 0}" inputmode="decimal"` : ''}${f.type === 'tel' ? ' inputmode="tel" autocomplete="off"' : ''}${f.type === 'password' ? ' autocomplete="new-password"' : ''}${f.type === 'email' ? ' autocomplete="username"' : ''}>`;
   return `<label class="fl${f.full ? ' full' : ''}"><span>${esc(f.label)}${f.req ? ' *' : ''}</span>${inner}<small class="err" id="e_${f.k}"></small></label>`;
 }
 function readForm(root, fields) {
@@ -789,6 +790,7 @@ function chrome() {
   $('#langBtn').setAttribute('aria-label', L('Switch language', 'भाषा बदलें'));
   $('#themeBtn').innerHTML = ic(document.documentElement.dataset.theme === 'light' ? 'moon' : 'sun');
   $('#themeBtn').setAttribute('aria-label', L('Switch theme', 'थीम बदलें'));
+  $('#pwBtn').innerHTML = ic('lock'); $('#pwBtn').setAttribute('aria-label', L('Change password', 'पासवर्ड बदलें')); $('#pwBtn').title = L('Change password', 'पासवर्ड बदलें');
   $('#outBtn').innerHTML = `${ic('out')}`; $('#outBtn').setAttribute('aria-label', L('Sign out', 'लॉग आउट'));
   document.documentElement.lang = LANG === 'hi' ? 'hi' : 'en';
 }
@@ -842,6 +844,14 @@ const ACTIONS = {
   retry: () => { bust(); CTX.profile ? render() : enter(); },
   lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
   theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
+  changePw: () => openForm({
+    title: L('Change password', 'पासवर्ड बदलें'),
+    fields: [
+      { k: 'pw', label: L('New password (8+ characters)', 'नया पासवर्ड (कम से कम 8 अक्षर)'), type: 'password', req: true, full: true, check: (v) => (v.length < 8 ? L('At least 8 characters', 'कम से कम 8 अक्षर') : '') },
+      { k: 'pw2', label: L('Repeat new password', 'नया पासवर्ड दोबारा'), type: 'password', req: true, full: true, check: (v, o) => (v !== o.pw ? L('Passwords do not match', 'पासवर्ड मेल नहीं खाते') : '') },
+    ],
+    onSubmit: async (v) => { const ok = await act(() => Auth.changePassword(v.pw), L('Password changed', 'पासवर्ड बदल गया')); return !!ok; },
+  }),
   signOut: async () => { await Auth.signOut(); bust(); CTX.profile = null; RENDER_TOKEN++; loginScreen(); },
 };
 document.addEventListener('click', (e) => {
@@ -871,6 +881,6 @@ window.addEventListener('hashchange', () => { closeAllModals(); if (CTX.profile)
 /* ---------- start ---------- */
 (function start() {
   try { const t = localStorage.getItem('gymos-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
-  $('#langBtn').onclick = () => ACTIONS.lang(); $('#themeBtn').onclick = () => ACTIONS.theme(); $('#outBtn').onclick = () => ACTIONS.signOut();
+  $('#langBtn').onclick = () => ACTIONS.lang(); $('#themeBtn').onclick = () => ACTIONS.theme(); $('#outBtn').onclick = () => ACTIONS.signOut(); $('#pwBtn').onclick = () => ACTIONS.changePw();
   if (SESSION && SESSION.refresh_token) enter(); else loginScreen();
 })();

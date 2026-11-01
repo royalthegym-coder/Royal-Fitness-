@@ -113,6 +113,7 @@ const Auth = {
     if (!res.ok) throw new ApiError(j.msg || j.error_description || j.message || 'Invalid login credentials', res.status, j.error_code || 'auth');
     saveSession({ access_token: j.access_token, refresh_token: j.refresh_token, expires_at: Math.floor(Date.now() / 1000) + (j.expires_in || 3600), user_id: jwtPayload(j.access_token).sub, email });
   },
+  async changePassword(password) { await api('/auth/v1/user', { method: 'PUT', body: { password } }); },
   async signOut() { try { if (SESSION) await rawFetch('/auth/v1/logout', { method: 'POST', headers: { apikey: CFG.key, Authorization: 'Bearer ' + SESSION.access_token } }); } catch (e) {} saveSession(null); },
 };
 
