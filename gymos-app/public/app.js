@@ -1,0 +1,876 @@
+'use strict';
+/* GymOS · Royal The Gym — a dependency-free client for the Supabase project (Auth + PostgREST).
+   Security model: this file holds ONLY the public publishable key. Every permission is enforced by Postgres row level security. */
+const CFG = (window.GYMOS_CONFIG = Object.assign({
+  url: 'https://ayoeevltbubkyhixqqlg.supabase.co',
+  key: 'sb_publishable_lCd7sizYZfkfaQpPx3zFcA_zEGtdjJA',
+}, window.GYMOS_CONFIG || {}));
+
+/* ---------- tiny helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = (n) => String(n).padStart(2, '0');
+const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+const sum = (a, f) => a.reduce((s, x) => s + Number(f(x) || 0), 0);
+/* India has no DST: shift by a fixed +05:30 so results do not depend on the viewer's timezone */
+const istDate = (d = new Date()) => { const x = new Date(new Date(d).getTime() + 19800000); return `${x.getUTCFullYear()}-${pad(x.getUTCMonth() + 1)}-${pad(x.getUTCDate())}`; };
+const istParts = (d) => { const x = new Date(new Date(d).getTime() + 19800000); return { dow: x.getUTCDay(), hour: x.getUTCHours(), min: x.getUTCMinutes() }; };
+const todayISO = () => istDate();
+const ymd = (s) => String(s).slice(0, 10).split('-').map(Number);
+const diffDays = (a, b) => { const A = ymd(a), B = ymd(b); return Math.round((Date.UTC(B[0], B[1] - 1, B[2]) - Date.UTC(A[0], A[1] - 1, A[2])) / 864e5); };
+const addDays = (s, n) => { const [y, m, d] = ymd(s); const t = new Date(Date.UTC(y, m - 1, d + n)); return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`; };
+const addMonths = (s, n) => { const [y, m, d] = ymd(s); const t = new Date(Date.UTC(y, m - 1 + n, 1)); const last = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate(); return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(Math.min(d, last))}`; };
+const monthKey = (s) => String(s).slice(0, 7);
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const fmtDate = (s) => { if (!s) return '—'; const [y, m, d] = ymd(String(s).length > 10 ? istDate(s) : s); return `${d} ${MON[m - 1]} ${y}`; };
+const fmtShort = (s) => { if (!s) return '—'; const [, m, d] = ymd(String(s).length > 10 ? istDate(s) : s); return `${d} ${MON[m - 1]}`; };
+const fmtTime = (iso) => { if (!iso) return '—'; const { hour, min } = istParts(iso); return `${hour % 12 || 12}:${pad(min)} ${hour < 12 ? 'am' : 'pm'}`; };
+const inr = (v) => { const n = Number(v || 0); return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2, minimumFractionDigits: Number.isInteger(n) ? 0 : 2 }).format(n); };
+const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+const waLink = (phone, text) => { const dg = String(phone || '').replace(/\D/g, ''); return `https://wa.me/${dg.length === 10 ? '91' + dg : dg}?text=${encodeURIComponent(text)}`; };
+const isUUID = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ''));
+const csvCell = (v) => { let s = String(v ?? ''); if (/^[=+\-@]/.test(s) && isNaN(Number(s))) s = "'" + s; return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+
+/* ---------- language ---------- */
+let LANG = 'hi';
+try { LANG = localStorage.getItem('gymos-lang') || 'hi'; } catch (e) {}
+const L = (en, hi) => (LANG === 'hi' ? hi : en);
+
+/* ---------- subscription lock (mirrors private.gym_is_open in the database; the database is the authority) ---------- */
+function gymLocked(g) {
+  if (!g) return false;
+  if (g.lock_override === 'force_unlock') return false;
+  if (g.lock_override === 'force_lock') return true;
+  if (g.status === 'suspended') return true;
+  return !!g.subscription_ends_on && g.subscription_ends_on < todayISO();
+}
+
+/* ---------- Supabase client: Auth (GoTrue) + PostgREST over fetch ---------- */
+const SESSION_KEY = 'gymos-session';
+let SESSION = null;
+try { SESSION = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch (e) {}
+const saveSession = (s) => { SESSION = s; try { s ? localStorage.setItem(SESSION_KEY, JSON.stringify(s)) : localStorage.removeItem(SESSION_KEY); } catch (e) {} };
+const jwtPayload = (t) => { try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); } catch (e) { return {}; } };
+
+class ApiError extends Error { constructor(message, status, code, detail) { super(message); this.status = status; this.code = code; this.detail = detail; } }
+/* PostgREST / Postgres error → a message a gym owner can act on */
+function friendlyError(e) {
+  if (!e) return L('Something went wrong.', 'कुछ गड़बड़ हुई।');
+  const msg = String(e.message || ''), code = e.code || '';
+  if (e.status === 0) return L('No connection. Check the internet and try again.', 'कनेक्शन नहीं है। इंटरनेट जाँचकर फिर कोशिश करें।');
+  if (code === '42501' || /row-level security|permission denied|not allowed|super admin only/i.test(msg)) return CTX.locked
+    ? L('Subscription expired. Please renew to make changes.', 'सब्सक्रिप्शन खत्म हो गया है। बदलाव के लिए रिन्यू करें।')
+    : L('You do not have permission for this.', 'आपको इसकी अनुमति नहीं है।');
+  if (code === '23505') return L('This already exists.', 'यह पहले से मौजूद है।');
+  if (code === '23503') return L('This is linked to other records and cannot be removed.', 'यह दूसरे रिकॉर्ड से जुड़ा है, हटाया नहीं जा सकता।');
+  if (code === '23514') return L('A value is out of the allowed range.', 'कोई मान अनुमत सीमा से बाहर है।');
+  if (code === '23502') return L('A required field is missing.', 'ज़रूरी जानकारी छूट गई है।');
+  if (/invalid login credentials/i.test(msg)) return L('Wrong email or password.', 'ईमेल या पासवर्ड ग़लत है।');
+  return L('Could not complete this. Try again.', 'यह नहीं हो सका। फिर कोशिश करें।');
+}
+async function rawFetch(path, opts = {}) {
+  let res;
+  try { res = await fetch(CFG.url + path, opts); } catch (e) { throw new ApiError('network', 0, 'network'); }
+  return res;
+}
+async function refreshSession() {
+  if (!SESSION || !SESSION.refresh_token) return false;
+  const res = await rawFetch('/auth/v1/token?grant_type=refresh_token', { method: 'POST', headers: { apikey: CFG.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: SESSION.refresh_token }) });
+  if (!res.ok) { saveSession(null); return false; }
+  const j = await res.json();
+  saveSession({ access_token: j.access_token, refresh_token: j.refresh_token, expires_at: Math.floor(Date.now() / 1000) + (j.expires_in || 3600), user_id: jwtPayload(j.access_token).sub, email: (j.user && j.user.email) || SESSION.email });
+  return true;
+}
+async function api(path, { method = 'GET', body, headers = {}, retry = true } = {}) {
+  if (SESSION && SESSION.expires_at && SESSION.expires_at - 30 < Date.now() / 1000) await refreshSession();
+  const h = { apikey: CFG.key, Authorization: 'Bearer ' + ((SESSION && SESSION.access_token) || CFG.key), ...headers };
+  if (body !== undefined) h['Content-Type'] = 'application/json';
+  const res = await rawFetch(path, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body) });
+  if (res.status === 401 && retry && SESSION && (await refreshSession())) return api(path, { method, body, headers, retry: false });
+  if (res.status === 401) { saveSession(null); if (typeof onSignedOut === 'function') onSignedOut(); throw new ApiError('session expired', 401, 'jwt'); }
+  if (!res.ok) { let j = {}; try { j = await res.json(); } catch (e) {} throw new ApiError(j.message || j.msg || res.statusText, res.status, j.code || String(res.status), j.details || j.hint); }
+  if (res.status === 204) return null;
+  const t = await res.text();
+  return t ? JSON.parse(t) : null;
+}
+const qs = (o) => Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+const DB = {
+  /* select(table, {select, eq:{col:val}, filters:{col:'gte.5'}, order:'col.desc', limit}) */
+  select: (table, { select = '*', eq = {}, filters = {}, order, limit } = {}) => {
+    const f = {}; Object.entries(eq).forEach(([k, v]) => (f[k] = 'eq.' + v)); Object.assign(f, filters);
+    return api(`/rest/v1/${table}?${qs({ select, ...f, order, limit })}`);
+  },
+  insert: async (table, row) => (await api(`/rest/v1/${table}`, { method: 'POST', body: row, headers: { Prefer: 'return=representation' } }))[0],
+  update: async (table, id, patch) => { const r = await api(`/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', body: patch, headers: { Prefer: 'return=representation' } }); if (!r || !r.length) throw new ApiError('not allowed', 403, '42501'); return r[0]; },
+  remove: (table, id) => api(`/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  rpc: (fn, args = {}) => api(`/rest/v1/rpc/${fn}`, { method: 'POST', body: args }),
+};
+const Auth = {
+  async signIn(email, password) {
+    const res = await rawFetch('/auth/v1/token?grant_type=password', { method: 'POST', headers: { apikey: CFG.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new ApiError(j.msg || j.error_description || j.message || 'Invalid login credentials', res.status, j.error_code || 'auth');
+    saveSession({ access_token: j.access_token, refresh_token: j.refresh_token, expires_at: Math.floor(Date.now() / 1000) + (j.expires_in || 3600), user_id: jwtPayload(j.access_token).sub, email });
+  },
+  async signOut() { try { if (SESSION) await rawFetch('/auth/v1/logout', { method: 'POST', headers: { apikey: CFG.key, Authorization: 'Bearer ' + SESSION.access_token } }); } catch (e) {} saveSession(null); },
+};
+
+/* ---------- context shared by all screens ---------- */
+const CTX = { profile: null, gym: null, locked: false };
+/* ---------- icons ---------- */
+const ICONS = {
+  home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',
+  door: '<path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3M13 20h9M10 12v.01"/><path d="M13 4.56v16.16a1 1 0 0 1-1.24.97L5 20V5.56a2 2 0 0 1 1.5-1.94l4-1A2 2 0 0 1 13 4.56Z"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  receipt: '<path d="M4 2v20l3-2 3 2 3-2 3 2 3-2V2z"/><path d="M8 7h8M8 11h8M8 15h5"/>',
+  wallet: '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
+  tag: '<path d="M12.59 2.59A2 2 0 0 0 11.17 2H4a2 2 0 0 0-2 2v7.17a2 2 0 0 0 .59 1.41l8.7 8.7a2.43 2.43 0 0 0 3.42 0l6.58-6.58a2.43 2.43 0 0 0 0-3.42z"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>', search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>', x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>', left: '<path d="m15 18-6-6 6-6"/>', right: '<path d="m9 18 6-6-6-6"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>', msg: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20"/>',
+  crown: '<path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  shield: '<path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5z"/><path d="m9 12 2 2 4-4"/>',
+  pulse: '<path d="M3 12h4l3-8 4 16 3-8h4"/>', chart: '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
+  building: '<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/>',
+  lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+  down: '<path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/>', out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+};
+const ic = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
+
+/* ---------- toast + modal ---------- */
+function toast(msg, kind) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (kind === 'bad' ? ' bad' : '');
+  el.setAttribute('role', 'status'); el.textContent = msg;
+  $('#toasts').appendChild(el);
+  setTimeout(() => el.remove(), kind === 'bad' ? 6000 : 2800);
+}
+const MODALS = [];
+function openModal({ title, body, footer = '', wide = false, onClose }) {
+  const prev = document.activeElement;
+  const ov = document.createElement('div');
+  ov.className = 'ov';
+  ov.innerHTML = `<div class="md${wide ? ' wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header><h2>${esc(title)}</h2><button type="button" class="btn ghost ibtn" data-x aria-label="${esc(L('Close', 'बंद करें'))}">${ic('x')}</button></header><div class="mb">${body}</div>${footer ? `<footer>${footer}</footer>` : ''}</div>`;
+  $('#modals').appendChild(ov); MODALS.push(ov);
+  const api2 = { el: ov, close() { if (!ov.isConnected) return; ov.remove(); const i = MODALS.indexOf(ov); if (i >= 0) MODALS.splice(i, 1); if (onClose) onClose(); if (prev && prev.focus && prev.isConnected) prev.focus(); } };
+  ov.addEventListener('mousedown', (e) => { if (e.target === ov) api2.close(); });
+  $('[data-x]', ov).addEventListener('click', api2.close);
+  const first = $('input:not([type=hidden]),select,textarea', ov);
+  (first || $('[data-x]', ov)).focus();
+  return api2;
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && MODALS.length) MODALS[MODALS.length - 1].querySelector('[data-x]').click(); });
+const closeAllModals = () => { while (MODALS.length) MODALS[MODALS.length - 1].querySelector('[data-x]').click(); };
+function askConfirm(msg, label, tone) {
+  return new Promise((resolve) => {
+    let done = false;
+    const m = openModal({ title: L('Please confirm', 'पक्का करें'), body: `<p style="margin:0">${esc(msg)}</p>`, footer: `<button type="button" class="btn" data-no>${esc(L('Cancel', 'रद्द करें'))}</button><button type="button" class="btn ${tone === 'primary' ? 'primary' : 'danger'}" data-yes>${esc(label || L('Confirm', 'पक्का'))}</button>`, onClose: () => { if (!done) resolve(false); } });
+    $('[data-no]', m.el).onclick = () => { done = true; m.close(); resolve(false); };
+    $('[data-yes]', m.el).onclick = () => { done = true; m.close(); resolve(true); };
+  });
+}
+
+/* ---------- forms ---------- */
+function fieldHtml(f, v) {
+  const id = 'f_' + f.k, val = v[f.k] ?? f.def ?? '';
+  let inner;
+  if (f.type === 'select') inner = `<select class="sel" id="${id}">${f.options.map((o) => `<option value="${esc(o.v)}"${String(o.v) === String(val) ? ' selected' : ''}>${esc(o.l)}</option>`).join('')}</select>`;
+  else if (f.type === 'textarea') inner = `<textarea class="ta" id="${id}" placeholder="${esc(f.ph || '')}">${esc(val)}</textarea>`;
+  else if (f.type === 'check') return `<label class="ck fl${f.full ? ' full' : ''}"><input type="checkbox" id="${id}"${val ? ' checked' : ''}> ${esc(f.label)}</label>`;
+  else inner = `<input class="in" id="${id}" type="${f.type || 'text'}" value="${esc(val)}" placeholder="${esc(f.ph || '')}"${f.type === 'number' ? ` step="${f.step || 'any'}" min="${f.min ?? 0}" inputmode="decimal"` : ''}${f.type === 'tel' ? ' inputmode="tel" autocomplete="off"' : ''}${f.type === 'password' ? ' autocomplete="current-password"' : ''}${f.type === 'email' ? ' autocomplete="username"' : ''}>`;
+  return `<label class="fl${f.full ? ' full' : ''}"><span>${esc(f.label)}${f.req ? ' *' : ''}</span>${inner}<small class="err" id="e_${f.k}"></small></label>`;
+}
+function readForm(root, fields) {
+  const out = {}; let ok = true;
+  fields.forEach((f) => {
+    const el = $('#f_' + f.k, root), er = $('#e_' + f.k, root); if (!el) return;
+    let v = f.type === 'check' ? el.checked : el.value.trim();
+    if (f.type === 'number') v = v === '' ? '' : parseFloat(v);
+    let msg = '';
+    if (f.req && (v === '' || v === null || Number.isNaN(v))) msg = L('Required', 'ज़रूरी है');
+    else if (f.type === 'number' && v !== '' && (Number.isNaN(v) || v < (f.min ?? 0))) msg = L('Enter a valid number', 'सही संख्या लिखें');
+    else if (f.type === 'tel' && v && String(v).replace(/\D/g, '').length < 10) msg = L('Enter a 10-digit number', '10 अंकों का नंबर लिखें');
+    else if (f.type === 'email' && v && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) msg = L('Enter a valid email', 'सही ईमेल लिखें');
+    else if (f.check) msg = f.check(v, out) || '';
+    if (er) er.textContent = msg;
+    if (msg) ok = false;
+    out[f.k] = v;
+  });
+  return ok ? out : null;
+}
+function openForm({ title, fields, values = {}, submitLabel, onSubmit, extra = '', wide = false }) {
+  const m = openModal({ title, wide, body: `<form id="mf" novalidate><div class="fg">${fields.map((f) => fieldHtml(f, values)).join('')}</div>${extra}</form>`, footer: `<button type="button" class="btn" data-no>${esc(L('Cancel', 'रद्द करें'))}</button><button type="button" class="btn primary" data-ok>${esc(submitLabel || L('Save', 'सेव करें'))}</button>` });
+  const btn = $('[data-ok]', m.el);
+  const go = async () => {
+    const vals = readForm(m.el, fields);
+    if (!vals) { const bad = $('.err:not(:empty)', m.el); if (bad) bad.closest('label').querySelector('input,select,textarea')?.focus(); return; }
+    btn.disabled = true;
+    try { const r = await onSubmit(vals, m); if (r !== false) m.close(); } catch (e) { toast(friendlyError(e), 'bad'); } finally { btn.disabled = false; }
+  };
+  btn.onclick = go; $('[data-no]', m.el).onclick = m.close;
+  $('#mf', m.el).addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') { e.preventDefault(); go(); } });
+  $('#mf', m.el).addEventListener('submit', (e) => e.preventDefault());
+  return m;
+}
+const opts = (arr) => arr.map((x) => (typeof x === 'string' ? { v: x, l: x } : x));
+
+/* ---------- view building blocks ---------- */
+const pageHead = (eyebrow, title, sub, actions) => `<div class="ph"><div><div class="eye">${esc(eyebrow)}</div><h1>${esc(title)}</h1>${sub ? `<p>${esc(sub)}</p>` : ''}</div>${actions ? `<div class="acts">${actions}</div>` : ''}</div>`;
+const card = (title, icon, link, body, cls) => `<section class="card ${cls || ''}"><h2><span style="display:flex;gap:8px;align-items:center">${ic(icon)}${esc(title)}</span>${link || ''}</h2>${body}</section>`;
+const empty = (title, text, btn) => `<div class="empty"><b>${esc(title)}</b>${text ? esc(text) : ''}${btn ? `<div style="margin-top:12px">${btn}</div>` : ''}</div>`;
+const tile = (label, value, sub, color) => `<div class="card tile"><div class="l">${esc(label)}</div><div class="v"${color ? ` style="color:${color}"` : ''}>${value}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+const chipsHtml = (key, cur, items) => `<div class="chips" role="tablist">${items.map(([v, label, n]) => `<button class="chip" role="tab" aria-selected="${cur === v}" data-act="chip" data-key="${key}" data-v="${esc(v)}">${esc(label)}${n != null ? `<span class="c">${n}</span>` : ''}</button>`).join('')}</div>`;
+const searchBox = (id, val, ph) => `<div class="srch">${ic('search')}<input class="in" id="${id}" data-bind="${id}" value="${esc(val)}" placeholder="${esc(ph)}" aria-label="${esc(ph)}" autocomplete="off"></div>`;
+const avatar = (n) => `<span class="av">${esc(initials(n))}</span>`;
+const TONE = { Active: 'ok', Expiring: 'warn', Expired: 'bad', Frozen: 'info', Cancelled: 'mute', Paid: 'ok', Partial: 'warn', Unpaid: 'info', Overdue: 'bad' };
+const STATE_HI = { Active: 'सक्रिय', Expiring: 'खत्म होने वाली', Expired: 'खत्म', Frozen: 'फ़्रीज़', Cancelled: 'रद्द', Paid: 'चुकाया', Partial: 'आंशिक', Unpaid: 'बाक़ी', Overdue: 'देर' };
+const badge = (label, tone) => `<span class="badge ${tone || TONE[label] || 'mute'}">${esc(LANG === 'hi' && STATE_HI[label] ? STATE_HI[label] : label)}</span>`;
+const PAGE = 15;
+const pagerHtml = (total, page, key) => { if (total <= PAGE) return ''; const pages = Math.ceil(total / PAGE); return `<div class="pager"><span class="num">${(page - 1) * PAGE + 1}–${Math.min(page * PAGE, total)} / ${total}</span><span style="display:flex;gap:6px"><button class="btn sm" data-act="page" data-key="${key}" data-d="-1" ${page <= 1 ? 'disabled' : ''} aria-label="Previous">${ic('left')}</button><button class="btn sm" data-act="page" data-key="${key}" data-d="1" ${page >= pages ? 'disabled' : ''} aria-label="Next">${ic('right')}</button></span></div>`; };
+const loadingHtml = () => `<div role="status" aria-live="polite"><span class="sr">${esc(L('Loading…', 'लोड हो रहा है…'))}</span><div class="skel" style="width:40%;height:28px;margin-bottom:22px"></div><div class="card" style="padding:18px">${'<div class="skel" style="margin:12px 0"></div>'.repeat(5)}</div></div>`;
+async function copyText(text, okMsg) {
+  try { await navigator.clipboard.writeText(text); toast(okMsg || L('Copied', 'कॉपी हो गया')); return; } catch (e) {}
+  const m = openModal({ title: L('Copy this text', 'यह टेक्स्ट कॉपी करें'), body: `<textarea class="ta" id="cpt" readonly style="min-height:90px">${esc(text)}</textarea>` });
+  const ta = $('#cpt', m.el); ta.focus(); ta.select();
+}
+function downloadCsv(filename, rows) {
+  const data = '﻿' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([data], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+/* ---------- data layer: cached reads, derived values ---------- */
+const CACHE = new Map();
+const cached = (name, loader) => { if (!CACHE.has(name)) CACHE.set(name, loader().catch((e) => { CACHE.delete(name); throw e; })); return CACHE.get(name); };
+const bust = (...names) => (names.length ? names.forEach((n) => CACHE.delete(n)) : CACHE.clear());
+const sinceISO = (days) => new Date(Date.now() - days * 864e5).toISOString();
+const Q = {
+  members: () => cached('members', () => DB.select('members', { order: 'name.asc', limit: 5000 })),
+  plans: () => cached('plans', () => DB.select('plans', { order: 'months.asc', limit: 500 })),
+  invoices: () => cached('invoices', () => DB.select('invoices', { order: 'date.desc', limit: 5000 })),
+  payments: () => cached('payments', () => DB.select('payments', { order: 'paid_on.desc,created_at.desc', limit: 5000 })),
+  visits: () => cached('visits', () => DB.select('visits', { filters: { in_at: 'gte.' + sinceISO(90) }, order: 'in_at.desc', limit: 10000 })),
+  ledger: () => cached('ledger', () => DB.select('payment_ledger', { order: 'seq.desc', limit: 5000 })),
+  gyms: () => cached('gyms', () => DB.select('gyms', { order: 'created_at.asc' })),
+  profiles: () => cached('profiles', () => DB.select('profiles', { order: 'created_at.asc', limit: 2000 })),
+  audit: () => cached('audit', () => DB.select('audit_log', { order: 'at.desc', limit: 100 })),
+  overview: () => cached('overview', () => DB.rpc('admin_gym_overview')),
+};
+const memberMap = (list) => new Map(list.map((m) => [m.id, m]));
+const planMap = (list) => new Map(list.map((p) => [p.id, p]));
+function paidByInvoice(payments) { const m = new Map(); payments.forEach((p) => m.set(p.invoice_id, round2((m.get(p.invoice_id) || 0) + Number(p.amount)))); return m; }
+const balanceOf = (inv, paid) => (inv.cancelled ? 0 : Math.max(round2(Number(inv.total) - (paid.get(inv.id) || 0)), 0));
+const invStatus = (inv, paid) => (inv.cancelled ? 'Cancelled' : balanceOf(inv, paid) <= 0.004 ? 'Paid' : (paid.get(inv.id) || 0) > 0 ? 'Partial' : 'Unpaid');
+const isOverdue = (inv, paid) => ['Unpaid', 'Partial'].includes(invStatus(inv, paid)) && inv.due && inv.due < todayISO();
+function duesByMember(invoices, paid) { const m = new Map(); invoices.forEach((i) => { const b = balanceOf(i, paid); if (b > 0.004) m.set(i.member_id, round2((m.get(i.member_id) || 0) + b)); }); return m; }
+function lastVisitMap(visits) { const m = new Map(); visits.forEach((v) => { const d = istDate(v.in_at); if (!m.has(v.member_id) || m.get(v.member_id) < d) m.set(v.member_id, d); }); return m; }
+function visitDaysMap(visits) { const m = new Map(); visits.forEach((v) => { if (!m.has(v.member_id)) m.set(v.member_id, new Set()); m.get(v.member_id).add(istDate(v.in_at)); }); return m; }
+function memberState(m) {
+  if (m.status === 'Frozen') return 'Frozen';
+  if (m.status === 'Cancelled') return 'Cancelled';
+  if (!m.end_date) return 'Active';
+  const left = diffDays(todayISO(), m.end_date);
+  return left < 0 ? 'Expired' : left <= 7 ? 'Expiring' : 'Active';
+}
+const daysLeft = (m) => (m.end_date ? diffDays(todayISO(), m.end_date) : null);
+const STATE_FILTERS = ['Active', 'Expiring', 'Expired', 'Frozen', 'Cancelled'];
+
+/* invoice maths: GST on the amount after discount; rounded to paise */
+function computeInvoice(items, discount, gstPct) {
+  const subtotal = round2(sum(items, (i) => i.amount));
+  const disc = Math.min(Math.max(Number(discount || 0), 0), subtotal);
+  const base = round2(subtotal - disc);
+  const gst_amt = round2((base * Number(gstPct || 0)) / 100);
+  return { subtotal, discount: disc, gst_pct: Number(gstPct || 0), gst_amt, total: round2(base + gst_amt) };
+}
+const gymId = () => CTX.profile.gym_id;
+const roleName = (r) => ({ super_admin: L('Super admin', 'सुपर एडमिन'), gym_admin: L('Gym admin', 'जिम एडमिन'), trainer: L('Trainer', 'ट्रेनर'), member: L('Member', 'सदस्य') }[r] || r);
+
+/* Write wrapper: surfaces a friendly toast, returns the result or null */
+async function act(fn, okMsg) {
+  try { const r = await fn(); if (okMsg) toast(okMsg); return r === undefined || r === null ? true : r; /* void RPCs return 204/null */ } catch (e) { if (e && e.status === 401) return null; toast(friendlyError(e), 'bad'); return null; }
+}
+/* ================= Super admin ================= */
+const UPI_RE = /^[A-Za-z0-9._-]{2,}@[A-Za-z]{2,}$/;
+async function vSuperGyms() {
+  const rows = await Q.overview();
+  const lockBadge = (g) => (g.locked ? badge(L('Locked', 'लॉक'), 'bad') : badge(L('Open', 'खुला'), 'ok'));
+  const ovr = (g) => (g.lock_override === 'none' ? '' : `<br><small class="muted">${esc(g.lock_override === 'force_lock' ? L('forced lock', 'जबरन लॉक') : L('forced open', 'जबरन खुला'))}</small>`);
+  return pageHead(L('Super admin', 'सुपर एडमिन'), L('Gyms', 'जिम'), L('Every gym, its subscription and lock. Member and payment details are not visible here.', 'हर जिम, उसकी सदस्यता और लॉक। सदस्य और भुगतान का ब्योरा यहाँ नहीं दिखता।'), `<button class="btn primary" data-act="newGym">${ic('plus')} ${esc(L('New gym', 'नया जिम'))}</button>`)
+    + `<div class="tiles">${tile(L('Gyms', 'जिम'), rows.length)}${tile(L('Locked now', 'अभी लॉक'), rows.filter((g) => g.locked).length, '', rows.some((g) => g.locked) ? 'var(--crimson)' : '')}${tile(L('Members in total', 'कुल सदस्य'), sum(rows, (g) => g.members))}${tile(L('Ending in 7 days', '7 दिन में खत्म'), rows.filter((g) => g.subscription_ends_on && diffDays(todayISO(), g.subscription_ends_on) >= 0 && diffDays(todayISO(), g.subscription_ends_on) <= 7).length)}</div>`
+    + `<div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Gym', 'जिम'))}</th><th>${esc(L('Plan', 'प्लान'))}</th><th>${esc(L('Valid till', 'तारीख़ तक'))}</th><th>${esc(L('State', 'स्थिति'))}</th><th class="r">${esc(L('Members', 'सदस्य'))}</th><th class="r">${esc(L('Staff', 'स्टाफ़'))}</th><th>${esc(L('Last visit', 'आख़िरी विज़िट'))}</th><th></th></tr></thead><tbody>${rows.map((g) => `<tr><td class="edge ${g.locked ? 'e-bad' : 'e-ok'}"><b>${esc(g.name)}</b><br><small class="muted">${esc(g.city || '')}</small></td><td>${esc(g.plan)}${g.status === 'suspended' ? '<br>' + badge(L('Suspended', 'निलंबित'), 'warn') : ''}</td><td class="num">${esc(fmtDate(g.subscription_ends_on))}</td><td>${lockBadge(g)}${ovr(g)}</td><td class="r num">${g.members}</td><td class="r num">${g.staff}</td><td class="num">${g.last_visit ? esc(fmtShort(g.last_visit)) : '—'}</td><td class="r" style="white-space:nowrap"><button class="btn sm" data-act="extendGym" data-id="${esc(g.gym_id)}">${esc(L('Subscription', 'सब्सक्रिप्शन'))}</button> <button class="btn sm" data-act="lockGym" data-id="${esc(g.gym_id)}">${ic('lock')} ${esc(L('Lock', 'लॉक'))}</button></td></tr>`).join('')}</tbody></table></div>` : empty(L('No gyms yet', 'अभी कोई जिम नहीं'), L('Create the first gym, then assign its admin in Users.', 'पहला जिम बनाएँ, फिर Users में उसका एडमिन तय करें।'), `<button class="btn primary" data-act="newGym">${esc(L('New gym', 'नया जिम'))}</button>`)}</div>`;
+}
+function gymForm() {
+  openForm({
+    title: L('New gym', 'नया जिम'),
+    fields: [
+      { k: 'name', label: L('Gym name', 'जिम का नाम'), req: true, full: true, check: (v) => (v.length < 2 ? L('Too short', 'बहुत छोटा') : '') },
+      { k: 'owner', label: L('Owner', 'मालिक') }, { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel' },
+      { k: 'city', label: L('City', 'शहर') }, { k: 'upi', label: L('Merchant UPI ID', 'मर्चेंट UPI आईडी'), ph: 'name@bank', check: (v) => (v && !UPI_RE.test(v) ? L('Example: name@bank', 'उदाहरण: name@bank') : '') },
+      { k: 'ends', label: L('Subscription valid till', 'सब्सक्रिप्शन की तारीख़'), type: 'date', req: true, def: addDays(todayISO(), 30), full: true },
+    ],
+    onSubmit: async (v) => { const ok = await act(() => DB.rpc('admin_create_gym', { gym_name: v.name, owner: v.owner || null, phone_no: v.phone || null, city_name: v.city || null, upi: v.upi || null, ends_on: v.ends })); if (ok) { bust('overview', 'gyms'); toast(L('Gym created', 'जिम बन गया')); render(); } return !!ok; },
+  });
+}
+async function extendForm(id) {
+  const g = (await Q.overview()).find((x) => x.gym_id === id); if (!g) return;
+  const start = g.subscription_ends_on && g.subscription_ends_on > todayISO() ? g.subscription_ends_on : todayISO();
+  openForm({
+    title: `${g.name} · ${L('Subscription', 'सब्सक्रिप्शन')}`,
+    fields: [
+      { k: 'plan', label: L('Plan', 'प्लान'), type: 'select', options: opts(['trial', 'starter', 'pro']), def: g.plan },
+      { k: 'ends', label: L('Valid till', 'तारीख़ तक'), type: 'date', req: true, def: g.subscription_ends_on || addDays(todayISO(), 30) },
+      { k: 'status', label: L('Status', 'स्थिति'), type: 'select', options: [{ v: 'active', l: L('Active', 'सक्रिय') }, { v: 'suspended', l: L('Suspended', 'निलंबित') }], def: g.status, full: true },
+    ],
+    extra: `<div class="row" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">${[30, 90, 365].map((d) => `<button type="button" class="btn sm" data-quick="${d}">+${d} ${esc(L('days', 'दिन'))}</button>`).join('')}</div>`,
+    onSubmit: async (v) => { const ok = await act(() => DB.rpc('admin_set_subscription', { gym: id, plan_name: v.plan, ends_on: v.ends, new_status: v.status }), L('Subscription saved', 'सब्सक्रिप्शन सेव हुआ')); if (ok) { bust('overview', 'gyms', 'audit'); render(); } return !!ok; },
+  }).el.addEventListener('click', (e) => { const q = e.target.closest('[data-quick]'); if (q) $('#f_ends').value = addDays(start, Number(q.dataset.quick)); });
+}
+async function lockForm(id) {
+  const g = (await Q.overview()).find((x) => x.gym_id === id); if (!g) return;
+  const m = openModal({
+    title: `${g.name} · ${L('Lock control', 'लॉक नियंत्रण')}`,
+    body: `<p style="margin-top:0">${esc(g.locked ? L('This gym is locked: staff can read but not change data.', 'यह जिम लॉक है: स्टाफ़ पढ़ सकता है, बदल नहीं सकता।') : L('This gym is open.', 'यह जिम खुला है।'))}</p><div class="note">${esc(L('"Reset" lets the subscription date decide again. Forced open ignores an expired date until you reset it.', '"रीसेट" से फिर तारीख़ तय करती है। जबरन खुला रखने पर खत्म तारीख़ अनदेखी होती है, जब तक आप रीसेट न करें।'))}</div>`,
+    footer: `<button type="button" class="btn danger" data-o="force_lock">${esc(L('Force lock', 'जबरन लॉक'))}</button><button type="button" class="btn" data-o="force_unlock">${esc(L('Force open', 'जबरन खोलें'))}</button><button type="button" class="btn primary" data-o="none">${esc(L('Reset', 'रीसेट'))}</button>`,
+  });
+  $$('[data-o]', m.el).forEach((b) => (b.onclick = async () => {
+    b.disabled = true;
+    const ok = await act(() => DB.rpc('admin_set_gym_lock', { gym: id, override: b.dataset.o }), L('Saved', 'सेव हुआ'));
+    if (ok) { bust('overview', 'gyms', 'audit'); m.close(); render(); } else b.disabled = false;
+  }));
+}
+async function vSuperUsers() {
+  const [profiles, gyms] = await Promise.all([Q.profiles(), Q.gyms()]);
+  const gm = new Map(gyms.map((g) => [g.id, g]));
+  return pageHead(L('Super admin', 'सुपर एडमिन'), L('Users', 'यूज़र'), L('Accounts are created in the Supabase dashboard. Assign each one a role and a gym here.', 'अकाउंट Supabase डैशबोर्ड में बनते हैं। यहाँ हर एक को भूमिका और जिम दें।'))
+    + `<div class="card">${profiles.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('User', 'यूज़र'))}</th><th>${esc(L('Role', 'भूमिका'))}</th><th>${esc(L('Gym', 'जिम'))}</th><th></th></tr></thead><tbody>${profiles.map((p) => `<tr><td><b>${esc(p.full_name || p.email || '—')}</b><br><small class="muted">${esc(p.email || '')}</small></td><td>${badge(roleName(p.role), p.role === 'super_admin' ? 'warn' : p.role === 'gym_admin' ? 'info' : 'mute')}</td><td>${p.gym_id ? esc((gm.get(p.gym_id) || {}).name || '—') : p.role === 'super_admin' ? '—' : `<span class="muted">${esc(L('No gym (waiting)', 'जिम नहीं (इंतज़ार में)'))}</span>`}</td><td class="r"><button class="btn sm" data-act="assignUser" data-id="${esc(p.id)}">${ic('pencil')} ${esc(L('Assign', 'तय करें'))}</button></td></tr>`).join('')}</tbody></table></div>` : empty(L('No users yet', 'अभी कोई यूज़र नहीं'), L('Create an account in Supabase → Authentication → Users first.', 'पहले Supabase → Authentication → Users में अकाउंट बनाएँ।')) }</div>`;
+}
+async function assignForm(id) {
+  const [profiles, gyms] = await Promise.all([Q.profiles(), Q.gyms()]);
+  const p = profiles.find((x) => x.id === id); if (!p) return;
+  if (p.id === SESSION.user_id) { toast(L('You cannot change your own role here.', 'अपनी भूमिका यहाँ नहीं बदल सकते।'), 'bad'); return; }
+  const m = openForm({
+    title: p.full_name || p.email || 'User',
+    fields: [
+      { k: 'role', label: L('Role', 'भूमिका'), type: 'select', options: ['gym_admin', 'trainer', 'member', 'super_admin'].map((r) => ({ v: r, l: roleName(r) })), def: p.role === 'super_admin' ? 'gym_admin' : p.role, full: true },
+      { k: 'gym', label: L('Gym', 'जिम'), type: 'select', options: [{ v: '', l: '—' }, ...gyms.map((g) => ({ v: g.id, l: g.name }))], def: p.gym_id || '', full: true, check: (v, o) => (o.role !== 'super_admin' && !v ? L('Choose a gym', 'जिम चुनें') : '') },
+    ],
+    onSubmit: async (v) => {
+      if (v.role === 'super_admin' && !(await askConfirm(L('Make this person a super admin? They will control every gym.', 'इसे सुपर एडमिन बनाएँ? यह हर जिम को नियंत्रित करेगा।'), L('Yes, make super admin', 'हाँ, सुपर एडमिन बनाएँ')))) return false;
+      const ok = await act(() => DB.rpc('admin_assign_user', { target: id, new_role: v.role, gym: v.role === 'super_admin' ? null : v.gym }), L('Saved', 'सेव हुआ'));
+      if (ok) { bust('profiles', 'overview', 'audit'); render(); } return !!ok;
+    },
+  });
+}
+async function vSuperAudit() {
+  const [rows, gyms] = await Promise.all([Q.audit(), Q.gyms()]);
+  const gm = new Map(gyms.map((g) => [g.id, g]));
+  const txt = (r) => ({ create_gym: L('Gym created', 'जिम बना'), set_lock: L('Lock changed', 'लॉक बदला'), set_subscription: L('Subscription changed', 'सब्सक्रिप्शन बदला'), assign_user: L('User assigned', 'यूज़र तय हुआ') }[r.action] || r.action);
+  return pageHead(L('Super admin', 'सुपर एडमिन'), L('Audit log', 'ऑडिट लॉग'), L('Every admin action, newest first. This log cannot be edited.', 'हर एडमिन कार्रवाई, नई सबसे ऊपर। इस लॉग को बदला नहीं जा सकता।'))
+    + `<div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('When', 'कब'))}</th><th>${esc(L('Action', 'कार्रवाई'))}</th><th>${esc(L('Gym', 'जिम'))}</th><th>${esc(L('Detail', 'ब्योरा'))}</th></tr></thead><tbody>${rows.map((r) => `<tr><td class="num">${esc(fmtShort(r.at))} ${esc(fmtTime(r.at))}</td><td>${esc(txt(r))}</td><td>${esc((gm.get(r.gym_id) || {}).name || '—')}</td><td><small class="hash">${esc(JSON.stringify(r.detail || {}))}</small></td></tr>`).join('')}</tbody></table></div>` : empty(L('Nothing logged yet', 'अभी कुछ दर्ज नहीं'), '')}</div>`;
+}
+async function vSuperStatus() {
+  const t0 = performance.now(); let ok = true, ms = 0, errTxt = '';
+  try { await api('/rest/v1/rpc/admin_gym_overview', { method: 'POST', body: {} }); ms = Math.round(performance.now() - t0); } catch (e) { ok = false; errTxt = friendlyError(e); }
+  const row = (a, b, tone) => `<li><div class="grow"><b>${esc(a)}</b></div>${tone ? badge(b, tone) : `<span class="num">${esc(b)}</span>`}</li>`;
+  return pageHead(L('Super admin', 'सुपर एडमिन'), L('System status', 'सिस्टम स्थिति'), '')
+    + card(L('What this page can really check', 'यह पेज असल में क्या जाँच सकता है'), 'pulse', '', `<ul class="list">${row(L('Database (Supabase) reachable', 'डेटाबेस (Supabase) पहुँच में'), ok ? L('Yes', 'हाँ') : L('No', 'नहीं'), ok ? 'ok' : 'bad')}${ok ? row(L('Response time', 'जवाब का समय'), ms + ' ms') : row(L('Error', 'त्रुटि'), errTxt)}${row(L('India time now', 'अभी भारतीय समय'), `${fmtDate(todayISO())} ${fmtTime(new Date().toISOString())}`)}${row(L('Signed in as', 'लॉगिन'), SESSION.email || '')}</ul>`)
+    + `<div class="note" style="margin-top:14px">${esc(L('Cloudflare, n8n and WhatsApp are not connected to this app, so it does not show their health. Check them in their own dashboards.', 'Cloudflare, n8n और WhatsApp इस ऐप से जुड़े नहीं हैं, इसलिए इनकी सेहत यहाँ नहीं दिखती। इन्हें इनके अपने डैशबोर्ड में देखें।'))}</div>`;
+}
+/* ================= Gym screens (gym_admin; trainers get Members + Check-in) ================= */
+const U = { members: { q: '', f: 'all', page: 1 }, checkin: { q: '' }, invoices: { f: 'all', q: '', page: 1 }, payments: { q: '', page: 1 }, ledger: { result: null, busy: false, page: 1 }, retention: { thr: 4 }, peak: { days: '28' } };
+try { const t = Number(localStorage.getItem('gymos-thr')); if (t >= 1 && t <= 30) U.retention.thr = t; } catch (e) {}
+const isAdmin = () => CTX.profile.role === 'gym_admin';
+const gymName = () => (CTX.gym ? CTX.gym.name : 'Royal The Gym');
+const memberName = (map, id) => (map.get(id) || {}).name || '—';
+const upiOf = () => (CTX.gym && CTX.gym.upi_id) || '';
+
+/* ---------- Dashboard ---------- */
+async function vDashboard() {
+  const [members, invoices, payments, visits] = await Promise.all([Q.members(), Q.invoices(), Q.payments(), Q.visits()]);
+  const paid = paidByInvoice(payments), today = todayISO(), mk = monthKey(today);
+  const states = members.map(memberState);
+  const active = states.filter((s) => s === 'Active' || s === 'Expiring').length, expiring = states.filter((s) => s === 'Expiring').length, expired = states.filter((s) => s === 'Expired').length;
+  const todayIn = visits.filter((v) => istDate(v.in_at) === today), onFloor = todayIn.filter((v) => !v.out_at).length;
+  const collected = sum(payments.filter((p) => monthKey(p.paid_on) === mk), (p) => p.amount);
+  const dues = sum(invoices, (i) => balanceOf(i, paid)), overdueN = invoices.filter((i) => isOverdue(i, paid)).length;
+  const soon = members.filter((m) => memberState(m) === 'Expiring').sort((a, b) => a.end_date.localeCompare(b.end_date)).slice(0, 6);
+  return pageHead(gymName(), L('Dashboard', 'डैशबोर्ड'), fmtDate(today))
+    + `<div class="tiles">${tile(L('Active members', 'सक्रिय सदस्य'), active, `${expired} ${esc(L('expired', 'खत्म'))}`)}${tile(L('Expiring in 7 days', '7 दिन में खत्म'), expiring, '', expiring ? 'var(--warn)' : '')}${tile(L('Check-ins today', 'आज चेक-इन'), todayIn.length, `${onFloor} ${esc(L('on the floor now', 'अभी फ़्लोर पर'))}`)}${isAdmin() ? tile(L('Collected this month', 'इस महीने जमा'), esc(inr(collected))) + tile(L('Dues pending', 'बकाया'), esc(inr(dues)), overdueN ? `${overdueN} ${esc(L('overdue', 'देर'))}` : '', dues ? 'var(--crimson)' : '') : ''}</div>`
+    + `<div class="grid2">${card(L('Renewals coming up', 'जल्द खत्म होने वाले'), 'clock', '', soon.length ? `<ul class="list">${soon.map((m) => `<li class="click" data-act="openMember" data-id="${esc(m.id)}">${avatar(m.name)}<div class="grow"><b>${esc(m.name)}</b><small>${esc(L(`Ends ${fmtDate(m.end_date)}`, `${fmtDate(m.end_date)} को खत्म`))}</small></div>${waBtnRenew(m)}</li>`).join('')}</ul>` : empty(L('No renewals due this week', 'इस हफ़्ते कोई रिन्यूअल नहीं'), ''))}
+    ${card(L('Today at the gym', 'आज जिम में'), 'door', `<a href="#checkin">${esc(L('Check-in', 'चेक-इन'))}</a>`, todayIn.length ? `<ul class="list">${todayIn.slice(0, 6).map((v) => `<li><div class="grow"><b>${esc(memberName(memberMap(members), v.member_id))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div>${v.out_at ? '' : badge(L('Inside', 'अंदर'), 'ok')}</li>`).join('')}</ul>` : empty(L('No check-ins yet today', 'आज अभी कोई चेक-इन नहीं'), ''))}</div>`;
+}
+const waBtnRenew = (m) => `<a class="btn wa sm" data-stop target="_blank" rel="noreferrer" href="${esc(waLink(m.phone, `नमस्ते ${m.name} जी, ${gymName()} से। आपकी सदस्यता ${fmtDate(m.end_date)} को समाप्त हो रही है। रिन्यूअल के लिए हमसे संपर्क करें। 💪`))}">${ic('msg')} WhatsApp</a>`;
+
+/* ---------- Members ---------- */
+async function vMembers() {
+  const [members, plans, invoices, payments, visits] = await Promise.all([Q.members(), Q.plans(), isAdmin() ? Q.invoices() : [], isAdmin() ? Q.payments() : [], Q.visits()]);
+  const pm = planMap(plans), last = lastVisitMap(visits), dues = duesByMember(invoices, paidByInvoice(payments));
+  const st = U.members, q = st.q.trim().toLowerCase();
+  const counts = { all: members.length }; STATE_FILTERS.forEach((s) => (counts[s] = members.filter((m) => memberState(m) === s).length));
+  let rows = members.filter((m) => (st.f === 'all' || memberState(m) === st.f) && (!q || m.name.toLowerCase().includes(q) || String(m.phone || '').includes(q)));
+  const total = rows.length; st.page = Math.min(st.page, Math.max(1, Math.ceil(total / PAGE))); rows = rows.slice((st.page - 1) * PAGE, st.page * PAGE);
+  return pageHead(L('People', 'लोग'), L('Members', 'सदस्य'), '', `<button class="btn primary" data-act="newMember" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('New member', 'नया सदस्य'))}</button>`)
+    + `<div class="bar">${searchBox('mq', st.q, L('Search name or phone', 'नाम या फ़ोन खोजें'))}</div>`
+    + chipsHtml('memF', st.f, [['all', L('All', 'सभी'), counts.all], ...STATE_FILTERS.map((s) => [s, LANG === 'hi' ? STATE_HI[s] : s, counts[s]])])
+    + `<div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Member', 'सदस्य'))}</th><th>${esc(L('Plan', 'प्लान'))}</th><th>${esc(L('Status', 'स्थिति'))}</th><th class="r">${esc(L('Valid till', 'तारीख़ तक'))}</th><th>${esc(L('Last visit', 'आख़िरी विज़िट'))}</th>${isAdmin() ? `<th class="r">${esc(L('Dues', 'बकाया'))}</th>` : ''}</tr></thead><tbody>${rows.map((m) => { const s = memberState(m), d = dues.get(m.id) || 0; return `<tr class="click" data-act="openMember" data-id="${esc(m.id)}"><td class="edge e-${TONE[s] || 'mute'}"><div style="display:flex;gap:10px;align-items:center">${avatar(m.name)}<div><b>${esc(m.name)}</b><br><small class="muted">${esc(m.phone || '')}</small></div></div></td><td>${esc((pm.get(m.plan_id) || {}).name || '—')}</td><td>${badge(s)}</td><td class="r num">${esc(fmtDate(m.end_date))}</td><td class="num">${last.get(m.id) ? esc(fmtShort(last.get(m.id))) : '—'}</td>${isAdmin() ? `<td class="r num" style="color:${d ? 'var(--crimson)' : 'inherit'}">${d ? esc(inr(d)) : '—'}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>${pagerHtml(total, st.page, 'members')}` : empty(members.length ? L('No members match', 'कोई सदस्य मेल नहीं खाता') : L('No members yet', 'अभी कोई सदस्य नहीं'), '', members.length ? '' : `<button class="btn primary" data-act="newMember">${esc(L('Add the first member', 'पहला सदस्य जोड़ें'))}</button>`)}</div>`;
+}
+const GOALS = ['Fat Loss', 'Muscle', 'Strength', 'General Fitness', 'Rehab'];
+async function memberForm(id) {
+  const [members, plans] = await Promise.all([Q.members(), Q.plans()]);
+  const x = id ? members.find((m) => m.id === id) : null;
+  const act2 = plans.filter((p) => p.status === 'Active');
+  const fields = [
+    { k: 'name', label: L('Name', 'नाम'), req: true, full: true }, { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel', req: true },
+    { k: 'gender', label: L('Gender', 'लिंग'), type: 'select', options: [{ v: '', l: '—' }, { v: 'Male', l: L('Male', 'पुरुष') }, { v: 'Female', l: L('Female', 'महिला') }, { v: 'Other', l: L('Other', 'अन्य') }] },
+    { k: 'goal', label: L('Goal', 'लक्ष्य'), type: 'select', options: [{ v: '', l: '—' }, ...GOALS.map((g) => ({ v: g, l: g }))] },
+    { k: 'plan_id', label: L('Plan', 'प्लान'), type: 'select', options: [{ v: '', l: L('No plan yet', 'अभी प्लान नहीं') }, ...act2.map((p) => ({ v: p.id, l: `${p.name} · ${inr(p.price)}` }))], def: x ? x.plan_id || '' : '' },
+    { k: 'start_date', label: L('Start date', 'शुरू की तारीख़'), type: 'date', def: x ? x.start_date : todayISO() },
+    { k: 'notes', label: L('Notes', 'नोट'), type: 'textarea', full: true },
+  ];
+  if (!x && isAdmin()) fields.push({ k: 'bill', label: L('Create the first invoice for the plan', 'प्लान का पहला इनवॉइस बनाएँ'), type: 'check', def: true, full: true });
+  openForm({
+    title: x ? x.name : L('New member', 'नया सदस्य'), fields, values: x || {},
+    onSubmit: async (v) => {
+      const plan = plans.find((p) => p.id === v.plan_id);
+      const start = v.start_date || todayISO();
+      const row = { name: v.name, phone: v.phone, gender: v.gender || null, goal: v.goal || null, notes: v.notes || null, plan_id: plan ? plan.id : null };
+      if (plan && (!x || x.plan_id !== plan.id || x.start_date !== start)) { row.start_date = start; row.end_date = addDays(addMonths(start, plan.months), -1); }
+      const saved = await act(() => (x ? DB.update('members', x.id, row) : DB.insert('members', { ...row, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
+      if (!saved) return false;
+      if (!x && plan && v.bill && isAdmin()) await act(() => DB.insert('invoices', { gym_id: gymId(), member_id: saved.id, items: [{ label: `${plan.name} membership`, amount: Number(plan.price) }], ...computeInvoice([{ amount: plan.price }], 0, plan.gst_pct), due: addDays(todayISO(), 7) }), L('Invoice created', 'इनवॉइस बना'));
+      bust('members', 'invoices'); render(); return true;
+    },
+  });
+}
+async function renewForm(id) {
+  const [members, plans, invoices, payments] = await Promise.all([Q.members(), Q.plans(), Q.invoices(), Q.payments()]);
+  const m = members.find((x) => x.id === id); if (!m) return;
+  const act2 = plans.filter((p) => p.status === 'Active'); if (!act2.length) { toast(L('Add a plan first.', 'पहले प्लान जोड़ें।'), 'bad'); return; }
+  const startDef = m.end_date && m.end_date >= todayISO() ? addDays(m.end_date, 1) : todayISO();
+  const cur = act2.find((p) => p.id === m.plan_id) || act2[0];
+  const preview = (root) => { const p = act2.find((x) => x.id === $('#f_plan', root).value), disc = parseFloat($('#f_discount', root).value) || 0; const c = computeInvoice([{ amount: p.price }], disc, p.gst_pct); const out = $('#rn_sum', root); if (out) out.textContent = `${L('Total', 'कुल')} ${inr(c.total)} (GST ${inr(c.gst_amt)})`; const pay = $('#f_pay', root); if (pay && !pay.dataset.touched) pay.value = c.total; };
+  const mod = openForm({
+    title: `${L('Renew', 'रिन्यू')} · ${m.name}`,
+    fields: [
+      { k: 'plan', label: L('Plan', 'प्लान'), type: 'select', options: act2.map((p) => ({ v: p.id, l: `${p.name} · ${inr(p.price)}` })), def: cur.id, full: true },
+      { k: 'start', label: L('Starts on', 'शुरू'), type: 'date', req: true, def: startDef }, { k: 'discount', label: `${L('Discount', 'छूट')} (₹)`, type: 'number', def: 0 },
+      { k: 'pay', label: `${L('Paid now', 'अभी जमा')} (₹)`, type: 'number', def: 0 }, { k: 'method', label: L('Method', 'तरीक़ा'), type: 'select', options: opts(['UPI', 'Cash', 'Card', 'Bank']) },
+    ],
+    extra: `<div class="note" id="rn_sum" style="margin-top:10px"></div>`,
+    submitLabel: L('Renew', 'रिन्यू करें'),
+    onSubmit: async (v) => {
+      const p = act2.find((x) => x.id === v.plan), c = computeInvoice([{ amount: p.price }], v.discount, p.gst_pct);
+      if (Number(v.pay) > c.total + 0.005) { $('#e_pay', mod.el).textContent = L(`More than the total ${inr(c.total)}`, `कुल ${inr(c.total)} से ज़्यादा`); return false; }
+      const inv = await act(() => DB.insert('invoices', { gym_id: gymId(), member_id: m.id, items: [{ label: `${p.name} membership`, amount: Number(p.price) }], ...c, due: addDays(todayISO(), 7) })); if (!inv) return false;
+      const upd = await act(() => DB.update('members', m.id, { plan_id: p.id, start_date: v.start, end_date: addDays(addMonths(v.start, p.months), -1), status: 'Active' })); if (!upd) { toast(L('Invoice created but the membership was not updated. Edit the member.', 'इनवॉइस बना पर सदस्यता अपडेट नहीं हुई। सदस्य को बदलें।'), 'bad'); bust(); render(); return true; }
+      if (Number(v.pay) > 0) { const pay = await act(() => DB.insert('payments', { gym_id: gymId(), invoice_id: inv.id, member_id: m.id, amount: Number(v.pay), method: v.method })); if (pay) { bust(); render(); receiptModal(pay, m); return true; } }
+      toast(L('Membership renewed', 'सदस्यता रिन्यू हुई')); bust(); render(); return true;
+    },
+  });
+  mod.el.addEventListener('input', (e) => { if (e.target.id === 'f_pay') e.target.dataset.touched = '1'; preview(mod.el); }); mod.el.addEventListener('change', () => preview(mod.el)); preview(mod.el);
+}
+async function memberModal(id) {
+  const [members, plans, visits] = await Promise.all([Q.members(), Q.plans(), Q.visits()]);
+  const m = members.find((x) => x.id === id); if (!m) return;
+  const [invoices, payments] = isAdmin() ? await Promise.all([Q.invoices(), Q.payments()]) : [[], []];
+  const paid = paidByInvoice(payments), mine = invoices.filter((i) => i.member_id === id), s = memberState(m), dl = daysLeft(m), due = sum(mine, (i) => balanceOf(i, paid));
+  const vs = visits.filter((v) => v.member_id === id).slice(0, 6), plan = plans.find((p) => p.id === m.plan_id);
+  closeAllModals();
+  const mod = openModal({
+    title: m.name, wide: true,
+    body: `<div style="display:flex;gap:14px;align-items:center;margin-bottom:12px">${avatar(m.name)}<div class="grow"><b>${esc(m.phone || '')}</b><div class="muted">${esc(plan ? plan.name : L('No plan', 'प्लान नहीं'))} · ${esc(m.goal || '')}</div></div>${badge(s)}</div>
+      <div class="tiles" style="margin-bottom:12px">${tile(L('Valid till', 'तारीख़ तक'), esc(fmtDate(m.end_date)), dl == null ? '' : dl >= 0 ? L(`${dl} days left`, `${dl} दिन बाक़ी`) : L(`${-dl} days ago`, `${-dl} दिन पहले`))}${isAdmin() ? tile(L('Dues', 'बकाया'), esc(inr(due)), '', due ? 'var(--crimson)' : '') : ''}</div>
+      ${m.notes ? `<p class="muted">${esc(m.notes)}</p>` : ''}
+      <h3 style="font-size:13px;margin:10px 0 4px">${esc(L('Recent visits', 'हाल की विज़िट'))}</h3>${vs.length ? `<ul class="list">${vs.map((v) => `<li><div class="grow"><b>${esc(fmtDate(v.in_at))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div></li>`).join('')}</ul>` : `<div class="muted">${esc(L('No visits in the last 90 days', 'पिछले 90 दिन में कोई विज़िट नहीं'))}</div>`}
+      ${isAdmin() ? `<h3 style="font-size:13px;margin:14px 0 4px">${esc(L('Invoices', 'इनवॉइस'))}</h3>${mine.length ? `<ul class="list">${mine.slice(0, 5).map((i) => `<li class="click" data-act="openInvoice" data-id="${esc(i.id)}"><div class="grow"><b class="num">${esc(i.no)}</b><small>${esc(fmtDate(i.date))}</small></div><span class="num">${esc(inr(i.total))}</span>${badge(invStatus(i, paid))}</li>`).join('')}</ul>` : `<div class="muted">—</div>`}` : ''}`,
+    footer: `${waBtnRenew(m).replace('data-stop ', '')}<button type="button" class="btn" data-e>${ic('pencil')} ${esc(L('Edit', 'बदलें'))}</button>${isAdmin() ? `<button type="button" class="btn primary" data-r>${esc(L('Renew', 'रिन्यू'))}</button>` : ''}`,
+  });
+  $('[data-e]', mod.el).onclick = () => { mod.close(); memberForm(id); };
+  const r = $('[data-r]', mod.el); if (r) r.onclick = () => { mod.close(); renewForm(id); };
+  if (CTX.locked) { $$('[data-e],[data-r]', mod.el).forEach((b) => (b.disabled = true)); }
+}
+
+/* ---------- Check-in ---------- */
+async function vCheckin() {
+  const [members, visits] = await Promise.all([Q.members(), Q.visits()]);
+  const today = todayISO(), todays = visits.filter((v) => istDate(v.in_at) === today), open = new Map(todays.filter((v) => !v.out_at).map((v) => [v.member_id, v]));
+  const q = U.checkin.q.trim().toLowerCase(), mm = memberMap(members);
+  const found = q ? members.filter((m) => m.name.toLowerCase().includes(q) || String(m.phone || '').includes(q)).slice(0, 8) : [];
+  return pageHead(L('Floor', 'फ़्लोर'), L('Check-in', 'चेक-इन'), L(`${todays.length} today · ${open.size} inside`, `आज ${todays.length} · अंदर ${open.size}`))
+    + `<div class="bar">${searchBox('cq', U.checkin.q, L('Type a name or phone', 'नाम या फ़ोन लिखें'))}</div>`
+    + (q ? `<div class="card" style="margin-bottom:14px">${found.length ? `<ul class="list">${found.map((m) => { const s = memberState(m), inV = open.get(m.id), blocked = ['Expired', 'Frozen', 'Cancelled'].includes(s); return `<li>${avatar(m.name)}<div class="grow"><b>${esc(m.name)}</b><small>${esc(m.phone || '')} · ${esc(LANG === 'hi' ? STATE_HI[s] : s)}${m.end_date ? ' · ' + esc(fmtShort(m.end_date)) : ''}</small></div>${inV ? `<button class="btn sm" data-act="checkOut" data-id="${esc(inV.id)}">${esc(L('Check out', 'चेक-आउट'))}</button>` : `<button class="btn primary sm" data-act="checkIn" data-id="${esc(m.id)}" ${blocked || CTX.locked ? 'disabled' : ''}>${esc(blocked ? L('Renew first', 'पहले रिन्यू') : L('Check in', 'चेक-इन'))}</button>`}</li>`; }).join('')}</ul>` : empty(L('No match', 'कोई मेल नहीं'), '')}</div>` : '')
+    + card(L('Today', 'आज'), 'clock', '', todays.length ? `<ul class="list">${todays.map((v) => `<li><div class="grow"><b>${esc(memberName(mm, v.member_id))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div>${v.out_at ? badge(L('Done', 'पूरा'), 'mute') : `<button class="btn sm" data-act="checkOut" data-id="${esc(v.id)}">${esc(L('Check out', 'चेक-आउट'))}</button>`}</li>`).join('')}</ul>` : empty(L('Nobody yet today', 'आज अभी कोई नहीं'), ''));
+}
+
+/* ---------- Plans ---------- */
+async function vPlans() {
+  const [plans, members] = await Promise.all([Q.plans(), Q.members()]);
+  const n = (p) => members.filter((m) => m.plan_id === p.id).length;
+  return pageHead(L('Setup', 'सेटअप'), L('Plans', 'प्लान'), L('Plans are archived, not deleted, so old invoices stay correct.', 'प्लान हटते नहीं, आर्काइव होते हैं, ताकि पुराने इनवॉइस सही रहें।'), `<button class="btn primary" data-act="newPlan" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('New plan', 'नया प्लान'))}</button>`)
+    + (plans.length ? `<div class="cg">${plans.map((p) => `<div class="card pc${p.status === 'Archived' ? ' off' : ''}"><b>${esc(p.name)}</b><div class="pr">${esc(inr(p.price))}</div><div class="muted">${p.months} ${esc(L('months', 'महीने'))} · GST ${p.gst_pct}%</div><div class="muted">${n(p)} ${esc(L('members', 'सदस्य'))}</div><div class="acts"><button class="btn sm" data-act="editPlan" data-id="${esc(p.id)}" ${CTX.locked ? 'disabled' : ''}>${ic('pencil')} ${esc(L('Edit', 'बदलें'))}</button></div></div>`).join('')}</div>` : `<div class="card">${empty(L('No plans yet', 'अभी कोई प्लान नहीं'), L('Add your membership plans to start billing.', 'बिलिंग शुरू करने के लिए प्लान जोड़ें।'), `<button class="btn primary" data-act="newPlan">${esc(L('New plan', 'नया प्लान'))}</button>`)}</div>`);
+}
+async function planForm(id) {
+  const plans = await Q.plans(), x = id ? plans.find((p) => p.id === id) : null;
+  openForm({
+    title: x ? x.name : L('New plan', 'नया प्लान'),
+    fields: [
+      { k: 'name', label: L('Name', 'नाम'), req: true, full: true }, { k: 'months', label: L('Months', 'महीने'), type: 'number', req: true, min: 1, step: 1, def: 1, check: (v) => (v > 60 || !Number.isInteger(v) ? L('Whole months, up to 60', 'पूरे महीने, अधिकतम 60') : '') },
+      { k: 'price', label: `${L('Price', 'कीमत')} (₹)`, type: 'number', req: true }, { k: 'gst_pct', label: 'GST %', type: 'number', def: 18, check: (v) => (v > 40 ? L('Up to 40', 'अधिकतम 40') : '') },
+      { k: 'status', label: L('Status', 'स्थिति'), type: 'select', options: [{ v: 'Active', l: L('Active', 'सक्रिय') }, { v: 'Archived', l: L('Archived', 'आर्काइव') }], def: x ? x.status : 'Active' },
+    ],
+    values: x || {},
+    onSubmit: async (v) => { const row = { name: v.name, months: v.months, price: v.price, gst_pct: v.gst_pct === '' ? 18 : v.gst_pct, status: v.status }; const ok = await act(() => (x ? DB.update('plans', x.id, row) : DB.insert('plans', { ...row, gym_id: gymId() })), L('Saved', 'सेव हुआ')); if (ok) { bust('plans'); render(); } return !!ok; },
+  });
+}
+/* ================= Gym screens, part 2: check-in actions, billing, ledger, retention, peak hours, settings, member portal ================= */
+async function doCheckIn(memberId) {
+  const r = await act(() => DB.insert('visits', { gym_id: gymId(), member_id: memberId }), L('Checked in', 'चेक-इन हो गया'));
+  if (r) { bust('visits'); render(); }
+}
+async function doCheckOut(visitId) {
+  const r = await act(() => DB.update('visits', visitId, { out_at: new Date().toISOString() }), L('Checked out', 'चेक-आउट हो गया'));
+  if (r) { bust('visits'); render(); }
+}
+
+/* ---------- Invoices ---------- */
+async function vInvoices() {
+  const [invoices, payments, members] = await Promise.all([Q.invoices(), Q.payments(), Q.members()]);
+  const paid = paidByInvoice(payments), mm = memberMap(members), st = U.invoices, q = st.q.trim().toLowerCase();
+  const tag = (i) => (isOverdue(i, paid) ? 'Overdue' : invStatus(i, paid));
+  const counts = { all: invoices.length }; ['Unpaid', 'Partial', 'Overdue', 'Paid', 'Cancelled'].forEach((s) => (counts[s] = invoices.filter((i) => tag(i) === s).length));
+  let rows = invoices.filter((i) => (st.f === 'all' || tag(i) === st.f) && (!q || String(i.no || '').toLowerCase().includes(q) || memberName(mm, i.member_id).toLowerCase().includes(q)));
+  const total = rows.length; st.page = Math.min(st.page, Math.max(1, Math.ceil(total / PAGE))); rows = rows.slice((st.page - 1) * PAGE, st.page * PAGE);
+  return pageHead(L('Billing', 'बिलिंग'), L('Invoices', 'इनवॉइस'), '', `<button class="btn primary" data-act="newInvoice" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('New invoice', 'नया इनवॉइस'))}</button>`)
+    + `<div class="bar">${searchBox('iq', st.q, L('Invoice no. or member', 'इनवॉइस नंबर या सदस्य'))}</div>`
+    + chipsHtml('invF', st.f, [['all', L('All', 'सभी'), counts.all], ...['Unpaid', 'Partial', 'Overdue', 'Paid', 'Cancelled'].map((s) => [s, LANG === 'hi' ? STATE_HI[s] || s : s, counts[s]])])
+    + `<div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('No.', 'नं.'))}</th><th>${esc(L('Member', 'सदस्य'))}</th><th>${esc(L('Date', 'तारीख़'))}</th><th class="r">${esc(L('Total', 'कुल'))}</th><th class="r">${esc(L('Balance', 'बाक़ी'))}</th><th>${esc(L('Status', 'स्थिति'))}</th></tr></thead><tbody>${rows.map((i) => `<tr class="click" data-act="openInvoice" data-id="${esc(i.id)}"><td class="num"><b>${esc(i.no || '—')}</b></td><td>${esc(memberName(mm, i.member_id))}</td><td class="num">${esc(fmtDate(i.date))}</td><td class="r num">${esc(inr(i.total))}</td><td class="r num">${esc(inr(balanceOf(i, paid)))}</td><td>${badge(tag(i))}</td></tr>`).join('')}</tbody></table></div>${pagerHtml(total, st.page, 'invoices')}` : empty(L('No invoices', 'कोई इनवॉइस नहीं'), '', '')}</div>`;
+}
+async function invoiceForm(memberId) {
+  const [members, plans] = await Promise.all([Q.members(), Q.plans()]);
+  if (!members.length) { toast(L('Add a member first.', 'पहले सदस्य जोड़ें।'), 'bad'); return; }
+  const mod = openForm({
+    title: L('New invoice', 'नया इनवॉइस'),
+    fields: [
+      { k: 'member', label: L('Member', 'सदस्य'), type: 'select', options: members.map((m) => ({ v: m.id, l: `${m.name} · ${m.phone || ''}` })), def: memberId || members[0].id, full: true },
+      { k: 'label', label: L('Item', 'विवरण'), req: true, def: plans[0] ? plans[0].name : '', full: true },
+      { k: 'amount', label: `${L('Amount', 'राशि')} (₹)`, type: 'number', req: true, def: plans[0] ? plans[0].price : '' }, { k: 'discount', label: `${L('Discount', 'छूट')} (₹)`, type: 'number', def: 0 },
+      { k: 'gst', label: 'GST %', type: 'number', def: 18 }, { k: 'due', label: L('Due date', 'आख़िरी तारीख़'), type: 'date', def: addDays(todayISO(), 7) },
+    ],
+    extra: `<div class="note" id="iv_sum" style="margin-top:10px"></div>`,
+    onSubmit: async (v) => {
+      const c = computeInvoice([{ amount: v.amount }], v.discount, v.gst === '' ? 18 : v.gst);
+      const ok = await act(() => DB.insert('invoices', { gym_id: gymId(), member_id: v.member, items: [{ label: v.label, amount: Number(v.amount) }], ...c, due: v.due || null }), L('Invoice created', 'इनवॉइस बना'));
+      if (ok) { bust('invoices'); render(); } return !!ok;
+    },
+  });
+  const sum2 = () => { const g = (k) => parseFloat($('#f_' + k, mod.el).value) || 0; const c = computeInvoice([{ amount: g('amount') }], g('discount'), $('#f_gst', mod.el).value === '' ? 18 : g('gst')); $('#iv_sum', mod.el).textContent = `${L('Total', 'कुल')} ${inr(c.total)} (GST ${inr(c.gst_amt)})`; };
+  mod.el.addEventListener('input', sum2); sum2();
+}
+async function invoiceModal(id) {
+  const [invoices, payments, members] = await Promise.all([Q.invoices(), Q.payments(), Q.members()]);
+  const i = invoices.find((x) => x.id === id); if (!i) return;
+  const paid = paidByInvoice(payments), bal = balanceOf(i, paid), m = members.find((x) => x.id === i.member_id) || {}, mine = payments.filter((p) => p.invoice_id === id);
+  const items = Array.isArray(i.items) ? i.items : [];
+  closeAllModals();
+  const mod = openModal({
+    title: `${L('Invoice', 'इनवॉइस')} ${i.no || ''}`, wide: true,
+    body: `<div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:10px"><div><b>${esc(m.name || '—')}</b><div class="muted">${esc(m.phone || '')}</div></div><div style="text-align:right"><div class="num">${esc(fmtDate(i.date))}</div>${badge(isOverdue(i, paid) ? 'Overdue' : invStatus(i, paid))}</div></div>
+      <table class="t"><tbody>${items.map((it) => `<tr><td>${esc(it.label)}</td><td class="r num">${esc(inr(it.amount))}</td></tr>`).join('')}
+      ${Number(i.discount) ? `<tr><td>${esc(L('Discount', 'छूट'))}</td><td class="r num">−${esc(inr(i.discount))}</td></tr>` : ''}
+      <tr><td>GST ${Number(i.gst_pct)}%</td><td class="r num">${esc(inr(i.gst_amt))}</td></tr><tr><td><b>${esc(L('Total', 'कुल'))}</b></td><td class="r num"><b>${esc(inr(i.total))}</b></td></tr>
+      <tr><td>${esc(L('Balance', 'बाक़ी'))}</td><td class="r num" style="color:${bal ? 'var(--crimson)' : 'inherit'}">${esc(inr(bal))}</td></tr></tbody></table>
+      <h3 style="font-size:13px;margin:14px 0 4px">${esc(L('Payments', 'भुगतान'))}</h3>${mine.length ? `<ul class="list">${mine.map((p) => `<li class="click" data-act="openReceipt" data-id="${esc(p.id)}"><div class="grow"><b class="num">${esc(p.no || '—')}</b><small>${esc(fmtDate(p.paid_on))} · ${esc(p.method)}</small></div><span class="num">${esc(inr(p.amount))}</span></li>`).join('')}</ul>` : `<div class="muted">${esc(L('No payments yet', 'अभी कोई भुगतान नहीं'))}</div>`}`,
+    footer: `${!i.cancelled && !mine.length ? `<button type="button" class="btn danger" data-c>${esc(L('Cancel invoice', 'इनवॉइस रद्द करें'))}</button>` : ''}${!i.cancelled && bal > 0.004 ? `<button type="button" class="btn primary" data-p>${esc(L('Record payment', 'भुगतान दर्ज करें'))}</button>` : ''}`,
+  });
+  const c = $('[data-c]', mod.el), p = $('[data-p]', mod.el);
+  if (CTX.locked) $$('button[data-c],button[data-p]', mod.el).forEach((b) => (b.disabled = true));
+  if (c) c.onclick = async () => { if (!(await askConfirm(L('Cancel this invoice? This cannot be undone.', 'यह इनवॉइस रद्द करें? यह वापस नहीं होगा।'), L('Cancel invoice', 'रद्द करें')))) return; const ok = await act(() => DB.update('invoices', id, { cancelled: true }), L('Cancelled', 'रद्द हुआ')); if (ok) { bust('invoices'); mod.close(); render(); } };
+  if (p) p.onclick = () => { mod.close(); payForm(id); };
+}
+
+/* ---------- Payments ---------- */
+async function payForm(invoiceId) {
+  const [invoices, payments, members] = await Promise.all([Q.invoices(), Q.payments(), Q.members()]);
+  const i = invoices.find((x) => x.id === invoiceId); if (!i) return;
+  const bal = balanceOf(i, paidByInvoice(payments)), m = members.find((x) => x.id === i.member_id) || {};
+  openForm({
+    title: `${L('Payment', 'भुगतान')} · ${m.name || ''}`,
+    fields: [
+      { k: 'amount', label: `${L('Amount', 'राशि')} (₹)`, type: 'number', req: true, def: bal, min: 0.01, check: (v) => (v > bal + 0.005 ? L(`More than the balance ${inr(bal)}`, `बाक़ी ${inr(bal)} से ज़्यादा`) : '') },
+      { k: 'method', label: L('Method', 'तरीक़ा'), type: 'select', options: opts(['UPI', 'Cash', 'Card', 'Bank']) },
+      { k: 'ref', label: L('Reference (UTR / note)', 'रेफ़रेंस (UTR / नोट)'), full: true },
+    ],
+    submitLabel: L('Save payment', 'भुगतान सेव करें'),
+    extra: `<div class="note" style="margin-top:10px">${esc(L('Payments cannot be edited after saving. Check the amount.', 'सेव के बाद भुगतान बदला नहीं जा सकता। राशि जाँच लें।'))}</div>`,
+    onSubmit: async (v) => {
+      const pay = await act(() => DB.insert('payments', { gym_id: gymId(), invoice_id: invoiceId, member_id: i.member_id, amount: v.amount, method: v.method, ref: v.ref || null }));
+      if (!pay) return false;
+      bust('payments', 'ledger'); render(); receiptModal(pay, m); return true;
+    },
+  });
+}
+function receiptText(p, m) {
+  return `🧾 ${gymName()}\nरसीद: ${p.no || '—'}\nसदस्य: ${m.name || ''}\nराशि: ${inr(p.amount)} (${p.method})\nतारीख़: ${fmtDate(p.paid_on || todayISO())}\nधन्यवाद! 💪`;
+}
+function receiptModal(p, m) {
+  m = m || {};
+  const mod = openModal({
+    title: L('Receipt', 'रसीद'),
+    body: `<div class="card" style="padding:14px"><b>${esc(gymName())}</b><div class="num" style="margin:6px 0">${esc(p.no || '—')}</div><div>${esc(m.name || '')}</div><div class="num" style="font-size:22px;margin:6px 0">${esc(inr(p.amount))}</div><div class="muted">${esc(p.method)} · ${esc(fmtDate(p.paid_on || todayISO()))}${p.ref ? ' · ' + esc(p.ref) : ''}</div></div>`,
+    footer: `<a class="btn wa" target="_blank" rel="noreferrer" href="${esc(waLink(m.phone, receiptText(p, m)))}">${ic('msg')} WhatsApp</a><button type="button" class="btn" data-cp>${ic('copy')} ${esc(L('Copy', 'कॉपी'))}</button>`,
+  });
+  $('[data-cp]', mod.el).onclick = () => copyText(receiptText(p, m));
+}
+async function vPayments() {
+  const [payments, members] = await Promise.all([Q.payments(), Q.members()]);
+  const mm = memberMap(members), st = U.payments, q = st.q.trim().toLowerCase();
+  let rows = payments.filter((p) => !q || String(p.no || '').toLowerCase().includes(q) || memberName(mm, p.member_id).toLowerCase().includes(q));
+  const total = rows.length; st.page = Math.min(st.page, Math.max(1, Math.ceil(total / PAGE))); const all = rows; rows = rows.slice((st.page - 1) * PAGE, st.page * PAGE);
+  const mk = monthKey(todayISO());
+  return pageHead(L('Billing', 'बिलिंग'), L('Payments', 'भुगतान'), '', `<button class="btn" data-act="payCsv">${ic('down')} CSV</button>`)
+    + `<div class="tiles">${tile(L('This month', 'इस महीने'), esc(inr(sum(payments.filter((p) => monthKey(p.paid_on) === mk), (p) => p.amount))))}${tile(L('Payments', 'भुगतान'), payments.length)}</div>`
+    + `<div class="bar">${searchBox('pq', st.q, L('Receipt no. or member', 'रसीद नंबर या सदस्य'))}</div>`
+    + `<div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('No.', 'नं.'))}</th><th>${esc(L('Member', 'सदस्य'))}</th><th>${esc(L('Date', 'तारीख़'))}</th><th>${esc(L('Method', 'तरीक़ा'))}</th><th class="r">${esc(L('Amount', 'राशि'))}</th></tr></thead><tbody>${rows.map((p) => `<tr class="click" data-act="openReceipt" data-id="${esc(p.id)}"><td class="num"><b>${esc(p.no || '—')}</b></td><td>${esc(memberName(mm, p.member_id))}</td><td class="num">${esc(fmtDate(p.paid_on))}</td><td>${esc(p.method)}</td><td class="r num">${esc(inr(p.amount))}</td></tr>`).join('')}</tbody></table></div>${pagerHtml(total, st.page, 'payments')}` : empty(L('No payments', 'कोई भुगतान नहीं'), '')}</div>`;
+}
+async function exportPayments() {
+  const [payments, members] = await Promise.all([Q.payments(), Q.members()]), mm = memberMap(members);
+  downloadCsv(`payments-${todayISO()}.csv`, [['No', 'Date', 'Member', 'Method', 'Amount', 'Ref'], ...payments.map((p) => [p.no, p.paid_on, memberName(mm, p.member_id), p.method, p.amount, p.ref || ''])]);
+}
+
+/* ---------- Ledger (server-side HMAC chain) ---------- */
+async function vLedger() {
+  const [rows, members] = await Promise.all([Q.ledger(), Q.members()]);
+  const mm = memberMap(members), st = U.ledger, res = st.result;
+  const verdict = res === null ? '' : res.length === 0
+    ? `<div class="banner ok">${ic('shield')} ${esc(L(`Verified: ${rows.length} sealed entries, the chain is intact and every entry matches its payment.`, `जाँच पूरी: ${rows.length} सील प्रविष्टियाँ, चेन सही है और हर प्रविष्टि भुगतान से मेल खाती है।`))}</div>`
+    : `<div class="banner bad">${ic('shield')} ${esc(L(`${res.length} problem(s) found`, `${res.length} गड़बड़ मिली`))}<ul>${res.map((r) => `<li>#${r.seq}: ${esc(r.problem)}</li>`).join('')}</ul></div>`;
+  const total = rows.length; st.page = Math.min(st.page, Math.max(1, Math.ceil(total / PAGE)));
+  const pageRows = rows.slice((st.page - 1) * PAGE, st.page * PAGE);
+  return pageHead(L('Billing', 'बिलिंग'), L('Secure ledger', 'सुरक्षित लेजर'), L('Each payment is sealed on the server with a keyed HMAC-SHA256 chain. Any later change breaks the chain.', 'हर भुगतान सर्वर पर कुंजी वाली HMAC-SHA256 चेन से सील होता है। बाद में कोई बदलाव चेन तोड़ देता है।'),
+    `<button class="btn primary" data-act="verifyLedger" ${st.busy ? 'disabled' : ''}>${ic('shield')} ${esc(L('Verify now', 'अभी जाँचें'))}</button><button class="btn" data-act="ledgerCsv">${ic('down')} CSV</button>`)
+    + verdict
+    + `<div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>#</th><th>${esc(L('Receipt', 'रसीद'))}</th><th>${esc(L('Member', 'सदस्य'))}</th><th class="r">${esc(L('Amount', 'राशि'))}</th><th>${esc(L('Seal', 'सील'))}</th></tr></thead><tbody>${pageRows.map((r) => `<tr><td class="num">${r.seq}</td><td class="num">${esc(r.no)}</td><td>${esc(memberName(mm, r.member_id))}</td><td class="r num">${esc(inr(r.amount))}</td><td><small class="hash">${esc(String(r.mac).slice(0, 16))}…</small></td></tr>`).join('')}</tbody></table></div>${pagerHtml(total, st.page, 'ledger')}` : empty(L('No sealed payments yet', 'अभी कोई सील भुगतान नहीं'), '')}</div>`;
+}
+async function runVerify() {
+  U.ledger.busy = true; render();
+  try { bust('ledger'); U.ledger.result = await DB.rpc('verify_gym_ledger', { g: gymId() }); } catch (e) { toast(friendlyError(e), 'bad'); } finally { U.ledger.busy = false; render(); }
+}
+async function exportLedger() {
+  const [rows, members] = await Promise.all([Q.ledger(), Q.members()]), mm = memberMap(members);
+  downloadCsv(`ledger-${todayISO()}.csv`, [['Seq', 'Receipt', 'Date', 'Member', 'Method', 'Amount', 'MAC'], ...[...rows].reverse().map((r) => [r.seq, r.no, r.paid_on, memberName(mm, r.member_id), r.method, r.amount, r.mac])]);
+}
+
+/* ---------- Retention ---------- */
+async function vRetention() {
+  const [members, visits] = await Promise.all([Q.members(), Q.visits()]);
+  const thr = U.retention.thr, last = lastVisitMap(visits), today = todayISO();
+  const risky = members.filter((m) => ['Active', 'Expiring'].includes(memberState(m))).map((m) => {
+    const lv = last.get(m.id), base = lv || m.joined_on || m.start_date, gone = base ? diffDays(base, today) : 999;
+    return { m, lv, gone };
+  }).filter((x) => x.gone >= thr && !(x.m.joined_on && !x.lv && diffDays(x.m.joined_on, today) < thr)).sort((a, b) => b.gone - a.gone);
+  const msg = (m, gone) => `नमस्ते ${m.name} जी, ${gymName()} से। ${gone >= 90 ? 'काफ़ी दिनों' : gone + ' दिन'} से आप जिम नहीं आए। सब ठीक है? आपका इंतज़ार है, कल आइए! 💪`;
+  return pageHead(L('Members', 'सदस्य'), L('At risk of leaving', 'छोड़ने का जोखिम'), L('Active members who have not visited for a while. Visit history covers the last 90 days.', 'सक्रिय सदस्य जो कुछ समय से नहीं आए। विज़िट इतिहास पिछले 90 दिन का है।'),
+    `<label class="fl" style="margin:0"><span>${esc(L('Absent for at least (days)', 'कम से कम इतने दिन अनुपस्थित'))}</span><input class="in" id="thr" type="number" min="1" max="30" value="${thr}" data-bind="thr" style="width:90px"></label>`)
+    + `<div class="card">${risky.length ? `<ul class="list">${risky.map(({ m, lv, gone }) => `<li class="click" data-act="openMember" data-id="${esc(m.id)}">${avatar(m.name)}<div class="grow"><b>${esc(m.name)}</b><small>${lv ? esc(L(`Last visit ${fmtShort(lv)}`, `आख़िरी विज़िट ${fmtShort(lv)}`)) : esc(L('No visit in 90 days', '90 दिन में कोई विज़िट नहीं'))}</small></div>${badge(gone >= 90 ? '90+' : L(`${gone} days`, `${gone} दिन`), gone >= 14 ? 'bad' : 'warn')}<a class="btn wa sm" data-stop target="_blank" rel="noreferrer" href="${esc(waLink(m.phone, msg(m, gone)))}">${ic('msg')}</a></li>`).join('')}</ul>` : empty(L('Nobody is overdue for a visit', 'कोई लंबे समय से अनुपस्थित नहीं'), '')}</div>`;
+}
+
+/* ---------- Peak hours ---------- */
+async function vPeak() {
+  const visits = await Q.visits(), days = Number(U.peak.days), since = Date.now() - days * 864e5;
+  const grid = Array.from({ length: 7 }, () => Array(24).fill(0)); let n = 0, max = 0;
+  visits.filter((v) => new Date(v.in_at).getTime() >= since).forEach((v) => { const { dow, hour } = istParts(v.in_at); grid[dow][hour]++; n++; });
+  grid.forEach((r) => r.forEach((c) => { if (c > max) max = c; }));
+  const DN = L('Sun,Mon,Tue,Wed,Thu,Fri,Sat', 'रवि,सोम,मंगल,बुध,गुरु,शुक्र,शनि').split(',');
+  const hours = [...Array(24).keys()].filter((h) => h >= 5 && h <= 23);
+  const byHour = hours.map((h) => [h, sum(grid, (r) => r[h])]).sort((a, b) => b[1] - a[1]).slice(0, 3).filter((x) => x[1] > 0);
+  const hl = (h) => `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`;
+  return pageHead(L('Insights', 'इनसाइट'), L('Peak hours', 'भीड़ के समय'), L(`Check-ins by day and hour (India time), last ${days} days: ${n} visits.`, `दिन और घंटे के हिसाब से चेक-इन (भारतीय समय), पिछले ${days} दिन: ${n} विज़िट।`))
+    + chipsHtml('peakD', U.peak.days, [['28', L('28 days', '28 दिन')], ['90', L('90 days', '90 दिन')]])
+    + (byHour.length ? `<div class="note" style="margin-bottom:12px">${esc(L('Busiest hours: ', 'सबसे व्यस्त घंटे: '))}${byHour.map((x) => `${hl(x[0])} (${x[1]})`).join(', ')}</div>` : '')
+    + `<div class="card" style="overflow:auto;padding:14px"><div class="heat" role="img" aria-label="${esc(L('Peak hours heatmap', 'भीड़ का हीटमैप'))}" style="grid-template-columns:44px repeat(${hours.length},minmax(0,1fr))"><span></span>${hours.map((h) => `<span class="hl">${hl(h)}</span>`).join('')}${[1, 2, 3, 4, 5, 6, 0].map((d) => `<span class="hd">${esc(DN[d])}</span>${hours.map((h) => { const c = grid[d][h]; return `<span class="hc" title="${esc(DN[d])} ${hl(h)}: ${c}"><i style="opacity:${c ? (0.2 + 0.8 * c / max).toFixed(2) : 0}"></i>${c ? `<b>${c}</b>` : ''}</span>`; }).join('')}`).join('')}</div></div>`;
+}
+
+/* ---------- Settings / team ---------- */
+async function vSettings() {
+  const g = CTX.gym || {}; let staff = [];
+  try { staff = (await Q.profiles()).filter((p) => p.gym_id === gymId()); } catch (e) {}
+  return pageHead(L('Setup', 'सेटअप'), L('Gym settings', 'जिम सेटिंग'), '', `<button class="btn primary" data-act="editGym" ${CTX.locked ? 'disabled' : ''}>${ic('pencil')} ${esc(L('Edit', 'बदलें'))}</button>`)
+    + `<div class="grid2">${card(L('Gym', 'जिम'), 'building', '', `<ul class="list"><li><div class="grow"><small>${esc(L('Name', 'नाम'))}</small><b>${esc(g.name || '')}</b></div></li><li><div class="grow"><small>${esc(L('Owner', 'मालिक'))}</small><b>${esc(g.owner_name || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Phone', 'फ़ोन'))}</small><b>${esc(g.phone || '—')}</b></div></li><li><div class="grow"><small>${esc(L('City', 'शहर'))}</small><b>${esc(g.city || '—')}</b></div></li><li><div class="grow"><small>UPI</small><b>${esc(g.upi_id || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Subscription valid till', 'सब्सक्रिप्शन की तारीख़'))}</small><b>${esc(fmtDate(g.subscription_ends_on))}</b></div>${CTX.locked ? badge(L('Locked', 'लॉक'), 'bad') : badge(L('Open', 'खुला'), 'ok')}</li></ul>`)}
+    ${card(L('Team', 'टीम'), 'users', '', staff.length ? `<ul class="list">${staff.map((p) => `<li>${avatar(p.full_name || p.email)}<div class="grow"><b>${esc(p.full_name || p.email || '—')}</b><small>${esc(p.email || '')}</small></div>${badge(roleName(p.role), 'mute')}</li>`).join('')}</ul><div class="muted" style="margin-top:8px">${esc(L('Roles are assigned by the platform admin.', 'भूमिकाएँ प्लेटफ़ॉर्म एडमिन तय करता है।'))}</div>` : empty(L('No team listed', 'टीम सूची में नहीं'), ''))}</div>`;
+}
+function editGymForm() {
+  const g = CTX.gym || {};
+  openForm({
+    title: L('Edit gym', 'जिम बदलें'), values: { name: g.name, owner: g.owner_name, phone: g.phone, city: g.city, upi: g.upi_id },
+    fields: [
+      { k: 'name', label: L('Gym name', 'जिम का नाम'), req: true, full: true, check: (v) => (v.length < 2 ? L('Too short', 'बहुत छोटा') : '') },
+      { k: 'owner', label: L('Owner', 'मालिक') }, { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel' }, { k: 'city', label: L('City', 'शहर') },
+      { k: 'upi', label: L('Merchant UPI ID', 'मर्चेंट UPI आईडी'), ph: 'name@bank', check: (v) => (v && !UPI_RE.test(v) ? L('Example: name@bank', 'उदाहरण: name@bank') : '') },
+    ],
+    onSubmit: async (v) => {
+      const ok = await act(() => DB.rpc('admin_update_gym', { gym: gymId(), gym_name: v.name, owner: v.owner || null, phone_no: v.phone || null, city_name: v.city || null, upi: v.upi || null }), L('Saved', 'सेव हुआ'));
+      if (ok) { await loadContext(); render(); } return !!ok;
+    },
+  });
+}
+
+/* ---------- Member portal ---------- */
+async function vMine() {
+  const members = await Q.members(), m = members[0];
+  if (!m) return pageHead(gymName(), L('My gym', 'मेरा जिम'), '') + `<div class="card">${empty(L('Your membership is not linked yet', 'आपकी सदस्यता अभी जुड़ी नहीं है'), L('Ask the front desk to link your account to your membership.', 'फ़्रंट डेस्क से अपना अकाउंट सदस्यता से जुड़वाएँ।'))}</div>`;
+  const [invoices, payments, visits, plans] = await Promise.all([Q.invoices(), Q.payments(), Q.visits(), Q.plans()]);
+  const paid = paidByInvoice(payments), due = sum(invoices, (i) => balanceOf(i, paid)), s = memberState(m), dl = daysLeft(m), plan = plans.find((p) => p.id === m.plan_id), upi = upiOf();
+  const month = visits.filter((v) => monthKey(istDate(v.in_at)) === monthKey(todayISO())).length;
+  return pageHead(gymName(), `${L('Hello', 'नमस्ते')}, ${m.name}`, '')
+    + `<div class="tiles">${tile(L('Membership', 'सदस्यता'), badge(s), esc(plan ? plan.name : ''))}${tile(L('Valid till', 'तारीख़ तक'), esc(fmtDate(m.end_date)), dl == null ? '' : dl >= 0 ? esc(L(`${dl} days left`, `${dl} दिन बाक़ी`)) : esc(L(`Expired ${-dl} days ago`, `${-dl} दिन पहले खत्म`)))}${tile(L('Visits this month', 'इस महीने विज़िट'), month)}${tile(L('Dues', 'बकाया'), esc(inr(due)), '', due ? 'var(--crimson)' : '')}</div>`
+    + (due && upi ? `<div class="card" style="padding:14px;margin-bottom:14px"><b>${esc(L('Pay your dues', 'बकाया चुकाएँ'))}</b><p class="muted" style="margin:6px 0">${esc(L('Pay to this UPI ID, then tell the front desk. The gym records the payment on its side.', 'इस UPI आईडी पर भुगतान करें, फिर फ़्रंट डेस्क को बताएँ। भुगतान जिम की तरफ़ से दर्ज होता है।'))}</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><code class="num">${esc(upi)}</code><button class="btn sm" data-act="copyUpi">${ic('copy')} ${esc(L('Copy', 'कॉपी'))}</button></div></div>` : '')
+    + `<div class="grid2">${card(L('Invoices', 'इनवॉइस'), 'receipt', '', invoices.length ? `<ul class="list">${invoices.slice(0, 8).map((i) => `<li><div class="grow"><b class="num">${esc(i.no || '—')}</b><small>${esc(fmtDate(i.date))}</small></div><span class="num">${esc(inr(i.total))}</span>${badge(invStatus(i, paid))}</li>`).join('')}</ul>` : empty(L('No invoices', 'कोई इनवॉइस नहीं'), ''))}
+    ${card(L('Recent visits', 'हाल की विज़िट'), 'clock', '', visits.length ? `<ul class="list">${visits.slice(0, 8).map((v) => `<li><div class="grow"><b>${esc(fmtDate(v.in_at))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div></li>`).join('')}</ul>` : empty(L('No visits yet', 'अभी कोई विज़िट नहीं'), ''))}</div>`;
+}
+/* ================= Boot: auth gate, role routing, events ================= */
+const NAV = {
+  super_admin: [['gyms', 'building', 'Gyms', 'जिम', vSuperGyms], ['users', 'users', 'Users', 'यूज़र', vSuperUsers], ['audit', 'list', 'Audit log', 'ऑडिट लॉग', vSuperAudit], ['status', 'pulse', 'Status', 'स्थिति', vSuperStatus]],
+  gym_admin: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard], ['members', 'users', 'Members', 'सदस्य', vMembers], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin], ['plans', 'tag', 'Plans', 'प्लान', vPlans], ['invoices', 'receipt', 'Invoices', 'इनवॉइस', vInvoices], ['payments', 'wallet', 'Payments', 'भुगतान', vPayments], ['ledger', 'shield', 'Secure ledger', 'सुरक्षित लेजर', vLedger], ['retention', 'pulse', 'At risk', 'जोखिम', vRetention], ['peak', 'chart', 'Peak hours', 'भीड़ के समय', vPeak], ['settings', 'gear', 'Settings', 'सेटिंग', vSettings]],
+  trainer: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard], ['members', 'users', 'Members', 'सदस्य', vMembers], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin]],
+  member: [['mine', 'home', 'My gym', 'मेरा जिम', vMine]],
+};
+const navFor = () => NAV[CTX.profile ? CTX.profile.role : ''] || [];
+let RENDER_TOKEN = 0, WAITING = false;
+
+function currentRoute() {
+  const items = navFor(), h = location.hash.replace('#', '');
+  return items.find((i) => i[0] === h) || items[0];
+}
+
+/* ---------- context ---------- */
+async function loadContext() {
+  const rows = await DB.select('profiles', { eq: { id: SESSION.user_id } });
+  CTX.profile = rows[0] || null; CTX.gym = null; CTX.locked = false;
+  if (!CTX.profile) return;
+  if (CTX.profile.gym_id) {
+    const g = await DB.select('gyms', { eq: { id: CTX.profile.gym_id } });
+    CTX.gym = g[0] || null;
+    CTX.locked = CTX.profile.role !== 'super_admin' && gymLocked(CTX.gym);
+  }
+}
+
+/* ---------- screens ---------- */
+function showGate(html) { $('#app').hidden = true; const g = $('#gate'); g.hidden = false; g.innerHTML = html; }
+function loginScreen(msg) {
+  showGate(`<div class="login"><section class="card"><div class="brand" style="padding:0"><span class="crest">${ic('crown')}</span><div><b>Royal The Gym</b><small>GymOS</small></div></div>
+    <h1>${esc(L('Sign in', 'लॉगिन करें'))}</h1><p class="muted" style="margin:0">${esc(L('Use the email and password given by your gym.', 'अपने जिम से मिला ईमेल और पासवर्ड इस्तेमाल करें।'))}</p>
+    ${msg ? `<div class="banner bad" style="margin:12px 0 0" role="alert">${esc(msg)}</div>` : ''}
+    <form id="loginForm" novalidate><label class="fl"><span>${esc(L('Email', 'ईमेल'))}</span><input class="in" id="l_email" type="email" autocomplete="username" required></label>
+    <label class="fl"><span>${esc(L('Password', 'पासवर्ड'))}</span><input class="in" id="l_pass" type="password" autocomplete="current-password" required></label>
+    <button class="btn primary" id="l_go" type="submit">${esc(L('Sign in', 'लॉगिन'))}</button></form>
+    <div style="display:flex;gap:8px;margin-top:14px"><button class="btn sm" type="button" data-act="lang">${ic('globe')} ${LANG === 'hi' ? 'English' : 'हिन्दी'}</button></div></section></div>`);
+  const em = $('#l_email'); if (em) em.focus();
+}
+function waitingScreen() {
+  showGate(`<div class="login"><section class="card"><h1>${esc(L('Waiting for approval', 'मंज़ूरी का इंतज़ार'))}</h1><p>${esc(L('Your account is created, but it is not linked to a gym yet. Ask your gym owner or the platform admin to assign you.', 'आपका अकाउंट बन गया है, पर अभी किसी जिम से नहीं जुड़ा। अपने जिम मालिक या प्लेटफ़ॉर्म एडमिन से जुड़वाएँ।'))}</p><p class="muted">${esc(SESSION.email || '')}</p>
+    <div style="display:flex;gap:8px"><button class="btn" data-act="retry">${esc(L('Check again', 'फिर जाँचें'))}</button><button class="btn" data-act="signOut">${ic('out')} ${esc(L('Sign out', 'लॉग आउट'))}</button></div></section></div>`);
+}
+function chrome() {
+  $('#gate').hidden = true; $('#app').hidden = false;
+  const items = navFor(), cur = currentRoute();
+  $('#nav').innerHTML = items.map((i) => `<a href="#${i[0]}" ${cur && cur[0] === i[0] ? 'aria-current="page"' : ''}>${ic(i[1])}<span>${esc(L(i[2], i[3]))}</span></a>`).join('');
+  $('#date').textContent = fmtDate(todayISO());
+  $('#gymName').textContent = CTX.gym ? CTX.gym.name : 'Royal The Gym';
+  $('#pills').innerHTML = `<span class="pill">${esc(roleName(CTX.profile.role))}</span>${CTX.locked ? ` <span class="pill demo">${esc(L('Locked', 'लॉक'))}</span>` : ''}`;
+  $('#who').textContent = SESSION.email || '';
+  $('#langBtn').innerHTML = `${ic('globe')} ${LANG === 'hi' ? 'EN' : 'हि'}`;
+  $('#langBtn').setAttribute('aria-label', L('Switch language', 'भाषा बदलें'));
+  $('#themeBtn').innerHTML = ic(document.documentElement.dataset.theme === 'light' ? 'moon' : 'sun');
+  $('#themeBtn').setAttribute('aria-label', L('Switch theme', 'थीम बदलें'));
+  $('#outBtn').innerHTML = `${ic('out')}`; $('#outBtn').setAttribute('aria-label', L('Sign out', 'लॉग आउट'));
+  document.documentElement.lang = LANG === 'hi' ? 'hi' : 'en';
+}
+function lockBanner() {
+  if (!CTX.locked || !CTX.gym) return '';
+  const forced = CTX.gym.lock_override === 'force_lock' || CTX.gym.status === 'suspended';
+  return `<div class="banner bad" role="alert">${ic('lock')} ${esc(forced ? L('This gym is locked by the platform admin. You can view data but not change it.', 'यह जिम प्लेटफ़ॉर्म एडमिन ने लॉक किया है। आप डेटा देख सकते हैं, बदल नहीं सकते।') : L(`Subscription ended on ${fmtDate(CTX.gym.subscription_ends_on)}. You can view data but not change it. Renew to continue.`, `सब्सक्रिप्शन ${fmtDate(CTX.gym.subscription_ends_on)} को खत्म हुआ। आप डेटा देख सकते हैं, बदल नहीं सकते। जारी रखने के लिए रिन्यू करें।`))}</div>`;
+}
+async function render() {
+  if (!CTX.profile) return;
+  const token = ++RENDER_TOKEN, route = currentRoute(), view = $('#view');
+  if (!route) { view.innerHTML = empty(L('Nothing to show', 'दिखाने को कुछ नहीं'), ''); return; }
+  chrome();
+  const focusId = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.bind ? document.activeElement.id : null;
+  const caret = focusId ? document.activeElement.selectionStart : 0;
+  if (!view.dataset.ready || view.dataset.route !== route[0]) { view.innerHTML = loadingHtml(); }
+  let html;
+  try { html = await route[4](); } catch (e) {
+    if (token !== RENDER_TOKEN) return;
+    if (e && e.status === 401) return;
+    view.dataset.ready = '1'; view.dataset.route = route[0];
+    view.innerHTML = `<div class="card">${empty(L('Could not load this page', 'यह पेज लोड नहीं हो सका'), friendlyError(e), `<button class="btn" data-act="retry">${esc(L('Try again', 'फिर कोशिश करें'))}</button>`)}</div>`;
+    return;
+  }
+  if (token !== RENDER_TOKEN) return;
+  view.dataset.ready = '1'; view.dataset.route = route[0];
+  view.innerHTML = lockBanner() + html;
+  if (focusId) { const el = document.getElementById(focusId); if (el) { el.focus(); try { el.setSelectionRange(caret, caret); } catch (e) {} } }
+}
+async function enter() {
+  try { await loadContext(); } catch (e) { if (e && e.status === 401) return; showGate(`<div class="login"><section class="card"><h1>${esc(L('Could not connect', 'कनेक्ट नहीं हो सका'))}</h1><p>${esc(friendlyError(e))}</p><button class="btn" data-act="retry">${esc(L('Try again', 'फिर कोशिश करें'))}</button> <button class="btn" data-act="signOut">${esc(L('Sign out', 'लॉग आउट'))}</button></section></div>`); return; }
+  const p = CTX.profile;
+  if (!p || (p.role !== 'super_admin' && !p.gym_id)) { waitingScreen(); return; }
+  if (!navFor().length) { waitingScreen(); return; }
+  $('#view').dataset.ready = ''; render();
+}
+function onSignedOut() { bust(); CTX.profile = null; CTX.gym = null; CTX.locked = false; RENDER_TOKEN++; loginScreen(L('Please sign in again.', 'कृपया दोबारा लॉगिन करें।')); }
+
+/* ---------- actions ---------- */
+const CHIP = { memF: (v) => { U.members.f = v; U.members.page = 1; }, invF: (v) => { U.invoices.f = v; U.invoices.page = 1; }, peakD: (v) => { U.peak.days = v; } };
+const BIND = { mq: (v) => { U.members.q = v; U.members.page = 1; }, cq: (v) => { U.checkin.q = v; }, iq: (v) => { U.invoices.q = v; U.invoices.page = 1; }, pq: (v) => { U.payments.q = v; U.payments.page = 1; }, thr: (v) => { const n = Math.min(30, Math.max(1, parseInt(v, 10) || 4)); U.retention.thr = n; try { localStorage.setItem('gymos-thr', String(n)); } catch (e) {} } };
+const ACTIONS = {
+  newGym: () => gymForm(), extendGym: (d) => extendForm(d.id), lockGym: (d) => lockForm(d.id), assignUser: (d) => assignForm(d.id),
+  newMember: () => memberForm(), openMember: (d) => memberModal(d.id), checkIn: (d) => doCheckIn(d.id), checkOut: (d) => doCheckOut(d.id),
+  newPlan: () => planForm(), editPlan: (d) => planForm(d.id), newInvoice: () => invoiceForm(), openInvoice: (d) => invoiceModal(d.id),
+  openReceipt: async (d) => { const [pays, ms] = await Promise.all([Q.payments(), Q.members()]); const p = pays.find((x) => x.id === d.id); if (p) { closeAllModals(); receiptModal(p, ms.find((m) => m.id === p.member_id)); } },
+  payCsv: () => exportPayments(), verifyLedger: () => runVerify(), ledgerCsv: () => exportLedger(), editGym: () => editGymForm(),
+  copyUpi: () => copyText(upiOf(), L('UPI ID copied', 'UPI आईडी कॉपी हुई')),
+  chip: (d) => { CHIP[d.key] && CHIP[d.key](d.v); render(); },
+  page: (d) => { const s = U[d.key]; if (s) { s.page = Math.max(1, s.page + Number(d.d)); render(); } },
+  retry: () => { bust(); CTX.profile ? render() : enter(); },
+  lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
+  theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
+  signOut: async () => { await Auth.signOut(); bust(); CTX.profile = null; RENDER_TOKEN++; loginScreen(); },
+};
+document.addEventListener('click', (e) => {
+  const link = e.target.closest('a[href]');
+  if (link && (link.hasAttribute('data-stop') || link.classList.contains('wa'))) return; /* let WhatsApp links open; do not trigger the row */
+  if (link && !e.target.closest('[data-act]')) return;
+  const el = e.target.closest('[data-act]'); if (!el || el.disabled) return;
+  const fn = ACTIONS[el.dataset.act]; if (!fn) return;
+  e.preventDefault();
+  Promise.resolve(fn(el.dataset)).catch((err) => { if (!(err && err.status === 401)) toast(friendlyError(err), 'bad'); });
+});
+let bindTimer;
+document.addEventListener('input', (e) => {
+  const id = e.target.dataset && e.target.dataset.bind; if (!id || !BIND[id]) return;
+  BIND[id](e.target.value); clearTimeout(bindTimer); bindTimer = setTimeout(render, id === 'thr' ? 500 : 220);
+});
+document.addEventListener('submit', async (e) => {
+  if (e.target.id !== 'loginForm') return;
+  e.preventDefault();
+  const email = $('#l_email').value.trim(), pass = $('#l_pass').value, btn = $('#l_go');
+  if (!email || !pass) { loginScreen(L('Enter email and password.', 'ईमेल और पासवर्ड लिखें।')); return; }
+  btn.disabled = true;
+  try { await Auth.signIn(email, pass); bust(); await enter(); } catch (err) { loginScreen(friendlyError(err)); const el = $('#l_email'); if (el) el.value = email; }
+});
+window.addEventListener('hashchange', () => { closeAllModals(); if (CTX.profile) render(); });
+
+/* ---------- start ---------- */
+(function start() {
+  try { const t = localStorage.getItem('gymos-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  $('#langBtn').onclick = () => ACTIONS.lang(); $('#themeBtn').onclick = () => ACTIONS.theme(); $('#outBtn').onclick = () => ACTIONS.signOut();
+  if (SESSION && SESSION.refresh_token) enter(); else loginScreen();
+})();

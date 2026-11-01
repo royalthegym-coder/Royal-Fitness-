@@ -1,0 +1,24 @@
+# Render Blueprint: Free static site. No server, no database of its own — data lives in Supabase behind row level security.
+services:
+  - type: web
+    name: gymos-royal-the-gym
+    runtime: static
+    rootDir: gymos-app
+    buildCommand: bash build.sh
+    staticPublishPath: public
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://ayoeevltbubkyhixqqlg.supabase.co; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+      - path: /app.js
+        name: Cache-Control
+        value: no-cache
