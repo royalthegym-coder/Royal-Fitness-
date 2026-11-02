@@ -57,6 +57,7 @@ class ApiError extends Error { constructor(message, status, code, detail) { supe
 /* PostgREST / Postgres error → a message a gym owner can act on */
 function friendlyError(e) {
   if (!e) return L('Something went wrong.', 'कुछ गड़बड़ हुई।');
+  if (e.friendly) return e.friendly;
   const msg = String(e.message || ''), code = e.code || '';
   if (e.status === 0) return L('No connection. Check the internet and try again.', 'कनेक्शन नहीं है। इंटरनेट जाँचकर फिर कोशिश करें।');
   if (code === '42501' || /row-level security|permission denied|not allowed|super admin only/i.test(msg)) return CTX.locked
@@ -106,6 +107,16 @@ const DB = {
   remove: (table, id) => api(`/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' }),
   rpc: (fn, args = {}) => api(`/rest/v1/rpc/${fn}`, { method: 'POST', body: args }),
 };
+/* Edge function: a gym admin creates a trainer/member login for their own gym (service key stays on the server) */
+const FN_ERR = { locked: ['Subscription expired. Renew to add logins.', 'सब्सक्रिप्शन खत्म है। लॉगिन जोड़ने के लिए रिन्यू करें।'], email_taken: ['This email already has an account.', 'इस ईमेल का अकाउंट पहले से है।'], already_linked: ['This member already has a login.', 'इस सदस्य का लॉगिन पहले से है।'], bad_email: ['Enter a valid email.', 'सही ईमेल लिखें।'], forbidden: ['Only a gym admin can do this.', 'यह सिर्फ़ जिम एडमिन कर सकता है।'] };
+async function createAccount(body) {
+  if (SESSION && SESSION.expires_at && SESSION.expires_at - 30 < Date.now() / 1000) await refreshSession();
+  const res = await rawFetch('/functions/v1/create-account', { method: 'POST', headers: { apikey: CFG.key, Authorization: 'Bearer ' + (SESSION && SESSION.access_token), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await res.json().catch(() => ({}));
+  if (res.status === 401) { saveSession(null); if (typeof onSignedOut === 'function') onSignedOut(); throw new ApiError('session expired', 401, 'jwt'); }
+  if (!res.ok) { const m = FN_ERR[j.error]; const e = new ApiError(m ? L(m[0], m[1]) : 'failed', res.status, 'fn'); e.friendly = m ? L(m[0], m[1]) : null; throw e; }
+  return j;
+}
 const Auth = {
   async signIn(email, password) {
     const res = await rawFetch('/auth/v1/token?grant_type=password', { method: 'POST', headers: { apikey: CFG.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
@@ -486,16 +497,17 @@ async function memberModal(id) {
   closeAllModals();
   const mod = openModal({
     title: m.name, wide: true,
-    body: `<div style="display:flex;gap:14px;align-items:center;margin-bottom:12px">${avatar(m.name)}<div class="grow"><b>${esc(m.phone || '')}</b><div class="muted">${esc(plan ? plan.name : L('No plan', 'प्लान नहीं'))} · ${esc(m.goal || '')}</div></div>${badge(s)}</div>
+    body: `<div style="display:flex;gap:14px;align-items:center;margin-bottom:12px">${avatar(m.name)}<div class="grow"><b>${esc(m.phone || '')}</b><div class="muted">${esc(plan ? plan.name : L('No plan', 'प्लान नहीं'))} · ${esc(m.goal || '')}${m.profile_id ? ' · ' + esc(L('app login linked', 'ऐप लॉगिन जुड़ा')) : ''}</div></div>${badge(s)}</div>
       <div class="tiles" style="margin-bottom:12px">${tile(L('Valid till', 'तारीख़ तक'), esc(fmtDate(m.end_date)), dl == null ? '' : dl >= 0 ? L(`${dl} days left`, `${dl} दिन बाक़ी`) : L(`${-dl} days ago`, `${-dl} दिन पहले`))}${isAdmin() ? tile(L('Dues', 'बकाया'), esc(inr(due)), '', due ? 'var(--crimson)' : '') : ''}</div>
       ${m.notes ? `<p class="muted">${esc(m.notes)}</p>` : ''}
       <h3 style="font-size:13px;margin:10px 0 4px">${esc(L('Recent visits', 'हाल की विज़िट'))}</h3>${vs.length ? `<ul class="list">${vs.map((v) => `<li><div class="grow"><b>${esc(fmtDate(v.in_at))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div></li>`).join('')}</ul>` : `<div class="muted">${esc(L('No visits in the last 90 days', 'पिछले 90 दिन में कोई विज़िट नहीं'))}</div>`}
       ${isAdmin() ? `<h3 style="font-size:13px;margin:14px 0 4px">${esc(L('Invoices', 'इनवॉइस'))}</h3>${mine.length ? `<ul class="list">${mine.slice(0, 5).map((i) => `<li class="click" data-act="openInvoice" data-id="${esc(i.id)}"><div class="grow"><b class="num">${esc(i.no)}</b><small>${esc(fmtDate(i.date))}</small></div><span class="num">${esc(inr(i.total))}</span>${badge(invStatus(i, paid))}</li>`).join('')}</ul>` : `<div class="muted">—</div>`}` : ''}`,
-    footer: `${waBtnRenew(m).replace('data-stop ', '')}<button type="button" class="btn" data-e>${ic('pencil')} ${esc(L('Edit', 'बदलें'))}</button>${isAdmin() ? `<button type="button" class="btn primary" data-r>${esc(L('Renew', 'रिन्यू'))}</button>` : ''}`,
+    footer: `${waBtnRenew(m).replace('data-stop ', '')}${isAdmin() && !m.profile_id ? `<button type="button" class="btn" data-l>${ic('lock')} ${esc(L('Create login', 'लॉगिन बनाएँ'))}</button>` : ''}<button type="button" class="btn" data-e>${ic('pencil')} ${esc(L('Edit', 'बदलें'))}</button>${isAdmin() ? `<button type="button" class="btn primary" data-r>${esc(L('Renew', 'रिन्यू'))}</button>` : ''}`,
   });
   $('[data-e]', mod.el).onclick = () => { mod.close(); memberForm(id); };
+  const lg = $('[data-l]', mod.el); if (lg) lg.onclick = () => { mod.close(); accountForm('member', m); };
   const r = $('[data-r]', mod.el); if (r) r.onclick = () => { mod.close(); renewForm(id); };
-  if (CTX.locked) { $$('[data-e],[data-r]', mod.el).forEach((b) => (b.disabled = true)); }
+  if (CTX.locked) { $$('[data-e],[data-r],[data-l]', mod.el).forEach((b) => (b.disabled = true)); }
 }
 
 /* ---------- Check-in ---------- */
@@ -704,7 +716,7 @@ async function vSettings() {
   try { staff = (await Q.profiles()).filter((p) => p.gym_id === gymId()); } catch (e) {}
   return pageHead(L('Setup', 'सेटअप'), L('Gym settings', 'जिम सेटिंग'), '', `<button class="btn primary" data-act="editGym" ${CTX.locked ? 'disabled' : ''}>${ic('pencil')} ${esc(L('Edit', 'बदलें'))}</button>`)
     + `<div class="grid2">${card(L('Gym', 'जिम'), 'building', '', `<ul class="list"><li><div class="grow"><small>${esc(L('Name', 'नाम'))}</small><b>${esc(g.name || '')}</b></div></li><li><div class="grow"><small>${esc(L('Owner', 'मालिक'))}</small><b>${esc(g.owner_name || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Phone', 'फ़ोन'))}</small><b>${esc(g.phone || '—')}</b></div></li><li><div class="grow"><small>${esc(L('City', 'शहर'))}</small><b>${esc(g.city || '—')}</b></div></li><li><div class="grow"><small>UPI</small><b>${esc(g.upi_id || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Subscription valid till', 'सब्सक्रिप्शन की तारीख़'))}</small><b>${esc(fmtDate(g.subscription_ends_on))}</b></div>${CTX.locked ? badge(L('Locked', 'लॉक'), 'bad') : badge(L('Open', 'खुला'), 'ok')}</li></ul>`)}
-    ${card(L('Team', 'टीम'), 'users', '', staff.length ? `<ul class="list">${staff.map((p) => `<li>${avatar(p.full_name || p.email)}<div class="grow"><b>${esc(p.full_name || p.email || '—')}</b><small>${esc(p.email || '')}</small></div>${badge(roleName(p.role), 'mute')}</li>`).join('')}</ul><div class="muted" style="margin-top:8px">${esc(L('Roles are assigned by the platform admin.', 'भूमिकाएँ प्लेटफ़ॉर्म एडमिन तय करता है।'))}</div>` : empty(L('No team listed', 'टीम सूची में नहीं'), ''))}</div>`;
+    ${card(L('Team', 'टीम'), 'users', `<button class="btn sm" data-act="newTrainer" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('Trainer login', 'ट्रेनर लॉगिन'))}</button>`, staff.length ? `<ul class="list">${staff.map((p) => `<li>${avatar(p.full_name || p.email)}<div class="grow"><b>${esc(p.full_name || p.email || '—')}</b><small>${esc(p.email || '')}</small></div>${badge(roleName(p.role), 'mute')}</li>`).join('')}</ul><div class="muted" style="margin-top:8px">${esc(L('Roles are assigned by the platform admin.', 'भूमिकाएँ प्लेटफ़ॉर्म एडमिन तय करता है।'))}</div>` : empty(L('No team listed', 'टीम सूची में नहीं'), ''))}</div>`;
 }
 function editGymForm() {
   const g = CTX.gym || {};
@@ -734,6 +746,34 @@ async function vMine() {
     + (due && upi ? `<div class="card" style="padding:14px;margin-bottom:14px"><b>${esc(L('Pay your dues', 'बकाया चुकाएँ'))}</b><p class="muted" style="margin:6px 0">${esc(L('Pay to this UPI ID, then tell the front desk. The gym records the payment on its side.', 'इस UPI आईडी पर भुगतान करें, फिर फ़्रंट डेस्क को बताएँ। भुगतान जिम की तरफ़ से दर्ज होता है।'))}</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><code class="num">${esc(upi)}</code><button class="btn sm" data-act="copyUpi">${ic('copy')} ${esc(L('Copy', 'कॉपी'))}</button></div></div>` : '')
     + `<div class="grid2">${card(L('Invoices', 'इनवॉइस'), 'receipt', '', invoices.length ? `<ul class="list">${invoices.slice(0, 8).map((i) => `<li><div class="grow"><b class="num">${esc(i.no || '—')}</b><small>${esc(fmtDate(i.date))}</small></div><span class="num">${esc(inr(i.total))}</span>${badge(invStatus(i, paid))}</li>`).join('')}</ul>` : empty(L('No invoices', 'कोई इनवॉइस नहीं'), ''))}
     ${card(L('Recent visits', 'हाल की विज़िट'), 'clock', '', visits.length ? `<ul class="list">${visits.slice(0, 8).map((v) => `<li><div class="grow"><b>${esc(fmtDate(v.in_at))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div></li>`).join('')}</ul>` : empty(L('No visits yet', 'अभी कोई विज़िट नहीं'), ''))}</div>`;
+}
+
+/* ---------- Create a login (trainer / member) ---------- */
+function accountForm(role, member) {
+  openForm({
+    title: role === 'member' ? `${L('Create login', 'लॉगिन बनाएँ')} · ${member.name}` : L('New trainer login', 'नया ट्रेनर लॉगिन'),
+    fields: [
+      { k: 'email', label: L('Email', 'ईमेल'), type: 'email', req: true, full: true },
+      { k: 'full_name', label: L('Name', 'नाम'), req: role === 'trainer', def: member ? member.name : '', full: true },
+    ],
+    extra: `<div class="note" style="margin-top:10px">${esc(L('A password is generated and shown once. Share it with the person; they can change it after signing in.', 'पासवर्ड अपने-आप बनता है और एक ही बार दिखता है। उसे व्यक्ति को दीजिए; वह लॉगिन के बाद बदल सकता है।'))}</div>`,
+    submitLabel: L('Create login', 'लॉगिन बनाएँ'),
+    onSubmit: async (v) => {
+      const r = await act(() => createAccount({ email: v.email, full_name: v.full_name, role, member_id: member ? member.id : undefined }));
+      if (!r) return false;
+      bust('members', 'profiles'); render(); showAccessModal(r, member); return true;
+    },
+  });
+}
+function showAccessModal(c, member) {
+  const url = location.origin;
+  const text = `${gymName()} ऐप\nलिंक: ${url}\nईमेल: ${c.email}\nपासवर्ड: ${c.password}\nलॉगिन के बाद पासवर्ड बदल लें।`;
+  const mod = openModal({
+    title: L('Login created', 'लॉगिन बन गया'),
+    body: `<div class="banner">${esc(L('Copy this now. The password is not shown again.', 'अभी कॉपी कर लें। पासवर्ड दोबारा नहीं दिखेगा।'))}</div><div class="card" style="padding:14px"><div class="muted">${esc(L('Email', 'ईमेल'))}</div><b class="num">${esc(c.email)}</b><div class="muted" style="margin-top:8px">${esc(L('Password', 'पासवर्ड'))}</div><b class="num" style="font-size:18px">${esc(c.password)}</b></div>`,
+    footer: `${member && member.phone ? `<a class="btn wa" target="_blank" rel="noreferrer" href="${esc(waLink(member.phone, text))}">${ic('msg')} WhatsApp</a>` : ''}<button type="button" class="btn primary" data-cp>${ic('copy')} ${esc(L('Copy', 'कॉपी'))}</button>`,
+  });
+  $('[data-cp]', mod.el).onclick = () => copyText(text);
 }
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV = {
@@ -844,6 +884,7 @@ const ACTIONS = {
   retry: () => { bust(); CTX.profile ? render() : enter(); },
   lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
   theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
+  newTrainer: () => accountForm('trainer'),
   changePw: () => openForm({
     title: L('Change password', 'पासवर्ड बदलें'),
     fields: [

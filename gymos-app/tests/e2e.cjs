@@ -33,6 +33,7 @@ function handler(db, role) {
     if (m === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
     db.calls.push(`${m} ${p}${u.search ? '?' + u.search.slice(1, 40) : ''}`);
     if (p === '/auth/v1/token') { const b = JSON.parse(req.postData() || '{}'); if (b.password === 'bad') return json({ msg: 'Invalid login credentials' }, 400); return json({ access_token: jwt(db.me), refresh_token: 'r', expires_in: 3600, user: { email: 't@x.in' } }); }
+    if (p === '/functions/v1/create-account') { const b = JSON.parse(req.postData()); db.created = b; if (b.email === 'taken@x.in') return json({ error: 'email_taken' }, 409); return json({ email: b.email, password: 'GenPass1234abcd', role: b.role }); }
     if (p === '/auth/v1/user' && m === 'PUT') { db.pwChanged = JSON.parse(req.postData()).password; return json({ id: db.me }); }
     if (p === '/auth/v1/logout') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
     if (p.startsWith('/rest/v1/rpc/')) {
@@ -124,6 +125,14 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('a[href="#peak"]'); await page.waitForSelector('.heat'); ok(true, 'peak heatmap renders');
     await page.click('a[href="#settings"]'); await page.click('[data-act=editGym]'); await page.fill('#f_city', 'Jaipur'); await page.click('[data-ok]');
     await page.waitForFunction(() => /Jaipur/.test(document.body.innerText)); ok(db.gyms[0].city === 'Jaipur', 'gym settings saved via RPC');
+    // create member login
+    await page.click('a[href="#members"]'); await page.waitForSelector('tr.click'); await page.click('tr.click:has-text("Rahul")'); await page.waitForSelector('[data-l]'); await page.click('[data-l]');
+    await page.fill('#f_email', 'taken@x.in'); await page.click('[data-ok]'); await page.waitForFunction(() => /पहले से है|already has an account/.test(document.body.innerText));
+    await page.fill('#f_email', 'rahul@x.in'); await page.click('[data-ok]'); await page.waitForSelector('[data-cp]');
+    ok(/GenPass1234abcd/.test(await page.textContent('#modals')) && db.created.role === 'member' && !!db.created.member_id, 'member login created and password shown once');
+    ok(/wa\.me\/919876543210/.test(await page.getAttribute('#modals a.wa', 'href')), 'login details can be sent by WhatsApp'); await page.keyboard.press('Escape');
+    await page.click('a[href="#settings"]'); await page.click('[data-act=newTrainer]'); await page.fill('#f_email', 'coach@x.in'); await page.fill('#f_full_name', 'Coach'); await page.click('[data-ok]'); await page.waitForSelector('[data-cp]');
+    ok(db.created.role === 'trainer' && !db.created.member_id, 'trainer login created'); await page.keyboard.press('Escape');
     // change password
     await page.click('#pwBtn'); await page.fill('#f_pw', 'short'); await page.fill('#f_pw2', 'short'); await page.click('[data-ok]');
     ok((await page.textContent('#e_pw')).length > 0, 'short new password rejected');

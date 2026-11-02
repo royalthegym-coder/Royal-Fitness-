@@ -57,6 +57,7 @@ class ApiError extends Error { constructor(message, status, code, detail) { supe
 /* PostgREST / Postgres error → a message a gym owner can act on */
 function friendlyError(e) {
   if (!e) return L('Something went wrong.', 'कुछ गड़बड़ हुई।');
+  if (e.friendly) return e.friendly;
   const msg = String(e.message || ''), code = e.code || '';
   if (e.status === 0) return L('No connection. Check the internet and try again.', 'कनेक्शन नहीं है। इंटरनेट जाँचकर फिर कोशिश करें।');
   if (code === '42501' || /row-level security|permission denied|not allowed|super admin only/i.test(msg)) return CTX.locked
@@ -106,6 +107,16 @@ const DB = {
   remove: (table, id) => api(`/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' }),
   rpc: (fn, args = {}) => api(`/rest/v1/rpc/${fn}`, { method: 'POST', body: args }),
 };
+/* Edge function: a gym admin creates a trainer/member login for their own gym (service key stays on the server) */
+const FN_ERR = { locked: ['Subscription expired. Renew to add logins.', 'सब्सक्रिप्शन खत्म है। लॉगिन जोड़ने के लिए रिन्यू करें।'], email_taken: ['This email already has an account.', 'इस ईमेल का अकाउंट पहले से है।'], already_linked: ['This member already has a login.', 'इस सदस्य का लॉगिन पहले से है।'], bad_email: ['Enter a valid email.', 'सही ईमेल लिखें।'], forbidden: ['Only a gym admin can do this.', 'यह सिर्फ़ जिम एडमिन कर सकता है।'] };
+async function createAccount(body) {
+  if (SESSION && SESSION.expires_at && SESSION.expires_at - 30 < Date.now() / 1000) await refreshSession();
+  const res = await rawFetch('/functions/v1/create-account', { method: 'POST', headers: { apikey: CFG.key, Authorization: 'Bearer ' + (SESSION && SESSION.access_token), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await res.json().catch(() => ({}));
+  if (res.status === 401) { saveSession(null); if (typeof onSignedOut === 'function') onSignedOut(); throw new ApiError('session expired', 401, 'jwt'); }
+  if (!res.ok) { const m = FN_ERR[j.error]; const e = new ApiError(m ? L(m[0], m[1]) : 'failed', res.status, 'fn'); e.friendly = m ? L(m[0], m[1]) : null; throw e; }
+  return j;
+}
 const Auth = {
   async signIn(email, password) {
     const res = await rawFetch('/auth/v1/token?grant_type=password', { method: 'POST', headers: { apikey: CFG.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
