@@ -51,7 +51,7 @@ async function invoiceModal(id) {
   const mod = openModal({
     title: `${L('Invoice', 'इनवॉइस')} ${i.no || ''}`, wide: true,
     body: `<div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:10px"><div><b>${esc(m.name || '—')}</b><div class="muted">${esc(m.phone || '')}</div></div><div style="text-align:right"><div class="num">${esc(fmtDate(i.date))}</div>${badge(isOverdue(i, paid) ? 'Overdue' : invStatus(i, paid))}</div></div>
-      <table class="t"><tbody>${items.map((it) => `<tr><td>${esc(it.label)}</td><td class="r num">${esc(inr(it.amount))}</td></tr>`).join('')}
+      <table class="t"><tbody>${items.map((it) => `<tr><td>${esc(it.label)}</td><td class="r num">${Number(it.amount) ? esc(inr(it.amount)) : ''}</td></tr>`).join('')}
       ${Number(i.discount) ? `<tr><td>${esc(L('Discount', 'छूट'))}</td><td class="r num">−${esc(inr(i.discount))}</td></tr>` : ''}
       <tr><td>GST ${Number(i.gst_pct)}%</td><td class="r num">${esc(inr(i.gst_amt))}</td></tr><tr><td><b>${esc(L('Total', 'कुल'))}</b></td><td class="r num"><b>${esc(inr(i.total))}</b></td></tr>
       <tr><td>${esc(L('Balance', 'बाक़ी'))}</td><td class="r num" style="color:${bal ? 'var(--crimson)' : 'inherit'}">${esc(inr(bal))}</td></tr></tbody></table>
@@ -147,7 +147,7 @@ async function vRetention() {
   const msg = (m, gone) => `नमस्ते ${m.name} जी, ${gymName()} से। ${gone >= 90 ? 'काफ़ी दिनों' : gone + ' दिन'} से आप जिम नहीं आए। सब ठीक है? आपका इंतज़ार है, कल आइए! 💪`;
   return pageHead(L('Members', 'सदस्य'), L('At risk of leaving', 'छोड़ने का जोखिम'), L('Active members who have not visited for a while. Visit history covers the last 90 days.', 'सक्रिय सदस्य जो कुछ समय से नहीं आए। विज़िट इतिहास पिछले 90 दिन का है।'),
     `<label class="fl" style="margin:0"><span>${esc(L('Absent for at least (days)', 'कम से कम इतने दिन अनुपस्थित'))}</span><input class="in" id="thr" type="number" min="1" max="30" value="${thr}" data-bind="thr" style="width:90px"></label>`)
-    + `<div class="card">${risky.length ? `<ul class="list">${risky.map(({ m, lv, gone }) => `<li class="click" data-act="openMember" data-id="${esc(m.id)}">${avatar(m.name)}<div class="grow"><b>${esc(m.name)}</b><small>${lv ? esc(L(`Last visit ${fmtShort(lv)}`, `आख़िरी विज़िट ${fmtShort(lv)}`)) : esc(L('No visit in 90 days', '90 दिन में कोई विज़िट नहीं'))}</small></div>${badge(gone >= 90 ? '90+' : L(`${gone} days`, `${gone} दिन`), gone >= 14 ? 'bad' : 'warn')}<a class="btn wa sm" data-stop target="_blank" rel="noreferrer" href="${esc(waLink(m.phone, msg(m, gone)))}">${ic('msg')}</a></li>`).join('')}</ul>` : empty(L('Nobody is overdue for a visit', 'कोई लंबे समय से अनुपस्थित नहीं'), '')}</div>`;
+    + `<div class="card">${risky.length ? `<ul class="list">${risky.map(({ m, lv, gone }) => `<li class="click" data-act="openMember" data-id="${esc(m.id)}">${avatarM(m)}<div class="grow"><b>${esc(m.name)}</b><small>${lv ? esc(L(`Last visit ${fmtShort(lv)}`, `आख़िरी विज़िट ${fmtShort(lv)}`)) : esc(L('No visit in 90 days', '90 दिन में कोई विज़िट नहीं'))}</small></div>${badge(gone >= 90 ? '90+' : L(`${gone} days`, `${gone} दिन`), gone >= 14 ? 'bad' : 'warn')}<a class="btn wa sm" data-stop target="_blank" rel="noreferrer" href="${esc(waLink(m.phone, msg(m, gone)))}">${ic('msg')}</a></li>`).join('')}</ul>` : empty(L('Nobody is overdue for a visit', 'कोई लंबे समय से अनुपस्थित नहीं'), '')}</div>`;
 }
 
 /* ---------- Peak hours ---------- */

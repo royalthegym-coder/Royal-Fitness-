@@ -1,8 +1,8 @@
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV = {
   super_admin: [['gyms', 'building', 'Gyms', 'जिम', vSuperGyms], ['users', 'users', 'Users', 'यूज़र', vSuperUsers], ['audit', 'list', 'Audit log', 'ऑडिट लॉग', vSuperAudit], ['status', 'pulse', 'Status', 'स्थिति', vSuperStatus]],
-  gym_admin: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard], ['members', 'users', 'Members', 'सदस्य', vMembers], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin], ['plans', 'tag', 'Plans', 'प्लान', vPlans], ['invoices', 'receipt', 'Invoices', 'इनवॉइस', vInvoices], ['payments', 'wallet', 'Payments', 'भुगतान', vPayments], ['ledger', 'shield', 'Secure ledger', 'सुरक्षित लेजर', vLedger], ['retention', 'pulse', 'At risk', 'जोखिम', vRetention], ['peak', 'chart', 'Peak hours', 'भीड़ के समय', vPeak], ['settings', 'gear', 'Settings', 'सेटिंग', vSettings]],
-  trainer: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard], ['members', 'users', 'Members', 'सदस्य', vMembers], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin]],
+  gym_admin: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard], ['members', 'users', 'Members', 'सदस्य', vMembers], ['reminders', 'clock', 'Reminders', 'रिमाइंडर', vReminders], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin], ['plans', 'tag', 'Plans', 'प्लान', vPlans], ['offers', 'crown', 'Offers', 'ऑफ़र', vOffers], ['invoices', 'receipt', 'Invoices', 'इनवॉइस', vInvoices], ['payments', 'wallet', 'Payments', 'भुगतान', vPayments], ['ledger', 'shield', 'Secure ledger', 'सुरक्षित लेजर', vLedger], ['retention', 'pulse', 'At risk', 'जोखिम', vRetention], ['peak', 'chart', 'Peak hours', 'भीड़ के समय', vPeak], ['settings', 'gear', 'Settings', 'सेटिंग', vSettings]],
+  trainer: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard], ['members', 'users', 'Members', 'सदस्य', vMembers], ['reminders', 'clock', 'Reminders', 'रिमाइंडर', vReminders], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin]],
   member: [['mine', 'home', 'My gym', 'मेरा जिम', vMine]],
 };
 const navFor = () => NAV[CTX.profile ? CTX.profile.role : ''] || [];
@@ -80,7 +80,7 @@ async function render() {
   }
   if (token !== RENDER_TOKEN) return;
   view.dataset.ready = '1'; view.dataset.route = route[0];
-  view.innerHTML = lockBanner() + html;
+  view.innerHTML = lockBanner() + html; refreshBadge();
   if (focusId) { const el = document.getElementById(focusId); if (el) { el.focus(); try { el.setSelectionRange(caret, caret); } catch (e) {} } }
 }
 async function enter() {
@@ -94,7 +94,7 @@ function onSignedOut() { bust(); CTX.profile = null; CTX.gym = null; CTX.locked 
 
 /* ---------- actions ---------- */
 const CHIP = { memF: (v) => { U.members.f = v; U.members.page = 1; }, invF: (v) => { U.invoices.f = v; U.invoices.page = 1; }, peakD: (v) => { U.peak.days = v; } };
-const BIND = { mq: (v) => { U.members.q = v; U.members.page = 1; }, cq: (v) => { U.checkin.q = v; }, iq: (v) => { U.invoices.q = v; U.invoices.page = 1; }, pq: (v) => { U.payments.q = v; U.payments.page = 1; }, thr: (v) => { const n = Math.min(30, Math.max(1, parseInt(v, 10) || 4)); U.retention.thr = n; try { localStorage.setItem('gymos-thr', String(n)); } catch (e) {} } };
+const BIND = { mq: (v) => { U.members.q = v; U.members.page = 1; }, cq: (v) => { U.checkin.q = v; }, iq: (v) => { U.invoices.q = v; U.invoices.page = 1; }, pq: (v) => { U.payments.q = v; U.payments.page = 1; }, rdays: (v) => { const n = Math.min(14, Math.max(1, parseInt(v, 10) || 2)); U_REMIND.days = n; try { localStorage.setItem('gymos-remind-days', String(n)); } catch (e) {} }, thr: (v) => { const n = Math.min(30, Math.max(1, parseInt(v, 10) || 4)); U.retention.thr = n; try { localStorage.setItem('gymos-thr', String(n)); } catch (e) {} } };
 const ACTIONS = {
   newGym: () => gymForm(), extendGym: (d) => extendForm(d.id), lockGym: (d) => lockForm(d.id), assignUser: (d) => assignForm(d.id),
   newMember: () => memberForm(), openMember: (d) => memberModal(d.id), checkIn: (d) => doCheckIn(d.id), checkOut: (d) => doCheckOut(d.id),
@@ -107,7 +107,7 @@ const ACTIONS = {
   retry: () => { bust(); CTX.profile ? render() : enter(); },
   lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
   theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
-  importMembers: () => importForm(),
+  importMembers: () => importForm(), newOffer: () => offerForm(), editOffer: (d) => offerForm(d.id), shareOffer: (d) => shareOffer(d.id),
   newTrainer: () => accountForm('trainer'),
   changePw: () => openForm({
     title: L('Change password', 'पासवर्ड बदलें'),
@@ -121,6 +121,7 @@ const ACTIONS = {
 };
 document.addEventListener('click', (e) => {
   const link = e.target.closest('a[href]');
+  if (link && link.dataset.remind) markReminded(link.dataset.remind);
   if (link && (link.hasAttribute('data-stop') || link.classList.contains('wa'))) return; /* let WhatsApp links open; do not trigger the row */
   if (link && !e.target.closest('[data-act]')) return;
   const el = e.target.closest('[data-act]'); if (!el || el.disabled) return;
@@ -131,7 +132,7 @@ document.addEventListener('click', (e) => {
 let bindTimer;
 document.addEventListener('input', (e) => {
   const id = e.target.dataset && e.target.dataset.bind; if (!id || !BIND[id]) return;
-  BIND[id](e.target.value); clearTimeout(bindTimer); bindTimer = setTimeout(render, id === 'thr' ? 500 : 220);
+  BIND[id](e.target.value); clearTimeout(bindTimer); bindTimer = setTimeout(render, id === 'thr' || id === 'rdays' ? 500 : 220);
 });
 document.addEventListener('submit', async (e) => {
   if (e.target.id !== 'loginForm') return;

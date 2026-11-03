@@ -18,7 +18,7 @@ services:
         value: no-referrer
       - path: /*
         name: Content-Security-Policy
-        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://ayoeevltbubkyhixqqlg.supabase.co; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://ayoeevltbubkyhixqqlg.supabase.co; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
       - path: /app.js
         name: Cache-Control
         value: no-cache

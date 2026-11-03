@@ -13,12 +13,12 @@ let seq = 1; const uid = () => '00000000-0000-4000-8000-' + String(seq++).padSta
 
 function makeDb(role) {
   const G = '11111111-1111-4111-8111-111111111111', P1 = uid(), P2 = uid();
-  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [] };
+  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [] };
   const me = '22222222-2222-4222-8222-222222222222';
   db.me = me; db.G = G;
   db.profiles = [{ id: me, gym_id: role === 'super_admin' ? null : G, role, full_name: 'Test', email: 't@x.in', created_at: new Date().toISOString() }, { id: uid(), gym_id: null, role: 'member', full_name: 'New User', email: 'n@x.in', created_at: new Date().toISOString() }];
   const mk = (name, phone, end, extra = {}) => ({ id: uid(), gym_id: G, name, phone, plan_id: P1, start_date: addD(end, -30), end_date: end, status: 'Active', joined_on: addD(end, -30), goal: 'Muscle', gender: null, notes: null, profile_id: null, ...extra });
-  db.members = [mk('Rahul Sharma', '9876543210', addD(today(), 20)), mk('Priya Verma', '9812345678', addD(today(), 3)), mk('Old Timer', '9000000001', addD(today(), -10)), mk('Absent Ajay', '9000000002', addD(today(), 15), { joined_on: addD(today(), -60) })];
+  db.members = [mk('Rahul Sharma', '9876543210', addD(today(), 20)), mk('Priya Verma', '9812345678', addD(today(), 2)), mk('Old Timer', '9000000001', addD(today(), -10)), mk('Absent Ajay', '9000000002', addD(today(), 15), { joined_on: addD(today(), -60) })];
   db.visits = [{ id: uid(), gym_id: G, member_id: db.members[0].id, in_at: new Date().toISOString(), out_at: null }];
   const inv = { id: uid(), gym_id: G, no: 'INV-0001', member_id: db.members[0].id, date: today(), due: addD(today(), 7), items: [{ label: 'Monthly membership', amount: 1000 }], subtotal: 1000, discount: 0, gst_pct: 18, gst_amt: 180, total: 1180, cancelled: false };
   db.invoices = [inv];
@@ -43,6 +43,8 @@ function handler(db, role) {
       if (fn === 'admin_update_gym') { Object.assign(db.gyms[0], { name: a.gym_name, owner_name: a.owner, phone: a.phone_no, city: a.city_name, upi_id: a.upi }); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
     }
+    if (p.startsWith('/storage/v1/object/authenticated/')) return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: PNG });
+    if (p.startsWith('/storage/v1/object/member-photos/') && m === 'POST') { db.uploaded = p; return json({ Key: 'x' }); }
     const t = p.replace('/rest/v1/', ''), rows = db[t];
     if (!rows) return json({ message: 'nope' }, 404);
     if (m === 'GET') { let r = rows; u.searchParams.forEach((v, k) => { if (v.startsWith('eq.')) r = r.filter((x) => String(x[k]) === v.slice(3)); }); return json(r); }
@@ -59,6 +61,7 @@ function handler(db, role) {
     return json({}, 405);
   };
 }
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 const server = http.createServer((q, s) => { const f = path.join(PUB, q.url === '/' ? 'index.html' : q.url.split('?')[0]); if (!f.startsWith(PUB) || !fs.existsSync(f)) { s.writeHead(404); return s.end(); } s.writeHead(200, { 'content-type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : 'text/html' }); s.end(fs.readFileSync(f)); });
 
 async function session(browser, role, fn, vp = { width: 1280, height: 800 }) {
@@ -84,7 +87,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(/ग़लत|Wrong/.test(await page.textContent('.banner.bad')), 'wrong password shows a friendly error');
     await login(page); await page.waitForSelector('.tiles');
     ok(/Royal The Gym/.test(await page.textContent('#gymName')), 'dashboard loads with gym name');
-    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 10, 'gym admin sees 10 menu items');
+    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 12, 'gym admin sees 12 menu items');
     await page.click('a[href="#members"]'); await page.waitForSelector('table.t');
     ok((await page.$$('table.t tbody tr')).length === 4, 'members list shows 4');
     await page.fill('#mq', 'priya'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 1);
@@ -133,6 +136,33 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok((await page.$$('#imp_res li')).length === 3 && !db.bulk, 'import reports every bad line and imports nothing');
     await page.fill('#f_text', 'A One, 98111 11111, Monthly, 01-10-2026\nB Two, 9222222222, , \n'); await page.click('[data-ok]'); await page.waitForFunction(() => !document.querySelector('#modals .md'));
     ok(db.bulk && db.bulk.length === 2 && db.bulk[0].end_date === '2026-10-31' && db.bulk[0].phone === '9811111111' && db.bulk[1].plan_id === null, 'valid rows imported with computed end date and cleaned phone');
+    // member photo
+    await page.click('a[href="#members"]'); await page.waitForSelector('tr.click'); await page.click('tr.click:has-text("Rahul")'); await page.waitForSelector('#phIn', { state: 'attached' });
+    await page.setInputFiles('#phIn', { name: 'a.png', mimeType: 'image/png', buffer: PNG });
+    await page.waitForSelector('#modals .av.has', { timeout: 8000 });
+    const rah = db.members.find((m) => m.name === 'Rahul Sharma');
+    ok(db.uploaded === `/storage/v1/object/member-photos/${db.G}/${rah.id}.jpg` && rah.photo_path === `${db.G}/${rah.id}.jpg`, 'photo uploaded to the gym folder and saved on the member');
+    await page.keyboard.press('Escape'); await page.waitForSelector('table.t td .av.has'); ok(true, 'photo shows in the members list column');
+    // WhatsApp reminders (2 days before)
+    await page.context().route('https://wa.me/**', (r) => r.abort());
+    await page.click('a[href="#reminders"]'); await page.waitForSelector('a[data-remind]');
+    ok(/Priya/.test(await page.textContent('#view')) && !/Rahul/.test(await page.textContent('#view ul.list')), 'reminders list shows the member ending in 2 days only');
+    const wl = decodeURIComponent(await page.getAttribute('a[data-remind]', 'href'));
+    ok(/wa\.me\/919812345678/.test(wl) && /सदस्यता/.test(wl) && /UPI: 9785300123@okbizaxis/.test(wl), 'reminder opens WhatsApp with a ready Hindi message');
+    ok((await page.textContent('#nav a[href="#reminders"] .n')) === '1', 'menu badge counts reminders due');
+    await page.click('a[data-remind]', { force: true }); for (let i = 0; i < 20 && !db.members.find((m) => m.name === 'Priya Verma').reminded_on; i++) await page.waitForTimeout(150);
+    ok(db.members.find((m) => m.name === 'Priya Verma').reminded_on === today(), 'sending marks the member as reminded today');
+    // offers
+    await page.click('a[href="#offers"]'); await page.waitForSelector('[data-act=newOffer]'); await page.click('[data-act=newOffer]');
+    await page.fill('#f_name', 'Diwali 10%'); await page.fill('#f_value', '10'); await page.click('[data-ok]'); await page.waitForFunction(() => /Diwali 10%/.test(document.body.innerText));
+    ok(db.offers.length === 1 && db.offers[0].kind === 'percent' && db.offers[0].active === true, 'offer created');
+    await page.click('[data-act=newOffer]'); await page.fill('#f_name', 'Bad one'); await page.fill('#f_value', '150'); await page.click('[data-ok]');
+    ok((await page.textContent('#e_value')).length > 0, 'percent over 100 rejected'); await page.keyboard.press('Escape');
+    await page.click('a[href="#members"]'); await page.waitForSelector('tr.click'); await page.click('tr.click:has-text("Priya")'); await page.waitForSelector('[data-r]'); await page.click('[data-r]');
+    await page.selectOption('#f_offer', { index: 1 }); await page.waitForFunction(() => document.querySelector('#f_discount').value === '100');
+    ok(/1,?062/.test(await page.textContent('#rn_sum')), 'choosing an offer fills the discount and updates the total');
+    await page.click('[data-ok]'); await page.waitForSelector('a.btn.wa');
+    const oi = db.invoices[0]; ok(oi.discount === 100 && oi.items.some((i) => /Offer: Diwali/.test(i.label)), 'invoice carries the offer discount and label'); await page.keyboard.press('Escape');
     // create member login
     await page.click('a[href="#members"]'); await page.waitForSelector('tr.click'); await page.click('tr.click:has-text("Rahul")'); await page.waitForSelector('[data-l]'); await page.click('[data-l]');
     await page.fill('#f_email', 'taken@x.in'); await page.click('[data-ok]'); await page.waitForFunction(() => /पहले से है|already has an account/.test(document.body.innerText));
@@ -157,7 +187,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await session(browser, 'gym_admin', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
     for (const lang of ['hi', 'en']) {
-      for (const r of ['dashboard', 'members', 'checkin', 'plans', 'invoices', 'payments', 'ledger', 'retention', 'peak', 'settings']) {
+      for (const r of ['dashboard', 'members', 'reminders', 'checkin', 'plans', 'offers', 'invoices', 'payments', 'ledger', 'retention', 'peak', 'settings']) {
         await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(250); await page.waitForSelector('#view .ph');
         if (await overflow(page)) { ok(false, `overflow on ${r} (${lang})`); }
       }

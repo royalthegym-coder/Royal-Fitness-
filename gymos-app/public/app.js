@@ -384,7 +384,7 @@ async function assignForm(id) {
 async function vSuperAudit() {
   const [rows, gyms] = await Promise.all([Q.audit(), Q.gyms()]);
   const gm = new Map(gyms.map((g) => [g.id, g]));
-  const txt = (r) => ({ create_gym: L('Gym created', 'जिम बना'), set_lock: L('Lock changed', 'लॉक बदला'), set_subscription: L('Subscription changed', 'सब्सक्रिप्शन बदला'), assign_user: L('User assigned', 'यूज़र तय हुआ'), update_gym: L('Gym details changed', 'जिम का ब्योरा बदला') }[r.action] || r.action);
+  const txt = (r) => ({ create_gym: L('Gym created', 'जिम बना'), set_lock: L('Lock changed', 'लॉक बदला'), set_subscription: L('Subscription changed', 'सब्सक्रिप्शन बदला'), assign_user: L('User assigned', 'यूज़र तय हुआ'), update_gym: L('Gym details changed', 'जिम का ब्योरा बदला'), create_account: L('Login created', 'लॉगिन बना') }[r.action] || r.action);
   return pageHead(L('Super admin', 'सुपर एडमिन'), L('Audit log', 'ऑडिट लॉग'), L('Every admin action, newest first. This log cannot be edited.', 'हर एडमिन कार्रवाई, नई सबसे ऊपर। इस लॉग को बदला नहीं जा सकता।'))
     + `<div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('When', 'कब'))}</th><th>${esc(L('Action', 'कार्रवाई'))}</th><th>${esc(L('Gym', 'जिम'))}</th><th>${esc(L('Detail', 'ब्योरा'))}</th></tr></thead><tbody>${rows.map((r) => `<tr><td class="num">${esc(fmtShort(r.at))} ${esc(fmtTime(r.at))}</td><td>${esc(txt(r))}</td><td>${esc((gm.get(r.gym_id) || {}).name || '—')}</td><td><small class="hash">${esc(JSON.stringify(r.detail || {}))}</small></td></tr>`).join('')}</tbody></table></div>` : empty(L('Nothing logged yet', 'अभी कुछ दर्ज नहीं'), '')}</div>`;
 }
@@ -416,10 +416,10 @@ async function vDashboard() {
   const soon = members.filter((m) => memberState(m) === 'Expiring').sort((a, b) => a.end_date.localeCompare(b.end_date)).slice(0, 6);
   return pageHead(gymName(), L('Dashboard', 'डैशबोर्ड'), fmtDate(today))
     + `<div class="tiles">${tile(L('Active members', 'सक्रिय सदस्य'), active, `${expired} ${esc(L('expired', 'खत्म'))}`)}${tile(L('Expiring in 7 days', '7 दिन में खत्म'), expiring, '', expiring ? 'var(--warn)' : '')}${tile(L('Check-ins today', 'आज चेक-इन'), todayIn.length, `${onFloor} ${esc(L('on the floor now', 'अभी फ़्लोर पर'))}`)}${isAdmin() ? tile(L('Collected this month', 'इस महीने जमा'), esc(inr(collected))) + tile(L('Dues pending', 'बकाया'), esc(inr(dues)), overdueN ? `${overdueN} ${esc(L('overdue', 'देर'))}` : '', dues ? 'var(--crimson)' : '') : ''}</div>`
-    + `<div class="grid2">${card(L('Renewals coming up', 'जल्द खत्म होने वाले'), 'clock', '', soon.length ? `<ul class="list">${soon.map((m) => `<li class="click" data-act="openMember" data-id="${esc(m.id)}">${avatar(m.name)}<div class="grow"><b>${esc(m.name)}</b><small>${esc(L(`Ends ${fmtDate(m.end_date)}`, `${fmtDate(m.end_date)} को खत्म`))}</small></div>${waBtnRenew(m)}</li>`).join('')}</ul>` : empty(L('No renewals due this week', 'इस हफ़्ते कोई रिन्यूअल नहीं'), ''))}
+    + `<div class="grid2">${card(L('Renewals coming up', 'जल्द खत्म होने वाले'), 'clock', '', soon.length ? `<ul class="list">${soon.map((m) => `<li class="click" data-act="openMember" data-id="${esc(m.id)}">${avatarM(m)}<div class="grow"><b>${esc(m.name)}</b><small>${esc(L(`Ends ${fmtDate(m.end_date)}`, `${fmtDate(m.end_date)} को खत्म`))}</small></div>${waBtnRenew(m)}</li>`).join('')}</ul>` : empty(L('No renewals due this week', 'इस हफ़्ते कोई रिन्यूअल नहीं'), ''))}
     ${card(L('Today at the gym', 'आज जिम में'), 'door', `<a href="#checkin">${esc(L('Check-in', 'चेक-इन'))}</a>`, todayIn.length ? `<ul class="list">${todayIn.slice(0, 6).map((v) => `<li><div class="grow"><b>${esc(memberName(memberMap(members), v.member_id))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div>${v.out_at ? '' : badge(L('Inside', 'अंदर'), 'ok')}</li>`).join('')}</ul>` : empty(L('No check-ins yet today', 'आज अभी कोई चेक-इन नहीं'), ''))}</div>`;
 }
-const waBtnRenew = (m) => `<a class="btn wa sm" data-stop target="_blank" rel="noreferrer" href="${esc(waLink(m.phone, `नमस्ते ${m.name} जी, ${gymName()} से। आपकी सदस्यता ${fmtDate(m.end_date)} को समाप्त हो रही है। रिन्यूअल के लिए हमसे संपर्क करें। 💪`))}">${ic('msg')} WhatsApp</a>`;
+const waBtnRenew = (m) => `<a class="btn wa sm" data-stop data-remind="${esc(m.id)}" target="_blank" rel="noreferrer" href="${esc(waLink(m.phone, `नमस्ते ${m.name} जी, ${gymName()} से। आपकी सदस्यता ${fmtDate(m.end_date)} को समाप्त हो रही है। रिन्यूअल के लिए हमसे संपर्क करें। 💪`))}">${ic('msg')} WhatsApp</a>`;
 
 /* ---------- Members ---------- */
 async function vMembers() {
@@ -432,11 +432,12 @@ async function vMembers() {
   return pageHead(L('People', 'लोग'), L('Members', 'सदस्य'), '', `${isAdmin() ? `<button class="btn" data-act="importMembers" ${CTX.locked ? 'disabled' : ''}>${ic('down')} ${esc(L('Import', 'इम्पोर्ट'))}</button>` : ''}<button class="btn primary" data-act="newMember" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('New member', 'नया सदस्य'))}</button>`)
     + `<div class="bar">${searchBox('mq', st.q, L('Search name or phone', 'नाम या फ़ोन खोजें'))}</div>`
     + chipsHtml('memF', st.f, [['all', L('All', 'सभी'), counts.all], ...STATE_FILTERS.map((s) => [s, LANG === 'hi' ? STATE_HI[s] : s, counts[s]])])
-    + `<div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Member', 'सदस्य'))}</th><th>${esc(L('Plan', 'प्लान'))}</th><th>${esc(L('Status', 'स्थिति'))}</th><th class="r">${esc(L('Valid till', 'तारीख़ तक'))}</th><th>${esc(L('Last visit', 'आख़िरी विज़िट'))}</th>${isAdmin() ? `<th class="r">${esc(L('Dues', 'बकाया'))}</th>` : ''}</tr></thead><tbody>${rows.map((m) => { const s = memberState(m), d = dues.get(m.id) || 0; return `<tr class="click" data-act="openMember" data-id="${esc(m.id)}"><td class="edge e-${TONE[s] || 'mute'}"><div style="display:flex;gap:10px;align-items:center">${avatar(m.name)}<div><b>${esc(m.name)}</b><br><small class="muted">${esc(m.phone || '')}</small></div></div></td><td>${esc((pm.get(m.plan_id) || {}).name || '—')}</td><td>${badge(s)}</td><td class="r num">${esc(fmtDate(m.end_date))}</td><td class="num">${last.get(m.id) ? esc(fmtShort(last.get(m.id))) : '—'}</td>${isAdmin() ? `<td class="r num" style="color:${d ? 'var(--crimson)' : 'inherit'}">${d ? esc(inr(d)) : '—'}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>${pagerHtml(total, st.page, 'members')}` : empty(members.length ? L('No members match', 'कोई सदस्य मेल नहीं खाता') : L('No members yet', 'अभी कोई सदस्य नहीं'), '', members.length ? '' : `<button class="btn primary" data-act="newMember">${esc(L('Add the first member', 'पहला सदस्य जोड़ें'))}</button>`)}</div>`;
+    + `<div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Photo', 'फ़ोटो'))}</th><th>${esc(L('Member', 'सदस्य'))}</th><th>${esc(L('Plan', 'प्लान'))}</th><th>${esc(L('Status', 'स्थिति'))}</th><th class="r">${esc(L('Valid till', 'तारीख़ तक'))}</th><th>${esc(L('Last visit', 'आख़िरी विज़िट'))}</th>${isAdmin() ? `<th class="r">${esc(L('Dues', 'बकाया'))}</th>` : ''}</tr></thead><tbody>${rows.map((m) => { const s = memberState(m), d = dues.get(m.id) || 0; return `<tr class="click" data-act="openMember" data-id="${esc(m.id)}"><td class="edge e-${TONE[s] || 'mute'}">${avatarM(m)}</td><td><b>${esc(m.name)}</b><br><small class="muted">${esc(m.phone || '')}</small></td><td>${esc((pm.get(m.plan_id) || {}).name || '—')}</td><td>${badge(s)}</td><td class="r num">${esc(fmtDate(m.end_date))}</td><td class="num">${last.get(m.id) ? esc(fmtShort(last.get(m.id))) : '—'}</td>${isAdmin() ? `<td class="r num" style="color:${d ? 'var(--crimson)' : 'inherit'}">${d ? esc(inr(d)) : '—'}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>${pagerHtml(total, st.page, 'members')}` : empty(members.length ? L('No members match', 'कोई सदस्य मेल नहीं खाता') : L('No members yet', 'अभी कोई सदस्य नहीं'), '', members.length ? '' : `<button class="btn primary" data-act="newMember">${esc(L('Add the first member', 'पहला सदस्य जोड़ें'))}</button>`)}</div>`;
 }
 const GOALS = ['Fat Loss', 'Muscle', 'Strength', 'General Fitness', 'Rehab'];
 async function memberForm(id) {
-  const [members, plans] = await Promise.all([Q.members(), Q.plans()]);
+  const [members, plans, offers] = await Promise.all([Q.members(), Q.plans(), isAdmin() ? Q.offers() : []]);
+  const liveOffers = offers.filter((o) => offerLive(o, todayISO()));
   const x = id ? members.find((m) => m.id === id) : null;
   const act2 = plans.filter((p) => p.status === 'Active');
   const fields = [
@@ -447,7 +448,7 @@ async function memberForm(id) {
     { k: 'start_date', label: L('Start date', 'शुरू की तारीख़'), type: 'date', def: x ? x.start_date : todayISO() },
     { k: 'notes', label: L('Notes', 'नोट'), type: 'textarea', full: true },
   ];
-  if (!x && isAdmin()) fields.push({ k: 'bill', label: L('Create the first invoice for the plan', 'प्लान का पहला इनवॉइस बनाएँ'), type: 'check', def: true, full: true });
+  if (!x && isAdmin()) { fields.push({ k: 'bill', label: L('Create the first invoice for the plan', 'प्लान का पहला इनवॉइस बनाएँ'), type: 'check', def: true, full: true }); if (liveOffers.length) fields.push({ k: 'offer', label: L('Offer (applies to the invoice)', 'ऑफ़र (इनवॉइस पर लागू)'), type: 'select', options: [{ v: '', l: L('No offer', 'कोई ऑफ़र नहीं') }, ...liveOffers.map((o) => ({ v: o.id, l: `${o.name} · ${offerText(o)}` }))], full: true }); }
   openForm({
     title: x ? x.name : L('New member', 'नया सदस्य'), fields, values: x || {},
     onSubmit: async (v) => {
@@ -457,22 +458,28 @@ async function memberForm(id) {
       if (plan && (!x || x.plan_id !== plan.id || x.start_date !== start)) { row.start_date = start; row.end_date = addDays(addMonths(start, plan.months), -1); }
       const saved = await act(() => (x ? DB.update('members', x.id, row) : DB.insert('members', { ...row, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
       if (!saved) return false;
-      if (!x && plan && v.bill && isAdmin()) await act(() => DB.insert('invoices', { gym_id: gymId(), member_id: saved.id, items: [{ label: `${plan.name} membership`, amount: Number(plan.price) }], ...computeInvoice([{ amount: plan.price }], 0, plan.gst_pct), due: addDays(todayISO(), 7) }), L('Invoice created', 'इनवॉइस बना'));
+      if (!x && plan && v.bill && isAdmin()) {
+        const off = liveOffers.find((o) => o.id === v.offer && (!o.plan_id || o.plan_id === plan.id)), disc = off ? offerDiscount(off, plan.price) : 0;
+        const items = [{ label: `${plan.name} membership`, amount: Number(plan.price) }]; if (off && disc > 0) items.push({ label: `Offer: ${off.name}`, amount: 0 });
+        await act(() => DB.insert('invoices', { gym_id: gymId(), member_id: saved.id, items, ...computeInvoice([{ amount: plan.price }], disc, plan.gst_pct), due: addDays(todayISO(), 7) }), L('Invoice created', 'इनवॉइस बना'));
+      }
       bust('members', 'invoices'); render(); return true;
     },
   });
 }
 async function renewForm(id) {
-  const [members, plans, invoices, payments] = await Promise.all([Q.members(), Q.plans(), Q.invoices(), Q.payments()]);
+  const [members, plans, invoices, payments, offers] = await Promise.all([Q.members(), Q.plans(), Q.invoices(), Q.payments(), Q.offers()]);
+  const liveOffers = offers.filter((o) => offerLive(o, todayISO()));
   const m = members.find((x) => x.id === id); if (!m) return;
   const act2 = plans.filter((p) => p.status === 'Active'); if (!act2.length) { toast(L('Add a plan first.', 'पहले प्लान जोड़ें।'), 'bad'); return; }
   const startDef = m.end_date && m.end_date >= todayISO() ? addDays(m.end_date, 1) : todayISO();
   const cur = act2.find((p) => p.id === m.plan_id) || act2[0];
-  const preview = (root) => { const p = act2.find((x) => x.id === $('#f_plan', root).value), disc = parseFloat($('#f_discount', root).value) || 0; const c = computeInvoice([{ amount: p.price }], disc, p.gst_pct); const out = $('#rn_sum', root); if (out) out.textContent = `${L('Total', 'कुल')} ${inr(c.total)} (GST ${inr(c.gst_amt)})`; const pay = $('#f_pay', root); if (pay && !pay.dataset.touched) pay.value = c.total; };
+  const preview = (root, src) => { const p = act2.find((x) => x.id === $('#f_plan', root).value); if (src === 'offer' || src === 'plan') { const o = liveOffers.find((x) => x.id === $('#f_offer', root).value); $('#f_discount', root).value = o && (!o.plan_id || o.plan_id === p.id) ? offerDiscount(o, p.price) : 0; } const disc = parseFloat($('#f_discount', root).value) || 0; const c = computeInvoice([{ amount: p.price }], disc, p.gst_pct); const out = $('#rn_sum', root); if (out) out.textContent = `${L('Total', 'कुल')} ${inr(c.total)} (GST ${inr(c.gst_amt)})`; const pay = $('#f_pay', root); if (pay && !pay.dataset.touched) pay.value = c.total; };
   const mod = openForm({
     title: `${L('Renew', 'रिन्यू')} · ${m.name}`,
     fields: [
       { k: 'plan', label: L('Plan', 'प्लान'), type: 'select', options: act2.map((p) => ({ v: p.id, l: `${p.name} · ${inr(p.price)}` })), def: cur.id, full: true },
+      { k: 'offer', label: L('Offer', 'ऑफ़र'), type: 'select', options: [{ v: '', l: L('No offer', 'कोई ऑफ़र नहीं') }, ...liveOffers.map((o) => ({ v: o.id, l: `${o.name} · ${offerText(o)}` }))], full: true },
       { k: 'start', label: L('Starts on', 'शुरू'), type: 'date', req: true, def: startDef }, { k: 'discount', label: `${L('Discount', 'छूट')} (₹)`, type: 'number', def: 0 },
       { k: 'pay', label: `${L('Paid now', 'अभी जमा')} (₹)`, type: 'number', def: 0 }, { k: 'method', label: L('Method', 'तरीक़ा'), type: 'select', options: opts(['UPI', 'Cash', 'Card', 'Bank']) },
     ],
@@ -481,13 +488,15 @@ async function renewForm(id) {
     onSubmit: async (v) => {
       const p = act2.find((x) => x.id === v.plan), c = computeInvoice([{ amount: p.price }], v.discount, p.gst_pct);
       if (Number(v.pay) > c.total + 0.005) { $('#e_pay', mod.el).textContent = L(`More than the total ${inr(c.total)}`, `कुल ${inr(c.total)} से ज़्यादा`); return false; }
-      const inv = await act(() => DB.insert('invoices', { gym_id: gymId(), member_id: m.id, items: [{ label: `${p.name} membership`, amount: Number(p.price) }], ...c, due: addDays(todayISO(), 7) })); if (!inv) return false;
+      const off = liveOffers.find((x) => x.id === v.offer && (!x.plan_id || x.plan_id === p.id)), items = [{ label: `${p.name} membership`, amount: Number(p.price) }];
+      if (off && c.discount > 0) items.push({ label: `Offer: ${off.name}`, amount: 0 });
+      const inv = await act(() => DB.insert('invoices', { gym_id: gymId(), member_id: m.id, items, ...c, due: addDays(todayISO(), 7) })); if (!inv) return false;
       const upd = await act(() => DB.update('members', m.id, { plan_id: p.id, start_date: v.start, end_date: addDays(addMonths(v.start, p.months), -1), status: 'Active' })); if (!upd) { toast(L('Invoice created but the membership was not updated. Edit the member.', 'इनवॉइस बना पर सदस्यता अपडेट नहीं हुई। सदस्य को बदलें।'), 'bad'); bust(); render(); return true; }
       if (Number(v.pay) > 0) { const pay = await act(() => DB.insert('payments', { gym_id: gymId(), invoice_id: inv.id, member_id: m.id, amount: Number(v.pay), method: v.method })); if (pay) { bust(); render(); receiptModal(pay, m); return true; } }
       toast(L('Membership renewed', 'सदस्यता रिन्यू हुई')); bust(); render(); return true;
     },
   });
-  mod.el.addEventListener('input', (e) => { if (e.target.id === 'f_pay') e.target.dataset.touched = '1'; preview(mod.el); }); mod.el.addEventListener('change', () => preview(mod.el)); preview(mod.el);
+  mod.el.addEventListener('input', (e) => { if (e.target.id === 'f_pay') e.target.dataset.touched = '1'; preview(mod.el); }); mod.el.addEventListener('change', (e) => preview(mod.el, e.target.id === 'f_offer' ? 'offer' : e.target.id === 'f_plan' ? 'plan' : '')); preview(mod.el);
 }
 async function memberModal(id) {
   const [members, plans, visits] = await Promise.all([Q.members(), Q.plans(), Q.visits()]);
@@ -498,17 +507,20 @@ async function memberModal(id) {
   closeAllModals();
   const mod = openModal({
     title: m.name, wide: true,
-    body: `<div style="display:flex;gap:14px;align-items:center;margin-bottom:12px">${avatar(m.name)}<div class="grow"><b>${esc(m.phone || '')}</b><div class="muted">${esc(plan ? plan.name : L('No plan', 'प्लान नहीं'))} · ${esc(m.goal || '')}${m.profile_id ? ' · ' + esc(L('app login linked', 'ऐप लॉगिन जुड़ा')) : ''}</div></div>${badge(s)}</div>
+    body: `<div style="display:flex;gap:14px;align-items:center;margin-bottom:12px">${avatarM(m, true)}<div class="grow"><b>${esc(m.phone || '')}</b><div class="muted">${esc(plan ? plan.name : L('No plan', 'प्लान नहीं'))} · ${esc(m.goal || '')}${m.profile_id ? ' · ' + esc(L('app login linked', 'ऐप लॉगिन जुड़ा')) : ''}</div></div>${badge(s)}</div>
       <div class="tiles" style="margin-bottom:12px">${tile(L('Valid till', 'तारीख़ तक'), esc(fmtDate(m.end_date)), dl == null ? '' : dl >= 0 ? L(`${dl} days left`, `${dl} दिन बाक़ी`) : L(`${-dl} days ago`, `${-dl} दिन पहले`))}${isAdmin() ? tile(L('Dues', 'बकाया'), esc(inr(due)), '', due ? 'var(--crimson)' : '') : ''}</div>
       ${m.notes ? `<p class="muted">${esc(m.notes)}</p>` : ''}
       <h3 style="font-size:13px;margin:10px 0 4px">${esc(L('Recent visits', 'हाल की विज़िट'))}</h3>${vs.length ? `<ul class="list">${vs.map((v) => `<li><div class="grow"><b>${esc(fmtDate(v.in_at))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div></li>`).join('')}</ul>` : `<div class="muted">${esc(L('No visits in the last 90 days', 'पिछले 90 दिन में कोई विज़िट नहीं'))}</div>`}
       ${isAdmin() ? `<h3 style="font-size:13px;margin:14px 0 4px">${esc(L('Invoices', 'इनवॉइस'))}</h3>${mine.length ? `<ul class="list">${mine.slice(0, 5).map((i) => `<li class="click" data-act="openInvoice" data-id="${esc(i.id)}"><div class="grow"><b class="num">${esc(i.no)}</b><small>${esc(fmtDate(i.date))}</small></div><span class="num">${esc(inr(i.total))}</span>${badge(invStatus(i, paid))}</li>`).join('')}</ul>` : `<div class="muted">—</div>`}` : ''}`,
-    footer: `${waBtnRenew(m).replace('data-stop ', '')}${isAdmin() && !m.profile_id ? `<button type="button" class="btn" data-l>${ic('lock')} ${esc(L('Create login', 'लॉगिन बनाएँ'))}</button>` : ''}<button type="button" class="btn" data-e>${ic('pencil')} ${esc(L('Edit', 'बदलें'))}</button>${isAdmin() ? `<button type="button" class="btn primary" data-r>${esc(L('Renew', 'रिन्यू'))}</button>` : ''}`,
+    footer: `${waBtnRenew(m).replace('data-stop ', '')}${isAdmin() && !m.profile_id ? `<button type="button" class="btn" data-l>${ic('lock')} ${esc(L('Create login', 'लॉगिन बनाएँ'))}</button>` : ''}<button type="button" class="btn" data-ph>${ic('plus')} ${esc(L('Photo', 'फ़ोटो'))}</button><input type="file" id="phIn" accept="image/*" hidden><button type="button" class="btn" data-e>${ic('pencil')} ${esc(L('Edit', 'बदलें'))}</button>${isAdmin() ? `<button type="button" class="btn primary" data-r>${esc(L('Renew', 'रिन्यू'))}</button>` : ''}`,
   });
   $('[data-e]', mod.el).onclick = () => { mod.close(); memberForm(id); };
+  const phb = $('[data-ph]', mod.el), phIn = $('#phIn', mod.el);
+  phb.onclick = () => phIn.click();
+  phIn.onchange = async () => { const f = phIn.files[0]; if (!f) return; phb.disabled = true; try { await pickMemberPhoto(m, f, mod); } catch (e) { phb.disabled = CTX.locked; } };
   const lg = $('[data-l]', mod.el); if (lg) lg.onclick = () => { mod.close(); accountForm('member', m); };
   const r = $('[data-r]', mod.el); if (r) r.onclick = () => { mod.close(); renewForm(id); };
-  if (CTX.locked) { $$('[data-e],[data-r],[data-l]', mod.el).forEach((b) => (b.disabled = true)); }
+  if (CTX.locked) { $$('[data-e],[data-r],[data-l],[data-ph]', mod.el).forEach((b) => (b.disabled = true)); }
 }
 
 /* ---------- Check-in ---------- */
@@ -519,7 +531,7 @@ async function vCheckin() {
   const found = q ? members.filter((m) => m.name.toLowerCase().includes(q) || String(m.phone || '').includes(q)).slice(0, 8) : [];
   return pageHead(L('Floor', 'फ़्लोर'), L('Check-in', 'चेक-इन'), L(`${todays.length} today · ${open.size} inside`, `आज ${todays.length} · अंदर ${open.size}`))
     + `<div class="bar">${searchBox('cq', U.checkin.q, L('Type a name or phone', 'नाम या फ़ोन लिखें'))}</div>`
-    + (q ? `<div class="card" style="margin-bottom:14px">${found.length ? `<ul class="list">${found.map((m) => { const s = memberState(m), inV = open.get(m.id), blocked = ['Expired', 'Frozen', 'Cancelled'].includes(s); return `<li>${avatar(m.name)}<div class="grow"><b>${esc(m.name)}</b><small>${esc(m.phone || '')} · ${esc(LANG === 'hi' ? STATE_HI[s] : s)}${m.end_date ? ' · ' + esc(fmtShort(m.end_date)) : ''}</small></div>${inV ? `<button class="btn sm" data-act="checkOut" data-id="${esc(inV.id)}">${esc(L('Check out', 'चेक-आउट'))}</button>` : `<button class="btn primary sm" data-act="checkIn" data-id="${esc(m.id)}" ${blocked || CTX.locked ? 'disabled' : ''}>${esc(blocked ? L('Renew first', 'पहले रिन्यू') : L('Check in', 'चेक-इन'))}</button>`}</li>`; }).join('')}</ul>` : empty(L('No match', 'कोई मेल नहीं'), '')}</div>` : '')
+    + (q ? `<div class="card" style="margin-bottom:14px">${found.length ? `<ul class="list">${found.map((m) => { const s = memberState(m), inV = open.get(m.id), blocked = ['Expired', 'Frozen', 'Cancelled'].includes(s); return `<li>${avatarM(m)}<div class="grow"><b>${esc(m.name)}</b><small>${esc(m.phone || '')} · ${esc(LANG === 'hi' ? STATE_HI[s] : s)}${m.end_date ? ' · ' + esc(fmtShort(m.end_date)) : ''}</small></div>${inV ? `<button class="btn sm" data-act="checkOut" data-id="${esc(inV.id)}">${esc(L('Check out', 'चेक-आउट'))}</button>` : `<button class="btn primary sm" data-act="checkIn" data-id="${esc(m.id)}" ${blocked || CTX.locked ? 'disabled' : ''}>${esc(blocked ? L('Renew first', 'पहले रिन्यू') : L('Check in', 'चेक-इन'))}</button>`}</li>`; }).join('')}</ul>` : empty(L('No match', 'कोई मेल नहीं'), '')}</div>` : '')
     + card(L('Today', 'आज'), 'clock', '', todays.length ? `<ul class="list">${todays.map((v) => `<li><div class="grow"><b>${esc(memberName(mm, v.member_id))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div>${v.out_at ? badge(L('Done', 'पूरा'), 'mute') : `<button class="btn sm" data-act="checkOut" data-id="${esc(v.id)}">${esc(L('Check out', 'चेक-आउट'))}</button>`}</li>`).join('')}</ul>` : empty(L('Nobody yet today', 'आज अभी कोई नहीं'), ''));
 }
 
@@ -596,7 +608,7 @@ async function invoiceModal(id) {
   const mod = openModal({
     title: `${L('Invoice', 'इनवॉइस')} ${i.no || ''}`, wide: true,
     body: `<div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:10px"><div><b>${esc(m.name || '—')}</b><div class="muted">${esc(m.phone || '')}</div></div><div style="text-align:right"><div class="num">${esc(fmtDate(i.date))}</div>${badge(isOverdue(i, paid) ? 'Overdue' : invStatus(i, paid))}</div></div>
-      <table class="t"><tbody>${items.map((it) => `<tr><td>${esc(it.label)}</td><td class="r num">${esc(inr(it.amount))}</td></tr>`).join('')}
+      <table class="t"><tbody>${items.map((it) => `<tr><td>${esc(it.label)}</td><td class="r num">${Number(it.amount) ? esc(inr(it.amount)) : ''}</td></tr>`).join('')}
       ${Number(i.discount) ? `<tr><td>${esc(L('Discount', 'छूट'))}</td><td class="r num">−${esc(inr(i.discount))}</td></tr>` : ''}
       <tr><td>GST ${Number(i.gst_pct)}%</td><td class="r num">${esc(inr(i.gst_amt))}</td></tr><tr><td><b>${esc(L('Total', 'कुल'))}</b></td><td class="r num"><b>${esc(inr(i.total))}</b></td></tr>
       <tr><td>${esc(L('Balance', 'बाक़ी'))}</td><td class="r num" style="color:${bal ? 'var(--crimson)' : 'inherit'}">${esc(inr(bal))}</td></tr></tbody></table>
@@ -692,7 +704,7 @@ async function vRetention() {
   const msg = (m, gone) => `नमस्ते ${m.name} जी, ${gymName()} से। ${gone >= 90 ? 'काफ़ी दिनों' : gone + ' दिन'} से आप जिम नहीं आए। सब ठीक है? आपका इंतज़ार है, कल आइए! 💪`;
   return pageHead(L('Members', 'सदस्य'), L('At risk of leaving', 'छोड़ने का जोखिम'), L('Active members who have not visited for a while. Visit history covers the last 90 days.', 'सक्रिय सदस्य जो कुछ समय से नहीं आए। विज़िट इतिहास पिछले 90 दिन का है।'),
     `<label class="fl" style="margin:0"><span>${esc(L('Absent for at least (days)', 'कम से कम इतने दिन अनुपस्थित'))}</span><input class="in" id="thr" type="number" min="1" max="30" value="${thr}" data-bind="thr" style="width:90px"></label>`)
-    + `<div class="card">${risky.length ? `<ul class="list">${risky.map(({ m, lv, gone }) => `<li class="click" data-act="openMember" data-id="${esc(m.id)}">${avatar(m.name)}<div class="grow"><b>${esc(m.name)}</b><small>${lv ? esc(L(`Last visit ${fmtShort(lv)}`, `आख़िरी विज़िट ${fmtShort(lv)}`)) : esc(L('No visit in 90 days', '90 दिन में कोई विज़िट नहीं'))}</small></div>${badge(gone >= 90 ? '90+' : L(`${gone} days`, `${gone} दिन`), gone >= 14 ? 'bad' : 'warn')}<a class="btn wa sm" data-stop target="_blank" rel="noreferrer" href="${esc(waLink(m.phone, msg(m, gone)))}">${ic('msg')}</a></li>`).join('')}</ul>` : empty(L('Nobody is overdue for a visit', 'कोई लंबे समय से अनुपस्थित नहीं'), '')}</div>`;
+    + `<div class="card">${risky.length ? `<ul class="list">${risky.map(({ m, lv, gone }) => `<li class="click" data-act="openMember" data-id="${esc(m.id)}">${avatarM(m)}<div class="grow"><b>${esc(m.name)}</b><small>${lv ? esc(L(`Last visit ${fmtShort(lv)}`, `आख़िरी विज़िट ${fmtShort(lv)}`)) : esc(L('No visit in 90 days', '90 दिन में कोई विज़िट नहीं'))}</small></div>${badge(gone >= 90 ? '90+' : L(`${gone} days`, `${gone} दिन`), gone >= 14 ? 'bad' : 'warn')}<a class="btn wa sm" data-stop target="_blank" rel="noreferrer" href="${esc(waLink(m.phone, msg(m, gone)))}">${ic('msg')}</a></li>`).join('')}</ul>` : empty(L('Nobody is overdue for a visit', 'कोई लंबे समय से अनुपस्थित नहीं'), '')}</div>`;
 }
 
 /* ---------- Peak hours ---------- */
@@ -827,11 +839,144 @@ async function importForm() {
     },
   });
 }
+/* ================= Extras: member photos, WhatsApp expiry reminders, offers ================= */
+
+/* ---------- Photos (private Supabase Storage bucket; staff of the gym + the member themself can read) ---------- */
+const PHOTO_CACHE = new Map();
+const storagePath = (p) => p.split('/').map(encodeURIComponent).join('/');
+async function storageAuth() {
+  if (SESSION && SESSION.expires_at && SESSION.expires_at - 30 < Date.now() / 1000) await refreshSession();
+  return { apikey: CFG.key, Authorization: 'Bearer ' + ((SESSION && SESSION.access_token) || CFG.key) };
+}
+function photoUrl(path) {
+  if (!path) return Promise.resolve(null);
+  if (PHOTO_CACHE.has(path)) return PHOTO_CACHE.get(path);
+  const p = (async () => {
+    const res = await rawFetch('/storage/v1/object/authenticated/member-photos/' + storagePath(path), { headers: await storageAuth() });
+    if (!res.ok) throw new Error('photo');
+    return URL.createObjectURL(await res.blob());
+  })();
+  PHOTO_CACHE.set(path, p); p.catch(() => PHOTO_CACHE.delete(path));
+  return p;
+}
+async function uploadPhoto(path, blob) {
+  const res = await rawFetch('/storage/v1/object/member-photos/' + storagePath(path), { method: 'POST', headers: { ...(await storageAuth()), 'Content-Type': 'image/jpeg', 'x-upsert': 'true' }, body: blob });
+  if (!res.ok) { let j = {}; try { j = await res.json(); } catch (e) {} throw new ApiError(j.message || 'upload failed', res.status, res.status === 400 || res.status === 403 ? '42501' : 'storage'); }
+  const old = PHOTO_CACHE.get(path); PHOTO_CACHE.delete(path); if (old) old.then((u) => URL.revokeObjectURL(u)).catch(() => {});
+}
+function shrinkPhoto(file, max = 360) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.width * s)); c.height = Math.max(1, Math.round(img.height * s));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      c.toBlob((b) => (b ? resolve(b) : reject(new Error('encode'))), 'image/jpeg', 0.82);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image')); };
+    img.src = url;
+  });
+}
+const avatarM = (m, big) => `<span class="av ph${big ? ' lg' : ''}"${m.photo_path ? ` data-photo="${esc(m.photo_path)}"` : ''}>${esc(initials(m.name))}</span>`;
+function hydratePhotos() {
+  $$('[data-photo]:not([data-ph-done])').forEach((el) => {
+    el.dataset.phDone = '1';
+    photoUrl(el.dataset.photo).then((u) => { if (u && el.isConnected) { el.style.backgroundImage = `url("${u}")`; el.classList.add('has'); } }).catch(() => {});
+  });
+}
+let hydrateTimer;
+new MutationObserver(() => { clearTimeout(hydrateTimer); hydrateTimer = setTimeout(hydratePhotos, 40); }).observe(document.body, { childList: true, subtree: true });
+async function pickMemberPhoto(m, file, modal) {
+  try {
+    const blob = await shrinkPhoto(file), path = `${gymId()}/${m.id}.jpg`;
+    await uploadPhoto(path, blob);
+    if (m.photo_path !== path) await DB.update('members', m.id, { photo_path: path });
+    bust('members'); toast(L('Photo saved', 'फ़ोटो सेव हुई'));
+    if (modal) modal.close(); await render(); memberModal(m.id);
+  } catch (e) { toast(e && e.message === 'image' ? L('This file is not a usable image.', 'यह फ़ाइल सही फ़ोटो नहीं है।') : friendlyError(e), 'bad'); throw e; }
+}
+
+/* ---------- Offers ---------- */
+Q.offers = () => cached('offers', () => DB.select('offers', { order: 'created_at.desc', limit: 500 }));
+const offerText = (o) => (o.kind === 'percent' ? `${Number(o.value)}% ${L('off', 'छूट')}` : `₹${Number(o.value)} ${L('off', 'छूट')}`);
+const offerDiscount = (o, price) => (o.kind === 'percent' ? round2((Number(price) * Number(o.value)) / 100) : Math.min(Number(o.value), Number(price)));
+const offerState = (o, t) => (!o.active ? 'off' : o.starts_on && o.starts_on > t ? 'soon' : o.ends_on && o.ends_on < t ? 'ended' : 'live');
+const offerLive = (o, t) => offerState(o, t) === 'live';
+const OFFER_TONE = { live: 'ok', soon: 'info', ended: 'mute', off: 'mute' };
+const offerStateLabel = (s) => ({ live: L('Live', 'चालू'), soon: L('Scheduled', 'आने वाला'), ended: L('Ended', 'खत्म'), off: L('Off', 'बंद') }[s]);
+async function vOffers() {
+  const [offers, plans] = await Promise.all([Q.offers(), Q.plans()]), pm = planMap(plans), t = todayISO();
+  return pageHead(L('Setup', 'सेटअप'), L('Offers', 'ऑफ़र'), L('A live offer can be picked while renewing or adding a member; the discount is filled in for you.', 'चालू ऑफ़र रिन्यूअल या नए सदस्य के समय चुन सकते हैं; छूट अपने-आप भर जाती है।'), `<button class="btn primary" data-act="newOffer" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('New offer', 'नया ऑफ़र'))}</button>`)
+    + (offers.length ? `<div class="cg">${offers.map((o) => { const s = offerState(o, t); return `<div class="card pc${s === 'live' ? '' : ' off'}"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(o.name)}</b>${badge(offerStateLabel(s), OFFER_TONE[s])}</div><div class="pr">${esc(offerText(o))}</div><div class="muted">${esc(o.plan_id ? (pm.get(o.plan_id) || {}).name || '—' : L('All plans', 'सभी प्लान'))}</div><div class="muted">${o.starts_on || o.ends_on ? esc(`${o.starts_on ? fmtDate(o.starts_on) : '…'} → ${o.ends_on ? fmtDate(o.ends_on) : '…'}`) : esc(L('No dates', 'तारीख़ तय नहीं'))}</div>${o.note ? `<div class="muted">${esc(o.note)}</div>` : ''}<div class="acts"><button class="btn sm" data-act="editOffer" data-id="${esc(o.id)}" ${CTX.locked ? 'disabled' : ''}>${ic('pencil')} ${esc(L('Edit', 'बदलें'))}</button><button class="btn sm" data-act="shareOffer" data-id="${esc(o.id)}">${ic('copy')} ${esc(L('Copy message', 'मैसेज कॉपी'))}</button></div></div>`; }).join('')}</div>` : `<div class="card">${empty(L('No offers yet', 'अभी कोई ऑफ़र नहीं'), L('Create an offer such as "Diwali 10% off" for new joiners or renewals.', 'जैसे "दिवाली 10% छूट" जैसा ऑफ़र बनाइए।'), `<button class="btn primary" data-act="newOffer">${esc(L('New offer', 'नया ऑफ़र'))}</button>`)}</div>`);
+}
+async function offerForm(id) {
+  const [offers, plans] = await Promise.all([Q.offers(), Q.plans()]), x = id ? offers.find((o) => o.id === id) : null;
+  openForm({
+    title: x ? x.name : L('New offer', 'नया ऑफ़र'), values: x || {},
+    fields: [
+      { k: 'name', label: L('Offer name', 'ऑफ़र का नाम'), req: true, full: true, ph: 'Diwali 10% off', check: (v) => (v.length < 2 ? L('Too short', 'बहुत छोटा') : '') },
+      { k: 'kind', label: L('Type', 'प्रकार'), type: 'select', options: [{ v: 'percent', l: L('Percent (%)', 'प्रतिशत (%)') }, { v: 'flat', l: L('Flat amount (₹)', 'सीधी रकम (₹)') }], def: x ? x.kind : 'percent' },
+      { k: 'value', label: L('Value', 'मान'), type: 'number', req: true, min: 0.01, check: (v, o) => (o.kind === 'percent' && v > 100 ? L('Up to 100%', 'अधिकतम 100%') : '') },
+      { k: 'plan_id', label: L('Applies to', 'किस पर लागू'), type: 'select', options: [{ v: '', l: L('All plans', 'सभी प्लान') }, ...plans.filter((p) => p.status === 'Active').map((p) => ({ v: p.id, l: p.name }))], def: x ? x.plan_id || '' : '', full: true },
+      { k: 'starts_on', label: L('Starts', 'शुरू'), type: 'date' }, { k: 'ends_on', label: L('Ends', 'खत्म'), type: 'date', check: (v, o) => (v && o.starts_on && v < o.starts_on ? L('Before the start date', 'शुरू की तारीख़ से पहले') : '') },
+      { k: 'active', label: L('Status', 'स्थिति'), type: 'select', options: [{ v: '1', l: L('On', 'चालू') }, { v: '0', l: L('Off', 'बंद') }], def: x ? (x.active ? '1' : '0') : '1' },
+      { k: 'note', label: L('Note', 'नोट'), type: 'textarea', full: true },
+    ],
+    onSubmit: async (v) => {
+      const row = { name: v.name, kind: v.kind, value: v.value, plan_id: v.plan_id || null, starts_on: v.starts_on || null, ends_on: v.ends_on || null, active: v.active === '1', note: v.note || null };
+      const ok = await act(() => (x ? DB.update('offers', x.id, row) : DB.insert('offers', { ...row, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
+      if (ok) { bust('offers'); render(); } return !!ok;
+    },
+  });
+}
+async function shareOffer(id) {
+  const [offers, plans] = await Promise.all([Q.offers(), Q.plans()]), o = offers.find((x) => x.id === id); if (!o) return;
+  const plan = o.plan_id ? plans.find((p) => p.id === o.plan_id) : null;
+  copyText(`🎁 ${gymName()}: ${o.name}\n${offerText(o)}${plan ? ' (' + plan.name + ')' : ''}${o.ends_on ? '\nतारीख़ ' + fmtDate(o.ends_on) + ' तक' : ''}\nसंपर्क: ${(CTX.gym && CTX.gym.phone) || ''}`, L('Offer message copied', 'ऑफ़र मैसेज कॉपी हुआ'));
+}
+
+/* ---------- Expiry reminders over WhatsApp (one tap: WhatsApp opens with the message ready) ---------- */
+const U_REMIND = { days: 2 };
+try { const d = Number(localStorage.getItem('gymos-remind-days')); if (d >= 1 && d <= 14) U_REMIND.days = d; } catch (e) {}
+const isDueSoon = (m, days) => ['Active', 'Expiring'].includes(memberState(m)) && m.end_date && daysLeft(m) >= 0 && daysLeft(m) <= days;
+function remindMsg(m, offer) {
+  const left = daysLeft(m);
+  const when = left < 0 ? `${fmtDate(m.end_date)} को खत्म हो चुकी है` : left === 0 ? 'आज खत्म हो रही है' : left === 1 ? 'कल खत्म हो रही है' : `${fmtDate(m.end_date)} को (${left} दिन में) खत्म हो रही है`;
+  const upi = upiOf();
+  return `नमस्ते ${m.name} जी, ${gymName()} से।\nआपकी सदस्यता ${when}.${offer ? `\n🎁 अभी ऑफ़र: ${offer.name} (${offerText(offer)})` : ''}\nरिन्यू के लिए जिम आइए${upi ? ` या UPI: ${upi} पर भुगतान करके हमें बताइए` : ''}।\n${(CTX.gym && CTX.gym.phone) ? 'संपर्क: ' + CTX.gym.phone + '\n' : ''}धन्यवाद! 💪`;
+}
+function bestOffer(m, offers, plans) {
+  const t = todayISO(), pr = (plans.find((p) => p.id === m.plan_id) || {}).price || 0;
+  return offers.filter((o) => offerLive(o, t) && (!o.plan_id || o.plan_id === m.plan_id)).sort((a, b) => offerDiscount(b, pr) - offerDiscount(a, pr))[0] || null;
+}
+async function vReminders() {
+  const [members, offers, plans] = await Promise.all([Q.members(), Q.offers().catch(() => []), Q.plans()]);
+  const d = U_REMIND.days, today = todayISO();
+  const soon = members.filter((m) => isDueSoon(m, d)).sort((a, b) => daysLeft(a) - daysLeft(b));
+  const lapsed = members.filter((m) => memberState(m) === 'Expired' && daysLeft(m) >= -14).sort((a, b) => daysLeft(b) - daysLeft(a));
+  const row = (m) => { const left = daysLeft(m), done = m.reminded_on === today; return `<li class="click" data-act="openMember" data-id="${esc(m.id)}">${avatarM(m)}<div class="grow"><b>${esc(m.name)}</b><small>${esc(left < 0 ? L(`Ended ${-left} day(s) ago`, `${-left} दिन पहले खत्म`) : left === 0 ? L('Ends today', 'आज खत्म') : L(`Ends in ${left} day(s) · ${fmtDate(m.end_date)}`, `${left} दिन में खत्म · ${fmtDate(m.end_date)}`))}${m.reminded_on ? ' · ' + esc(L(`reminded ${fmtShort(m.reminded_on)}`, `रिमाइंडर ${fmtShort(m.reminded_on)} को`)) : ''}</small></div>${done ? badge(L('Sent today', 'आज भेजा'), 'ok') : ''}<a class="btn wa sm" data-stop data-remind="${esc(m.id)}" target="_blank" rel="noreferrer" href="${esc(waLink(m.phone, remindMsg(m, bestOffer(m, offers, plans))))}">${ic('msg')} ${esc(done ? L('Again', 'फिर') : L('Remind', 'रिमाइंडर'))}</a></li>`; };
+  return pageHead(L('Members', 'सदस्य'), L('Renewal reminders', 'रिन्यूअल रिमाइंडर'), L('WhatsApp opens with a ready message (and your best live offer). Press send. Fully automatic sending needs the WhatsApp Business API, which is not connected.', 'WhatsApp तैयार मैसेज के साथ खुलता है (चालू सबसे अच्छे ऑफ़र के साथ)। बस भेज दीजिए। पूरी तरह अपने-आप भेजने के लिए WhatsApp Business API चाहिए, जो जुड़ा नहीं है।'),
+    `<label class="fl" style="margin:0"><span>${esc(L('Remind this many days before', 'इतने दिन पहले याद दिलाएँ'))}</span><input class="in" id="rdays" type="number" min="1" max="14" value="${d}" data-bind="rdays" style="width:90px"></label>`)
+    + card(L(`Ending within ${d} day(s)`, `${d} दिन में खत्म`), 'clock', '', soon.length ? `<ul class="list">${soon.map(row).join('')}</ul>` : empty(L('Nobody is due right now', 'अभी कोई नहीं'), ''))
+    + `<div style="height:14px"></div>`
+    + card(L('Ended in the last 14 days', 'पिछले 14 दिन में खत्म'), 'clock', '', lapsed.length ? `<ul class="list">${lapsed.map(row).join('')}</ul>` : empty(L('None', 'कोई नहीं'), ''));
+}
+function markReminded(id) {
+  DB.update('members', id, { reminded_on: todayISO() }).then(() => { bust('members'); setTimeout(() => { if (currentRoute() && currentRoute()[0] === 'reminders') render(); }, 700); }).catch(() => {});
+}
+async function refreshBadge() {
+  const a = $('#nav a[href="#reminders"]'); if (!a) return;
+  try {
+    const ms = await Q.members(), n = ms.filter((m) => isDueSoon(m, U_REMIND.days) && m.reminded_on !== todayISO()).length;
+    let b = $('.n', a);
+    if (n) { if (!b) { b = document.createElement('span'); b.className = 'n'; a.appendChild(b); } b.textContent = n; } else if (b) b.remove();
+  } catch (e) {}
+}
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV = {
   super_admin: [['gyms', 'building', 'Gyms', 'जिम', vSuperGyms], ['users', 'users', 'Users', 'यूज़र', vSuperUsers], ['audit', 'list', 'Audit log', 'ऑडिट लॉग', vSuperAudit], ['status', 'pulse', 'Status', 'स्थिति', vSuperStatus]],
-  gym_admin: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard], ['members', 'users', 'Members', 'सदस्य', vMembers], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin], ['plans', 'tag', 'Plans', 'प्लान', vPlans], ['invoices', 'receipt', 'Invoices', 'इनवॉइस', vInvoices], ['payments', 'wallet', 'Payments', 'भुगतान', vPayments], ['ledger', 'shield', 'Secure ledger', 'सुरक्षित लेजर', vLedger], ['retention', 'pulse', 'At risk', 'जोखिम', vRetention], ['peak', 'chart', 'Peak hours', 'भीड़ के समय', vPeak], ['settings', 'gear', 'Settings', 'सेटिंग', vSettings]],
-  trainer: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard], ['members', 'users', 'Members', 'सदस्य', vMembers], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin]],
+  gym_admin: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard], ['members', 'users', 'Members', 'सदस्य', vMembers], ['reminders', 'clock', 'Reminders', 'रिमाइंडर', vReminders], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin], ['plans', 'tag', 'Plans', 'प्लान', vPlans], ['offers', 'crown', 'Offers', 'ऑफ़र', vOffers], ['invoices', 'receipt', 'Invoices', 'इनवॉइस', vInvoices], ['payments', 'wallet', 'Payments', 'भुगतान', vPayments], ['ledger', 'shield', 'Secure ledger', 'सुरक्षित लेजर', vLedger], ['retention', 'pulse', 'At risk', 'जोखिम', vRetention], ['peak', 'chart', 'Peak hours', 'भीड़ के समय', vPeak], ['settings', 'gear', 'Settings', 'सेटिंग', vSettings]],
+  trainer: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard], ['members', 'users', 'Members', 'सदस्य', vMembers], ['reminders', 'clock', 'Reminders', 'रिमाइंडर', vReminders], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin]],
   member: [['mine', 'home', 'My gym', 'मेरा जिम', vMine]],
 };
 const navFor = () => NAV[CTX.profile ? CTX.profile.role : ''] || [];
@@ -909,7 +1054,7 @@ async function render() {
   }
   if (token !== RENDER_TOKEN) return;
   view.dataset.ready = '1'; view.dataset.route = route[0];
-  view.innerHTML = lockBanner() + html;
+  view.innerHTML = lockBanner() + html; refreshBadge();
   if (focusId) { const el = document.getElementById(focusId); if (el) { el.focus(); try { el.setSelectionRange(caret, caret); } catch (e) {} } }
 }
 async function enter() {
@@ -923,7 +1068,7 @@ function onSignedOut() { bust(); CTX.profile = null; CTX.gym = null; CTX.locked 
 
 /* ---------- actions ---------- */
 const CHIP = { memF: (v) => { U.members.f = v; U.members.page = 1; }, invF: (v) => { U.invoices.f = v; U.invoices.page = 1; }, peakD: (v) => { U.peak.days = v; } };
-const BIND = { mq: (v) => { U.members.q = v; U.members.page = 1; }, cq: (v) => { U.checkin.q = v; }, iq: (v) => { U.invoices.q = v; U.invoices.page = 1; }, pq: (v) => { U.payments.q = v; U.payments.page = 1; }, thr: (v) => { const n = Math.min(30, Math.max(1, parseInt(v, 10) || 4)); U.retention.thr = n; try { localStorage.setItem('gymos-thr', String(n)); } catch (e) {} } };
+const BIND = { mq: (v) => { U.members.q = v; U.members.page = 1; }, cq: (v) => { U.checkin.q = v; }, iq: (v) => { U.invoices.q = v; U.invoices.page = 1; }, pq: (v) => { U.payments.q = v; U.payments.page = 1; }, rdays: (v) => { const n = Math.min(14, Math.max(1, parseInt(v, 10) || 2)); U_REMIND.days = n; try { localStorage.setItem('gymos-remind-days', String(n)); } catch (e) {} }, thr: (v) => { const n = Math.min(30, Math.max(1, parseInt(v, 10) || 4)); U.retention.thr = n; try { localStorage.setItem('gymos-thr', String(n)); } catch (e) {} } };
 const ACTIONS = {
   newGym: () => gymForm(), extendGym: (d) => extendForm(d.id), lockGym: (d) => lockForm(d.id), assignUser: (d) => assignForm(d.id),
   newMember: () => memberForm(), openMember: (d) => memberModal(d.id), checkIn: (d) => doCheckIn(d.id), checkOut: (d) => doCheckOut(d.id),
@@ -936,7 +1081,7 @@ const ACTIONS = {
   retry: () => { bust(); CTX.profile ? render() : enter(); },
   lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
   theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
-  importMembers: () => importForm(),
+  importMembers: () => importForm(), newOffer: () => offerForm(), editOffer: (d) => offerForm(d.id), shareOffer: (d) => shareOffer(d.id),
   newTrainer: () => accountForm('trainer'),
   changePw: () => openForm({
     title: L('Change password', 'पासवर्ड बदलें'),
@@ -950,6 +1095,7 @@ const ACTIONS = {
 };
 document.addEventListener('click', (e) => {
   const link = e.target.closest('a[href]');
+  if (link && link.dataset.remind) markReminded(link.dataset.remind);
   if (link && (link.hasAttribute('data-stop') || link.classList.contains('wa'))) return; /* let WhatsApp links open; do not trigger the row */
   if (link && !e.target.closest('[data-act]')) return;
   const el = e.target.closest('[data-act]'); if (!el || el.disabled) return;
@@ -960,7 +1106,7 @@ document.addEventListener('click', (e) => {
 let bindTimer;
 document.addEventListener('input', (e) => {
   const id = e.target.dataset && e.target.dataset.bind; if (!id || !BIND[id]) return;
-  BIND[id](e.target.value); clearTimeout(bindTimer); bindTimer = setTimeout(render, id === 'thr' ? 500 : 220);
+  BIND[id](e.target.value); clearTimeout(bindTimer); bindTimer = setTimeout(render, id === 'thr' || id === 'rdays' ? 500 : 220);
 });
 document.addEventListener('submit', async (e) => {
   if (e.target.id !== 'loginForm') return;
