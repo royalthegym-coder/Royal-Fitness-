@@ -46,6 +46,7 @@ function handler(db, role) {
     const t = p.replace('/rest/v1/', ''), rows = db[t];
     if (!rows) return json({ message: 'nope' }, 404);
     if (m === 'GET') { let r = rows; u.searchParams.forEach((v, k) => { if (v.startsWith('eq.')) r = r.filter((x) => String(x[k]) === v.slice(3)); }); return json(r); }
+    if (m === 'POST' && Array.isArray(JSON.parse(req.postData()))) { const out = JSON.parse(req.postData()).map((b) => ({ id: uid(), status: 'Active', ...b })); out.forEach((r) => rows.unshift(r)); db.bulk = out; return json(out, 201); }
     if (m === 'POST') {
       const b = JSON.parse(req.postData()), row = { id: uid(), ...b };
       if (t === 'invoices') { row.no = 'INV-' + String(rows.length + 1).padStart(4, '0'); row.date = today(); row.cancelled = false; }
@@ -125,6 +126,13 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('a[href="#peak"]'); await page.waitForSelector('.heat'); ok(true, 'peak heatmap renders');
     await page.click('a[href="#settings"]'); await page.click('[data-act=editGym]'); await page.fill('#f_city', 'Jaipur'); await page.click('[data-ok]');
     await page.waitForFunction(() => /Jaipur/.test(document.body.innerText)); ok(db.gyms[0].city === 'Jaipur', 'gym settings saved via RPC');
+    // bulk import
+    await page.click('a[href="#members"]'); await page.waitForSelector('[data-act=importMembers]'); await page.click('[data-act=importMembers]');
+    await page.fill('#f_text', 'Name, Phone, Plan, Start\nA One, 9111111111, Monthly, 01-10-2026\nB Two, 9222222222, Nope, 01-10-2026\nC Three, 12345, , \nRahul Dup, 9876543210, , ');
+    await page.click('[data-ok]'); await page.waitForSelector('#imp_res .banner.bad');
+    ok((await page.$$('#imp_res li')).length === 3 && !db.bulk, 'import reports every bad line and imports nothing');
+    await page.fill('#f_text', 'A One, 98111 11111, Monthly, 01-10-2026\nB Two, 9222222222, , \n'); await page.click('[data-ok]'); await page.waitForFunction(() => !document.querySelector('#modals .md'));
+    ok(db.bulk && db.bulk.length === 2 && db.bulk[0].end_date === '2026-10-31' && db.bulk[0].phone === '9811111111' && db.bulk[1].plan_id === null, 'valid rows imported with computed end date and cleaned phone');
     // create member login
     await page.click('a[href="#members"]'); await page.waitForSelector('tr.click'); await page.click('tr.click:has-text("Rahul")'); await page.waitForSelector('[data-l]'); await page.click('[data-l]');
     await page.fill('#f_email', 'taken@x.in'); await page.click('[data-ok]'); await page.waitForFunction(() => /पहले से है|already has an account/.test(document.body.innerText));

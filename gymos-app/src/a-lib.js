@@ -102,6 +102,7 @@ const DB = {
     const f = {}; Object.entries(eq).forEach(([k, v]) => (f[k] = 'eq.' + v)); Object.assign(f, filters);
     return api(`/rest/v1/${table}?${qs({ select, ...f, order, limit })}`);
   },
+  insertMany: (table, rows) => api(`/rest/v1/${table}`, { method: 'POST', body: rows, headers: { Prefer: 'return=representation' } }),
   insert: async (table, row) => (await api(`/rest/v1/${table}`, { method: 'POST', body: row, headers: { Prefer: 'return=representation' } }))[0],
   update: async (table, id, patch) => { const r = await api(`/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', body: patch, headers: { Prefer: 'return=representation' } }); if (!r || !r.length) throw new ApiError('not allowed', 403, '42501'); return r[0]; },
   remove: (table, id) => api(`/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' }),

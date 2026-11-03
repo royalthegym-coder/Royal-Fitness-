@@ -102,6 +102,7 @@ const DB = {
     const f = {}; Object.entries(eq).forEach(([k, v]) => (f[k] = 'eq.' + v)); Object.assign(f, filters);
     return api(`/rest/v1/${table}?${qs({ select, ...f, order, limit })}`);
   },
+  insertMany: (table, rows) => api(`/rest/v1/${table}`, { method: 'POST', body: rows, headers: { Prefer: 'return=representation' } }),
   insert: async (table, row) => (await api(`/rest/v1/${table}`, { method: 'POST', body: row, headers: { Prefer: 'return=representation' } }))[0],
   update: async (table, id, patch) => { const r = await api(`/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', body: patch, headers: { Prefer: 'return=representation' } }); if (!r || !r.length) throw new ApiError('not allowed', 403, '42501'); return r[0]; },
   remove: (table, id) => api(`/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' }),
@@ -428,7 +429,7 @@ async function vMembers() {
   const counts = { all: members.length }; STATE_FILTERS.forEach((s) => (counts[s] = members.filter((m) => memberState(m) === s).length));
   let rows = members.filter((m) => (st.f === 'all' || memberState(m) === st.f) && (!q || m.name.toLowerCase().includes(q) || String(m.phone || '').includes(q)));
   const total = rows.length; st.page = Math.min(st.page, Math.max(1, Math.ceil(total / PAGE))); rows = rows.slice((st.page - 1) * PAGE, st.page * PAGE);
-  return pageHead(L('People', 'लोग'), L('Members', 'सदस्य'), '', `<button class="btn primary" data-act="newMember" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('New member', 'नया सदस्य'))}</button>`)
+  return pageHead(L('People', 'लोग'), L('Members', 'सदस्य'), '', `${isAdmin() ? `<button class="btn" data-act="importMembers" ${CTX.locked ? 'disabled' : ''}>${ic('down')} ${esc(L('Import', 'इम्पोर्ट'))}</button>` : ''}<button class="btn primary" data-act="newMember" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('New member', 'नया सदस्य'))}</button>`)
     + `<div class="bar">${searchBox('mq', st.q, L('Search name or phone', 'नाम या फ़ोन खोजें'))}</div>`
     + chipsHtml('memF', st.f, [['all', L('All', 'सभी'), counts.all], ...STATE_FILTERS.map((s) => [s, LANG === 'hi' ? STATE_HI[s] : s, counts[s]])])
     + `<div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Member', 'सदस्य'))}</th><th>${esc(L('Plan', 'प्लान'))}</th><th>${esc(L('Status', 'स्थिति'))}</th><th class="r">${esc(L('Valid till', 'तारीख़ तक'))}</th><th>${esc(L('Last visit', 'आख़िरी विज़िट'))}</th>${isAdmin() ? `<th class="r">${esc(L('Dues', 'बकाया'))}</th>` : ''}</tr></thead><tbody>${rows.map((m) => { const s = memberState(m), d = dues.get(m.id) || 0; return `<tr class="click" data-act="openMember" data-id="${esc(m.id)}"><td class="edge e-${TONE[s] || 'mute'}"><div style="display:flex;gap:10px;align-items:center">${avatar(m.name)}<div><b>${esc(m.name)}</b><br><small class="muted">${esc(m.phone || '')}</small></div></div></td><td>${esc((pm.get(m.plan_id) || {}).name || '—')}</td><td>${badge(s)}</td><td class="r num">${esc(fmtDate(m.end_date))}</td><td class="num">${last.get(m.id) ? esc(fmtShort(last.get(m.id))) : '—'}</td>${isAdmin() ? `<td class="r num" style="color:${d ? 'var(--crimson)' : 'inherit'}">${d ? esc(inr(d)) : '—'}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>${pagerHtml(total, st.page, 'members')}` : empty(members.length ? L('No members match', 'कोई सदस्य मेल नहीं खाता') : L('No members yet', 'अभी कोई सदस्य नहीं'), '', members.length ? '' : `<button class="btn primary" data-act="newMember">${esc(L('Add the first member', 'पहला सदस्य जोड़ें'))}</button>`)}</div>`;
@@ -775,6 +776,57 @@ function showAccessModal(c, member) {
   });
   $('[data-cp]', mod.el).onclick = () => copyText(text);
 }
+
+/* ---------- Import existing members (paste from Excel / Google Sheets) ---------- */
+const normName = (x) => String(x || '').toLowerCase().replace(/[\s·.\-_]+/g, '');
+function parseDateCell(x) {
+  x = String(x || '').trim(); if (!x) return '';
+  let m = x.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/), d, mo, y;
+  if (m) { y = +m[1]; mo = +m[2]; d = +m[3]; } else if ((m = x.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/))) { d = +m[1]; mo = +m[2]; y = +m[3]; } else return null;
+  const iso = `${y}-${pad(mo)}-${pad(d)}`, back = new Date(Date.UTC(y, mo - 1, d));
+  return back.getUTCFullYear() === y && back.getUTCMonth() === mo - 1 && back.getUTCDate() === d ? iso : null;
+}
+function parseImport(text, plans, existingPhones) {
+  const rows = [], errors = [], seen = new Set(), byName = new Map(plans.map((p) => [normName(p.name), p]));
+  text.split(/\r?\n/).forEach((line, i) => {
+    if (!line.trim()) return;
+    const c = line.split(/\t|,|;/).map((x) => x.trim()), n = i + 1;
+    if (i === 0 && /^(name|नाम)$/i.test(c[0])) return;
+    const name = c[0], phone = String(c[1] || '').replace(/\D/g, '').slice(-10), planTxt = c[2] || '', start = parseDateCell(c[3]);
+    if (!name || name.length < 2) { errors.push(L(`Line ${n}: name is missing`, `लाइन ${n}: नाम नहीं है`)); return; }
+    if (phone.length !== 10) { errors.push(L(`Line ${n} (${name}): phone must be 10 digits`, `लाइन ${n} (${name}): फ़ोन 10 अंकों का हो`)); return; }
+    if (existingPhones.has(phone) || seen.has(phone)) { errors.push(L(`Line ${n} (${name}): this phone is already a member`, `लाइन ${n} (${name}): यह फ़ोन पहले से सदस्य है`)); return; }
+    let plan = null; if (planTxt) { plan = byName.get(normName(planTxt)); if (!plan) { errors.push(L(`Line ${n} (${name}): plan "${planTxt}" not found`, `लाइन ${n} (${name}): प्लान "${planTxt}" नहीं मिला`)); return; } }
+    if (start === null) { errors.push(L(`Line ${n} (${name}): date must be DD-MM-YYYY`, `लाइन ${n} (${name}): तारीख़ DD-MM-YYYY में हो`)); return; }
+    if (plan && !start) { errors.push(L(`Line ${n} (${name}): a plan needs a start date`, `लाइन ${n} (${name}): प्लान के साथ शुरू की तारीख़ चाहिए`)); return; }
+    seen.add(phone);
+    const row = { name, phone, plan_id: plan ? plan.id : null };
+    if (plan) { row.start_date = start; row.end_date = addDays(addMonths(start, plan.months), -1); row.joined_on = start; }
+    rows.push(row);
+  });
+  return { rows, errors };
+}
+async function importForm() {
+  const [plans, members] = await Promise.all([Q.plans(), Q.members()]);
+  const phones = new Set(members.map((m) => String(m.phone || '').replace(/\D/g, '').slice(-10)));
+  const act2 = plans.filter((p) => p.status === 'Active');
+  const mod = openForm({
+    title: L('Import existing members', 'पुराने सदस्य इम्पोर्ट करें'),
+    wide: true,
+    fields: [{ k: 'text', label: L('Paste rows: name, phone, plan, start date', 'पंक्तियाँ चिपकाएँ: नाम, फ़ोन, प्लान, शुरू की तारीख़'), type: 'textarea', req: true, full: true, ph: 'Rahul Sharma, 9876543210, Gym · 3 Months, 01-10-2026' }],
+    extra: `<div class="note" style="margin-top:10px">${esc(L('One member per line. Copy straight from Excel or Google Sheets. Plan and date can be left empty. Date format: DD-MM-YYYY. Existing dues are not imported; add an invoice if a member owes money.', 'हर लाइन में एक सदस्य। Excel या Google Sheets से सीधे कॉपी करें। प्लान और तारीख़ खाली छोड़ सकते हैं। तारीख़: DD-MM-YYYY। पुराना बकाया इम्पोर्ट नहीं होता; बकाया हो तो इनवॉइस बनाएँ।'))}<br>${esc(L('Plan names: ', 'प्लान के नाम: '))}${act2.map((p) => esc(p.name)).join(' | ')}</div><div id="imp_res" style="margin-top:10px"></div>`,
+    submitLabel: L('Check and import', 'जाँचें और इम्पोर्ट करें'),
+    onSubmit: async (v) => {
+      const { rows, errors } = parseImport(v.text, plans, phones), out = $('#imp_res', mod.el);
+      if (errors.length) { out.innerHTML = `<div class="banner bad"><b>${esc(L(`${errors.length} problem(s). Fix these lines and try again; nothing was imported.`, `${errors.length} गड़बड़। ये लाइनें ठीक करके फिर कोशिश करें; कुछ इम्पोर्ट नहीं हुआ।`))}</b><ul style="margin:6px 0 0;padding-left:18px">${errors.slice(0, 12).map((e) => `<li>${esc(e)}</li>`).join('')}${errors.length > 12 ? `<li>…</li>` : ''}</ul></div>`; return false; }
+      if (!rows.length) { out.innerHTML = `<div class="banner bad">${esc(L('No rows found.', 'कोई पंक्ति नहीं मिली।'))}</div>`; return false; }
+      if (rows.length > 500) { out.innerHTML = `<div class="banner bad">${esc(L('Import at most 500 members at a time.', 'एक बार में अधिकतम 500 सदस्य।'))}</div>`; return false; }
+      const saved = await act(() => DB.insertMany('members', rows.map((r) => ({ ...r, gym_id: gymId() }))));
+      if (!saved) return false;
+      bust('members'); toast(L(`${rows.length} members imported`, `${rows.length} सदस्य इम्पोर्ट हुए`)); render(); return true;
+    },
+  });
+}
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV = {
   super_admin: [['gyms', 'building', 'Gyms', 'जिम', vSuperGyms], ['users', 'users', 'Users', 'यूज़र', vSuperUsers], ['audit', 'list', 'Audit log', 'ऑडिट लॉग', vSuperAudit], ['status', 'pulse', 'Status', 'स्थिति', vSuperStatus]],
@@ -884,6 +936,7 @@ const ACTIONS = {
   retry: () => { bust(); CTX.profile ? render() : enter(); },
   lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
   theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
+  importMembers: () => importForm(),
   newTrainer: () => accountForm('trainer'),
   changePw: () => openForm({
     title: L('Change password', 'पासवर्ड बदलें'),

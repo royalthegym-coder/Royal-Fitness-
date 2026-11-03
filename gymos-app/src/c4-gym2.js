@@ -231,3 +231,54 @@ function showAccessModal(c, member) {
   });
   $('[data-cp]', mod.el).onclick = () => copyText(text);
 }
+
+/* ---------- Import existing members (paste from Excel / Google Sheets) ---------- */
+const normName = (x) => String(x || '').toLowerCase().replace(/[\s·.\-_]+/g, '');
+function parseDateCell(x) {
+  x = String(x || '').trim(); if (!x) return '';
+  let m = x.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/), d, mo, y;
+  if (m) { y = +m[1]; mo = +m[2]; d = +m[3]; } else if ((m = x.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/))) { d = +m[1]; mo = +m[2]; y = +m[3]; } else return null;
+  const iso = `${y}-${pad(mo)}-${pad(d)}`, back = new Date(Date.UTC(y, mo - 1, d));
+  return back.getUTCFullYear() === y && back.getUTCMonth() === mo - 1 && back.getUTCDate() === d ? iso : null;
+}
+function parseImport(text, plans, existingPhones) {
+  const rows = [], errors = [], seen = new Set(), byName = new Map(plans.map((p) => [normName(p.name), p]));
+  text.split(/\r?\n/).forEach((line, i) => {
+    if (!line.trim()) return;
+    const c = line.split(/\t|,|;/).map((x) => x.trim()), n = i + 1;
+    if (i === 0 && /^(name|नाम)$/i.test(c[0])) return;
+    const name = c[0], phone = String(c[1] || '').replace(/\D/g, '').slice(-10), planTxt = c[2] || '', start = parseDateCell(c[3]);
+    if (!name || name.length < 2) { errors.push(L(`Line ${n}: name is missing`, `लाइन ${n}: नाम नहीं है`)); return; }
+    if (phone.length !== 10) { errors.push(L(`Line ${n} (${name}): phone must be 10 digits`, `लाइन ${n} (${name}): फ़ोन 10 अंकों का हो`)); return; }
+    if (existingPhones.has(phone) || seen.has(phone)) { errors.push(L(`Line ${n} (${name}): this phone is already a member`, `लाइन ${n} (${name}): यह फ़ोन पहले से सदस्य है`)); return; }
+    let plan = null; if (planTxt) { plan = byName.get(normName(planTxt)); if (!plan) { errors.push(L(`Line ${n} (${name}): plan "${planTxt}" not found`, `लाइन ${n} (${name}): प्लान "${planTxt}" नहीं मिला`)); return; } }
+    if (start === null) { errors.push(L(`Line ${n} (${name}): date must be DD-MM-YYYY`, `लाइन ${n} (${name}): तारीख़ DD-MM-YYYY में हो`)); return; }
+    if (plan && !start) { errors.push(L(`Line ${n} (${name}): a plan needs a start date`, `लाइन ${n} (${name}): प्लान के साथ शुरू की तारीख़ चाहिए`)); return; }
+    seen.add(phone);
+    const row = { name, phone, plan_id: plan ? plan.id : null };
+    if (plan) { row.start_date = start; row.end_date = addDays(addMonths(start, plan.months), -1); row.joined_on = start; }
+    rows.push(row);
+  });
+  return { rows, errors };
+}
+async function importForm() {
+  const [plans, members] = await Promise.all([Q.plans(), Q.members()]);
+  const phones = new Set(members.map((m) => String(m.phone || '').replace(/\D/g, '').slice(-10)));
+  const act2 = plans.filter((p) => p.status === 'Active');
+  const mod = openForm({
+    title: L('Import existing members', 'पुराने सदस्य इम्पोर्ट करें'),
+    wide: true,
+    fields: [{ k: 'text', label: L('Paste rows: name, phone, plan, start date', 'पंक्तियाँ चिपकाएँ: नाम, फ़ोन, प्लान, शुरू की तारीख़'), type: 'textarea', req: true, full: true, ph: 'Rahul Sharma, 9876543210, Gym · 3 Months, 01-10-2026' }],
+    extra: `<div class="note" style="margin-top:10px">${esc(L('One member per line. Copy straight from Excel or Google Sheets. Plan and date can be left empty. Date format: DD-MM-YYYY. Existing dues are not imported; add an invoice if a member owes money.', 'हर लाइन में एक सदस्य। Excel या Google Sheets से सीधे कॉपी करें। प्लान और तारीख़ खाली छोड़ सकते हैं। तारीख़: DD-MM-YYYY। पुराना बकाया इम्पोर्ट नहीं होता; बकाया हो तो इनवॉइस बनाएँ।'))}<br>${esc(L('Plan names: ', 'प्लान के नाम: '))}${act2.map((p) => esc(p.name)).join(' | ')}</div><div id="imp_res" style="margin-top:10px"></div>`,
+    submitLabel: L('Check and import', 'जाँचें और इम्पोर्ट करें'),
+    onSubmit: async (v) => {
+      const { rows, errors } = parseImport(v.text, plans, phones), out = $('#imp_res', mod.el);
+      if (errors.length) { out.innerHTML = `<div class="banner bad"><b>${esc(L(`${errors.length} problem(s). Fix these lines and try again; nothing was imported.`, `${errors.length} गड़बड़। ये लाइनें ठीक करके फिर कोशिश करें; कुछ इम्पोर्ट नहीं हुआ।`))}</b><ul style="margin:6px 0 0;padding-left:18px">${errors.slice(0, 12).map((e) => `<li>${esc(e)}</li>`).join('')}${errors.length > 12 ? `<li>…</li>` : ''}</ul></div>`; return false; }
+      if (!rows.length) { out.innerHTML = `<div class="banner bad">${esc(L('No rows found.', 'कोई पंक्ति नहीं मिली।'))}</div>`; return false; }
+      if (rows.length > 500) { out.innerHTML = `<div class="banner bad">${esc(L('Import at most 500 members at a time.', 'एक बार में अधिकतम 500 सदस्य।'))}</div>`; return false; }
+      const saved = await act(() => DB.insertMany('members', rows.map((r) => ({ ...r, gym_id: gymId() }))));
+      if (!saved) return false;
+      bust('members'); toast(L(`${rows.length} members imported`, `${rows.length} सदस्य इम्पोर्ट हुए`)); render(); return true;
+    },
+  });
+}
