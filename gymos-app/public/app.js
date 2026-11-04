@@ -429,7 +429,7 @@ async function vMembers() {
   const counts = { all: members.length }; STATE_FILTERS.forEach((s) => (counts[s] = members.filter((m) => memberState(m) === s).length));
   let rows = members.filter((m) => (st.f === 'all' || memberState(m) === st.f) && (!q || m.name.toLowerCase().includes(q) || String(m.phone || '').includes(q)));
   const total = rows.length; st.page = Math.min(st.page, Math.max(1, Math.ceil(total / PAGE))); rows = rows.slice((st.page - 1) * PAGE, st.page * PAGE);
-  return pageHead(L('People', 'लोग'), L('Members', 'सदस्य'), '', `${isAdmin() ? `<button class="btn" data-act="importMembers" ${CTX.locked ? 'disabled' : ''}>${ic('down')} ${esc(L('Import', 'इम्पोर्ट'))}</button>` : ''}<button class="btn primary" data-act="newMember" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('New member', 'नया सदस्य'))}</button>`)
+  return pageHead(L('People', 'लोग'), L('Members', 'सदस्य'), '', `<button class="btn" data-act="membersCsv">${ic('down')} CSV</button>${isAdmin() ? `<button class="btn" data-act="importMembers" ${CTX.locked ? 'disabled' : ''}>${ic('down')} ${esc(L('Import', 'इम्पोर्ट'))}</button>` : ''}<button class="btn primary" data-act="newMember" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('New member', 'नया सदस्य'))}</button>`)
     + `<div class="bar">${searchBox('mq', st.q, L('Search name or phone', 'नाम या फ़ोन खोजें'))}</div>`
     + chipsHtml('memF', st.f, [['all', L('All', 'सभी'), counts.all], ...STATE_FILTERS.map((s) => [s, LANG === 'hi' ? STATE_HI[s] : s, counts[s]])])
     + `<div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Photo', 'फ़ोटो'))}</th><th>${esc(L('Member', 'सदस्य'))}</th><th>${esc(L('Plan', 'प्लान'))}</th><th>${esc(L('Status', 'स्थिति'))}</th><th class="r">${esc(L('Valid till', 'तारीख़ तक'))}</th><th>${esc(L('Last visit', 'आख़िरी विज़िट'))}</th>${isAdmin() ? `<th class="r">${esc(L('Dues', 'बकाया'))}</th>` : ''}</tr></thead><tbody>${rows.map((m) => { const s = memberState(m), d = dues.get(m.id) || 0; return `<tr class="click" data-act="openMember" data-id="${esc(m.id)}"><td class="edge e-${TONE[s] || 'mute'}">${avatarM(m)}</td><td><b>${esc(m.name)}</b><br><small class="muted">${esc(m.phone || '')}</small></td><td>${esc((pm.get(m.plan_id) || {}).name || '—')}</td><td>${badge(s)}</td><td class="r num">${esc(fmtDate(m.end_date))}</td><td class="num">${last.get(m.id) ? esc(fmtShort(last.get(m.id))) : '—'}</td>${isAdmin() ? `<td class="r num" style="color:${d ? 'var(--crimson)' : 'inherit'}">${d ? esc(inr(d)) : '—'}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>${pagerHtml(total, st.page, 'members')}` : empty(members.length ? L('No members match', 'कोई सदस्य मेल नहीं खाता') : L('No members yet', 'अभी कोई सदस्य नहीं'), '', members.length ? '' : `<button class="btn primary" data-act="newMember">${esc(L('Add the first member', 'पहला सदस्य जोड़ें'))}</button>`)}</div>`;
@@ -839,6 +839,12 @@ async function importForm() {
     },
   });
 }
+
+async function exportMembers() {
+  const [members, plans, invoices, payments] = await Promise.all([Q.members(), Q.plans(), isAdmin() ? Q.invoices() : [], isAdmin() ? Q.payments() : []]);
+  const pm = planMap(plans), dues = duesByMember(invoices, paidByInvoice(payments));
+  downloadCsv(`members-${todayISO()}.csv`, [['Name', 'Phone', 'Plan', 'Start', 'End', 'Status', 'Dues', 'Goal', 'Notes'], ...members.map((m) => [m.name, m.phone, (pm.get(m.plan_id) || {}).name || '', m.start_date || '', m.end_date || '', memberState(m), dues.get(m.id) || 0, m.goal || '', m.notes || ''])]);
+}
 /* ================= Extras: member photos, WhatsApp expiry reminders, offers ================= */
 
 /* ---------- Photos (private Supabase Storage bucket; staff of the gym + the member themself can read) ---------- */
@@ -950,8 +956,13 @@ function bestOffer(m, offers, plans) {
   return offers.filter((o) => offerLive(o, t) && (!o.plan_id || o.plan_id === m.plan_id)).sort((a, b) => offerDiscount(b, pr) - offerDiscount(a, pr))[0] || null;
 }
 async function vReminders() {
-  const [members, offers, plans] = await Promise.all([Q.members(), Q.offers().catch(() => []), Q.plans()]);
+  const [members, offers, plans, invoices, payments] = await Promise.all([Q.members(), Q.offers().catch(() => []), Q.plans(), isAdmin() ? Q.invoices() : [], isAdmin() ? Q.payments() : []]);
   const d = U_REMIND.days, today = todayISO();
+  const dueMap = duesByMember(invoices, paidByInvoice(payments)), mm = memberMap(members);
+  const oldestDue = new Map(); invoices.forEach((i) => { if (!i.cancelled && i.due && balanceOf(i, paidByInvoice(payments)) > 0.004 && (!oldestDue.has(i.member_id) || oldestDue.get(i.member_id) > i.due)) oldestDue.set(i.member_id, i.due); });
+  const owing = [...dueMap.entries()].map(([id, amt]) => ({ m: mm.get(id), amt })).filter((x) => x.m).sort((a, b) => b.amt - a.amt);
+  const duesMsg = (m, amt) => `नमस्ते ${m.name} जी, ${gymName()} से।\nआपका ${inr(amt)} बकाया है।${upiOf() ? `\nUPI: ${upiOf()} पर भेज सकते हैं` : ''} या जिम आकर जमा कर दीजिए।\n${(CTX.gym && CTX.gym.phone) ? 'संपर्क: ' + CTX.gym.phone + '\n' : ''}धन्यवाद! 🙏`;
+  const dueRow = ({ m, amt }) => `<li class="click" data-act="openMember" data-id="${esc(m.id)}">${avatarM(m)}<div class="grow"><b>${esc(m.name)}</b><small>${oldestDue.has(m.id) ? esc(L(`Oldest due date ${fmtDate(oldestDue.get(m.id))}`, `सबसे पुरानी देय तारीख़ ${fmtDate(oldestDue.get(m.id))}`)) : ''}</small></div><b class="num" style="color:var(--crimson)">${esc(inr(amt))}</b><a class="btn wa sm" data-stop target="_blank" rel="noreferrer" href="${esc(waLink(m.phone, duesMsg(m, amt)))}">${ic('msg')}</a></li>`;
   const soon = members.filter((m) => isDueSoon(m, d)).sort((a, b) => daysLeft(a) - daysLeft(b));
   const lapsed = members.filter((m) => memberState(m) === 'Expired' && daysLeft(m) >= -14).sort((a, b) => daysLeft(b) - daysLeft(a));
   const row = (m) => { const left = daysLeft(m), done = m.reminded_on === today; return `<li class="click" data-act="openMember" data-id="${esc(m.id)}">${avatarM(m)}<div class="grow"><b>${esc(m.name)}</b><small>${esc(left < 0 ? L(`Ended ${-left} day(s) ago`, `${-left} दिन पहले खत्म`) : left === 0 ? L('Ends today', 'आज खत्म') : L(`Ends in ${left} day(s) · ${fmtDate(m.end_date)}`, `${left} दिन में खत्म · ${fmtDate(m.end_date)}`))}${m.reminded_on ? ' · ' + esc(L(`reminded ${fmtShort(m.reminded_on)}`, `रिमाइंडर ${fmtShort(m.reminded_on)} को`)) : ''}</small></div>${done ? badge(L('Sent today', 'आज भेजा'), 'ok') : ''}<a class="btn wa sm" data-stop data-remind="${esc(m.id)}" target="_blank" rel="noreferrer" href="${esc(waLink(m.phone, remindMsg(m, bestOffer(m, offers, plans))))}">${ic('msg')} ${esc(done ? L('Again', 'फिर') : L('Remind', 'रिमाइंडर'))}</a></li>`; };
@@ -959,7 +970,8 @@ async function vReminders() {
     `<label class="fl" style="margin:0"><span>${esc(L('Remind this many days before', 'इतने दिन पहले याद दिलाएँ'))}</span><input class="in" id="rdays" type="number" min="1" max="14" value="${d}" data-bind="rdays" style="width:90px"></label>`)
     + card(L(`Ending within ${d} day(s)`, `${d} दिन में खत्म`), 'clock', '', soon.length ? `<ul class="list">${soon.map(row).join('')}</ul>` : empty(L('Nobody is due right now', 'अभी कोई नहीं'), ''))
     + `<div style="height:14px"></div>`
-    + card(L('Ended in the last 14 days', 'पिछले 14 दिन में खत्म'), 'clock', '', lapsed.length ? `<ul class="list">${lapsed.map(row).join('')}</ul>` : empty(L('None', 'कोई नहीं'), ''));
+    + card(L('Ended in the last 14 days', 'पिछले 14 दिन में खत्म'), 'clock', '', lapsed.length ? `<ul class="list">${lapsed.map(row).join('')}</ul>` : empty(L('None', 'कोई नहीं'), ''))
+    + (isAdmin() ? `<div style="height:14px"></div>` + card(L(`Pending dues · ${inr(sum(owing, (x) => x.amt))}`, `बकाया · ${inr(sum(owing, (x) => x.amt))}`), 'wallet', '', owing.length ? `<ul class="list">${owing.map(dueRow).join('')}</ul>` : empty(L('No pending dues', 'कोई बकाया नहीं'), '')) : '');
 }
 function markReminded(id) {
   DB.update('members', id, { reminded_on: todayISO() }).then(() => { bust('members'); setTimeout(() => { if (currentRoute() && currentRoute()[0] === 'reminders') render(); }, 700); }).catch(() => {});
@@ -1081,7 +1093,7 @@ const ACTIONS = {
   retry: () => { bust(); CTX.profile ? render() : enter(); },
   lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
   theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
-  importMembers: () => importForm(), newOffer: () => offerForm(), editOffer: (d) => offerForm(d.id), shareOffer: (d) => shareOffer(d.id),
+  importMembers: () => importForm(), membersCsv: () => exportMembers(), newOffer: () => offerForm(), editOffer: (d) => offerForm(d.id), shareOffer: (d) => shareOffer(d.id),
   newTrainer: () => accountForm('trainer'),
   changePw: () => openForm({
     title: L('Change password', 'पासवर्ड बदलें'),

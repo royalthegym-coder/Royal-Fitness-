@@ -136,6 +136,11 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok((await page.$$('#imp_res li')).length === 3 && !db.bulk, 'import reports every bad line and imports nothing');
     await page.fill('#f_text', 'A One, 98111 11111, Monthly, 01-10-2026\nB Two, 9222222222, , \n'); await page.click('[data-ok]'); await page.waitForFunction(() => !document.querySelector('#modals .md'));
     ok(db.bulk && db.bulk.length === 2 && db.bulk[0].end_date === '2026-10-31' && db.bulk[0].phone === '9811111111' && db.bulk[1].plan_id === null, 'valid rows imported with computed end date and cleaned phone');
+    // pending dues on the reminders page
+    await page.click('a[href="#reminders"]'); await page.waitForSelector('a[data-remind]');
+    ok(/पूरी|बकाया|Pending dues/.test(await page.textContent('#view')) && (await page.$$eval('#view a.wa', (a) => a.filter((x) => /UPI/.test(decodeURIComponent(x.href)) && /बकाया/.test(decodeURIComponent(x.href))).length)) >= 1, 'reminders page lists pending dues with a WhatsApp message');
+    // members CSV
+    await page.click('a[href="#members"]'); await page.waitForSelector('[data-act=membersCsv]'); const dl = page.waitForEvent('download'); await page.click('[data-act=membersCsv]'); ok(/^members-\d{4}-\d{2}-\d{2}\.csv$/.test((await dl).suggestedFilename()), 'members CSV downloads');
     // member photo
     await page.click('a[href="#members"]'); await page.waitForSelector('tr.click'); await page.click('tr.click:has-text("Rahul")'); await page.waitForSelector('#phIn', { state: 'attached' });
     await page.setInputFiles('#phIn', { name: 'a.png', mimeType: 'image/png', buffer: PNG });
