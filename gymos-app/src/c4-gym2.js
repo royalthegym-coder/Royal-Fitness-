@@ -88,15 +88,6 @@ async function payForm(invoiceId) {
 function receiptText(p, m) {
   return `🧾 ${gymName()}\nरसीद: ${p.no || '—'}\nसदस्य: ${m.name || ''}\nराशि: ${inr(p.amount)} (${p.method})\nतारीख़: ${fmtDate(p.paid_on || todayISO())}\nधन्यवाद! 💪`;
 }
-function receiptModal(p, m) {
-  m = m || {};
-  const mod = openModal({
-    title: L('Receipt', 'रसीद'),
-    body: `<div class="card" style="padding:14px"><b>${esc(gymName())}</b><div class="num" style="margin:6px 0">${esc(p.no || '—')}</div><div>${esc(m.name || '')}</div><div class="num" style="font-size:22px;margin:6px 0">${esc(inr(p.amount))}</div><div class="muted">${esc(p.method)} · ${esc(fmtDate(p.paid_on || todayISO()))}${p.ref ? ' · ' + esc(p.ref) : ''}</div></div>`,
-    footer: `<a class="btn wa" target="_blank" rel="noreferrer" href="${esc(waLink(m.phone, receiptText(p, m)))}">${ic('msg')} WhatsApp</a><button type="button" class="btn" data-cp>${ic('copy')} ${esc(L('Copy', 'कॉपी'))}</button>`,
-  });
-  $('[data-cp]', mod.el).onclick = () => copyText(receiptText(p, m));
-}
 async function vPayments() {
   const [payments, members] = await Promise.all([Q.payments(), Q.members()]);
   const mm = memberMap(members), st = U.payments, q = st.q.trim().toLowerCase();

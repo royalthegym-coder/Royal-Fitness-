@@ -28,7 +28,7 @@ async function loadContext() {
 /* ---------- screens ---------- */
 function showGate(html) { $('#app').hidden = true; const g = $('#gate'); g.hidden = false; g.innerHTML = html; }
 function loginScreen(msg) {
-  showGate(`<div class="login"><section class="card"><div class="brand" style="padding:0"><span class="crest">${ic('crown')}</span><div><b>Royal The Gym</b><small>GymOS</small></div></div>
+  showGate(`<div class="login"><section class="card"><div class="brand" style="padding:0"><span class="crest"><img src="logo.webp" alt="" width="38" height="38"></span><div><b>Royal The Gym</b><small>GymOS</small></div></div>
     <h1>${esc(L('Sign in', 'लॉगिन करें'))}</h1><p class="muted" style="margin:0">${esc(L('Use the email and password given by your gym.', 'अपने जिम से मिला ईमेल और पासवर्ड इस्तेमाल करें।'))}</p>
     ${msg ? `<div class="banner bad" style="margin:12px 0 0" role="alert">${esc(msg)}</div>` : ''}
     <form id="loginForm" novalidate><label class="fl"><span>${esc(L('Email', 'ईमेल'))}</span><input class="in" id="l_email" type="email" autocomplete="username" required></label>

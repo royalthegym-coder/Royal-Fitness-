@@ -12,19 +12,19 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Royal Gym">
-<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="icon" type="image/png" href="icon-192.png">
 </head>
 <body>
 <div id="gate"></div>
 <div class="app" id="app" hidden>
   <aside class="side">
-    <div class="brand"><span class="crest"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"/></svg></span><div><b id="gymName">Royal The Gym</b><small>GymOS</small></div></div>
+    <div class="brand"><span class="crest"><img src="logo.webp" alt="" width="38" height="38"></span><div><b id="gymName">Royal The Gym</b><small>GymOS</small></div></div>
     <nav class="nav" id="nav" aria-label="Main"></nav>
     <div class="foot"><b>Train like royalty</b>Shekhawati's finest fitness club</div>
   </aside>
   <div class="main">
     <header class="top">
-      <span class="mbrand"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"/></svg>GymOS</span>
+      <span class="mbrand"><img src="logo.webp" alt="" width="24" height="24">GymOS</span>
       <div class="date" id="date"></div>
       <span id="pills"></span>
       <span class="who" id="who"></span>
@@ -37,6 +37,7 @@
   </div>
 </div>
 <div id="modals"></div>
+<div id="printArea" aria-hidden="true"></div>
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <noscript>GymOS needs JavaScript.</noscript>
 <script src="app.js"></script>

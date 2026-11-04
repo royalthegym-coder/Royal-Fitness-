@@ -62,7 +62,7 @@ function handler(db, role) {
   };
 }
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
-const server = http.createServer((q, s) => { const f = path.join(PUB, q.url === '/' ? 'index.html' : q.url.split('?')[0]); if (!f.startsWith(PUB) || !fs.existsSync(f)) { s.writeHead(404); return s.end(); } s.writeHead(200, { 'content-type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : 'text/html' }); s.end(fs.readFileSync(f)); });
+const server = http.createServer((q, s) => { const f = path.join(PUB, q.url === '/' ? 'index.html' : q.url.split('?')[0]); if (!f.startsWith(PUB) || !fs.existsSync(f)) { s.writeHead(404); return s.end(); } s.writeHead(200, { 'content-type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : f.endsWith('.webp') ? 'image/webp' : f.endsWith('.png') ? 'image/png' : f.endsWith('.webmanifest') ? 'application/manifest+json' : 'text/html' }); s.end(fs.readFileSync(f)); });
 
 async function session(browser, role, fn, vp = { width: 1280, height: 800 }) {
   const db = makeDb(role), ctx = await browser.newContext({ viewport: vp }), page = await ctx.newPage(), errs = [];
@@ -120,7 +120,10 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.waitForSelector('[data-p]'); await page.click('[data-p]'); await page.fill('#f_amount', '2000'); await page.click('[data-ok]');
     ok((await page.textContent('#e_amount')).length > 0, 'overpayment rejected'); await page.fill('#f_amount', '500'); await page.click('[data-ok]');
     await page.waitForSelector('a.btn.wa'); ok(/wa\.me\/919876543210/.test(await page.getAttribute('a.btn.wa', 'href')), 'receipt has WhatsApp link to member');
-    ok(db.payments.length === 1 && db.payments[0].amount === 500, 'partial payment stored'); await page.keyboard.press('Escape');
+    ok(db.payments.length === 1 && db.payments[0].amount === 500, 'partial payment stored');
+    await page.waitForSelector('#rcBox img', { timeout: 8000 }); ok(await page.$eval('#rcBox img', (i) => i.naturalWidth === 800 && i.naturalHeight === 1220), 'receipt image is generated with the logo layout');
+    const dlp = page.waitForEvent('download'); await page.click('[data-dl]'); ok(/^RCT-\d{4}\.png$/.test((await dlp).suggestedFilename()), 'receipt downloads as PNG named by receipt number');
+    await page.keyboard.press('Escape');
     await page.click('a[href="#ledger"]'); await page.waitForSelector('table.t'); await page.click('[data-act=verifyLedger]'); await page.waitForSelector('.banner.ok');
     ok(true, 'ledger verify shows OK banner');
     // retention + peak + settings
