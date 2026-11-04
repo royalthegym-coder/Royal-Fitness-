@@ -1,5 +1,11 @@
 # Supabase objects added outside the main schema
 
+- Automatic WhatsApp (receipt after payment, expiry reminder, due reminder):
+  - Tables `wa_settings` (per-gym switches, days, template names) and `wa_log` (queue and history; unique `dedupe_key`, so a message is never queued twice); column `members.wa_opt_out`.
+  - Queueing: trigger `wa_payment_receipt` on `payments`; pg_cron `wa-daily-reminders` at 03:30 UTC (09:00 IST) runs `private.wa_daily_job()`; `wa-queue-retry` pokes the sender every 5 minutes while anything is queued.
+  - Sending: Edge function `wa-dispatch` (verify_jwt = false, authenticates inside) sends Meta WhatsApp Cloud API template messages. pg_cron and the trigger call it with a random shared value kept in Supabase Vault and checked through `wa_cron_ok`; the in-app buttons use the signed-in admin's session.
+  - The owner must add two Edge function values in the Supabase dashboard: `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID`. Until then messages stay queued (anything older than 3 days is dropped). The guide and the three template texts are on the app's WhatsApp page.
+
 - Edge function `create-account` (verify_jwt = true): a gym admin creates a trainer/member login for their OWN gym.
   Caller role and gym come from the database, never from the request. Deployed to project `ayoeevltbubkyhixqqlg`.
 - SQL function `public.service_assign_profile(...)`: executable only by `service_role`; sets role/gym on the new profile and links the member.

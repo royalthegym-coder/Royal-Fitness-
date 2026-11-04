@@ -13,7 +13,7 @@ let seq = 1; const uid = () => '00000000-0000-4000-8000-' + String(seq++).padSta
 
 function makeDb(role) {
   const G = '11111111-1111-4111-8111-111111111111', P1 = uid(), P2 = uid();
-  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [] };
+  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [] };
   const me = '22222222-2222-4222-8222-222222222222';
   db.me = me; db.G = G;
   db.profiles = [{ id: me, gym_id: role === 'super_admin' ? null : G, role, full_name: 'Test', email: 't@x.in', created_at: new Date().toISOString() }, { id: uid(), gym_id: null, role: 'member', full_name: 'New User', email: 'n@x.in', created_at: new Date().toISOString() }];
@@ -34,6 +34,7 @@ function handler(db, role) {
     db.calls.push(`${m} ${p}${u.search ? '?' + u.search.slice(1, 40) : ''}`);
     if (p === '/auth/v1/token') { const b = JSON.parse(req.postData() || '{}'); if (b.password === 'bad') return json({ msg: 'Invalid login credentials' }, 400); return json({ access_token: jwt(db.me), refresh_token: 'r', expires_in: 3600, user: { email: 't@x.in' } }); }
     if (p === '/functions/v1/create-account') { const b = JSON.parse(req.postData()); db.created = b; if (b.email === 'taken@x.in') return json({ error: 'email_taken' }, 409); return json({ email: b.email, password: 'GenPass1234abcd', role: b.role }); }
+    if (p === '/functions/v1/wa-dispatch') { const b = JSON.parse(req.postData() || '{}'); (db.waCalls = db.waCalls || []).push(b); return json({ configured: false }); }
     if (p === '/auth/v1/user' && m === 'PUT') { db.pwChanged = JSON.parse(req.postData()).password; return json({ id: db.me }); }
     if (p === '/auth/v1/logout') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
     if (p.startsWith('/rest/v1/rpc/')) {
@@ -47,6 +48,7 @@ function handler(db, role) {
     if (p.startsWith('/storage/v1/object/member-photos/') && m === 'POST') { db.uploaded = p; return json({ Key: 'x' }); }
     const t = p.replace('/rest/v1/', ''), rows = db[t];
     if (!rows) return json({ message: 'nope' }, 404);
+    if (t === 'wa_settings' && m === 'POST') { const b = JSON.parse(req.postData()); if (rows[0]) Object.assign(rows[0], b); else rows.unshift({ ...b }); return json([rows[0]], 201); }
     if (m === 'GET') { let r = rows; u.searchParams.forEach((v, k) => { if (v.startsWith('eq.')) r = r.filter((x) => String(x[k]) === v.slice(3)); }); return json(r); }
     if (m === 'POST' && Array.isArray(JSON.parse(req.postData()))) { const out = JSON.parse(req.postData()).map((b) => ({ id: uid(), status: 'Active', ...b })); out.forEach((r) => rows.unshift(r)); db.bulk = out; return json(out, 201); }
     if (m === 'POST') {
@@ -87,7 +89,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(/ग़लत|Wrong/.test(await page.textContent('.banner.bad')), 'wrong password shows a friendly error');
     await login(page); await page.waitForSelector('.tiles');
     ok(/Royal The Gym/.test(await page.textContent('#gymName')), 'dashboard loads with gym name');
-    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 12, 'gym admin sees 12 menu items');
+    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 13, 'gym admin sees 13 menu items');
     await page.click('a[href="#members"]'); await page.waitForSelector('table.t');
     ok((await page.$$('table.t tbody tr')).length === 4, 'members list shows 4');
     await page.fill('#mq', 'priya'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 1);
@@ -160,6 +162,20 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok((await page.textContent('#nav a[href="#reminders"] .n')) === '1', 'menu badge counts reminders due');
     await page.click('a[data-remind]', { force: true }); for (let i = 0; i < 20 && !db.members.find((m) => m.name === 'Priya Verma').reminded_on; i++) await page.waitForTimeout(150);
     ok(db.members.find((m) => m.name === 'Priya Verma').reminded_on === today(), 'sending marks the member as reminded today');
+    // automatic WhatsApp page: settings, test, opt-out
+    await page.click('a[href="#whatsapp"]'); await page.waitForSelector('[data-act=waSettings]');
+    ok(/fee_receipt/.test(await page.textContent('#view')) && /membership_expiry/.test(await page.textContent('#view')) && /fee_due/.test(await page.textContent('#view')), 'WhatsApp page lists the three template names');
+    ok(/अभी जुड़ा नहीं|Not connected yet/.test(await page.textContent('#view')), 'page shows WhatsApp is not connected yet');
+    await page.click('[data-act=waSettings]'); await page.check('#f_auto_receipt'); await page.check('#f_auto_expiry'); await page.fill('#f_expiry_days', '3'); await page.check('#f_auto_dues'); await page.fill('#f_dues_every_days', '5');
+    await page.click('[data-ok]'); for (let i = 0; i < 20 && !db.wa_settings.length; i++) await page.waitForTimeout(150);
+    ok(db.wa_settings.length === 1 && db.wa_settings[0].auto_receipt === true && db.wa_settings[0].auto_expiry === true && db.wa_settings[0].auto_dues === true && db.wa_settings[0].expiry_days === 3 && db.wa_settings[0].dues_every_days === 5 && db.wa_settings[0].tpl_receipt === 'fee_receipt', 'automatic WhatsApp settings saved');
+    await page.click('[data-act=waSettings]'); await page.fill('#f_tpl_dues', 'Bad Name!'); await page.click('[data-ok]');
+    ok((await page.textContent('#e_tpl_dues')).length > 0, 'invalid template name rejected'); await page.keyboard.press('Escape');
+    await page.click('[data-act=waTest]'); await page.fill('#f_phone', '9812345678'); await page.click('[data-ok]'); for (let i = 0; i < 20 && !(db.waCalls || []).some((c) => c.action === 'test'); i++) await page.waitForTimeout(150);
+    ok((db.waCalls || []).some((c) => c.action === 'test' && c.phone === '9812345678'), 'test message request is sent to the dispatcher'); await page.keyboard.press('Escape');
+    await page.evaluate((id) => memberForm(id), db.members[0].id); await page.waitForSelector('#f_wa_opt_out'); await page.check('#f_wa_opt_out'); await page.click('[data-ok]');
+    for (let i = 0; i < 20 && !db.members[0].wa_opt_out; i++) await page.waitForTimeout(150);
+    ok(db.members[0].wa_opt_out === true, 'member can be opted out of automatic WhatsApp');
     // offers
     await page.click('a[href="#offers"]'); await page.waitForSelector('[data-act=newOffer]'); await page.click('[data-act=newOffer]');
     await page.fill('#f_name', 'Diwali 10%'); await page.fill('#f_value', '10'); await page.click('[data-ok]'); await page.waitForFunction(() => /Diwali 10%/.test(document.body.innerText));
@@ -195,7 +211,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await session(browser, 'gym_admin', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
     for (const lang of ['hi', 'en']) {
-      for (const r of ['dashboard', 'members', 'reminders', 'checkin', 'plans', 'offers', 'invoices', 'payments', 'ledger', 'retention', 'peak', 'settings']) {
+      for (const r of ['dashboard', 'members', 'reminders', 'whatsapp', 'checkin', 'plans', 'offers', 'invoices', 'payments', 'ledger', 'retention', 'peak', 'settings']) {
         await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(250); await page.waitForSelector('#view .ph');
         if (await overflow(page)) { ok(false, `overflow on ${r} (${lang})`); }
       }
