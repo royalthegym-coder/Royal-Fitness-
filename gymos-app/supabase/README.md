@@ -1,5 +1,8 @@
 # Supabase objects added outside the main schema
 
+- Owner's end-of-day summary (dashboard card, Hindi): table `daily_summaries`, function `daily_facts(g, d)` (aggregate numbers only, service role only), Edge function `daily-summary` (source in `functions/daily-summary/`, tests `node tests/summary.test.mjs`), pg_cron `daily-summary-final` at 16:30 UTC (22:00 IST). The text is built by fixed rules. If the Edge function values `AI_GATEWAY_API_KEY` and `AI_GATEWAY_MODEL` are added (and optionally `AI_GATEWAY_BASE_URL`, default `https://ai-gateway.vercel.sh/v1`, any OpenAI-compatible chat endpoint), the model may only re-word it, and its answer is discarded unless every number matches the database. Member names are never sent.
+- Overpayment guard: trigger `payments_no_overpay` refuses a payment that would exceed its invoice total (the form also ignores a second Enter while a save is running).
+
 - End-of-day summary on the owner's dashboard:
   - Table `daily_summaries` (one row per gym and day; owners read, only the Edge function writes), function `daily_facts(g, d)` (aggregate numbers only, service role), pg_cron `daily-summary-final` at 16:30 UTC (22:00 IST).
   - Edge function `daily-summary` (source in `functions/daily-summary/`). The text is built by fixed rules from the database numbers. If an AI gateway is configured it may only re-word it, and the answer is thrown away if any number differs, so the rules text is the fallback. No names or phone numbers are sent to the gateway.
