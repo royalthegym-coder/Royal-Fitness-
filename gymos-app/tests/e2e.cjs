@@ -49,6 +49,8 @@ function handler(db, role) {
       const fn = p.split('/').pop(), a = JSON.parse(req.postData() || '{}');
       if (fn === 'admin_gym_overview') return json(OV);
       if (fn === 'verify_gym_ledger') return json([]);
+      if (fn === 'publish_member_plan') { const r = db.member_plans.find((x) => x.id === a.p); db.member_plans.forEach((x) => { if (x.member_id === r.member_id && x.kind === r.kind && x.status === 'published' && x.id !== r.id) x.status = 'archived'; }); r.status = 'published'; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
+      if (fn === 'unpublish_member_plan') { const r = db.member_plans.find((x) => x.id === a.p); if (r && r.status === 'published') r.status = 'archived'; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'admin_update_gym') { Object.assign(db.gyms[0], { name: a.gym_name, owner_name: a.owner, phone: a.phone_no, city: a.city_name, upi_id: a.upi }); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
     }
@@ -205,7 +207,9 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     const pb = await page.textContent('#planBody'); ok(/kcal|Calories|कैलोरी/.test(pb) && /Option A|विकल्प A/.test(pb), 'diet draft shows calories and meal options'); await page.keyboard.press('Escape');
     await page.click('[data-pub] >> nth=0'); await page.waitForFunction(() => document.querySelectorAll('[data-pub]').length === 1); await page.click('[data-pub]');
     for (let i = 0; i < 20 && db.member_plans.some((r) => r.status !== 'published'); i++) await page.waitForTimeout(150);
-    ok(db.member_plans.filter((r) => r.status === 'published').length === 2, 'both plans published'); await page.keyboard.press('Escape');
+    ok(db.member_plans.filter((r) => r.status === 'published').length === 2, 'both plans published');
+    await page.click('[data-unpub] >> nth=0'); for (let i = 0; i < 20 && db.member_plans.every((r) => r.status === 'published'); i++) await page.waitForTimeout(150);
+    ok(db.member_plans.filter((r) => r.status === 'published').length === 1 && db.member_plans.filter((r) => r.status === 'archived').length === 1, 'a published plan can be taken back'); await page.waitForFunction(() => document.querySelectorAll('[data-v]').length === 1); await page.keyboard.press('Escape');
     // offers
     await page.click('a[href="#offers"]'); await page.waitForSelector('[data-act=newOffer]'); await page.click('[data-act=newOffer]');
     await page.fill('#f_name', 'Diwali 10%'); await page.fill('#f_value', '10'); await page.click('[data-ok]'); await page.waitForFunction(() => /Diwali 10%/.test(document.body.innerText));

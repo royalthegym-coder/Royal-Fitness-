@@ -115,13 +115,10 @@ async function fitPlanModal(memberId) {
   $$('[data-pub]', mod.el).forEach((b) => (b.onclick = async () => {
     const r = rows.find((x) => x.id === b.dataset.pub);
     if (r.needs_review && !(await askConfirm(L('This plan needs a review (health condition, allergy or age). Publish only after the doctor or trainer has approved it. Publish now?', 'इस प्लान की जाँच ज़रूरी है (स्वास्थ्य समस्या, एलर्जी या उम्र)। डॉक्टर या ट्रेनर की मंज़ूरी के बाद ही पब्लिश कीजिए। अभी पब्लिश करें?'), L('Publish', 'पब्लिश'), 'primary'))) return;
-    const ok = await act(async () => {
-      await api(`/rest/v1/member_plans?member_id=eq.${encodeURIComponent(memberId)}&kind=eq.${r.kind}&status=eq.published`, { method: 'PATCH', body: { status: 'archived' } });
-      await DB.update('member_plans', r.id, { status: 'published', published_at: new Date().toISOString() });
-    }, L('Published. The member can see it now.', 'पब्लिश हो गया। सदस्य को अब दिखेगा।'));
+    const ok = await act(() => DB.rpc('publish_member_plan', { p: r.id }), L('Published. The member can see it now.', 'पब्लिश हो गया। सदस्य को अब दिखेगा।'));
     if (ok) fitPlanModal(memberId);
   }));
-  $$('[data-unpub]', mod.el).forEach((b) => (b.onclick = async () => { const ok = await act(() => DB.update('member_plans', b.dataset.unpub, { status: 'draft', published_at: null }), L('Moved back to draft', 'ड्राफ़्ट में वापस')); if (ok) fitPlanModal(memberId); }));
+  $$('[data-unpub]', mod.el).forEach((b) => (b.onclick = async () => { const ok = await act(() => DB.rpc('unpublish_member_plan', { p: b.dataset.unpub }), L('Taken back. The member no longer sees it.', 'वापस ले लिया। सदस्य को अब नहीं दिखेगा।')); if (ok) fitPlanModal(memberId); }));
   $$('[data-del]', mod.el).forEach((b) => (b.onclick = async () => { if (!(await askConfirm(L('Delete this draft?', 'यह ड्राफ़्ट हटाएँ?'), L('Delete', 'हटाएँ')))) return; const ok = await act(() => DB.remove('member_plans', b.dataset.del), L('Deleted', 'हटाया')); if (ok) fitPlanModal(memberId); }));
 }
 
