@@ -1,5 +1,10 @@
 # Supabase objects added outside the main schema
 
+- Diet + workout plans:
+  - Tables `member_fit` (body details, one row per member) and `member_plans` (kind diet/workout, status draft/published/archived). Staff of the gym read and write; a member reads only their own PUBLISHED plans; only staff can publish (RLS verified with rollback tests).
+  - Edge function `generate-plan` (verify_jwt = true, runs as the caller so RLS applies; source in `functions/generate-plan/`). All numbers (BMR/TDEE, calories, macros, portions, sets, reps) come from fixed rules in `engine.js` (unit tests: `node tests/plan-engine.test.mjs`). Injuries and allergies remove unsafe exercises and foods; health conditions, allergies, under-18 members mark the draft "needs review"; pregnancy or breastfeeding is refused (refer to a doctor).
+  - Optional: if the Edge function value `ANTHROPIC_API_KEY` is added in the Supabase dashboard, Claude writes only a short personal note and tips. It never changes a number. Without it everything still works.
+
 - Automatic WhatsApp (receipt after payment, expiry reminder, due reminder):
   - Tables `wa_settings` (per-gym switches, days, template names) and `wa_log` (queue and history; unique `dedupe_key`, so a message is never queued twice); column `members.wa_opt_out`.
   - Queueing: trigger `wa_payment_receipt` on `payments`; pg_cron `wa-daily-reminders` at 03:30 UTC (09:00 IST) runs `private.wa_daily_job()`; `wa-queue-retry` pokes the sender every 5 minutes while anything is queued.

@@ -11,9 +11,15 @@ const today = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10);
 const addD = (d, n) => new Date(Date.parse(d) + n * 864e5).toISOString().slice(0, 10);
 let seq = 1; const uid = () => '00000000-0000-4000-8000-' + String(seq++).padStart(12, '0');
 
+const ENGINE = import('../supabase/functions/generate-plan/engine.js');
+function draftRows(eng, db, mem, fit, status) {
+  const p = eng.buildPlans(fit, mem, 11);
+  return ['diet', 'workout'].map((kind) => ({ id: uid(), gym_id: db.G, member_id: mem.id, kind, status, title: p[kind].title.en, summary: { ...p[kind].summary, title: p[kind].title }, content: p[kind].content, source: 'builtin', needs_review: p.needs_review, created_at: new Date().toISOString(), published_at: status === 'published' ? new Date().toISOString() : null }));
+}
+const FIT = { age: 30, height_cm: 175, weight_kg: 80, goal: 'fat_loss', diet_pref: 'veg', activity: 'moderate', experience: 'intermediate', days_per_week: 4, session_min: 60, equipment: 'gym', injuries: null, conditions: null, allergies: null };
 function makeDb(role) {
   const G = '11111111-1111-4111-8111-111111111111', P1 = uid(), P2 = uid();
-  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [] };
+  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [] };
   const me = '22222222-2222-4222-8222-222222222222';
   db.me = me; db.G = G;
   db.profiles = [{ id: me, gym_id: role === 'super_admin' ? null : G, role, full_name: 'Test', email: 't@x.in', created_at: new Date().toISOString() }, { id: uid(), gym_id: null, role: 'member', full_name: 'New User', email: 'n@x.in', created_at: new Date().toISOString() }];
@@ -35,6 +41,7 @@ function handler(db, role) {
     if (p === '/auth/v1/token') { const b = JSON.parse(req.postData() || '{}'); if (b.password === 'bad') return json({ msg: 'Invalid login credentials' }, 400); return json({ access_token: jwt(db.me), refresh_token: 'r', expires_in: 3600, user: { email: 't@x.in' } }); }
     if (p === '/functions/v1/create-account') { const b = JSON.parse(req.postData()); db.created = b; if (b.email === 'taken@x.in') return json({ error: 'email_taken' }, 409); return json({ email: b.email, password: 'GenPass1234abcd', role: b.role }); }
     if (p === '/functions/v1/wa-dispatch') { const b = JSON.parse(req.postData() || '{}'); (db.waCalls = db.waCalls || []).push(b); return json({ configured: false }); }
+    if (p === '/functions/v1/generate-plan') { const b = JSON.parse(req.postData() || '{}'), eng = await ENGINE, fit = db.member_fit.find((f) => f.member_id === b.member_id), mem = db.members.find((x) => x.id === b.member_id); db.genCalls = (db.genCalls || 0) + 1; if (!fit) return json({ error: 'missing_profile' }, 400); db.member_plans = db.member_plans.filter((r) => !(r.member_id === b.member_id && r.status === 'draft')); draftRows(eng, db, mem, fit, 'draft').forEach((r) => db.member_plans.unshift(r)); return json({ ok: true, plans: [], ai: false, needs_review: false }); }
     if (p === '/auth/v1/user' && m === 'PUT') { db.pwChanged = JSON.parse(req.postData()).password; return json({ id: db.me }); }
     if (p === '/auth/v1/logout') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
     if (p.startsWith('/rest/v1/rpc/')) {
@@ -48,6 +55,9 @@ function handler(db, role) {
     if (p.startsWith('/storage/v1/object/member-photos/') && m === 'POST') { db.uploaded = p; return json({ Key: 'x' }); }
     const t = p.replace('/rest/v1/', ''), rows = db[t];
     if (!rows) return json({ message: 'nope' }, 404);
+    if (t === 'member_fit' && m === 'POST') { const b = JSON.parse(req.postData()), ex = rows.find((x) => x.member_id === b.member_id); if (ex) Object.assign(ex, b); else rows.unshift({ ...b }); return json([ex || rows[0]], 201); }
+    if (t === 'member_plans' && m === 'DELETE') { const id = u.searchParams.get('id').slice(3); const i = rows.findIndex((x) => x.id === id); if (i >= 0) rows.splice(i, 1); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
+    if (t === 'member_plans' && m === 'PATCH' && !u.searchParams.get('id')) { let r = rows; u.searchParams.forEach((v, k) => { if (v.startsWith('eq.')) r = r.filter((x) => String(x[k]) === v.slice(3)); }); r.forEach((x) => Object.assign(x, JSON.parse(req.postData()))); return json(r); }
     if (t === 'wa_settings' && m === 'POST') { const b = JSON.parse(req.postData()); if (rows[0]) Object.assign(rows[0], b); else rows.unshift({ ...b }); return json([rows[0]], 201); }
     if (m === 'GET') { let r = rows; u.searchParams.forEach((v, k) => { if (v.startsWith('eq.')) r = r.filter((x) => String(x[k]) === v.slice(3)); }); return json(r); }
     if (m === 'POST' && Array.isArray(JSON.parse(req.postData()))) { const out = JSON.parse(req.postData()).map((b) => ({ id: uid(), status: 'Active', ...b })); out.forEach((r) => rows.unshift(r)); db.bulk = out; return json(out, 201); }
@@ -176,6 +186,20 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.evaluate((id) => memberForm(id), db.members[0].id); await page.waitForSelector('#f_wa_opt_out'); await page.check('#f_wa_opt_out'); await page.click('[data-ok]');
     for (let i = 0; i < 20 && !db.members[0].wa_opt_out; i++) await page.waitForTimeout(150);
     ok(db.members[0].wa_opt_out === true, 'member can be opted out of automatic WhatsApp');
+    // diet + workout plans: body details -> generate -> review -> publish
+    await page.evaluate((id) => memberModal(id), db.members[0].id); await page.waitForSelector('[data-fp]'); await page.click('[data-fp]'); await page.waitForSelector('[data-gen]');
+    ok(await page.$eval('[data-gen]', (b) => b.disabled), 'Generate is disabled until body details are saved');
+    await page.click('[data-fit]'); await page.fill('#f_age', '30'); await page.fill('#f_height_cm', '175'); await page.fill('#f_weight_kg', '80'); await page.fill('#f_age', '5'); await page.click('[data-ok]');
+    ok((await page.textContent('#e_age')).length > 0, 'age outside 10-90 rejected'); await page.fill('#f_age', '30'); await page.click('[data-ok]');
+    for (let i = 0; i < 20 && !db.member_fit.length; i++) await page.waitForTimeout(150);
+    ok(db.member_fit.length === 1 && db.member_fit[0].age === 30 && db.member_fit[0].goal === 'fat_loss' && db.member_fit[0].gym_id === db.G, 'body details saved');
+    await page.waitForSelector('[data-gen]:not([disabled])'); await page.click('[data-gen]'); await page.waitForSelector('[data-v]');
+    ok(db.member_plans.length === 2 && db.member_plans.every((r) => r.status === 'draft'), 'two drafts created (diet and workout)');
+    await page.click('li:has-text("Diet plan") [data-v], li:has-text("डाइट प्लान") [data-v]'); await page.waitForSelector('#planBody');
+    const pb = await page.textContent('#planBody'); ok(/kcal|Calories|कैलोरी/.test(pb) && /Option A|विकल्प A/.test(pb), 'diet draft shows calories and meal options'); await page.keyboard.press('Escape');
+    await page.click('[data-pub] >> nth=0'); await page.waitForFunction(() => document.querySelectorAll('[data-pub]').length === 1); await page.click('[data-pub]');
+    for (let i = 0; i < 20 && db.member_plans.some((r) => r.status !== 'published'); i++) await page.waitForTimeout(150);
+    ok(db.member_plans.filter((r) => r.status === 'published').length === 2, 'both plans published'); await page.keyboard.press('Escape');
     // offers
     await page.click('a[href="#offers"]'); await page.waitForSelector('[data-act=newOffer]'); await page.click('[data-act=newOffer]');
     await page.fill('#f_name', 'Diwali 10%'); await page.fill('#f_value', '10'); await page.click('[data-ok]'); await page.waitForFunction(() => /Diwali 10%/.test(document.body.innerText));
@@ -236,7 +260,9 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   });
 
   console.log('member + waiting');
-  await session(browser, 'member', async (page) => { await login(page); await page.waitForSelector('.tiles'); ok(/Rahul/.test(await page.textContent('#view')), 'member sees own page'); ok((await page.$$eval('#nav a', (a) => a.length)) === 1, 'member sees one menu item'); });
+  await session(browser, 'member', async (page, db) => { const eng = await ENGINE; draftRows(eng, db, db.members[0], FIT, 'published').forEach((r) => db.member_plans.push(r)); draftRows(eng, db, db.members[0], FIT, 'draft').forEach((r) => db.member_plans.push(r)); await login(page); await page.waitForSelector('.tiles'); ok(/Rahul/.test(await page.textContent('#view')), 'member sees own page');
+    await page.waitForSelector('[data-act=openMyPlan]'); ok((await page.$$('[data-act=openMyPlan]')).length === 2, 'member sees the two published plans');
+    await page.click('[data-act=openMyPlan] >> nth=1'); await page.waitForSelector('#planBody'); ok(/Barbell|Dumbbell|Machine|Push|Lat/.test(await page.textContent('#planBody')), 'member can open the workout plan'); await page.keyboard.press('Escape'); ok((await page.$$eval('#nav a', (a) => a.length)) === 1, 'member sees one menu item'); });
   {
     const db = makeDb('member'); db.profiles[0].gym_id = null; const ctx = await browser.newContext(), page = await ctx.newPage(); await ctx.route(SB + '/**', handler(db, 'member'));
     await page.goto(`http://127.0.0.1:${server.address().port}/`); await login(page); await page.waitForSelector('[data-act=signOut]');

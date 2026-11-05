@@ -275,3 +275,6 @@ table.t td.edge { border-left: 4px solid var(--line); }
   body.printing #printArea { display: block !important; }
   @page { size: A5 portrait; margin: 8mm; }
 }
+
+.note { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--gold, #a67c1d) 8%, transparent); font-size: 13px; line-height: 1.5; }
+@media print { body.printing #printArea table.t { font-size: 12px; } body.printing #printArea .note { border: 1px solid #999; } }
