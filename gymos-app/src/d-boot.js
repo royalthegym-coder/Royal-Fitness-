@@ -80,7 +80,7 @@ async function render() {
   }
   if (token !== RENDER_TOKEN) return;
   view.dataset.ready = '1'; view.dataset.route = route[0];
-  view.innerHTML = lockBanner() + html; refreshBadge();
+  view.innerHTML = lockBanner() + html; refreshBadge(); if ($('#daySum')) loadDaySummary();
   if (focusId) { const el = document.getElementById(focusId); if (el) { el.focus(); try { el.setSelectionRange(caret, caret); } catch (e) {} } }
 }
 async function enter() {

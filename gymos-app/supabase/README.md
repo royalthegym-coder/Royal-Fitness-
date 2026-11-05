@@ -1,5 +1,11 @@
 # Supabase objects added outside the main schema
 
+- End-of-day summary on the owner's dashboard:
+  - Table `daily_summaries` (one row per gym and day; owners read, only the Edge function writes), function `daily_facts(g, d)` (aggregate numbers only, service role), pg_cron `daily-summary-final` at 16:30 UTC (22:00 IST).
+  - Edge function `daily-summary` (source in `functions/daily-summary/`). The text is built by fixed rules from the database numbers. If an AI gateway is configured it may only re-word it, and the answer is thrown away if any number differs, so the rules text is the fallback. No names or phone numbers are sent to the gateway.
+  - Optional Edge function values (Supabase dashboard): `AI_GATEWAY_API_KEY` and `AI_GATEWAY_MODEL` (both needed), `AI_GATEWAY_BASE_URL` (default `https://ai-gateway.vercel.sh/v1`, any OpenAI-compatible gateway works).
+- Payments can no longer exceed their invoice: trigger `payments_no_overpay` (a double Enter press had saved the same ₹2000 twice; the form also ignores a second submit while saving).
+
 - Diet + workout plans:
   - Tables `member_fit` (body details, one row per member) and `member_plans` (kind diet/workout, status draft/published/archived). Staff of the gym read and write; a member reads only their own PUBLISHED plans; only staff can publish (RLS verified with rollback tests).
   - Edge function `generate-plan` (verify_jwt = true, runs as the caller so RLS applies; source in `functions/generate-plan/`). All numbers (BMR/TDEE, calories, macros, portions, sets, reps) come from fixed rules in `engine.js` (unit tests: `node tests/plan-engine.test.mjs`). Injuries and allergies remove unsafe exercises and foods; health conditions, allergies, under-18 members mark the draft "needs review"; pregnancy or breastfeeding is refused (refer to a doctor).

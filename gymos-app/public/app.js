@@ -222,6 +222,7 @@ function openForm({ title, fields, values = {}, submitLabel, onSubmit, extra = '
   const m = openModal({ title, wide, body: `<form id="mf" novalidate><div class="fg">${fields.map((f) => fieldHtml(f, values)).join('')}</div>${extra}</form>`, footer: `<button type="button" class="btn" data-no>${esc(L('Cancel', 'रद्द करें'))}</button><button type="button" class="btn primary" data-ok>${esc(submitLabel || L('Save', 'सेव करें'))}</button>` });
   const btn = $('[data-ok]', m.el);
   const go = async () => {
+    if (btn.disabled) return; // Enter pressed again while a save is running must not save twice
     const vals = readForm(m.el, fields);
     if (!vals) { const bad = $('.err:not(:empty)', m.el); if (bad) bad.closest('label').querySelector('input,select,textarea')?.focus(); return; }
     btn.disabled = true;
@@ -415,6 +416,7 @@ async function vDashboard() {
   const dues = sum(invoices, (i) => balanceOf(i, paid)), overdueN = invoices.filter((i) => isOverdue(i, paid)).length;
   const soon = members.filter((m) => memberState(m) === 'Expiring').sort((a, b) => a.end_date.localeCompare(b.end_date)).slice(0, 6);
   return pageHead(gymName(), L('Dashboard', 'डैशबोर्ड'), fmtDate(today))
+    + (isAdmin() ? '<div id="daySum"></div>' : '')
     + `<div class="tiles">${tile(L('Active members', 'सक्रिय सदस्य'), active, `${expired} ${esc(L('expired', 'खत्म'))}`)}${tile(L('Expiring in 7 days', '7 दिन में खत्म'), expiring, '', expiring ? 'var(--warn)' : '')}${tile(L('Check-ins today', 'आज चेक-इन'), todayIn.length, `${onFloor} ${esc(L('on the floor now', 'अभी फ़्लोर पर'))}`)}${isAdmin() ? tile(L('Collected this month', 'इस महीने जमा'), esc(inr(collected))) + tile(L('Dues pending', 'बकाया'), esc(inr(dues)), overdueN ? `${overdueN} ${esc(L('overdue', 'देर'))}` : '', dues ? 'var(--crimson)' : '') : ''}</div>`
     + `<div class="grid2">${card(L('Renewals coming up', 'जल्द खत्म होने वाले'), 'clock', '', soon.length ? `<ul class="list">${soon.map((m) => `<li class="click" data-act="openMember" data-id="${esc(m.id)}">${avatarM(m)}<div class="grow"><b>${esc(m.name)}</b><small>${esc(L(`Ends ${fmtDate(m.end_date)}`, `${fmtDate(m.end_date)} को खत्म`))}</small></div>${waBtnRenew(m)}</li>`).join('')}</ul>` : empty(L('No renewals due this week', 'इस हफ़्ते कोई रिन्यूअल नहीं'), ''))}
     ${card(L('Today at the gym', 'आज जिम में'), 'door', `<a href="#checkin">${esc(L('Check-in', 'चेक-इन'))}</a>`, todayIn.length ? `<ul class="list">${todayIn.slice(0, 6).map((v) => `<li><div class="grow"><b>${esc(memberName(memberMap(members), v.member_id))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div>${v.out_at ? '' : badge(L('Inside', 'अंदर'), 'ok')}</li>`).join('')}</ul>` : empty(L('No check-ins yet today', 'आज अभी कोई चेक-इन नहीं'), ''))}</div>`;
@@ -1310,6 +1312,31 @@ async function mineFitCards(m) {
   window.__minePlans = latest;
   return `<div style="height:14px"></div>` + card(L('My diet & workout plan', 'मेरा डाइट और वर्कआउट प्लान'), 'pulse', '', `<ul class="list">${latest.map((r, i) => `<li class="click" data-act="openMyPlan" data-i="${i}"><div class="grow"><b>${esc(tx((r.summary || {}).title) || r.title)}</b><small>${esc(L('Updated', 'अपडेट'))} ${esc(fmtDate(r.published_at ? istDate(r.published_at) : istDate(r.created_at)))}</small></div>${ic('right')}</li>`).join('')}</ul>`);
 }
+/* ================= Owner's dashboard: short Hindi summary of today's collection, dues and check-ins =================
+   Built by the daily-summary Edge Function (numbers from the database; an AI gateway may only re-word the text). */
+async function fetchDaySummary() {
+  if (SESSION && SESSION.expires_at && SESSION.expires_at - 30 < Date.now() / 1000) await refreshSession();
+  const res = await rawFetch('/functions/v1/daily-summary', { method: 'POST', headers: { apikey: CFG.key, Authorization: 'Bearer ' + (SESSION && SESSION.access_token), 'Content-Type': 'application/json' }, body: '{}' });
+  if (res.status === 401) { saveSession(null); if (typeof onSignedOut === 'function') onSignedOut(); throw new ApiError('session expired', 401, 'jwt'); }
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || !j.text) throw new Error(j.error || 'HTTP ' + res.status);
+  return j;
+}
+async function loadDaySummary() {
+  const box = $('#daySum'); if (!box) return;
+  const hour = new Date(Date.now() + 5.5 * 3600 * 1000).getUTCHours(), evening = hour >= 21;
+  const title = evening ? L('Today\'s summary', 'आज का सारांश') : L('Today so far', 'आज अब तक');
+  const draw = (body) => { const b = $('#daySum'); if (b) b.innerHTML = body; };
+  draw(card(title, 'pulse', '', `<p class="muted" style="margin:0">${esc(L('Preparing…', 'तैयार हो रहा है…'))}</p>`) + '<div style="height:14px"></div>');
+  try {
+    const [s, past] = await Promise.all([fetchDaySummary(), DB.select('daily_summaries', { order: 'day.desc', limit: 3 }).catch(() => [])]);
+    const yday = past.find((r) => r.day !== s.day && r.day < s.day);
+    const upd = s.cached ? '' : ` · ${L('updated', 'अपडेट')} ${fmtTime(new Date().toISOString())}`;
+    draw(card(title, 'pulse', s.source === 'ai' ? badge('AI', 'info') : '', `<p id="daySumText" style="margin:0;line-height:1.7;font-size:15px">${esc(s.text)}</p><small class="muted">${esc(fmtDate(s.day))}${esc(upd)}</small>${yday ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)"><small class="muted">${esc(L('Last closing summary', 'पिछला अंतिम सारांश'))} · ${esc(fmtDate(yday.day))}</small><p style="margin:4px 0 0;font-size:13px" class="muted">${esc(yday.text_hi)}</p></div>` : ''}`) + '<div style="height:14px"></div>');
+  } catch (e) {
+    draw(card(title, 'pulse', '', `<p class="muted" style="margin:0">${esc(L('The summary is not available right now.', 'सारांश अभी उपलब्ध नहीं है।'))} <a href="#dashboard" data-act="retry">${esc(L('Try again', 'फिर कोशिश करें'))}</a></p>`) + '<div style="height:14px"></div>');
+  }
+}
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV = {
   super_admin: [['gyms', 'building', 'Gyms', 'जिम', vSuperGyms], ['users', 'users', 'Users', 'यूज़र', vSuperUsers], ['audit', 'list', 'Audit log', 'ऑडिट लॉग', vSuperAudit], ['status', 'pulse', 'Status', 'स्थिति', vSuperStatus]],
@@ -1392,7 +1419,7 @@ async function render() {
   }
   if (token !== RENDER_TOKEN) return;
   view.dataset.ready = '1'; view.dataset.route = route[0];
-  view.innerHTML = lockBanner() + html; refreshBadge();
+  view.innerHTML = lockBanner() + html; refreshBadge(); if ($('#daySum')) loadDaySummary();
   if (focusId) { const el = document.getElementById(focusId); if (el) { el.focus(); try { el.setSelectionRange(caret, caret); } catch (e) {} } }
 }
 async function enter() {

@@ -89,6 +89,7 @@ function openForm({ title, fields, values = {}, submitLabel, onSubmit, extra = '
   const m = openModal({ title, wide, body: `<form id="mf" novalidate><div class="fg">${fields.map((f) => fieldHtml(f, values)).join('')}</div>${extra}</form>`, footer: `<button type="button" class="btn" data-no>${esc(L('Cancel', 'रद्द करें'))}</button><button type="button" class="btn primary" data-ok>${esc(submitLabel || L('Save', 'सेव करें'))}</button>` });
   const btn = $('[data-ok]', m.el);
   const go = async () => {
+    if (btn.disabled) return; // Enter pressed again while a save is running must not save twice
     const vals = readForm(m.el, fields);
     if (!vals) { const bad = $('.err:not(:empty)', m.el); if (bad) bad.closest('label').querySelector('input,select,textarea')?.focus(); return; }
     btn.disabled = true;

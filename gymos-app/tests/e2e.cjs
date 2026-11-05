@@ -19,7 +19,7 @@ function draftRows(eng, db, mem, fit, status) {
 const FIT = { age: 30, height_cm: 175, weight_kg: 80, goal: 'fat_loss', diet_pref: 'veg', activity: 'moderate', experience: 'intermediate', days_per_week: 4, session_min: 60, equipment: 'gym', injuries: null, conditions: null, allergies: null };
 function makeDb(role) {
   const G = '11111111-1111-4111-8111-111111111111', P1 = uid(), P2 = uid();
-  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [] };
+  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [] };
   const me = '22222222-2222-4222-8222-222222222222';
   db.me = me; db.G = G;
   db.profiles = [{ id: me, gym_id: role === 'super_admin' ? null : G, role, full_name: 'Test', email: 't@x.in', created_at: new Date().toISOString() }, { id: uid(), gym_id: null, role: 'member', full_name: 'New User', email: 'n@x.in', created_at: new Date().toISOString() }];
@@ -42,6 +42,7 @@ function handler(db, role) {
     if (p === '/functions/v1/create-account') { const b = JSON.parse(req.postData()); db.created = b; if (b.email === 'taken@x.in') return json({ error: 'email_taken' }, 409); return json({ email: b.email, password: 'GenPass1234abcd', role: b.role }); }
     if (p === '/functions/v1/wa-dispatch') { const b = JSON.parse(req.postData() || '{}'); (db.waCalls = db.waCalls || []).push(b); return json({ configured: false }); }
     if (p === '/functions/v1/generate-plan') { const b = JSON.parse(req.postData() || '{}'), eng = await ENGINE, fit = db.member_fit.find((f) => f.member_id === b.member_id), mem = db.members.find((x) => x.id === b.member_id); db.genCalls = (db.genCalls || 0) + 1; if (!fit) return json({ error: 'missing_profile' }, 400); db.member_plans = db.member_plans.filter((r) => !(r.member_id === b.member_id && r.status === 'draft')); draftRows(eng, db, mem, fit, 'draft').forEach((r) => db.member_plans.unshift(r)); return json({ ok: true, plans: [], ai: false, needs_review: false }); }
+    if (p === '/functions/v1/daily-summary') { db.sumCalls = (db.sumCalls || 0) + 1; if (db.sumFail) return json({ error: 'facts_failed' }, 500); return json({ day: today(), text: 'आज (' + today() + ') की वसूली ₹500 रही (1 भुगतान)। कुल बकाया ₹680 है (1 सदस्य)। आज 1 सदस्य जिम आए।', source: 'rules', cached: false, facts: {} }); }
     if (p === '/auth/v1/user' && m === 'PUT') { db.pwChanged = JSON.parse(req.postData()).password; return json({ id: db.me }); }
     if (p === '/auth/v1/logout') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
     if (p.startsWith('/rest/v1/rpc/')) {
@@ -130,7 +131,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     // payment (partial) -> receipt -> ledger
     await page.click('a[href="#invoices"]'); await page.waitForSelector('tr.click'); await page.click('tr.click:has-text("INV-0001")');
     await page.waitForSelector('[data-p]'); await page.click('[data-p]'); await page.fill('#f_amount', '2000'); await page.click('[data-ok]');
-    ok((await page.textContent('#e_amount')).length > 0, 'overpayment rejected'); await page.fill('#f_amount', '500'); await page.click('[data-ok]');
+    ok((await page.textContent('#e_amount')).length > 0, 'overpayment rejected'); await page.fill('#f_amount', '500'); await page.focus('#f_amount'); await page.keyboard.press('Enter'); await page.keyboard.press('Enter');
     await page.waitForSelector('a.btn.wa'); ok(/wa\.me\/919876543210/.test(await page.getAttribute('a.btn.wa', 'href')), 'receipt has WhatsApp link to member');
     ok(db.payments.length === 1 && db.payments[0].amount === 500, 'partial payment stored');
     await page.waitForSelector('#rcBox img', { timeout: 8000 }); ok(await page.$eval('#rcBox img', (i) => i.naturalWidth === 800 && i.naturalHeight === 1220), 'receipt image is generated with the logo layout');
@@ -186,6 +187,11 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.evaluate((id) => memberForm(id), db.members[0].id); await page.waitForSelector('#f_wa_opt_out'); await page.check('#f_wa_opt_out'); await page.click('[data-ok]');
     for (let i = 0; i < 20 && !db.members[0].wa_opt_out; i++) await page.waitForTimeout(150);
     ok(db.members[0].wa_opt_out === true, 'member can be opted out of automatic WhatsApp');
+    // owner's end-of-day summary on the dashboard
+    await page.click('a[href="#dashboard"]'); await page.waitForSelector('#daySumText', { timeout: 8000 });
+    ok(/वसूली/.test(await page.textContent('#daySumText')) && /बकाया/.test(await page.textContent('#daySumText')), 'dashboard shows the Hindi day summary (collection, dues, check-ins)');
+    ok((db.sumCalls || 0) >= 1, 'summary is requested from the summary function');
+    db.sumFail = true; await page.click('a[href="#members"]'); await page.click('a[href="#dashboard"]'); await page.waitForFunction(() => /उपलब्ध नहीं|not available/.test((document.querySelector('#daySum') || {}).innerText || ''), null, { timeout: 8000 }); ok(true, 'dashboard stays usable when the summary function fails'); db.sumFail = false;
     // diet + workout plans: body details -> generate -> review -> publish
     await page.evaluate((id) => memberModal(id), db.members[0].id); await page.waitForSelector('[data-fp]'); await page.click('[data-fp]'); await page.waitForSelector('[data-gen]');
     ok(await page.$eval('[data-gen]', (b) => b.disabled), 'Generate is disabled until body details are saved');
