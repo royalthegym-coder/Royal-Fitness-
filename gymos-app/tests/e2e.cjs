@@ -291,6 +291,12 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   console.log('gym admin on phone, both languages');
   await session(browser, 'gym_admin', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
+    ok(!!(await page.$('.nav .more')) && (await page.$$eval('#nav a', (a) => a.filter((x) => x.offsetParent !== null).length)) <= 5, 'phone bar shows only the main pages plus More');
+    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 16, 'More sheet lists all 16 pages in groups');
+    await page.click('.sheet-links a[href="#expenses"]'); await page.waitForFunction(() => location.hash === '#expenses' && !document.querySelector('.ov')); ok(true, 'More sheet opens a page and closes');
+    ok((await page.$$('#nav .grp')).length === 6, 'admin menu is split into 6 groups');
+    await page.keyboard.press('Control+k'); await page.waitForSelector('#palQ'); await page.fill('#palQ', 'rahul'); await page.waitForSelector('.pal-list li[data-i]'); await page.keyboard.press('Enter');
+    await page.waitForSelector('.md'); ok(/Rahul/.test(await page.textContent('.md')), 'Ctrl+K finds a member and opens their card'); await page.keyboard.press('Escape');
     for (const lang of ['hi', 'en']) {
       for (const r of ['dashboard', 'members', 'reminders', 'whatsapp', 'leads', 'store', 'expenses', 'checkin', 'plans', 'offers', 'invoices', 'payments', 'ledger', 'retention', 'peak', 'settings']) {
         await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(250); await page.waitForSelector('#view .ph');
@@ -310,16 +316,43 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   }
 
   console.log('super admin');
-  await session(browser, 'super_admin', async (page) => {
-    await login(page); await page.waitForSelector('.tiles'); ok((await page.$$eval('#nav a', (a) => a.length)) === 4, 'super admin sees 4 menu items');
+  await session(browser, 'super_admin', async (page, db) => {
+    await login(page); await page.waitForSelector('.tiles'); ok((await page.$$eval('#nav a', (a) => a.length)) === 5, 'super admin sees 5 menu items');
+    ok(/Royal The Gym|ओवरव्यू|Overview/.test(await page.textContent('#view')) && !!(await page.$('.tiles')), 'super admin lands on the platform overview');
+    ok(/Nothing needs attention|किसी पर ध्यान/.test(await page.textContent('#view')), 'overview: healthy gym is not flagged');
     ok(!/Check-in|चेक-इन/.test(await page.textContent('#nav')), 'super admin has no gym operations menu');
-    await page.click('a[href="#users"]'); await page.waitForSelector('table.t'); await page.click('a[href="#status"]'); await page.waitForSelector('.list'); ok(true, 'users + status render');
+    await page.click('a[href="#gyms"]'); await page.waitForSelector('table.t'); ok((await page.$$('table.t tbody tr')).length === 1, 'gyms list shows the gym');
+    await page.fill('#sgq', 'zzz'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 0); ok(true, 'gym search filters the list');
+    await page.fill('#sgq', 'royal'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 1);
+    await page.click('[data-act=chip][data-key=sgF][data-v=locked]'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 0); ok(true, 'locked filter hides an open gym');
+    await page.click('a[href="#users"]'); await page.waitForSelector('table.t'); await page.click('[data-act=chip][data-key=suF][data-v=waiting]'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 1 && /New User/.test(document.querySelector('table.t').innerText)); ok(true, 'users filter: shows only the user waiting for a gym');
+    await page.click('[data-act=chip][data-key=suF][data-v=trainer]'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 0); ok(true, 'users filter: no trainers');
+    await page.click('a[href="#status"]'); await page.waitForSelector('.list'); ok(true, 'users + status render');
+    await page.keyboard.press('Control+k'); await page.waitForSelector('#palQ'); await page.fill('#palQ', 'audit'); await page.keyboard.press('Enter');
+    await page.waitForFunction(() => location.hash === '#audit'); ok(true, 'Ctrl+K quick search jumps to a page'); await page.waitForTimeout(700);
+    await page.keyboard.press('Control+k'); await page.waitForSelector('#palQ'); await page.fill('#palQ', 'jhunjhunu'); await page.keyboard.press('Enter');
+    await page.waitForFunction(() => location.hash === '#gyms'); ok(true, 'quick search finds a gym');
   });
 
+  console.log('member portal on phone');
+  await session(browser, 'member', async (page) => {
+    await login(page); await page.waitForSelector('.tiles');
+    for (const r of ['mine', 'plan', 'pay', 'visits', 'me']) { await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(250); await page.waitForSelector('#view .ph'); if (await overflow(page)) ok(false, `member overflow on ${r}`); }
+    ok(true, 'phone: no overflow on any member page');
+  }, { width: 390, height: 800 });
+
   console.log('member + waiting');
-  await session(browser, 'member', async (page, db) => { const eng = await ENGINE; draftRows(eng, db, db.members[0], FIT, 'published').forEach((r) => db.member_plans.push(r)); draftRows(eng, db, db.members[0], FIT, 'draft').forEach((r) => db.member_plans.push(r)); await login(page); await page.waitForSelector('.tiles'); ok(/Rahul/.test(await page.textContent('#view')), 'member sees own page');
-    await page.waitForSelector('[data-act=openMyPlan]'); ok((await page.$$('[data-act=openMyPlan]')).length === 2, 'member sees the two published plans');
-    await page.click('[data-act=openMyPlan] >> nth=1'); await page.waitForSelector('#planBody'); ok(/Barbell|Dumbbell|Machine|Push|Lat/.test(await page.textContent('#planBody')), 'member can open the workout plan'); await page.keyboard.press('Escape'); ok((await page.$$eval('#nav a', (a) => a.length)) === 1, 'member sees one menu item'); });
+  await session(browser, 'member', async (page, db) => { const eng = await ENGINE; db.visits.push({ id: uid(), gym_id: db.G, member_id: db.members[0].id, in_at: new Date().toISOString(), out_at: null }); db.payments.push({ id: uid(), gym_id: db.G, member_id: db.members[0].id, amount: 700, method: 'UPI', paid_on: today(), no: 'RCT-0009' }); draftRows(eng, db, db.members[0], FIT, 'published').forEach((r) => db.member_plans.push(r)); draftRows(eng, db, db.members[0], FIT, 'draft').forEach((r) => db.member_plans.push(r)); await login(page); await page.waitForSelector('.tiles'); ok(/Rahul/.test(await page.textContent('#view')), 'member sees own page');
+    ok((await page.$$eval('#nav a', (a) => a.length)) === 5, 'member portal has 5 pages');
+    ok(/1/.test(await page.textContent('.tiles .card:nth-child(3) .v')), 'home shows the visit streak');
+    await page.click('a[href="#plan"]'); await page.waitForSelector('[data-act=openMyPlan]'); ok((await page.$$('[data-act=openMyPlan]')).length === 2, 'member sees the two published plans');
+    await page.click('[data-act=openMyPlan] >> nth=1'); await page.waitForSelector('#planBody'); ok(/Barbell|Dumbbell|Machine|Push|Lat/.test(await page.textContent('#planBody')), 'member can open the workout plan'); await page.keyboard.press('Escape');
+    await page.click('a[href="#pay"]'); await page.waitForSelector('[data-act=openReceipt]'); ok((await page.$$('[data-act=openReceipt]')).length === 1, 'payments page lists the receipt');
+    await page.click('[data-act=openReceipt]'); await page.waitForSelector('.md'); ok(true, 'member can open a receipt'); await page.keyboard.press('Escape');
+    await page.click('a[href="#visits"]'); await page.waitForSelector('.cal'); ok((await page.$$('.cal i.on')).length === 1, 'visits calendar marks the day trained'); 
+    await page.click('a[href="#me"]'); await page.waitForSelector('dl.kv'); ok(/Rahul/.test(await page.textContent('#view')) && !!(await page.$('[data-act=changePw]')), 'profile shows membership and account actions');
+    ok(!(await page.$('.nav .more')), 'member menu has no More button');
+  });
   {
     const db = makeDb('member'); db.profiles[0].gym_id = null; const ctx = await browser.newContext(), page = await ctx.newPage(); await ctx.route(SB + '/**', handler(db, 'member'));
     await page.goto(`http://127.0.0.1:${server.address().port}/`); await login(page); await page.waitForSelector('[data-act=signOut]');

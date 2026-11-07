@@ -182,21 +182,6 @@ function editGymForm() {
   });
 }
 
-/* ---------- Member portal ---------- */
-async function vMine() {
-  const members = await Q.members(), m = members[0];
-  if (!m) return pageHead(gymName(), L('My gym', 'मेरा जिम'), '') + `<div class="card">${empty(L('Your membership is not linked yet', 'आपकी सदस्यता अभी जुड़ी नहीं है'), L('Ask the front desk to link your account to your membership.', 'फ़्रंट डेस्क से अपना अकाउंट सदस्यता से जुड़वाएँ।'))}</div>`;
-  const [invoices, payments, visits, plans] = await Promise.all([Q.invoices(), Q.payments(), Q.visits(), Q.plans()]);
-  const paid = paidByInvoice(payments), due = sum(invoices, (i) => balanceOf(i, paid)), s = memberState(m), dl = daysLeft(m), plan = plans.find((p) => p.id === m.plan_id), upi = upiOf();
-  const month = visits.filter((v) => monthKey(istDate(v.in_at)) === monthKey(todayISO())).length;
-  const fitHtml = await mineFitCards(m);
-  return pageHead(gymName(), `${L('Hello', 'नमस्ते')}, ${m.name}`, CTX.gym && CTX.gym.timings ? L('Gym timings: ', 'जिम का समय: ') + CTX.gym.timings : '')
-    + `<div class="tiles">${tile(L('Membership', 'सदस्यता'), badge(s), esc(plan ? plan.name : ''))}${tile(L('Valid till', 'तारीख़ तक'), esc(fmtDate(m.end_date)), dl == null ? '' : dl >= 0 ? esc(L(`${dl} days left`, `${dl} दिन बाक़ी`)) : esc(L(`Expired ${-dl} days ago`, `${-dl} दिन पहले खत्म`)))}${tile(L('Visits this month', 'इस महीने विज़िट'), month)}${tile(L('Dues', 'बकाया'), esc(inr(due)), '', due ? 'var(--crimson)' : '')}</div>`
-    + (due && upi ? `<div class="card" style="padding:14px;margin-bottom:14px"><b>${esc(L('Pay your dues', 'बकाया चुकाएँ'))}</b><p class="muted" style="margin:6px 0">${esc(L('Pay to this UPI ID, then tell the front desk. The gym records the payment on its side.', 'इस UPI आईडी पर भुगतान करें, फिर फ़्रंट डेस्क को बताएँ। भुगतान जिम की तरफ़ से दर्ज होता है।'))}</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><code class="num">${esc(upi)}</code><button class="btn sm" data-act="copyUpi">${ic('copy')} ${esc(L('Copy', 'कॉपी'))}</button></div></div>` : '')
-    + `<div class="grid2">${card(L('Invoices', 'इनवॉइस'), 'receipt', '', invoices.length ? `<ul class="list">${invoices.slice(0, 8).map((i) => `<li><div class="grow"><b class="num">${esc(i.no || '—')}</b><small>${esc(fmtDate(i.date))}</small></div><span class="num">${esc(inr(i.total))}</span>${badge(invStatus(i, paid))}</li>`).join('')}</ul>` : empty(L('No invoices', 'कोई इनवॉइस नहीं'), ''))}
-    ${card(L('Recent visits', 'हाल की विज़िट'), 'clock', '', visits.length ? `<ul class="list">${visits.slice(0, 8).map((v) => `<li><div class="grow"><b>${esc(fmtDate(v.in_at))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div></li>`).join('')}</ul>` : empty(L('No visits yet', 'अभी कोई विज़िट नहीं'), ''))}</div>` + fitHtml;
-}
-
 /* ---------- Create a login (trainer / member) ---------- */
 function accountForm(role, member) {
   openForm({
