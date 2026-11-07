@@ -161,5 +161,5 @@ window.addEventListener('hashchange', () => { closeAllModals(); if (CTX.profile)
   try { const t = localStorage.getItem('gymos-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
   $('#langBtn').onclick = () => ACTIONS.lang(); $('#themeBtn').onclick = () => ACTIONS.theme(); $('#outBtn').onclick = () => ACTIONS.signOut(); $('#pwBtn').onclick = () => ACTIONS.changePw();
   if (SESSION && SESSION.refresh_token) enter(); else loginScreen();
-  pwaInit();
+  pwaInit(); nativeInit();
 })();

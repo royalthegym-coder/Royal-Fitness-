@@ -12,7 +12,9 @@ function bar(id, html) {
 }
 const dropBar = (id) => { const el = document.getElementById(id); if (el) el.remove(); };
 
+const isNativeApp = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 function pwaInit() {
+  if (isNativeApp()) return; /* the store app has its own files, install prompt and updates */
   const secure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
   if ('serviceWorker' in navigator && secure) {
     navigator.serviceWorker.register('sw.js').then((reg) => {
@@ -39,6 +41,7 @@ function showUpdateBar(worker) {
 }
 /* shown once the person is signed in; never inside the installed app, and not again for 14 days after "Not now" */
 function pwaAfterLogin() {
+  if (isNativeApp()) return;
   if (isStandalone() || lsGet('gymos-installed') === '1') return;
   const until = Number(lsGet('gymos-install-later') || 0); if (until > Date.now()) return;
   if (DEFERRED_INSTALL) bar('installBar', `<span>${esc(L('Install GymOS on your phone for one-tap access.', 'GymOS को फ़ोन में इंस्टॉल करें, एक टैप में खुलेगा।'))}</span><button class="btn sm pri" type="button" data-act="installApp">${esc(L('Install', 'इंस्टॉल'))}</button><button class="btn sm" type="button" data-act="installLater">${esc(L('Not now', 'अभी नहीं'))}</button>`);
@@ -51,3 +54,13 @@ async function installApp() {
 }
 function installLater() { lsSet('gymos-install-later', String(Date.now() + 14 * 864e5)); dropBar('installBar'); }
 function applyUpdate() { window.__updating = true; const w = window.__swWaiting || (SW_REG && SW_REG.waiting); if (w) w.postMessage('SKIP_WAITING'); else location.reload(); }
+
+/* Inside the Android/iOS store app: the phone's Back button closes a sheet, goes to the first page, then leaves the app */
+function nativeInit() {
+  const A = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App; if (!isNativeApp() || !A) return;
+  A.addListener('backButton', () => {
+    if (MODALS.length) { MODALS[MODALS.length - 1].querySelector('[data-x]').click(); return; }
+    const first = navFor().length ? navFor()[0][0] : '', cur = location.hash.replace('#', '');
+    if (cur && first && cur !== first) location.hash = first; else A.exitApp();
+  });
+}

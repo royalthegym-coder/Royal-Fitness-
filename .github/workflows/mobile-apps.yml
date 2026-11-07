@@ -1,0 +1,108 @@
+name: Mobile apps (Android + iOS)
+
+# Builds the GymOS store apps from gymos-app/public with Capacitor.
+# Run it by hand: GitHub -> Actions -> "Mobile apps" -> Run workflow. Or push a tag such as mobile-v1.0.0.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['mobile-v*']
+
+concurrency:
+  group: mobile-apps-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android (APK for testing, signed AAB for Google Play)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: gymos-app/mobile
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Install Capacitor
+        run: npm install --no-audit --no-fund
+      - name: Build the web app into www/
+        run: npm run web
+      - name: Create the Android project
+        run: |
+          npx cap add android
+          npx capacitor-assets generate --android --assetPath resources
+          npx cap sync android
+      - name: Set version (versionCode = run number)
+        run: |
+          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
+          grep -n "versionCode\|versionName" android/app/build.gradle
+      - name: Build debug APK (installs on any Android phone)
+        working-directory: gymos-app/mobile/android
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GymOS-android-debug-apk
+          path: gymos-app/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+      - name: Build release bundle (only when the signing key is saved as a repository secret)
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: gymos-app/mobile/android
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          ./gradlew bundleRelease --no-daemon
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          jarsigner -sigalg SHA256withRSA -digestalg SHA-256 -keystore "$RUNNER_TEMP/upload.jks" -storepass "$KEYSTORE_PASS" -keypass "${KEY_PASS:-$KEYSTORE_PASS}" app/build/outputs/bundle/release/app-release.aab "$KEY_ALIAS"
+          rm -f "$RUNNER_TEMP/upload.jks"
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_KEYSTORE == 'true'
+        with:
+          name: GymOS-android-release-aab
+          path: gymos-app/mobile/android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+
+  ios:
+    name: iOS (build check; App Store upload needs your Apple account)
+    runs-on: macos-15
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: gymos-app/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Capacitor
+        run: npm install --no-audit --no-fund
+      - name: Build the web app into www/
+        run: npm run web
+      - name: Create the iOS project
+        run: |
+          npx cap add ios
+          npx capacitor-assets generate --ios --assetPath resources
+          npx cap sync ios
+      - name: Build for the iPhone simulator (no signing needed)
+        working-directory: gymos-app/mobile/ios/App
+        run: |
+          WS=$(ls -d *.xcworkspace | head -1)
+          if [ -n "$WS" ]; then TARGET="-workspace $WS"; else TARGET="-project App.xcodeproj"; fi
+          xcodebuild $TARGET -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+      - name: Zip the simulator app
+        working-directory: gymos-app/mobile/ios/App/build/Build/Products/Debug-iphonesimulator
+        run: zip -r "$GITHUB_WORKSPACE/GymOS-ios-simulator.zip" App.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GymOS-ios-simulator-app
+          path: GymOS-ios-simulator.zip
+          if-no-files-found: error

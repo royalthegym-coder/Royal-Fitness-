@@ -1,0 +1,12 @@
+{
+  "appId": "in.royalthegym.gymos",
+  "appName": "GymOS",
+  "webDir": "www",
+  "backgroundColor": "#141414",
+  "android": { "allowMixedContent": false },
+  "ios": { "contentInset": "never", "backgroundColor": "#141414" },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 600, "backgroundColor": "#141414", "showSpinner": false, "androidScaleType": "CENTER_CROP" },
+    "StatusBar": { "style": "DARK", "backgroundColor": "#141414", "overlaysWebView": false }
+  }
+}
