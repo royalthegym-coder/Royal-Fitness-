@@ -19,7 +19,7 @@ function draftRows(eng, db, mem, fit, status) {
 const FIT = { age: 30, height_cm: 175, weight_kg: 80, goal: 'fat_loss', diet_pref: 'veg', activity: 'moderate', experience: 'intermediate', days_per_week: 4, session_min: 60, equipment: 'gym', injuries: null, conditions: null, allergies: null };
 function makeDb(role) {
   const G = '11111111-1111-4111-8111-111111111111', P1 = uid(), P2 = uid();
-  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [] };
+  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [] };
   const me = '22222222-2222-4222-8222-222222222222';
   db.me = me; db.G = G;
   db.profiles = [{ id: me, gym_id: role === 'super_admin' ? null : G, role, full_name: 'Test', email: 't@x.in', created_at: new Date().toISOString() }, { id: uid(), gym_id: null, role: 'member', full_name: 'New User', email: 'n@x.in', created_at: new Date().toISOString() }];
@@ -49,6 +49,8 @@ function handler(db, role) {
       const fn = p.split('/').pop(), a = JSON.parse(req.postData() || '{}');
       if (fn === 'admin_gym_overview') return json(OV);
       if (fn === 'verify_gym_ledger') return json([]);
+      if (fn === 'record_sale') { const pr = db.products.find((x) => x.id === a.p_product); if (!pr || pr.stock < a.p_qty) return json({ message: 'out of stock' }, 400); pr.stock -= a.p_qty; db.sales.unshift({ id: uid(), gym_id: db.G, product_id: pr.id, product_name: pr.name, qty: a.p_qty, unit_price: pr.price, unit_cost: pr.cost, total: pr.price * a.p_qty, method: a.p_method, member_id: a.p_member, sold_on: today(), voided_at: null }); db.lastSaleArgs = a; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
+      if (fn === 'void_sale') { const sl = db.sales.find((x) => x.id === a.p_sale); if (sl && !sl.voided_at) { sl.voided_at = new Date().toISOString(); const pr = db.products.find((x) => x.id === sl.product_id); if (pr) pr.stock += sl.qty; } return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'admin_set_gym_timings') { db.gyms[0].timings = a.timing_text; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'publish_member_plan') { const r = db.member_plans.find((x) => x.id === a.p); db.member_plans.forEach((x) => { if (x.member_id === r.member_id && x.kind === r.kind && x.status === 'published' && x.id !== r.id) x.status = 'archived'; }); r.status = 'published'; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'unpublish_member_plan') { const r = db.member_plans.find((x) => x.id === a.p); if (r && r.status === 'published') r.status = 'archived'; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
@@ -104,7 +106,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(/ग़लत|Wrong/.test(await page.textContent('.banner.bad')), 'wrong password shows a friendly error');
     await login(page); await page.waitForSelector('.tiles');
     ok(/Royal The Gym/.test(await page.textContent('#gymName')), 'dashboard loads with gym name');
-    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 15, 'gym admin sees 15 menu items');
+    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 16, 'gym admin sees 16 menu items');
     await page.click('a[href="#members"]'); await page.waitForSelector('table.t');
     ok((await page.$$('table.t tbody tr')).length === 4, 'members list shows 4');
     await page.fill('#mq', 'priya'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 1);
@@ -240,6 +242,21 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('[data-ok]'); for (let i = 0; i < 25 && db.leads[0].stage !== 'Converted'; i++) await page.waitForTimeout(150);
     const nm = db.members.find((x) => x.name === 'Vikram Lead');
     ok(!!nm && db.leads[0].stage === 'Converted' && db.leads[0].converted_member_id === nm.id, 'lead marked Converted only after the member exists');
+    // store / POS: add product, sell, stock goes down, oversell refused, cancel restores stock, profit page counts store profit
+    await page.click('a[href="#store"]'); await page.waitForSelector('[data-act=newProduct]'); await page.click('[data-act=newProduct] >> nth=0');
+    await page.fill('#f_name', 'Whey 1kg'); await page.fill('#f_price', '3000'); await page.fill('#f_cost', '2200'); await page.fill('#f_stock', '5'); await page.click('[data-ok]');
+    await page.waitForSelector('[data-act=sellProduct]:not([disabled])');
+    ok(db.products.length === 1 && db.products[0].stock === 5 && db.products[0].gym_id === db.G, 'product added with stock');
+    await page.click('[data-act=sellProduct]'); await page.fill('#f_qty', '9'); await page.click('[data-ok]');
+    ok((await page.textContent('#e_qty')).length > 0 && db.sales.length === 0, 'selling more than the stock is refused'); await page.fill('#f_qty', '2'); await page.selectOption('#f_member', { index: 1 }); await page.click('[data-ok]');
+    for (let i = 0; i < 20 && !db.sales.length; i++) await page.waitForTimeout(150);
+    ok(db.sales.length === 1 && db.sales[0].total === 6000 && db.products[0].stock === 3 && db.lastSaleArgs.p_member === db.members[0].id, 'sale recorded, stock reduced to 3, member linked');
+    await page.waitForFunction(() => /6,000/.test(document.querySelector('.tiles').innerText));
+    await page.click('[data-act=voidSale]'); await page.click('[data-yes]'); for (let i = 0; i < 20 && db.products[0].stock !== 5; i++) await page.waitForTimeout(150);
+    ok(db.sales[0].voided_at && db.products[0].stock === 5, 'cancelled sale puts the stock back');
+    await page.click('[data-act=sellProduct]'); await page.fill('#f_qty', '1'); await page.click('[data-ok]'); for (let i = 0; i < 20 && db.sales.length < 2; i++) await page.waitForTimeout(150);
+    await page.click('a[href="#expenses"]'); await page.waitForSelector('[data-act=newExpense]'); await page.waitForFunction(() => /800/.test(document.querySelector('.tiles').innerText));
+    ok(true, 'profit page shows store profit (3000 - 2200 = 800), cancelled sale ignored');
     // offers
     await page.click('a[href="#offers"]'); await page.waitForSelector('[data-act=newOffer]'); await page.click('[data-act=newOffer]');
     await page.fill('#f_name', 'Diwali 10%'); await page.fill('#f_value', '10'); await page.click('[data-ok]'); await page.waitForFunction(() => /Diwali 10%/.test(document.body.innerText));
@@ -275,7 +292,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await session(browser, 'gym_admin', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
     for (const lang of ['hi', 'en']) {
-      for (const r of ['dashboard', 'members', 'reminders', 'whatsapp', 'leads', 'expenses', 'checkin', 'plans', 'offers', 'invoices', 'payments', 'ledger', 'retention', 'peak', 'settings']) {
+      for (const r of ['dashboard', 'members', 'reminders', 'whatsapp', 'leads', 'store', 'expenses', 'checkin', 'plans', 'offers', 'invoices', 'payments', 'ledger', 'retention', 'peak', 'settings']) {
         await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(250); await page.waitForSelector('#view .ph');
         if (await overflow(page)) { ok(false, `overflow on ${r} (${lang})`); }
       }

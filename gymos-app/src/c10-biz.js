@@ -28,9 +28,9 @@ function expRange(key) {
 
 /* ---------- Expenses ---------- */
 async function vExpenses() {
-  const [exps, pays] = await Promise.all([Q.expenses(), Q.payments()]);
+  const [exps, pays, sales] = await Promise.all([Q.expenses(), Q.payments(), Q.sales()]);
   const rng = expRange(U.exp.m), inR = (d) => !rng || rng.has(monthKey(d));
-  const rows = exps.filter((e) => inR(e.spent_on)), got = sum(pays.filter((p) => inR(p.paid_on)), (p) => p.amount), spent = sum(rows, (e) => e.amount), net = got - spent;
+  const rows = exps.filter((e) => inR(e.spent_on)), got = sum(pays.filter((p) => inR(p.paid_on)), (p) => p.amount), spent = sum(rows, (e) => e.amount), shop = saleMargin(sales.filter((s) => inR(s.sold_on))), net = got + shop - spent;
   const byCat = EXP_CATS.map((c) => [c, sum(rows.filter((e) => e.category === c), (e) => e.amount)]).filter((x) => x[1] > 0).sort((a, b) => b[1] - a[1]);
   const chips = chipsHtml('expM', U.exp.m, [['this', L('This month', 'यह महीना')], ['last', L('Last month', 'पिछला महीना')], ['q', L('Last 3 months', 'पिछले 3 महीने')], ['all', L('All time', 'पूरा समय')]]);
   const catHtml = byCat.length
@@ -39,9 +39,9 @@ async function vExpenses() {
   const tbl = rows.length
     ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Date', 'तारीख़'))}</th><th>${esc(L('Item', 'मद'))}</th><th>${esc(L('Category', 'श्रेणी'))}</th><th class="r">${esc(L('Amount', 'रकम'))}</th><th></th></tr></thead><tbody>${rows.map((e) => `<tr><td>${esc(fmtDate(e.spent_on))}</td><td><b>${esc(e.item)}</b>${e.note ? `<small style="display:block;color:var(--muted)">${esc(e.note)}</small>` : ''}</td><td>${badge(catLabel(e.category), 'mute')}</td><td class="r">${inr(e.amount)}</td><td class="r"><button class="btn sm" data-act="delExpense" data-id="${esc(e.id)}" aria-label="${esc(L('Delete', 'हटाएँ'))}">${esc(L('Delete', 'हटाएँ'))}</button></td></tr>`).join('')}</tbody></table></div>`
     : empty(L('No expenses yet', 'अभी कोई खर्च नहीं'), L('Add rent, electricity, salaries and other costs to see your real profit.', 'किराया, बिजली, वेतन जैसे खर्च जोड़ें ताकि असली मुनाफ़ा दिखे।'), `<button class="btn pri" data-act="newExpense">${esc(L('Add expense', 'खर्च जोड़ें'))}</button>`);
-  return pageHead(L('Money', 'पैसा'), L('Expenses & profit', 'खर्च और मुनाफ़ा'), L('Fees collected minus what you spent. Only the owner can see this page.', 'आई हुई फ़ीस में से खर्च घटाकर मुनाफ़ा। यह पेज सिर्फ़ मालिक देख सकता है।'), `<button class="btn pri" data-act="newExpense">${ic('plus')}${esc(L('Add expense', 'खर्च जोड़ें'))}</button>`)
+  return pageHead(L('Money', 'पैसा'), L('Expenses & profit', 'खर्च और मुनाफ़ा'), L('Fees collected plus store profit, minus what you spent. Only the owner can see this page.', 'आई हुई फ़ीस और स्टोर का मुनाफ़ा, घटाकर खर्च। यह पेज सिर्फ़ मालिक देख सकता है।'), `<button class="btn pri" data-act="newExpense">${ic('plus')}${esc(L('Add expense', 'खर्च जोड़ें'))}</button>`)
     + chips
-    + `<div class="tiles">${tile(L('Fees collected', 'फ़ीस आई'), inr(got), '', 'var(--ok)')}${tile(L('Expenses', 'खर्च'), inr(spent), L(`${rows.length} entries`, `${rows.length} प्रविष्टियाँ`), 'var(--warn)')}${tile(net >= 0 ? L('Profit', 'मुनाफ़ा') : L('Loss', 'घाटा'), inr(Math.abs(net)), '', net >= 0 ? 'var(--ok)' : 'var(--crimson)')}</div>`
+    + `<div class="tiles">${tile(L('Fees collected', 'फ़ीस आई'), inr(got), '', 'var(--ok)')}${tile(L('Store profit', 'स्टोर का मुनाफ़ा'), inr(shop), L('sales minus cost of goods', 'बिक्री − सामान की लागत'), 'var(--ok)')}${tile(L('Expenses', 'खर्च'), inr(spent), L(`${rows.length} entries`, `${rows.length} प्रविष्टियाँ`), 'var(--warn)')}${tile(net >= 0 ? L('Profit', 'मुनाफ़ा') : L('Loss', 'घाटा'), inr(Math.abs(net)), '', net >= 0 ? 'var(--ok)' : 'var(--crimson)')}</div>`
     + `<div class="two">${card(L('Where the money went', 'पैसा कहाँ गया'), 'chart', '', catHtml)}${card(L('All entries', 'सभी प्रविष्टियाँ'), 'receipt', '', tbl)}</div>`;
 }
 function expenseForm() {
