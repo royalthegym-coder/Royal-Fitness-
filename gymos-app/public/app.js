@@ -437,7 +437,7 @@ async function vMembers() {
     + `<div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Photo', 'फ़ोटो'))}</th><th>${esc(L('Member', 'सदस्य'))}</th><th>${esc(L('Plan', 'प्लान'))}</th><th>${esc(L('Status', 'स्थिति'))}</th><th class="r">${esc(L('Valid till', 'तारीख़ तक'))}</th><th>${esc(L('Last visit', 'आख़िरी विज़िट'))}</th>${isAdmin() ? `<th class="r">${esc(L('Dues', 'बकाया'))}</th>` : ''}</tr></thead><tbody>${rows.map((m) => { const s = memberState(m), d = dues.get(m.id) || 0; return `<tr class="click" data-act="openMember" data-id="${esc(m.id)}"><td class="edge e-${TONE[s] || 'mute'}">${avatarM(m)}</td><td><b>${esc(m.name)}</b><br><small class="muted">${esc(m.phone || '')}</small></td><td>${esc((pm.get(m.plan_id) || {}).name || '—')}</td><td>${badge(s)}</td><td class="r num">${esc(fmtDate(m.end_date))}</td><td class="num">${last.get(m.id) ? esc(fmtShort(last.get(m.id))) : '—'}</td>${isAdmin() ? `<td class="r num" style="color:${d ? 'var(--crimson)' : 'inherit'}">${d ? esc(inr(d)) : '—'}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>${pagerHtml(total, st.page, 'members')}` : empty(members.length ? L('No members match', 'कोई सदस्य मेल नहीं खाता') : L('No members yet', 'अभी कोई सदस्य नहीं'), '', members.length ? '' : `<button class="btn primary" data-act="newMember">${esc(L('Add the first member', 'पहला सदस्य जोड़ें'))}</button>`)}</div>`;
 }
 const GOALS = ['Fat Loss', 'Muscle', 'Strength', 'General Fitness', 'Rehab'];
-async function memberForm(id) {
+async function memberForm(id, prefill, onSaved) {
   const [members, plans, offers] = await Promise.all([Q.members(), Q.plans(), isAdmin() ? Q.offers() : []]);
   const liveOffers = offers.filter((o) => offerLive(o, todayISO()));
   const x = id ? members.find((m) => m.id === id) : null;
@@ -453,7 +453,7 @@ async function memberForm(id) {
   if (isAdmin()) fields.push({ k: 'wa_opt_out', label: L('Do not send automatic WhatsApp messages (member asked to stop)', 'ऑटोमैटिक WhatsApp मैसेज न भेजें (सदस्य ने मना किया)'), type: 'check', full: true });
   if (!x && isAdmin()) { fields.push({ k: 'bill', label: L('Create the first invoice for the plan', 'प्लान का पहला इनवॉइस बनाएँ'), type: 'check', def: true, full: true }); if (liveOffers.length) fields.push({ k: 'offer', label: L('Offer (applies to the invoice)', 'ऑफ़र (इनवॉइस पर लागू)'), type: 'select', options: [{ v: '', l: L('No offer', 'कोई ऑफ़र नहीं') }, ...liveOffers.map((o) => ({ v: o.id, l: `${o.name} · ${offerText(o)}` }))], full: true }); }
   openForm({
-    title: x ? x.name : L('New member', 'नया सदस्य'), fields, values: x || {},
+    title: x ? x.name : L('New member', 'नया सदस्य'), fields, values: x || prefill || {},
     onSubmit: async (v) => {
       const plan = plans.find((p) => p.id === v.plan_id);
       const start = v.start_date || todayISO();
@@ -467,7 +467,7 @@ async function memberForm(id) {
         const items = [{ label: `${plan.name} membership`, amount: Number(plan.price) }]; if (off && disc > 0) items.push({ label: `Offer: ${off.name}`, amount: 0 });
         await act(() => DB.insert('invoices', { gym_id: gymId(), member_id: saved.id, items, ...computeInvoice([{ amount: plan.price }], disc, plan.gst_pct), due: addDays(todayISO(), 7) }), L('Invoice created', 'इनवॉइस बना'));
       }
-      bust('members', 'invoices'); render(); return true;
+      bust('members', 'invoices'); if (onSaved) { try { await onSaved(saved); } catch (e) {} } render(); return true;
     },
   });
 }
@@ -724,20 +724,21 @@ async function vSettings() {
   const g = CTX.gym || {}; let staff = [];
   try { staff = (await Q.profiles()).filter((p) => p.gym_id === gymId()); } catch (e) {}
   return pageHead(L('Setup', 'सेटअप'), L('Gym settings', 'जिम सेटिंग'), '', `<button class="btn primary" data-act="editGym" ${CTX.locked ? 'disabled' : ''}>${ic('pencil')} ${esc(L('Edit', 'बदलें'))}</button>`)
-    + `<div class="grid2">${card(L('Gym', 'जिम'), 'building', '', `<ul class="list"><li><div class="grow"><small>${esc(L('Name', 'नाम'))}</small><b>${esc(g.name || '')}</b></div></li><li><div class="grow"><small>${esc(L('Owner', 'मालिक'))}</small><b>${esc(g.owner_name || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Phone', 'फ़ोन'))}</small><b>${esc(g.phone || '—')}</b></div></li><li><div class="grow"><small>${esc(L('City', 'शहर'))}</small><b>${esc(g.city || '—')}</b></div></li><li><div class="grow"><small>UPI</small><b>${esc(g.upi_id || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Subscription valid till', 'सब्सक्रिप्शन की तारीख़'))}</small><b>${esc(fmtDate(g.subscription_ends_on))}</b></div>${CTX.locked ? badge(L('Locked', 'लॉक'), 'bad') : badge(L('Open', 'खुला'), 'ok')}</li></ul>`)}
+    + `<div class="grid2">${card(L('Gym', 'जिम'), 'building', '', `<ul class="list"><li><div class="grow"><small>${esc(L('Name', 'नाम'))}</small><b>${esc(g.name || '')}</b></div></li><li><div class="grow"><small>${esc(L('Owner', 'मालिक'))}</small><b>${esc(g.owner_name || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Phone', 'फ़ोन'))}</small><b>${esc(g.phone || '—')}</b></div></li><li><div class="grow"><small>${esc(L('City', 'शहर'))}</small><b>${esc(g.city || '—')}</b></div></li><li><div class="grow"><small>UPI</small><b>${esc(g.upi_id || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Gym timings', 'जिम का समय'))}</small><b>${esc(g.timings || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Subscription valid till', 'सब्सक्रिप्शन की तारीख़'))}</small><b>${esc(fmtDate(g.subscription_ends_on))}</b></div>${CTX.locked ? badge(L('Locked', 'लॉक'), 'bad') : badge(L('Open', 'खुला'), 'ok')}</li></ul>`)}
     ${card(L('Team', 'टीम'), 'users', `<button class="btn sm" data-act="newTrainer" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('Trainer login', 'ट्रेनर लॉगिन'))}</button>`, staff.length ? `<ul class="list">${staff.map((p) => `<li>${avatar(p.full_name || p.email)}<div class="grow"><b>${esc(p.full_name || p.email || '—')}</b><small>${esc(p.email || '')}</small></div>${badge(roleName(p.role), 'mute')}</li>`).join('')}</ul><div class="muted" style="margin-top:8px">${esc(L('Roles are assigned by the platform admin.', 'भूमिकाएँ प्लेटफ़ॉर्म एडमिन तय करता है।'))}</div>` : empty(L('No team listed', 'टीम सूची में नहीं'), ''))}</div>`;
 }
 function editGymForm() {
   const g = CTX.gym || {};
   openForm({
-    title: L('Edit gym', 'जिम बदलें'), values: { name: g.name, owner: g.owner_name, phone: g.phone, city: g.city, upi: g.upi_id },
+    title: L('Edit gym', 'जिम बदलें'), values: { name: g.name, owner: g.owner_name, phone: g.phone, city: g.city, upi: g.upi_id, timings: g.timings || '' },
     fields: [
       { k: 'name', label: L('Gym name', 'जिम का नाम'), req: true, full: true, check: (v) => (v.length < 2 ? L('Too short', 'बहुत छोटा') : '') },
       { k: 'owner', label: L('Owner', 'मालिक') }, { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel' }, { k: 'city', label: L('City', 'शहर') },
       { k: 'upi', label: L('Merchant UPI ID', 'मर्चेंट UPI आईडी'), ph: 'name@bank', check: (v) => (v && !UPI_RE.test(v) ? L('Example: name@bank', 'उदाहरण: name@bank') : '') },
+      { k: 'timings', label: L('Gym timings', 'जिम का समय'), full: true, ph: L('Mon-Sat 5:30 AM - 10 PM, Sun 6-11 AM', 'सोम-शनि सुबह 5:30 - रात 10, रवि 6-11 सुबह'), check: (v) => (v.length > 200 ? L('Up to 200 characters', 'अधिकतम 200 अक्षर') : '') },
     ],
     onSubmit: async (v) => {
-      const ok = await act(() => DB.rpc('admin_update_gym', { gym: gymId(), gym_name: v.name, owner: v.owner || null, phone_no: v.phone || null, city_name: v.city || null, upi: v.upi || null }), L('Saved', 'सेव हुआ'));
+      const ok = await act(() => DB.rpc('admin_update_gym', { gym: gymId(), gym_name: v.name, owner: v.owner || null, phone_no: v.phone || null, city_name: v.city || null, upi: v.upi || null }).then(() => DB.rpc('admin_set_gym_timings', { gym: gymId(), timing_text: v.timings || null })), L('Saved', 'सेव हुआ'));
       if (ok) { await loadContext(); render(); } return !!ok;
     },
   });
@@ -751,7 +752,7 @@ async function vMine() {
   const paid = paidByInvoice(payments), due = sum(invoices, (i) => balanceOf(i, paid)), s = memberState(m), dl = daysLeft(m), plan = plans.find((p) => p.id === m.plan_id), upi = upiOf();
   const month = visits.filter((v) => monthKey(istDate(v.in_at)) === monthKey(todayISO())).length;
   const fitHtml = await mineFitCards(m);
-  return pageHead(gymName(), `${L('Hello', 'नमस्ते')}, ${m.name}`, '')
+  return pageHead(gymName(), `${L('Hello', 'नमस्ते')}, ${m.name}`, CTX.gym && CTX.gym.timings ? L('Gym timings: ', 'जिम का समय: ') + CTX.gym.timings : '')
     + `<div class="tiles">${tile(L('Membership', 'सदस्यता'), badge(s), esc(plan ? plan.name : ''))}${tile(L('Valid till', 'तारीख़ तक'), esc(fmtDate(m.end_date)), dl == null ? '' : dl >= 0 ? esc(L(`${dl} days left`, `${dl} दिन बाक़ी`)) : esc(L(`Expired ${-dl} days ago`, `${-dl} दिन पहले खत्म`)))}${tile(L('Visits this month', 'इस महीने विज़िट'), month)}${tile(L('Dues', 'बकाया'), esc(inr(due)), '', due ? 'var(--crimson)' : '')}</div>`
     + (due && upi ? `<div class="card" style="padding:14px;margin-bottom:14px"><b>${esc(L('Pay your dues', 'बकाया चुकाएँ'))}</b><p class="muted" style="margin:6px 0">${esc(L('Pay to this UPI ID, then tell the front desk. The gym records the payment on its side.', 'इस UPI आईडी पर भुगतान करें, फिर फ़्रंट डेस्क को बताएँ। भुगतान जिम की तरफ़ से दर्ज होता है।'))}</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><code class="num">${esc(upi)}</code><button class="btn sm" data-act="copyUpi">${ic('copy')} ${esc(L('Copy', 'कॉपी'))}</button></div></div>` : '')
     + `<div class="grid2">${card(L('Invoices', 'इनवॉइस'), 'receipt', '', invoices.length ? `<ul class="list">${invoices.slice(0, 8).map((i) => `<li><div class="grow"><b class="num">${esc(i.no || '—')}</b><small>${esc(fmtDate(i.date))}</small></div><span class="num">${esc(inr(i.total))}</span>${badge(invStatus(i, paid))}</li>`).join('')}</ul>` : empty(L('No invoices', 'कोई इनवॉइस नहीं'), ''))}
@@ -1334,11 +1335,157 @@ async function loadDaySummary() {
     draw(card(title, 'pulse', '', `<p class="muted" style="margin:0">${esc(L('The summary is not available right now.', 'सारांश अभी उपलब्ध नहीं है।'))} <a href="#dashboard" data-act="retry">${esc(L('Try again', 'फिर कोशिश करें'))}</a></p>`) + '<div style="height:14px"></div>');
   }
 }
+/* ================= Business pages: Expenses (owner only) and Leads (owner + trainers) ================= */
+const EXP_CATS = ['Rent', 'Electricity', 'Salary', 'Equipment', 'Maintenance', 'Supplements', 'Marketing', 'Cleaning', 'Other'];
+const EXP_CAT_HI = { Rent: 'किराया', Electricity: 'बिजली', Salary: 'वेतन', Equipment: 'उपकरण', Maintenance: 'मरम्मत', Supplements: 'सप्लीमेंट', Marketing: 'प्रचार', Cleaning: 'सफ़ाई', Other: 'अन्य' };
+const LEAD_STAGES = ['New', 'Contacted', 'Trial', 'Converted', 'Lost'];
+const LEAD_STAGE_HI = { New: 'नया', Contacted: 'संपर्क हुआ', Trial: 'ट्रायल', Converted: 'सदस्य बना', Lost: 'छूट गया' };
+const LEAD_SOURCES = ['Walk-in', 'Instagram', 'Facebook', 'Referral', 'Website', 'Other'];
+const LEAD_SOURCE_HI = { 'Walk-in': 'सीधे आए', Instagram: 'इंस्टाग्राम', Facebook: 'फ़ेसबुक', Referral: 'रेफ़रल', Website: 'वेबसाइट', Other: 'अन्य' };
+const LEAD_TONE = { New: 'info', Contacted: 'warn', Trial: 'warn', Converted: 'ok', Lost: 'mute' };
+const catLabel = (c) => (LANG === 'hi' ? EXP_CAT_HI[c] || c : c);
+const stageLabel = (s) => (LANG === 'hi' ? LEAD_STAGE_HI[s] || s : s);
+const sourceLabel = (s) => (LANG === 'hi' ? LEAD_SOURCE_HI[s] || s : s);
+
+Q.expenses = () => cached('expenses', () => DB.select('expenses', { order: 'spent_on.desc,created_at.desc', limit: 5000 }));
+Q.leads = () => cached('leads', () => DB.select('leads', { order: 'created_at.desc', limit: 2000 }));
+
+U.exp = { m: 'this' };
+U.lead = { f: 'all', q: '' };
+
+const shiftMonth = (mk, n) => { const [y, m] = mk.split('-').map(Number), d = new Date(Date.UTC(y, m - 1 + n, 1)); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}`; };
+/* months included by the chosen range, as a Set of YYYY-MM; null = every month */
+function expRange(key) {
+  const now = monthKey(todayISO());
+  if (key === 'this') return new Set([now]);
+  if (key === 'last') return new Set([shiftMonth(now, -1)]);
+  if (key === 'q') return new Set([now, shiftMonth(now, -1), shiftMonth(now, -2)]);
+  return null;
+}
+
+/* ---------- Expenses ---------- */
+async function vExpenses() {
+  const [exps, pays] = await Promise.all([Q.expenses(), Q.payments()]);
+  const rng = expRange(U.exp.m), inR = (d) => !rng || rng.has(monthKey(d));
+  const rows = exps.filter((e) => inR(e.spent_on)), got = sum(pays.filter((p) => inR(p.paid_on)), (p) => p.amount), spent = sum(rows, (e) => e.amount), net = got - spent;
+  const byCat = EXP_CATS.map((c) => [c, sum(rows.filter((e) => e.category === c), (e) => e.amount)]).filter((x) => x[1] > 0).sort((a, b) => b[1] - a[1]);
+  const chips = chipsHtml('expM', U.exp.m, [['this', L('This month', 'यह महीना')], ['last', L('Last month', 'पिछला महीना')], ['q', L('Last 3 months', 'पिछले 3 महीने')], ['all', L('All time', 'पूरा समय')]]);
+  const catHtml = byCat.length
+    ? `<ul class="list">${byCat.map(([c, a]) => `<li><div class="grow"><b>${esc(catLabel(c))}</b><div class="cbar"><i style="width:${Math.max(3, Math.round((a / spent) * 100))}%"></i></div></div><div class="amt">${inr(a)}</div></li>`).join('')}</ul>`
+    : empty(L('No expenses in this period', 'इस अवधि में कोई खर्च नहीं'), '');
+  const tbl = rows.length
+    ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Date', 'तारीख़'))}</th><th>${esc(L('Item', 'मद'))}</th><th>${esc(L('Category', 'श्रेणी'))}</th><th class="r">${esc(L('Amount', 'रकम'))}</th><th></th></tr></thead><tbody>${rows.map((e) => `<tr><td>${esc(fmtDate(e.spent_on))}</td><td><b>${esc(e.item)}</b>${e.note ? `<small style="display:block;color:var(--muted)">${esc(e.note)}</small>` : ''}</td><td>${badge(catLabel(e.category), 'mute')}</td><td class="r">${inr(e.amount)}</td><td class="r"><button class="btn sm" data-act="delExpense" data-id="${esc(e.id)}" aria-label="${esc(L('Delete', 'हटाएँ'))}">${esc(L('Delete', 'हटाएँ'))}</button></td></tr>`).join('')}</tbody></table></div>`
+    : empty(L('No expenses yet', 'अभी कोई खर्च नहीं'), L('Add rent, electricity, salaries and other costs to see your real profit.', 'किराया, बिजली, वेतन जैसे खर्च जोड़ें ताकि असली मुनाफ़ा दिखे।'), `<button class="btn pri" data-act="newExpense">${esc(L('Add expense', 'खर्च जोड़ें'))}</button>`);
+  return pageHead(L('Money', 'पैसा'), L('Expenses & profit', 'खर्च और मुनाफ़ा'), L('Fees collected minus what you spent. Only the owner can see this page.', 'आई हुई फ़ीस में से खर्च घटाकर मुनाफ़ा। यह पेज सिर्फ़ मालिक देख सकता है।'), `<button class="btn pri" data-act="newExpense">${ic('plus')}${esc(L('Add expense', 'खर्च जोड़ें'))}</button>`)
+    + chips
+    + `<div class="tiles">${tile(L('Fees collected', 'फ़ीस आई'), inr(got), '', 'var(--ok)')}${tile(L('Expenses', 'खर्च'), inr(spent), L(`${rows.length} entries`, `${rows.length} प्रविष्टियाँ`), 'var(--warn)')}${tile(net >= 0 ? L('Profit', 'मुनाफ़ा') : L('Loss', 'घाटा'), inr(Math.abs(net)), '', net >= 0 ? 'var(--ok)' : 'var(--crimson)')}</div>`
+    + `<div class="two">${card(L('Where the money went', 'पैसा कहाँ गया'), 'chart', '', catHtml)}${card(L('All entries', 'सभी प्रविष्टियाँ'), 'receipt', '', tbl)}</div>`;
+}
+function expenseForm() {
+  openForm({
+    title: L('Add expense', 'खर्च जोड़ें'),
+    fields: [
+      { k: 'item', label: L('What was it for?', 'किस काम का खर्च?'), req: true, full: true, ph: L('Electricity bill', 'बिजली का बिल'), check: (v) => (v.trim().length > 120 ? L('Up to 120 characters', 'अधिकतम 120 अक्षर') : '') },
+      { k: 'category', label: L('Category', 'श्रेणी'), type: 'select', options: EXP_CATS.map((c) => ({ v: c, l: catLabel(c) })), def: 'Other' },
+      { k: 'amount', label: L('Amount (₹)', 'रकम (₹)'), type: 'number', req: true, min: 1, check: (v) => (v >= 100000000 ? L('Too large', 'बहुत बड़ी रकम') : '') },
+      { k: 'spent_on', label: L('Date', 'तारीख़'), type: 'date', def: todayISO(), check: (v) => (v && v > todayISO() ? L('Cannot be in the future', 'आगे की तारीख़ नहीं') : '') },
+      { k: 'note', label: L('Note', 'नोट'), type: 'textarea', full: true, check: (v) => (v.length > 300 ? L('Up to 300 characters', 'अधिकतम 300 अक्षर') : '') },
+    ],
+    onSubmit: async (v) => {
+      const row = { gym_id: gymId(), item: v.item.trim(), category: v.category, amount: v.amount, spent_on: v.spent_on || todayISO(), note: v.note ? v.note.trim() : null };
+      const ok = await act(() => DB.insert('expenses', row), L('Expense saved', 'खर्च सेव हुआ'));
+      if (ok) { bust('expenses'); render(); } return !!ok;
+    },
+  });
+}
+async function deleteExpense(id) {
+  const e = (await Q.expenses()).find((x) => x.id === id); if (!e) return;
+  if (!(await askConfirm(L(`Delete "${e.item}" (${inr(e.amount)})?`, `"${e.item}" (${inr(e.amount)}) हटाएँ?`), L('Delete', 'हटाएँ'), 'bad'))) return;
+  const ok = await act(() => DB.remove('expenses', id), L('Deleted', 'हटा दिया'));
+  if (ok) { bust('expenses'); render(); }
+}
+
+/* ---------- Leads ---------- */
+const nextStage = (s) => ({ New: 'Contacted', Contacted: 'Trial', Trial: null, Converted: null, Lost: null })[s] || null;
+async function vLeads() {
+  const leads = await Q.leads(), t = todayISO(), q = U.lead.q.trim().toLowerCase();
+  const cnt = (s) => leads.filter((l) => l.stage === s).length, open = leads.filter((l) => !['Converted', 'Lost'].includes(l.stage));
+  const due = open.filter((l) => l.follow_up_on && l.follow_up_on <= t);
+  const rate = leads.length ? Math.round((cnt('Converted') / leads.length) * 100) : 0;
+  let rows = U.lead.f === 'all' ? leads : U.lead.f === 'due' ? due : leads.filter((l) => l.stage === U.lead.f);
+  if (q) rows = rows.filter((l) => `${l.name} ${l.phone || ''}`.toLowerCase().includes(q));
+  const chips = chipsHtml('leadF', U.lead.f, [['all', L('All', 'सभी'), leads.length], ['due', L('Follow up today', 'आज फ़ॉलो-अप'), due.length], ...LEAD_STAGES.map((s) => [s, stageLabel(s), cnt(s)])]);
+  const hello = (l) => L(`Hi ${l.name}, this is ${gymName()}. Thank you for your interest. Would you like to visit for a free trial session?`, `नमस्ते ${l.name}, ${gymName()} से बात कर रहे हैं। हमारे जिम में रुचि दिखाने के लिए धन्यवाद। क्या आप फ़्री ट्रायल के लिए आना चाहेंगे?`);
+  const rowHtml = (l) => {
+    const nx = nextStage(l.stage), closed = l.stage === 'Converted' || l.stage === 'Lost', over = !closed && l.follow_up_on && l.follow_up_on <= t;
+    return `<tr><td><b>${esc(l.name)}</b><small style="display:block;color:var(--muted)">${esc(sourceLabel(l.source))}${l.interest ? ' · ' + esc(l.interest) : ''}</small>${l.note ? `<small style="display:block;color:var(--muted)">${esc(l.note)}</small>` : ''}</td>`
+      + `<td>${l.phone ? `<a href="tel:${esc(String(l.phone).replace(/[^\d+]/g, ''))}">${esc(l.phone)}</a>` : '—'}</td>`
+      + `<td>${badge(stageLabel(l.stage), LEAD_TONE[l.stage])}</td>`
+      + `<td>${l.follow_up_on ? `<span style="${over ? 'color:var(--crimson);font-weight:600' : ''}">${esc(fmtDate(l.follow_up_on))}</span>` : '—'}</td>`
+      + `<td class="r"><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">`
+      + (l.phone && !closed ? `<a class="btn sm" target="_blank" rel="noopener" href="${esc(waLink(l.phone, hello(l)))}">WhatsApp</a>` : '')
+      + (nx ? `<button class="btn sm" data-act="leadNext" data-id="${esc(l.id)}">${esc(L('Mark ', 'चुनें: ') + stageLabel(nx))}</button>` : '')
+      + (!closed ? `<button class="btn sm pri" data-act="leadConvert" data-id="${esc(l.id)}">${esc(L('Make member', 'सदस्य बनाएँ'))}</button><button class="btn sm" data-act="leadLost" data-id="${esc(l.id)}">${esc(L('Lost', 'छूटा'))}</button>` : '')
+      + `<button class="btn sm" data-act="editLead" data-id="${esc(l.id)}">${esc(L('Edit', 'बदलें'))}</button>`
+      + (isAdmin() ? `<button class="btn sm" data-act="delLead" data-id="${esc(l.id)}">${esc(L('Delete', 'हटाएँ'))}</button>` : '') + `</div></td></tr>`;
+  };
+  const tbl = rows.length
+    ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Lead', 'संभावित सदस्य'))}</th><th>${esc(L('Phone', 'फ़ोन'))}</th><th>${esc(L('Stage', 'चरण'))}</th><th>${esc(L('Follow-up', 'फ़ॉलो-अप'))}</th><th></th></tr></thead><tbody>${rows.map(rowHtml).join('')}</tbody></table></div>`
+    : empty(leads.length ? L('Nothing here', 'यहाँ कुछ नहीं') : L('No leads yet', 'अभी कोई लीड नहीं'), leads.length ? '' : L('Write down every enquiry, set a follow-up date, and turn it into a member with one tap.', 'हर पूछताछ लिखें, फ़ॉलो-अप तारीख़ रखें, और एक टैप में सदस्य बनाएँ।'), leads.length ? '' : `<button class="btn pri" data-act="newLead">${esc(L('Add lead', 'लीड जोड़ें'))}</button>`);
+  return pageHead(L('Growth', 'विकास'), L('Leads', 'लीड्स'), L('People who asked about joining. Follow up, then convert them to members.', 'जिन्होंने जॉइन करने के बारे में पूछा। फ़ॉलो-अप करें, फिर सदस्य बनाएँ।'), `<button class="btn pri" data-act="newLead">${ic('plus')}${esc(L('Add lead', 'लीड जोड़ें'))}</button>`)
+    + `<div class="tiles">${tile(L('Open leads', 'खुली लीड्स'), open.length, '')}${tile(L('Follow up today', 'आज फ़ॉलो-अप'), due.length, due.length ? L('Call them today', 'आज कॉल करें') : '', due.length ? 'var(--crimson)' : '')}${tile(L('Joined', 'सदस्य बने'), cnt('Converted'), L(`${rate}% of all leads`, `सभी लीड्स का ${rate}%`), 'var(--ok)')}</div>`
+    + chips
+    + `<div class="card" style="margin-bottom:12px"><input class="in" id="leadQ" type="search" placeholder="${esc(L('Search name or phone', 'नाम या फ़ोन खोजें'))}" value="${esc(U.lead.q)}" aria-label="${esc(L('Search leads', 'लीड खोजें'))}"></div>`
+    + `<div class="card">${tbl}</div>`;
+}
+function leadForm(id) {
+  Q.leads().then((leads) => {
+    const x = id ? leads.find((l) => l.id === id) : null;
+    openForm({
+      title: x ? x.name : L('Add lead', 'लीड जोड़ें'), values: x || {},
+      fields: [
+        { k: 'name', label: L('Name', 'नाम'), req: true, full: true, check: (v) => (v.trim().length > 120 ? L('Up to 120 characters', 'अधिकतम 120 अक्षर') : '') },
+        { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel', check: (v) => (v && String(v).replace(/\D/g, '').length < 10 ? L('Enter a 10-digit number', '10 अंकों का नंबर डालें') : '') },
+        { k: 'source', label: L('Where from', 'कहाँ से'), type: 'select', options: LEAD_SOURCES.map((s) => ({ v: s, l: sourceLabel(s) })), def: x ? x.source : 'Walk-in' },
+        { k: 'stage', label: L('Stage', 'चरण'), type: 'select', options: LEAD_STAGES.filter((s) => s !== 'Converted' || (x && x.stage === 'Converted')).map((s) => ({ v: s, l: stageLabel(s) })), def: x ? x.stage : 'New' },
+        { k: 'follow_up_on', label: L('Follow up on', 'फ़ॉलो-अप तारीख़'), type: 'date' },
+        { k: 'interest', label: L('Interested in', 'किसमें रुचि'), full: true, ph: L('Weight loss, 3-month plan', 'वज़न घटाना, 3 महीने का प्लान'), check: (v) => (v.length > 200 ? L('Up to 200 characters', 'अधिकतम 200 अक्षर') : '') },
+        { k: 'note', label: L('Note', 'नोट'), type: 'textarea', full: true, check: (v) => (v.length > 500 ? L('Up to 500 characters', 'अधिकतम 500 अक्षर') : '') },
+      ],
+      onSubmit: async (v) => {
+        const row = { name: v.name.trim(), phone: v.phone ? String(v.phone).trim() : null, source: v.source, stage: v.stage, follow_up_on: v.follow_up_on || null, interest: v.interest ? v.interest.trim() : null, note: v.note ? v.note.trim() : null, updated_at: new Date().toISOString() };
+        const ok = await act(() => (x ? DB.update('leads', x.id, row) : DB.insert('leads', { ...row, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
+        if (ok) { bust('leads'); render(); } return !!ok;
+      },
+    });
+  });
+}
+async function leadSetStage(id, stage, msg) {
+  const ok = await act(() => DB.update('leads', id, { stage, updated_at: new Date().toISOString() }), msg);
+  if (ok) { bust('leads'); render(); }
+}
+async function leadConvert(id) {
+  const l = (await Q.leads()).find((x) => x.id === id); if (!l) return;
+  /* the lead is marked Converted only after the member really exists */
+  await memberForm(null, { name: l.name, phone: l.phone || '', notes: [l.interest, l.note].filter(Boolean).join(' · ') }, async (saved) => {
+    await act(() => DB.update('leads', id, { stage: 'Converted', converted_member_id: saved.id, follow_up_on: null, updated_at: new Date().toISOString() }), L('Lead marked as member', 'लीड सदस्य बन गई'));
+    bust('leads');
+  });
+}
+async function deleteLead(id) {
+  const l = (await Q.leads()).find((x) => x.id === id); if (!l) return;
+  if (!(await askConfirm(L(`Delete lead "${l.name}"?`, `लीड "${l.name}" हटाएँ?`), L('Delete', 'हटाएँ'), 'bad'))) return;
+  const ok = await act(() => DB.remove('leads', id), L('Deleted', 'हटा दिया'));
+  if (ok) { bust('leads'); render(); }
+}
+document.addEventListener('input', (e) => {
+  if (e.target && e.target.id === 'leadQ') { U.lead.q = e.target.value; clearTimeout(window.__leadT); window.__leadT = setTimeout(async () => { const v = $('#view'); if (!v || !$('#leadQ')) return; v.innerHTML = await vLeads(); const i = $('#leadQ'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 200); }
+});
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV = {
   super_admin: [['gyms', 'building', 'Gyms', 'जिम', vSuperGyms], ['users', 'users', 'Users', 'यूज़र', vSuperUsers], ['audit', 'list', 'Audit log', 'ऑडिट लॉग', vSuperAudit], ['status', 'pulse', 'Status', 'स्थिति', vSuperStatus]],
-  gym_admin: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard], ['members', 'users', 'Members', 'सदस्य', vMembers], ['reminders', 'clock', 'Reminders', 'रिमाइंडर', vReminders], ['whatsapp', 'msg', 'WhatsApp', 'WhatsApp', vWhatsApp], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin], ['plans', 'tag', 'Plans', 'प्लान', vPlans], ['offers', 'crown', 'Offers', 'ऑफ़र', vOffers], ['invoices', 'receipt', 'Invoices', 'इनवॉइस', vInvoices], ['payments', 'wallet', 'Payments', 'भुगतान', vPayments], ['ledger', 'shield', 'Secure ledger', 'सुरक्षित लेजर', vLedger], ['retention', 'pulse', 'At risk', 'जोखिम', vRetention], ['peak', 'chart', 'Peak hours', 'भीड़ के समय', vPeak], ['settings', 'gear', 'Settings', 'सेटिंग', vSettings]],
-  trainer: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard], ['members', 'users', 'Members', 'सदस्य', vMembers], ['reminders', 'clock', 'Reminders', 'रिमाइंडर', vReminders], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin]],
+  gym_admin: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard], ['members', 'users', 'Members', 'सदस्य', vMembers], ['reminders', 'clock', 'Reminders', 'रिमाइंडर', vReminders], ['whatsapp', 'msg', 'WhatsApp', 'WhatsApp', vWhatsApp], ['leads', 'users', 'Leads', 'लीड्स', vLeads], ['expenses', 'wallet', 'Expenses', 'खर्च', vExpenses], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin], ['plans', 'tag', 'Plans', 'प्लान', vPlans], ['offers', 'crown', 'Offers', 'ऑफ़र', vOffers], ['invoices', 'receipt', 'Invoices', 'इनवॉइस', vInvoices], ['payments', 'wallet', 'Payments', 'भुगतान', vPayments], ['ledger', 'shield', 'Secure ledger', 'सुरक्षित लेजर', vLedger], ['retention', 'pulse', 'At risk', 'जोखिम', vRetention], ['peak', 'chart', 'Peak hours', 'भीड़ के समय', vPeak], ['settings', 'gear', 'Settings', 'सेटिंग', vSettings]],
+  trainer: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard], ['members', 'users', 'Members', 'सदस्य', vMembers], ['reminders', 'clock', 'Reminders', 'रिमाइंडर', vReminders], ['leads', 'users', 'Leads', 'लीड्स', vLeads], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin]],
   member: [['mine', 'home', 'My gym', 'मेरा जिम', vMine]],
 };
 const navFor = () => NAV[CTX.profile ? CTX.profile.role : ''] || [];
@@ -1429,7 +1576,7 @@ async function enter() {
 function onSignedOut() { bust(); CTX.profile = null; CTX.gym = null; CTX.locked = false; RENDER_TOKEN++; loginScreen(L('Please sign in again.', 'कृपया दोबारा लॉगिन करें।')); }
 
 /* ---------- actions ---------- */
-const CHIP = { memF: (v) => { U.members.f = v; U.members.page = 1; }, invF: (v) => { U.invoices.f = v; U.invoices.page = 1; }, peakD: (v) => { U.peak.days = v; } };
+const CHIP = { memF: (v) => { U.members.f = v; U.members.page = 1; }, invF: (v) => { U.invoices.f = v; U.invoices.page = 1; }, peakD: (v) => { U.peak.days = v; }, expM: (v) => { U.exp.m = v; }, leadF: (v) => { U.lead.f = v; } };
 const BIND = { mq: (v) => { U.members.q = v; U.members.page = 1; }, cq: (v) => { U.checkin.q = v; }, iq: (v) => { U.invoices.q = v; U.invoices.page = 1; }, pq: (v) => { U.payments.q = v; U.payments.page = 1; }, rdays: (v) => { const n = Math.min(14, Math.max(1, parseInt(v, 10) || 2)); U_REMIND.days = n; try { localStorage.setItem('gymos-remind-days', String(n)); } catch (e) {} }, thr: (v) => { const n = Math.min(30, Math.max(1, parseInt(v, 10) || 4)); U.retention.thr = n; try { localStorage.setItem('gymos-thr', String(n)); } catch (e) {} } };
 const ACTIONS = {
   newGym: () => gymForm(), extendGym: (d) => extendForm(d.id), lockGym: (d) => lockForm(d.id), assignUser: (d) => assignForm(d.id),
@@ -1444,7 +1591,7 @@ const ACTIONS = {
   lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
   theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
   importMembers: () => importForm(), membersCsv: () => exportMembers(), newOffer: () => offerForm(), editOffer: (d) => offerForm(d.id), shareOffer: (d) => shareOffer(d.id),
-  newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
+  newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, newExpense: () => expenseForm(), delExpense: (d) => deleteExpense(d.id), newLead: () => leadForm(), editLead: (d) => leadForm(d.id), leadNext: (d) => Q.leads().then((ls) => { const l = ls.find((x) => x.id === d.id); const n = l && nextStage(l.stage); if (n) leadSetStage(l.id, n, L('Moved to ' + stageLabel(n), stageLabel(n) + ' में किया')); }), leadLost: (d) => leadSetStage(d.id, 'Lost', L('Marked lost', 'छूटा हुआ चिह्नित')), leadConvert: (d) => leadConvert(d.id), delLead: (d) => deleteLead(d.id), waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
   changePw: () => openForm({
     title: L('Change password', 'पासवर्ड बदलें'),
     fields: [

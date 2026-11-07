@@ -19,7 +19,7 @@ function draftRows(eng, db, mem, fit, status) {
 const FIT = { age: 30, height_cm: 175, weight_kg: 80, goal: 'fat_loss', diet_pref: 'veg', activity: 'moderate', experience: 'intermediate', days_per_week: 4, session_min: 60, equipment: 'gym', injuries: null, conditions: null, allergies: null };
 function makeDb(role) {
   const G = '11111111-1111-4111-8111-111111111111', P1 = uid(), P2 = uid();
-  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [] };
+  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [] };
   const me = '22222222-2222-4222-8222-222222222222';
   db.me = me; db.G = G;
   db.profiles = [{ id: me, gym_id: role === 'super_admin' ? null : G, role, full_name: 'Test', email: 't@x.in', created_at: new Date().toISOString() }, { id: uid(), gym_id: null, role: 'member', full_name: 'New User', email: 'n@x.in', created_at: new Date().toISOString() }];
@@ -49,6 +49,7 @@ function handler(db, role) {
       const fn = p.split('/').pop(), a = JSON.parse(req.postData() || '{}');
       if (fn === 'admin_gym_overview') return json(OV);
       if (fn === 'verify_gym_ledger') return json([]);
+      if (fn === 'admin_set_gym_timings') { db.gyms[0].timings = a.timing_text; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'publish_member_plan') { const r = db.member_plans.find((x) => x.id === a.p); db.member_plans.forEach((x) => { if (x.member_id === r.member_id && x.kind === r.kind && x.status === 'published' && x.id !== r.id) x.status = 'archived'; }); r.status = 'published'; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'unpublish_member_plan') { const r = db.member_plans.find((x) => x.id === a.p); if (r && r.status === 'published') r.status = 'archived'; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'admin_update_gym') { Object.assign(db.gyms[0], { name: a.gym_name, owner_name: a.owner, phone: a.phone_no, city: a.city_name, upi_id: a.upi }); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
@@ -62,6 +63,7 @@ function handler(db, role) {
     if (t === 'member_plans' && m === 'DELETE') { const id = u.searchParams.get('id').slice(3); const i = rows.findIndex((x) => x.id === id); if (i >= 0) rows.splice(i, 1); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
     if (t === 'member_plans' && m === 'PATCH' && !u.searchParams.get('id')) { let r = rows; u.searchParams.forEach((v, k) => { if (v.startsWith('eq.')) r = r.filter((x) => String(x[k]) === v.slice(3)); }); r.forEach((x) => Object.assign(x, JSON.parse(req.postData()))); return json(r); }
     if (t === 'wa_settings' && m === 'POST') { const b = JSON.parse(req.postData()); if (rows[0]) Object.assign(rows[0], b); else rows.unshift({ ...b }); return json([rows[0]], 201); }
+    if (m === 'DELETE') { const id = (u.searchParams.get('id') || '').slice(3); const i = rows.findIndex((x) => x.id === id); if (i >= 0) rows.splice(i, 1); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
     if (m === 'GET') { let r = rows; u.searchParams.forEach((v, k) => { if (v.startsWith('eq.')) r = r.filter((x) => String(x[k]) === v.slice(3)); }); return json(r); }
     if (m === 'POST' && Array.isArray(JSON.parse(req.postData()))) { const out = JSON.parse(req.postData()).map((b) => ({ id: uid(), status: 'Active', ...b })); out.forEach((r) => rows.unshift(r)); db.bulk = out; return json(out, 201); }
     if (m === 'POST') {
@@ -102,7 +104,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(/ग़लत|Wrong/.test(await page.textContent('.banner.bad')), 'wrong password shows a friendly error');
     await login(page); await page.waitForSelector('.tiles');
     ok(/Royal The Gym/.test(await page.textContent('#gymName')), 'dashboard loads with gym name');
-    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 13, 'gym admin sees 13 menu items');
+    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 15, 'gym admin sees 15 menu items');
     await page.click('a[href="#members"]'); await page.waitForSelector('table.t');
     ok((await page.$$('table.t tbody tr')).length === 4, 'members list shows 4');
     await page.fill('#mq', 'priya'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 1);
@@ -145,7 +147,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('a[href="#retention"]'); await page.waitForSelector('.list');
     ok(/Absent Ajay/.test(await page.textContent('#view')), 'retention lists the absent member');
     await page.click('a[href="#peak"]'); await page.waitForSelector('.heat'); ok(true, 'peak heatmap renders');
-    await page.click('a[href="#settings"]'); await page.click('[data-act=editGym]'); await page.fill('#f_city', 'Jaipur'); await page.click('[data-ok]');
+    await page.click('a[href="#settings"]'); await page.click('[data-act=editGym]'); await page.fill('#f_city', 'Jaipur'); await page.fill('#f_timings', 'Mon-Sat 5:30 AM - 10 PM'); await page.click('[data-ok]'); for (let i = 0; i < 20 && db.gyms[0].timings !== 'Mon-Sat 5:30 AM - 10 PM'; i++) await page.waitForTimeout(150); ok(db.gyms[0].timings === 'Mon-Sat 5:30 AM - 10 PM', 'gym timings saved');
     await page.waitForFunction(() => /Jaipur/.test(document.body.innerText)); ok(db.gyms[0].city === 'Jaipur', 'gym settings saved via RPC');
     // bulk import
     await page.click('a[href="#members"]'); await page.waitForSelector('[data-act=importMembers]'); await page.click('[data-act=importMembers]');
@@ -210,6 +212,34 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(db.member_plans.filter((r) => r.status === 'published').length === 2, 'both plans published');
     await page.click('[data-unpub] >> nth=0'); for (let i = 0; i < 20 && db.member_plans.every((r) => r.status === 'published'); i++) await page.waitForTimeout(150);
     ok(db.member_plans.filter((r) => r.status === 'published').length === 1 && db.member_plans.filter((r) => r.status === 'archived').length === 1, 'a published plan can be taken back'); await page.waitForFunction(() => document.querySelectorAll('[data-v]').length === 1); await page.keyboard.press('Escape');
+    // expenses + profit
+    await db.payments.push({ id: uid(), gym_id: db.G, member_id: db.members[0].id, amount: 5000, method: 'Cash', paid_on: today(), no: 'RCT-X' });
+    await page.evaluate(() => bust('payments')); await page.click('a[href="#expenses"]'); await page.waitForSelector('[data-act=newExpense]');
+    await page.waitForFunction(() => /5,500/.test(document.querySelector('.tiles').innerText));
+    ok(/5,500/.test(await page.textContent('.tiles')), 'expenses page shows fees collected');
+    await page.click('[data-act=newExpense] >> nth=0'); await page.fill('#f_item', 'Bijli bill'); await page.selectOption('#f_category', 'Electricity'); await page.fill('#f_amount', '1200'); await page.click('[data-ok]');
+    await page.waitForFunction(() => /Bijli bill/.test(document.body.innerText));
+    ok(db.expenses.length === 1 && db.expenses[0].category === 'Electricity' && Number(db.expenses[0].amount) === 1200 && db.expenses[0].gym_id === db.G, 'expense saved with category and amount');
+    ok(/4,300/.test(await page.textContent('.tiles')), 'profit = collected minus expenses');
+    await page.click('[data-act=newExpense] >> nth=0'); await page.fill('#f_item', 'x'); await page.fill('#f_amount', '0'); await page.click('[data-ok]');
+    ok(db.expenses.length === 1, 'zero amount is rejected'); await page.keyboard.press('Escape');
+    await page.click('[data-act=delExpense]'); await page.click('[data-yes]'); await page.waitForFunction(() => !/Bijli bill/.test(document.body.innerText));
+    ok(db.expenses.length === 0, 'expense deleted after confirmation');
+    // leads: add, follow up, convert to member
+    await page.click('a[href="#leads"]'); await page.waitForSelector('[data-act=newLead]'); await page.click('[data-act=newLead] >> nth=0');
+    await page.fill('#f_name', 'Vikram Lead'); await page.fill('#f_phone', '98123'); await page.click('[data-ok]');
+    ok((await page.textContent('#e_phone')).length > 0, 'short lead phone rejected'); await page.fill('#f_phone', '9812345678'); await page.fill('#f_follow_up_on', today()); await page.click('[data-ok]');
+    await page.waitForFunction(() => /Vikram Lead/.test(document.body.innerText));
+    ok(db.leads.length === 1 && db.leads[0].stage === 'New' && db.leads[0].source === 'Walk-in', 'lead saved as New');
+    ok(/1/.test(await page.textContent('.tiles .card:nth-child(2) .v')), 'lead due today is counted');
+    ok(/wa\.me\/919812345678/.test(await page.$eval('a[href*="wa.me"]', (a) => a.href)), 'WhatsApp button opens the lead chat');
+    await page.click('[data-act=leadNext]'); await page.waitForFunction(() => /Contacted|संपर्क हुआ/.test(document.querySelector('table.t tbody').innerText));
+    ok(db.leads[0].stage === 'Contacted', 'lead moved to Contacted');
+    await page.click('[data-act=leadConvert]'); await page.waitForSelector('#f_name');
+    ok((await page.inputValue('#f_name')) === 'Vikram Lead' && (await page.inputValue('#f_phone')) === '9812345678', 'member form is prefilled from the lead');
+    await page.click('[data-ok]'); for (let i = 0; i < 25 && db.leads[0].stage !== 'Converted'; i++) await page.waitForTimeout(150);
+    const nm = db.members.find((x) => x.name === 'Vikram Lead');
+    ok(!!nm && db.leads[0].stage === 'Converted' && db.leads[0].converted_member_id === nm.id, 'lead marked Converted only after the member exists');
     // offers
     await page.click('a[href="#offers"]'); await page.waitForSelector('[data-act=newOffer]'); await page.click('[data-act=newOffer]');
     await page.fill('#f_name', 'Diwali 10%'); await page.fill('#f_value', '10'); await page.click('[data-ok]'); await page.waitForFunction(() => /Diwali 10%/.test(document.body.innerText));
@@ -245,7 +275,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await session(browser, 'gym_admin', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
     for (const lang of ['hi', 'en']) {
-      for (const r of ['dashboard', 'members', 'reminders', 'whatsapp', 'checkin', 'plans', 'offers', 'invoices', 'payments', 'ledger', 'retention', 'peak', 'settings']) {
+      for (const r of ['dashboard', 'members', 'reminders', 'whatsapp', 'leads', 'expenses', 'checkin', 'plans', 'offers', 'invoices', 'payments', 'ledger', 'retention', 'peak', 'settings']) {
         await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(250); await page.waitForSelector('#view .ph');
         if (await overflow(page)) { ok(false, `overflow on ${r} (${lang})`); }
       }

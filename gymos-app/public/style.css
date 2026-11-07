@@ -278,3 +278,9 @@ table.t td.edge { border-left: 4px solid var(--line); }
 
 .note { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--gold, #a67c1d) 8%, transparent); font-size: 13px; line-height: 1.5; }
 @media print { body.printing #printArea table.t { font-size: 12px; } body.printing #printArea .note { border: 1px solid #999; } }
+
+.two { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+@media (min-width: 900px) { .two { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); } }
+.cbar { height: 6px; border-radius: 99px; background: var(--surface2); margin-top: 6px; overflow: hidden; }
+.cbar i { display: block; height: 100%; background: var(--crimson); border-radius: 99px; }
+.list .amt { font-weight: 600; font-variant-numeric: tabular-nums; }

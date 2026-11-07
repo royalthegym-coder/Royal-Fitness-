@@ -20,6 +20,10 @@
   - Sending: Edge function `wa-dispatch` (verify_jwt = false, authenticates inside) sends Meta WhatsApp Cloud API template messages. pg_cron and the trigger call it with a random shared value kept in Supabase Vault and checked through `wa_cron_ok`; the in-app buttons use the signed-in admin's session.
   - The owner must add two Edge function values in the Supabase dashboard: `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID`. Until then messages stay queued (anything older than 3 days is dropped). The guide and the three template texts are on the app's WhatsApp page.
 
+- Expenses and leads:
+  - Table `expenses` (owner only, fixed categories, amount > 0) feeds the Expenses & profit page (fees collected minus expenses). Table `leads` (owner and trainers read/insert/update, only the owner deletes) feeds the Leads page: stages New, Contacted, Trial, Converted, Lost; follow-up dates; "Make member" opens the member form prefilled and marks the lead Converted only after the member is saved. Both tables are gym-scoped by RLS and stop accepting writes when the gym is locked (rollback-tested).
+  - Function `admin_set_gym_timings(gym, timing_text)` and column `gyms.timings`: the owner sets opening hours in Edit gym; members see them on their page.
+
 - Edge function `create-account` (verify_jwt = true): a gym admin creates a trainer/member login for their OWN gym.
   Caller role and gym come from the database, never from the request. Deployed to project `ayoeevltbubkyhixqqlg`.
 - SQL function `public.service_assign_profile(...)`: executable only by `service_role`; sets role/gym on the new profile and links the member.
