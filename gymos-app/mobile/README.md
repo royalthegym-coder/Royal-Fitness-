@@ -5,7 +5,7 @@
 ## तीन रास्ते (आसान से कठिन)
 
 1. **वेबसाइट से इंस्टॉल (अभी, मुफ़्त):** Android Chrome में साइट खोलें, "Install" दबाएँ। iPhone Safari में Share → "Add to Home Screen"। कोई खाता नहीं चाहिए।
-2. **Android APK (मुफ़्त):** GitHub → Actions → "Mobile apps" → Run workflow। पूरा होने पर `GymOS-android-debug-apk` डाउनलोड करें और फ़ोन में इंस्टॉल करें (फ़ोन में "अज्ञात स्रोत से इंस्टॉल" की अनुमति देनी होगी)।
+2. **Android APK (मुफ़्त):** workflow फ़ाइल `.github/workflows/mobile-apps.yml` अभी `gymos-app` शाखा में है। GitHub का "Run workflow" बटन तभी दिखता है जब फ़ाइल मुख्य (default) शाखा में हो, इसलिए पहले `gymos-app` को मुख्य शाखा में merge करें। या अपने कंप्यूटर से टैग भेजें: `git tag mobile-v1.0.0 && git push origin mobile-v1.0.0`। फिर GitHub → Actions → "Mobile apps"। पूरा होने पर `GymOS-android-debug-apk` डाउनलोड करें और फ़ोन में इंस्टॉल करें (फ़ोन में "अज्ञात स्रोत से इंस्टॉल" की अनुमति देनी होगी)।
 3. **Play Store / App Store:** नीचे की ज़रूरतें पूरी करनी होंगी।
 
 ## स्टोर के लिए आपको क्या चाहिए (मैं ये नहीं कर सकता)
