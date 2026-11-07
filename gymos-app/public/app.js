@@ -1686,6 +1686,59 @@ async function vSuperHome() {
     + `${card(L('Quiet gyms', 'शांत जिम'), 'clock', '', quiet.length ? `<ul class="list">${quiet.map((g) => `<li><div class="grow"><b>${esc(g.name)}</b><small>${esc(g.last_visit ? L('Last check-in ', 'आख़िरी चेक-इन ') + fmtDate(g.last_visit) : L('No check-ins yet', 'अभी तक कोई चेक-इन नहीं'))}</small></div></li>`).join('')}</ul>` : empty(L('All gyms are active', 'सभी जिम सक्रिय हैं'), L('Every open gym had a check-in in the last 7 days.', 'हर खुले जिम में पिछले 7 दिन में चेक-इन हुआ।')))}</div><div style="height:14px"></div>`
     + card(L('Recent admin actions', 'हाल की एडमिन कार्रवाई'), 'list', `<a href="#audit" style="font-size:13px">${esc(L('All', 'सभी'))}</a>`, audit.length ? `<ul class="list">${audit.slice(0, 6).map((r) => `<li><div class="grow"><b>${esc(at[r.action] || r.action)}</b><small>${r.gym_id && gm.get(r.gym_id) ? esc(gm.get(r.gym_id).name) + ' · ' : ''}${esc(fmtDate(r.at))} ${esc(fmtTime(r.at))}</small></div></li>`).join('')}</ul>` : empty(L('No actions yet', 'अभी कोई कार्रवाई नहीं'), ''));
 }
+/* ================= Installable app: update prompt, install prompt (Android + iPhone/iPad), offline bar ================= */
+const isStandalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* private mode */ } };
+let DEFERRED_INSTALL = null, SW_REG = null;
+
+function bar(id, html) {
+  let el = document.getElementById(id);
+  if (!el) { el = document.createElement('div'); el.id = id; el.className = 'pwabar'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+  el.innerHTML = html; return el;
+}
+const dropBar = (id) => { const el = document.getElementById(id); if (el) el.remove(); };
+
+function pwaInit() {
+  const secure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  if ('serviceWorker' in navigator && secure) {
+    navigator.serviceWorker.register('sw.js').then((reg) => {
+      SW_REG = reg;
+      const watch = (w) => w && w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdateBar(w); });
+      if (reg.waiting && navigator.serviceWorker.controller) showUpdateBar(reg.waiting);
+      reg.addEventListener('updatefound', () => watch(reg.installing));
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+      setInterval(() => reg.update().catch(() => {}), 60 * 60 * 1000);
+    }).catch(() => {});
+    /* reload only when the person pressed "Update now"; the very first install must not reload the page */
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloading || !window.__updating) return; reloading = true; location.reload(); });
+  }
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); DEFERRED_INSTALL = e; });
+  window.addEventListener('appinstalled', () => { DEFERRED_INSTALL = null; dropBar('installBar'); lsSet('gymos-installed', '1'); });
+  const off = () => bar('offBar', `<span>${esc(L('You are offline. You can look around, but changes cannot be saved.', 'इंटरनेट नहीं है। देख सकते हैं, पर बदलाव सेव नहीं होंगे।'))}</span>`).classList.add('warn');
+  window.addEventListener('offline', off); window.addEventListener('online', () => dropBar('offBar'));
+  if (!navigator.onLine) off();
+}
+function showUpdateBar(worker) {
+  bar('updBar', `<span>${esc(L('A new version of the app is ready.', 'ऐप का नया वर्ज़न तैयार है।'))}</span><button class="btn sm pri" type="button" data-act="applyUpdate">${esc(L('Update now', 'अभी अपडेट करें'))}</button>`);
+  window.__swWaiting = worker;
+}
+/* shown once the person is signed in; never inside the installed app, and not again for 14 days after "Not now" */
+function pwaAfterLogin() {
+  if (isStandalone() || lsGet('gymos-installed') === '1') return;
+  const until = Number(lsGet('gymos-install-later') || 0); if (until > Date.now()) return;
+  if (DEFERRED_INSTALL) bar('installBar', `<span>${esc(L('Install GymOS on your phone for one-tap access.', 'GymOS को फ़ोन में इंस्टॉल करें, एक टैप में खुलेगा।'))}</span><button class="btn sm pri" type="button" data-act="installApp">${esc(L('Install', 'इंस्टॉल'))}</button><button class="btn sm" type="button" data-act="installLater">${esc(L('Not now', 'अभी नहीं'))}</button>`);
+  else if (isIOS()) bar('installBar', `<span>${esc(L('Install on iPhone: tap the Share button, then "Add to Home Screen".', 'iPhone में इंस्टॉल: Share बटन दबाएँ, फिर "Add to Home Screen" चुनें।'))}</span><button class="btn sm" type="button" data-act="installLater">${esc(L('Got it', 'समझ गया'))}</button>`);
+}
+async function installApp() {
+  if (!DEFERRED_INSTALL) return;
+  DEFERRED_INSTALL.prompt(); const r = await DEFERRED_INSTALL.userChoice.catch(() => ({})); DEFERRED_INSTALL = null; dropBar('installBar');
+  if (r && r.outcome === 'dismissed') lsSet('gymos-install-later', String(Date.now() + 14 * 864e5));
+}
+function installLater() { lsSet('gymos-install-later', String(Date.now() + 14 * 864e5)); dropBar('installBar'); }
+function applyUpdate() { window.__updating = true; const w = window.__swWaiting || (SW_REG && SW_REG.waiting); if (w) w.postMessage('SKIP_WAITING'); else location.reload(); }
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV_GROUPS = { overview: ['Overview', 'अवलोकन'], people: ['People', 'लोग'], money: ['Money', 'पैसा'], business: ['Business', 'व्यापार'], insights: ['Insights', 'जानकारी'], setup: ['Setup', 'सेटअप'], platform: ['Platform', 'प्लेटफ़ॉर्म'], me: ['My gym', 'मेरा जिम'] };
 /* entry: [route, icon, English, Hindi, view, group, shownInPhoneBar] */
@@ -1788,7 +1841,7 @@ async function enter() {
   const p = CTX.profile;
   if (!p || (p.role !== 'super_admin' && !p.gym_id)) { waitingScreen(); return; }
   if (!navFor().length) { waitingScreen(); return; }
-  $('#view').dataset.ready = ''; render();
+  $('#view').dataset.ready = ''; render(); pwaAfterLogin();
 }
 function onSignedOut() { bust(); CTX.profile = null; CTX.gym = null; CTX.locked = false; RENDER_TOKEN++; loginScreen(L('Please sign in again.', 'कृपया दोबारा लॉगिन करें।')); }
 
@@ -1808,7 +1861,7 @@ const ACTIONS = {
   lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
   theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
   importMembers: () => importForm(), membersCsv: () => exportMembers(), newOffer: () => offerForm(), editOffer: (d) => offerForm(d.id), shareOffer: (d) => shareOffer(d.id),
-  newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, moreNav: () => openMoreSheet(), newExpense: () => expenseForm(), newProduct: () => productForm(), editProduct: (d) => productForm(d.id), sellProduct: (d) => sellForm(d.id), voidSale: (d) => voidSale(d.id), delProduct: (d) => deleteProduct(d.id), delExpense: (d) => deleteExpense(d.id), newLead: () => leadForm(), editLead: (d) => leadForm(d.id), leadNext: (d) => Q.leads().then((ls) => { const l = ls.find((x) => x.id === d.id); const n = l && nextStage(l.stage); if (n) leadSetStage(l.id, n, L('Moved to ' + stageLabel(n), stageLabel(n) + ' में किया')); }), leadLost: (d) => leadSetStage(d.id, 'Lost', L('Marked lost', 'छूटा हुआ चिह्नित')), leadConvert: (d) => leadConvert(d.id), delLead: (d) => deleteLead(d.id), waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
+  newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, moreNav: () => openMoreSheet(), installApp: () => installApp(), installLater: () => installLater(), applyUpdate: () => applyUpdate(), newExpense: () => expenseForm(), newProduct: () => productForm(), editProduct: (d) => productForm(d.id), sellProduct: (d) => sellForm(d.id), voidSale: (d) => voidSale(d.id), delProduct: (d) => deleteProduct(d.id), delExpense: (d) => deleteExpense(d.id), newLead: () => leadForm(), editLead: (d) => leadForm(d.id), leadNext: (d) => Q.leads().then((ls) => { const l = ls.find((x) => x.id === d.id); const n = l && nextStage(l.stage); if (n) leadSetStage(l.id, n, L('Moved to ' + stageLabel(n), stageLabel(n) + ' में किया')); }), leadLost: (d) => leadSetStage(d.id, 'Lost', L('Marked lost', 'छूटा हुआ चिह्नित')), leadConvert: (d) => leadConvert(d.id), delLead: (d) => deleteLead(d.id), waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
   changePw: () => openForm({
     title: L('Change password', 'पासवर्ड बदलें'),
     fields: [
@@ -1849,6 +1902,5 @@ window.addEventListener('hashchange', () => { closeAllModals(); if (CTX.profile)
   try { const t = localStorage.getItem('gymos-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
   $('#langBtn').onclick = () => ACTIONS.lang(); $('#themeBtn').onclick = () => ACTIONS.theme(); $('#outBtn').onclick = () => ACTIONS.signOut(); $('#pwBtn').onclick = () => ACTIONS.changePw();
   if (SESSION && SESSION.refresh_token) enter(); else loginScreen();
-  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
-  window.addEventListener('offline', () => toast(L('You are offline. Changes cannot be saved until the internet is back.', 'इंटरनेट नहीं है। इंटरनेट आने तक बदलाव सेव नहीं होंगे।'), 'bad'));
+  pwaInit();
 })();

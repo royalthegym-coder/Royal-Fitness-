@@ -309,3 +309,14 @@ table.t td.edge { border-left: 4px solid var(--line); }
 .cal-h { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-bottom: 4px; font-size: 11px; color: var(--muted); text-align: center; }
 .kv { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); gap: 6px 14px; margin: 0; }
 .kv dt { color: var(--muted); } .kv dd { margin: 0; font-weight: 600; word-break: break-word; }
+
+/* installed-app feel on phones and tablets */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+button, a, .chip, .click, label { touch-action: manipulation; }
+@media (max-width: 900px) { input, select, textarea, .in { font-size: 16px !important; } }
+@media (display-mode: standalone) { body { user-select: none; -webkit-user-select: none; } input, textarea, [contenteditable], .num, code { user-select: text; -webkit-user-select: text; } }
+.pwabar { position: fixed; z-index: 95; left: 50%; translate: -50% 0; bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 66px); width: min(560px, calc(100vw - 24px)); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--gold); box-shadow: 0 10px 30px rgba(0,0,0,.35); color: var(--fg); }
+.pwabar > span { flex: 1 1 200px; min-width: 0; }
+.pwabar.warn { border-color: var(--warn, #e0a030); }
+@media (min-width: 901px) { .pwabar { bottom: 16px; } }

@@ -84,7 +84,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 const server = http.createServer((q, s) => { const f = path.join(PUB, q.url === '/' ? 'index.html' : q.url.split('?')[0]); if (!f.startsWith(PUB) || !fs.existsSync(f)) { s.writeHead(404); return s.end(); } s.writeHead(200, { 'content-type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : f.endsWith('.webp') ? 'image/webp' : f.endsWith('.png') ? 'image/png' : f.endsWith('.webmanifest') ? 'application/manifest+json' : 'text/html' }); s.end(fs.readFileSync(f)); });
 
 async function session(browser, role, fn, vp = { width: 1280, height: 800 }) {
-  const db = makeDb(role), ctx = await browser.newContext({ viewport: vp }), page = await ctx.newPage(), errs = [];
+  const db = makeDb(role), ctx = await browser.newContext({ viewport: vp, serviceWorkers: 'block' }), page = await ctx.newPage(), errs = [];
   page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text()); });
   await ctx.route(SB + '/**', handler(db, role));
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
@@ -340,6 +340,36 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     for (const r of ['mine', 'plan', 'pay', 'visits', 'me']) { await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(250); await page.waitForSelector('#view .ph'); if (await overflow(page)) ok(false, `member overflow on ${r}`); }
     ok(true, 'phone: no overflow on any member page');
   }, { width: 390, height: 800 });
+
+  console.log('installable app (PWA)');
+  {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const man = JSON.parse(fs.readFileSync(path.join(PUB, 'manifest.webmanifest'), 'utf8')), png = (f) => { const b = fs.readFileSync(path.join(PUB, f)); return [b.readUInt32BE(16), b.readUInt32BE(20)]; };
+    ok(man.id && man.start_url && man.scope && man.display === 'standalone' && man.name && man.short_name, 'manifest has id, start_url, scope, display, names');
+    ok(man.icons.every((i) => { const [w, h] = png(i.src); return `${w}x${h}` === i.sizes; }), 'every manifest icon exists and has the declared size');
+    ok(['any', 'maskable'].every((pu) => man.icons.some((i) => i.purpose === pu && i.sizes === '512x512')) && man.icons.some((i) => i.purpose === 'maskable' && i.sizes === '192x192'), 'icons: any + maskable at 192 and 512');
+    ok(/black-translucent/.test(fs.readFileSync(path.join(PUB, 'index.html'), 'utf8')) && fs.existsSync(path.join(PUB, 'apple-touch-icon.png')), 'iOS: status bar style and touch icon present');
+    ok(!/__BUILD__/.test(fs.readFileSync(path.join(PUB, 'sw.js'), 'utf8')), 'service worker has a real build id');
+    // service worker: installs, caches the shell, and the app opens with no internet
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } }), page = await ctx.newPage(), db = makeDb('gym_admin'); await ctx.route(SB + '/**', handler(db, 'gym_admin'));
+    await page.goto(base + '/'); await page.evaluate(() => navigator.serviceWorker.ready); await page.waitForFunction(() => caches.keys().then((k) => k.some((n) => n.startsWith('gymos-'))));
+    const cached = await page.evaluate(async () => { const k = (await caches.keys()).find((n) => n.startsWith('gymos-')), c = await caches.open(k); return (await c.keys()).map((r) => new URL(r.url).pathname); });
+    ok(['/app.js', '/style.css', '/offline.html', '/manifest.webmanifest', '/icon-192.png'].every((f) => cached.includes(f)), 'service worker saved the app files');
+    await page.reload(); await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+    await ctx.setOffline(true); await page.reload(); await page.waitForSelector('#gate, #app'); ok(await page.evaluate(() => !!document.querySelector('#nav, #gate')), 'app shell opens with no internet');
+    await page.waitForSelector('#offBar'); ok(/offline|इंटरनेट नहीं/.test(await page.textContent('#offBar')), 'offline bar is shown');
+    ok(await page.evaluate(() => fetch('offline.html').then((r) => r.ok)), 'offline page is available offline');
+    await ctx.setOffline(false); await page.waitForFunction(() => !document.querySelector('#offBar')); ok(true, 'offline bar disappears when the internet is back');
+    await ctx.close();
+    // install prompt: Android/Chrome button and iPhone instructions
+    const andr = await browser.newContext({ viewport: { width: 390, height: 800 }, serviceWorkers: 'block' }), ap = await andr.newPage(); await andr.route(SB + '/**', handler(makeDb('gym_admin'), 'gym_admin'));
+    await ap.goto(base + '/'); await ap.evaluate(() => { const e = new Event('beforeinstallprompt'); e.prompt = () => { window.__prompted = true; }; e.userChoice = Promise.resolve({ outcome: 'accepted' }); window.dispatchEvent(e); });
+    await login(ap); await ap.waitForSelector('#installBar [data-act=installApp]'); await ap.click('[data-act=installApp]'); await ap.waitForFunction(() => window.__prompted === true && !document.querySelector('#installBar')); ok(true, 'Android: Install button opens the install prompt');
+    await andr.close();
+    const ios = await browser.newContext({ viewport: { width: 390, height: 800 }, serviceWorkers: 'block', userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1' }), ip = await ios.newPage(); await ios.route(SB + '/**', handler(makeDb('gym_admin'), 'gym_admin'));
+    await ip.goto(base + '/'); await login(ip); await ip.waitForSelector('#installBar'); ok(/Add to Home Screen/.test(await ip.textContent('#installBar')), 'iPhone: shows how to Add to Home Screen');
+    await ip.click('#installBar [data-act=installLater]'); await ip.waitForFunction(() => !document.querySelector('#installBar')); await ip.reload(); await login(ip).catch(() => {}); await ip.waitForTimeout(600); ok(!(await ip.$('#installBar')), 'iPhone: "Got it" hides the banner for 14 days'); await ios.close();
+  }
 
   console.log('member + waiting');
   await session(browser, 'member', async (page, db) => { const eng = await ENGINE; db.visits.push({ id: uid(), gym_id: db.G, member_id: db.members[0].id, in_at: new Date().toISOString(), out_at: null }); db.payments.push({ id: uid(), gym_id: db.G, member_id: db.members[0].id, amount: 700, method: 'UPI', paid_on: today(), no: 'RCT-0009' }); draftRows(eng, db, db.members[0], FIT, 'published').forEach((r) => db.member_plans.push(r)); draftRows(eng, db, db.members[0], FIT, 'draft').forEach((r) => db.member_plans.push(r)); await login(page); await page.waitForSelector('.tiles'); ok(/Rahul/.test(await page.textContent('#view')), 'member sees own page');

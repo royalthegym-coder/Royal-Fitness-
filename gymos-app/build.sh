@@ -3,7 +3,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p public
-cat src/a-lib.js src/b-ui.js src/c1-data.js src/c2-super.js src/c3-gym.js src/c4-gym2.js src/c5-extras.js src/c6-receipt.js src/c7-whatsapp.js src/c8-fitplan.js src/c9-daysum.js src/c10-biz.js src/c11-store.js src/c12-portal.js src/d-boot.js > public/app.js
+cat src/a-lib.js src/b-ui.js src/c1-data.js src/c2-super.js src/c3-gym.js src/c4-gym2.js src/c5-extras.js src/c6-receipt.js src/c7-whatsapp.js src/c8-fitplan.js src/c9-daysum.js src/c10-biz.js src/c11-store.js src/c12-portal.js src/c13-pwa.js src/d-boot.js > public/app.js
 cp index.html public/index.html
 node --check public/app.js
+# service worker: one cache per release (hash of the files the shell is made of)
+BUILD=$( (cat public/app.js public/style.css public/index.html public/manifest.webmanifest public/offline.html) | sha1sum | cut -c1-10)
+sed "s/__BUILD__/${BUILD}/" sw.src.js > public/sw.js
+node --check public/sw.js
 echo "built public/app.js ($(wc -c < public/app.js) bytes)"
