@@ -28,9 +28,9 @@ function expRange(key) {
 
 /* ---------- Expenses ---------- */
 async function vExpenses() {
-  const [exps, pays, sales] = await Promise.all([Q.expenses(), Q.payments(), Q.sales()]);
+  const [exps, pays, sales, scs] = await Promise.all([Q.expenses(), Q.payments(), Q.sales(), Q.saleCosts()]);
   const rng = expRange(U.exp.m), inR = (d) => !rng || rng.has(monthKey(d));
-  const rows = exps.filter((e) => inR(e.spent_on)), got = sum(pays.filter((p) => inR(p.paid_on)), (p) => p.amount), spent = sum(rows, (e) => e.amount), shop = saleMargin(sales.filter((s) => inR(s.sold_on))), net = got + shop - spent;
+  const rows = exps.filter((e) => inR(e.spent_on)), got = sum(pays.filter((p) => inR(p.paid_on)), (p) => p.amount), spent = sum(rows, (e) => e.amount), shop = saleMargin(sales.filter((s) => inR(s.sold_on)), costMap(scs, 'sale_id', 'unit_cost')), net = got + shop - spent;
   const byCat = EXP_CATS.map((c) => [c, sum(rows.filter((e) => e.category === c), (e) => e.amount)]).filter((x) => x[1] > 0).sort((a, b) => b[1] - a[1]);
   const chips = chipsHtml('expM', U.exp.m, [['this', L('This month', 'यह महीना')], ['last', L('Last month', 'पिछला महीना')], ['q', L('Last 3 months', 'पिछले 3 महीने')], ['all', L('All time', 'पूरा समय')]]);
   const catHtml = byCat.length
