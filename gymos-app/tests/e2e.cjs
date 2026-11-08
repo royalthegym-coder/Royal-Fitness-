@@ -19,7 +19,7 @@ function draftRows(eng, db, mem, fit, status) {
 const FIT = { age: 30, height_cm: 175, weight_kg: 80, goal: 'fat_loss', diet_pref: 'veg', activity: 'moderate', experience: 'intermediate', days_per_week: 4, session_min: 60, equipment: 'gym', injuries: null, conditions: null, allergies: null };
 function makeDb(role) {
   const G = '11111111-1111-4111-8111-111111111111', P1 = uid(), P2 = uid();
-  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [] };
+  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [] };
   const me = '22222222-2222-4222-8222-222222222222';
   db.me = me; db.G = G;
   db.profiles = [{ id: me, gym_id: role === 'super_admin' ? null : G, role, full_name: 'Test', email: 't@x.in', created_at: new Date().toISOString() }, { id: uid(), gym_id: null, role: 'member', full_name: 'New User', email: 'n@x.in', created_at: new Date().toISOString() }];
@@ -107,7 +107,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(/ग़लत|Wrong/.test(await page.textContent('.banner.bad')), 'wrong password shows a friendly error');
     await login(page); await page.waitForSelector('.tiles');
     ok(/Royal The Gym/.test(await page.textContent('#gymName')), 'dashboard loads with gym name');
-    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 16, 'gym admin sees 16 menu items');
+    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 17, 'gym admin sees 17 menu items');
     await page.click('a[href="#members"]'); await page.waitForSelector('table.t');
     ok((await page.$$('table.t tbody tr')).length === 4, 'members list shows 4');
     await page.fill('#mq', 'priya'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 1);
@@ -228,6 +228,32 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(db.expenses.length === 1, 'zero amount is rejected'); await page.keyboard.press('Escape');
     await page.click('[data-act=delExpense]'); await page.click('[data-yes]'); await page.waitForFunction(() => !/Bijli bill/.test(document.body.innerText));
     ok(db.expenses.length === 0, 'expense deleted after confirmation');
+    // staff payroll: add person, part-pay, overpay refused, bonus, profit counts it, history delete, cannot delete person with history
+    await page.click('a[href="#staff"]'); await page.waitForSelector('[data-act=newStaff]');
+    await page.click('[data-act=newStaff] >> nth=0'); await page.fill('#f_name', 'Vikram Trainer'); await page.fill('#f_monthly_salary', '12000'); await page.click('[data-ok]');
+    await page.waitForFunction(() => /Vikram Trainer/.test(document.body.innerText));
+    ok(db.staff_members.length === 1 && Number(db.staff_members[0].monthly_salary) === 12000 && db.staff_members[0].active === true && db.staff_members[0].gym_id === db.G, 'staff member saved with salary');
+    ok(/12,000/.test(await page.textContent('.tiles')), 'payroll tile shows total monthly salary');
+    await page.click('[data-act=payStaff]'); await page.fill('#f_amount', '5000'); await page.click('[data-ok]');
+    await page.waitForFunction(() => /Part paid|आंशिक/.test(document.body.innerText));
+    ok(db.salary_payments.length === 1 && db.salary_payments[0].kind === 'salary' && Number(db.salary_payments[0].amount) === 5000 && db.salary_payments[0].month === today().slice(0, 7), 'salary payment saved for the month');
+    await page.click('[data-act=payStaff]'); await page.fill('#f_amount', '8000'); await page.click('[data-ok]');
+    ok(db.salary_payments.length === 1 && /7,000/.test(await page.textContent('.md')), 'paying more than the balance as salary is refused'); await page.selectOption('#f_kind', 'bonus'); await page.fill('#f_amount', '1000'); await page.click('[data-ok]');
+    await page.waitForFunction(() => !document.querySelector('.md'));
+    ok(db.salary_payments.length === 2 && db.salary_payments[0].kind === 'bonus', 'extra money can be given as bonus');
+    await page.click('a[href="#expenses"]'); await page.waitForSelector('[data-act=newExpense]');
+    await page.waitForFunction(() => /6,000/.test(document.querySelector('.tiles').innerText));
+    ok(/6,000/.test(await page.textContent('.tiles')) && /5,500/.test(await page.textContent('.tiles')), 'salaries paid are counted as expenses on the profit page');
+    await page.click('a[href="#staff"]'); await page.waitForSelector('[data-act=staffHist]'); await page.click('[data-act=staffHist]'); await page.waitForSelector('[data-act=delSalPay]');
+    ok((await page.$$('[data-act=delSalPay]')).length === 2, 'history lists both payments');
+    await page.click('[data-act=delSalPay] >> nth=0'); await page.click('[data-yes]'); await page.waitForFunction(() => !document.querySelector('.md'));
+    await page.click('[data-act=editStaff]'); await page.waitForSelector('[data-act=delStaff]'); await page.click('[data-act=delStaff]');
+    ok(db.staff_members.length === 1, 'a person with payment history is not deleted'); await page.keyboard.press('Escape');
+    await page.click('[data-act=staffHist]'); await page.waitForSelector('[data-act=delSalPay]'); await page.click('[data-act=delSalPay]'); await page.click('[data-yes]'); await page.waitForFunction(() => !document.querySelector('.md'));
+    ok(db.salary_payments.length === 0, 'payment deleted after confirmation');
+    await page.click('[data-act=editStaff]'); await page.waitForSelector('[data-act=delStaff]'); await page.click('[data-act=delStaff]'); await page.click('[data-yes]');
+    await page.waitForFunction(() => !/Vikram Trainer/.test(document.body.innerText));
+    ok(db.staff_members.length === 0, 'person without history can be deleted');
     // leads: add, follow up, convert to member
     await page.click('a[href="#leads"]'); await page.waitForSelector('[data-act=newLead]'); await page.click('[data-act=newLead] >> nth=0');
     await page.fill('#f_name', 'Vikram Lead'); await page.fill('#f_phone', '98123'); await page.click('[data-ok]');
@@ -295,14 +321,14 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await session(browser, 'gym_admin', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
     ok(!!(await page.$('.nav .more')) && (await page.$$eval('#nav a', (a) => a.filter((x) => x.offsetParent !== null).length)) <= 5, 'phone bar shows only the main pages plus More');
-    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 16, 'More sheet lists all 16 pages in groups');
+    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 17, 'More sheet lists all 17 pages in groups');
     await page.click('.sheet-links a[href="#expenses"]'); await page.waitForFunction(() => location.hash === '#expenses' && !document.querySelector('.ov')); ok(true, 'More sheet opens a page and closes');
     ok((await page.$$('#nav .grp')).length === 6, 'admin menu is split into 6 groups');
     await page.waitForSelector('[data-act=newExpense]'); await page.waitForTimeout(500);
     await page.keyboard.press('Control+k'); await page.waitForSelector('#palQ'); await page.fill('#palQ', 'rahul'); await page.waitForSelector('.pal-list li[data-i]'); await page.keyboard.press('Enter');
     await page.waitForSelector('.md'); ok(/Rahul/.test(await page.textContent('.md')), 'Ctrl+K finds a member and opens their card'); await page.keyboard.press('Escape');
     for (const lang of ['hi', 'en']) {
-      for (const r of ['dashboard', 'members', 'reminders', 'whatsapp', 'leads', 'store', 'expenses', 'checkin', 'plans', 'offers', 'invoices', 'payments', 'ledger', 'retention', 'peak', 'settings']) {
+      for (const r of ['dashboard', 'members', 'reminders', 'whatsapp', 'leads', 'store', 'expenses', 'staff', 'checkin', 'plans', 'offers', 'invoices', 'payments', 'ledger', 'retention', 'peak', 'settings']) {
         await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(250); await page.waitForSelector('#view .ph');
         if (await overflow(page)) { ok(false, `overflow on ${r} (${lang})`); }
       }

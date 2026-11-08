@@ -1,6 +1,6 @@
 /* GymOS service worker. Caches the app shell only. Data is never cached: every request to Supabase (another origin) is left alone.
    BUILD is replaced by build.sh with a hash of the app files, so each release gets its own cache and the old one is deleted. */
-const BUILD = '4cc531e266';
+const BUILD = 'd47aa0b46e';
 const CACHE = 'gymos-' + BUILD;
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest', 'offline.html', 'logo.webp', 'icon-192.png', 'icon-512.png'];
 

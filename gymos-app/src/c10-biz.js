@@ -28,10 +28,10 @@ function expRange(key) {
 
 /* ---------- Expenses ---------- */
 async function vExpenses() {
-  const [exps, pays, sales, scs] = await Promise.all([Q.expenses(), Q.payments(), Q.sales(), Q.saleCosts()]);
+  const [exps, pays, sales, scs, sal] = await Promise.all([Q.expenses(), Q.payments(), Q.sales(), Q.saleCosts(), Q.salaryPays()]);
   const rng = expRange(U.exp.m), inR = (d) => !rng || rng.has(monthKey(d));
-  const rows = exps.filter((e) => inR(e.spent_on)), got = sum(pays.filter((p) => inR(p.paid_on)), (p) => p.amount), spent = sum(rows, (e) => e.amount), shop = saleMargin(sales.filter((s) => inR(s.sold_on)), costMap(scs, 'sale_id', 'unit_cost')), net = got + shop - spent;
-  const byCat = EXP_CATS.map((c) => [c, sum(rows.filter((e) => e.category === c), (e) => e.amount)]).filter((x) => x[1] > 0).sort((a, b) => b[1] - a[1]);
+  const rows = exps.filter((e) => inR(e.spent_on)), got = sum(pays.filter((p) => inR(p.paid_on)), (p) => p.amount), payroll = sum(sal.filter((p) => inR(p.paid_on)), (p) => p.amount), spent = sum(rows, (e) => e.amount) + payroll, shop = saleMargin(sales.filter((s) => inR(s.sold_on)), costMap(scs, 'sale_id', 'unit_cost')), net = got + shop - spent;
+  const byCat = EXP_CATS.map((c) => [c, sum(rows.filter((e) => e.category === c), (e) => e.amount) + (c === 'Salary' ? payroll : 0)]).filter((x) => x[1] > 0).sort((a, b) => b[1] - a[1]);
   const chips = chipsHtml('expM', U.exp.m, [['this', L('This month', 'यह महीना')], ['last', L('Last month', 'पिछला महीना')], ['q', L('Last 3 months', 'पिछले 3 महीने')], ['all', L('All time', 'पूरा समय')]]);
   const catHtml = byCat.length
     ? `<ul class="list">${byCat.map(([c, a]) => `<li><div class="grow"><b>${esc(catLabel(c))}</b><div class="cbar"><i style="width:${Math.max(3, Math.round((a / spent) * 100))}%"></i></div></div><div class="amt">${inr(a)}</div></li>`).join('')}</ul>`
@@ -41,7 +41,7 @@ async function vExpenses() {
     : empty(L('No expenses yet', 'अभी कोई खर्च नहीं'), L('Add rent, electricity, salaries and other costs to see your real profit.', 'किराया, बिजली, वेतन जैसे खर्च जोड़ें ताकि असली मुनाफ़ा दिखे।'), `<button class="btn pri" data-act="newExpense">${esc(L('Add expense', 'खर्च जोड़ें'))}</button>`);
   return pageHead(L('Money', 'पैसा'), L('Expenses & profit', 'खर्च और मुनाफ़ा'), L('Fees collected plus store profit, minus what you spent. Only the owner can see this page.', 'आई हुई फ़ीस और स्टोर का मुनाफ़ा, घटाकर खर्च। यह पेज सिर्फ़ मालिक देख सकता है।'), `<button class="btn pri" data-act="newExpense">${ic('plus')}${esc(L('Add expense', 'खर्च जोड़ें'))}</button>`)
     + chips
-    + `<div class="tiles">${tile(L('Fees collected', 'फ़ीस आई'), inr(got), '', 'var(--ok)')}${tile(L('Store profit', 'स्टोर का मुनाफ़ा'), inr(shop), L('sales minus cost of goods', 'बिक्री − सामान की लागत'), 'var(--ok)')}${tile(L('Expenses', 'खर्च'), inr(spent), L(`${rows.length} entries`, `${rows.length} प्रविष्टियाँ`), 'var(--warn)')}${tile(net >= 0 ? L('Profit', 'मुनाफ़ा') : L('Loss', 'घाटा'), inr(Math.abs(net)), '', net >= 0 ? 'var(--ok)' : 'var(--crimson)')}</div>`
+    + `<div class="tiles">${tile(L('Fees collected', 'फ़ीस आई'), inr(got), '', 'var(--ok)')}${tile(L('Store profit', 'स्टोर का मुनाफ़ा'), inr(shop), L('sales minus cost of goods', 'बिक्री − सामान की लागत'), 'var(--ok)')}${tile(L('Expenses', 'खर्च'), inr(spent), payroll ? L(`incl. salaries ${inr(payroll)}`, `वेतन ${inr(payroll)} सहित`) : L(`${rows.length} entries`, `${rows.length} प्रविष्टियाँ`), 'var(--warn)')}${tile(net >= 0 ? L('Profit', 'मुनाफ़ा') : L('Loss', 'घाटा'), inr(Math.abs(net)), '', net >= 0 ? 'var(--ok)' : 'var(--crimson)')}</div>`
     + `<div class="two">${card(L('Where the money went', 'पैसा कहाँ गया'), 'chart', '', catHtml)}${card(L('All entries', 'सभी प्रविष्टियाँ'), 'receipt', '', tbl)}</div>`;
 }
 function expenseForm() {
