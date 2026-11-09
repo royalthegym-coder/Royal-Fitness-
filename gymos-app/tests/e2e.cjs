@@ -267,6 +267,16 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(db.member_progress.length === 1, 'an impossible weight is refused'); await page.keyboard.press('Escape');
     await page.click('[data-act=delProgress]'); await page.click('[data-yes]'); await page.waitForFunction(() => !/82\.5/.test(document.body.innerText));
     ok(db.member_progress.length === 0, 'staff can delete an entry'); await page.keyboard.press('Escape');
+    // trainer assignment
+    const TR = uid(); db.profiles.push({ id: TR, gym_id: db.G, role: 'trainer', full_name: 'Coach Anil', email: 'a@x.in', created_at: new Date().toISOString() }); await page.evaluate(() => bust('profiles'));
+    await page.click('a[href="#members"]'); await page.waitForSelector('[data-key=memT]');
+    await page.evaluate((id) => memberForm(id), db.members[0].id); await page.waitForSelector('#f_trainer_id');
+    ok(/Coach Anil/.test(await page.textContent('#f_trainer_id')), 'owner can pick a trainer from the gym\'s trainers'); await page.selectOption('#f_trainer_id', TR); await page.click('[data-ok]'); await page.waitForFunction(() => !document.querySelector('.md'));
+    ok(db.members[0].trainer_id === TR, 'trainer assignment is saved');
+    db.members[0].trainer_name = 'Coach Anil'; await page.evaluate(() => { bust('members'); render(); }); await page.waitForFunction(() => /Coach Anil/.test(document.querySelector('#view').innerText));
+    await page.click('[data-key=memT][data-v=mine]'); await page.waitForFunction(() => !/Coach Anil/.test(document.querySelector('#view').innerText));
+    ok(true, 'My members filter hides members of other trainers');
+    await page.click('[data-key=memT][data-v=all]');
     // leads: add, follow up, convert to member
     await page.click('a[href="#leads"]'); await page.waitForSelector('[data-act=newLead]'); await page.click('[data-act=newLead] >> nth=0');
     await page.fill('#f_name', 'Vikram Lead'); await page.fill('#f_phone', '98123'); await page.click('[data-ok]');

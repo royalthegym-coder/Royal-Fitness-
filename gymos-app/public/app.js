@@ -403,7 +403,7 @@ async function vSuperStatus() {
     + `<div class="note" style="margin-top:14px">${esc(L('Cloudflare, n8n and WhatsApp are not connected to this app, so it does not show their health. Check them in their own dashboards.', 'Cloudflare, n8n और WhatsApp इस ऐप से जुड़े नहीं हैं, इसलिए इनकी सेहत यहाँ नहीं दिखती। इन्हें इनके अपने डैशबोर्ड में देखें।'))}</div>`;
 }
 /* ================= Gym screens (gym_admin; trainers get Members + Check-in) ================= */
-const U = { members: { q: '', f: 'all', page: 1 }, checkin: { q: '' }, invoices: { f: 'all', q: '', page: 1 }, payments: { q: '', page: 1 }, ledger: { result: null, busy: false, page: 1 }, retention: { thr: 4 }, peak: { days: '28' } };
+const U = { members: { q: '', f: 'all', t: 'all', page: 1 }, checkin: { q: '' }, invoices: { f: 'all', q: '', page: 1 }, payments: { q: '', page: 1 }, ledger: { result: null, busy: false, page: 1 }, retention: { thr: 4 }, peak: { days: '28' } };
 try { const t = Number(localStorage.getItem('gymos-thr')); if (t >= 1 && t <= 30) U.retention.thr = t; } catch (e) {}
 const isAdmin = () => CTX.profile.role === 'gym_admin';
 const gymName = () => (CTX.gym ? CTX.gym.name : 'Royal The Gym');
@@ -434,16 +434,19 @@ async function vMembers() {
   const pm = planMap(plans), last = lastVisitMap(visits), dues = duesByMember(invoices, paidByInvoice(payments));
   const st = U.members, q = st.q.trim().toLowerCase();
   const counts = { all: members.length }; STATE_FILTERS.forEach((s) => (counts[s] = members.filter((m) => memberState(m) === s).length));
-  let rows = members.filter((m) => (st.f === 'all' || memberState(m) === st.f) && (!q || m.name.toLowerCase().includes(q) || String(m.phone || '').includes(q)));
+  const me = CTX.profile ? CTX.profile.id : '', mine = members.filter((m) => m.trainer_id === me).length, loose = members.filter((m) => !m.trainer_id).length, anyTrainer = members.some((m) => m.trainer_id);
+  let rows = members.filter((m) => (st.t === 'all' || (st.t === 'mine' ? m.trainer_id === me : !m.trainer_id)) && (st.f === 'all' || memberState(m) === st.f) && (!q || m.name.toLowerCase().includes(q) || String(m.phone || '').includes(q)));
   const total = rows.length; st.page = Math.min(st.page, Math.max(1, Math.ceil(total / PAGE))); rows = rows.slice((st.page - 1) * PAGE, st.page * PAGE);
   return pageHead(L('People', 'लोग'), L('Members', 'सदस्य'), '', `<button class="btn" data-act="membersCsv">${ic('down')} CSV</button>${isAdmin() ? `<button class="btn" data-act="importMembers" ${CTX.locked ? 'disabled' : ''}>${ic('down')} ${esc(L('Import', 'इम्पोर्ट'))}</button>` : ''}<button class="btn primary" data-act="newMember" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('New member', 'नया सदस्य'))}</button>`)
     + `<div class="bar">${searchBox('mq', st.q, L('Search name or phone', 'नाम या फ़ोन खोजें'))}</div>`
+    + (anyTrainer || isAdmin() ? chipsHtml('memT', st.t, [['all', L('Everyone', 'सभी'), members.length], ['mine', L('My members', 'मेरे सदस्य'), mine], ...(isAdmin() ? [['none', L('No trainer', 'ट्रेनर नहीं'), loose]] : [])]) : '')
     + chipsHtml('memF', st.f, [['all', L('All', 'सभी'), counts.all], ...STATE_FILTERS.map((s) => [s, LANG === 'hi' ? STATE_HI[s] : s, counts[s]])])
-    + `<div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Photo', 'फ़ोटो'))}</th><th>${esc(L('Member', 'सदस्य'))}</th><th>${esc(L('Plan', 'प्लान'))}</th><th>${esc(L('Status', 'स्थिति'))}</th><th class="r">${esc(L('Valid till', 'तारीख़ तक'))}</th><th>${esc(L('Last visit', 'आख़िरी विज़िट'))}</th>${isAdmin() ? `<th class="r">${esc(L('Dues', 'बकाया'))}</th>` : ''}</tr></thead><tbody>${rows.map((m) => { const s = memberState(m), d = dues.get(m.id) || 0; return `<tr class="click" data-act="openMember" data-id="${esc(m.id)}"><td class="edge e-${TONE[s] || 'mute'}">${avatarM(m)}</td><td><b>${esc(m.name)}</b><br><small class="muted">${esc(m.phone || '')}</small></td><td>${esc((pm.get(m.plan_id) || {}).name || '—')}</td><td>${badge(s)}</td><td class="r num">${esc(fmtDate(m.end_date))}</td><td class="num">${last.get(m.id) ? esc(fmtShort(last.get(m.id))) : '—'}</td>${isAdmin() ? `<td class="r num" style="color:${d ? 'var(--crimson)' : 'inherit'}">${d ? esc(inr(d)) : '—'}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>${pagerHtml(total, st.page, 'members')}` : empty(members.length ? L('No members match', 'कोई सदस्य मेल नहीं खाता') : L('No members yet', 'अभी कोई सदस्य नहीं'), '', members.length ? '' : `<button class="btn primary" data-act="newMember">${esc(L('Add the first member', 'पहला सदस्य जोड़ें'))}</button>`)}</div>`;
+    + `<div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Photo', 'फ़ोटो'))}</th><th>${esc(L('Member', 'सदस्य'))}</th><th>${esc(L('Plan', 'प्लान'))}</th><th>${esc(L('Status', 'स्थिति'))}</th><th class="r">${esc(L('Valid till', 'तारीख़ तक'))}</th><th>${esc(L('Last visit', 'आख़िरी विज़िट'))}</th>${isAdmin() ? `<th class="r">${esc(L('Dues', 'बकाया'))}</th>` : ''}</tr></thead><tbody>${rows.map((m) => { const s = memberState(m), d = dues.get(m.id) || 0; return `<tr class="click" data-act="openMember" data-id="${esc(m.id)}"><td class="edge e-${TONE[s] || 'mute'}">${avatarM(m)}</td><td><b>${esc(m.name)}</b><br><small class="muted">${esc(m.phone || '')}</small></td><td>${esc((pm.get(m.plan_id) || {}).name || '—')}${m.trainer_id ? `<br><small class="muted">${esc(m.trainer_name || '')}</small>` : ''}</td><td>${badge(s)}</td><td class="r num">${esc(fmtDate(m.end_date))}</td><td class="num">${last.get(m.id) ? esc(fmtShort(last.get(m.id))) : '—'}</td>${isAdmin() ? `<td class="r num" style="color:${d ? 'var(--crimson)' : 'inherit'}">${d ? esc(inr(d)) : '—'}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>${pagerHtml(total, st.page, 'members')}` : empty(members.length ? L('No members match', 'कोई सदस्य मेल नहीं खाता') : L('No members yet', 'अभी कोई सदस्य नहीं'), '', members.length ? '' : `<button class="btn primary" data-act="newMember">${esc(L('Add the first member', 'पहला सदस्य जोड़ें'))}</button>`)}</div>`;
 }
 const GOALS = ['Fat Loss', 'Muscle', 'Strength', 'General Fitness', 'Rehab'];
 async function memberForm(id, prefill, onSaved) {
   const [members, plans, offers] = await Promise.all([Q.members(), Q.plans(), isAdmin() ? Q.offers() : []]);
+  let trainers = []; if (isAdmin()) { try { trainers = (await Q.profiles()).filter((p) => p.gym_id === gymId() && (p.role === 'trainer' || p.role === 'gym_admin')); } catch (e) { /* the list is optional */ } }
   const liveOffers = offers.filter((o) => offerLive(o, todayISO()));
   const x = id ? members.find((m) => m.id === id) : null;
   const act2 = plans.filter((p) => p.status === 'Active');
@@ -455,6 +458,7 @@ async function memberForm(id, prefill, onSaved) {
     { k: 'start_date', label: L('Start date', 'शुरू की तारीख़'), type: 'date', def: x ? x.start_date : todayISO() },
     { k: 'notes', label: L('Notes', 'नोट'), type: 'textarea', full: true },
   ];
+  if (isAdmin() && trainers.length) fields.push({ k: 'trainer_id', label: L('Trainer', 'ट्रेनर'), type: 'select', full: true, options: [{ v: '', l: L('Not assigned', 'सौंपा नहीं') }, ...trainers.map((p) => ({ v: p.id, l: (p.full_name || p.email || 'Trainer') + (p.role === 'gym_admin' ? ` (${L('owner', 'मालिक')})` : '') }))], def: x ? x.trainer_id || '' : '' });
   if (isAdmin()) fields.push({ k: 'wa_opt_out', label: L('Do not send automatic WhatsApp messages (member asked to stop)', 'ऑटोमैटिक WhatsApp मैसेज न भेजें (सदस्य ने मना किया)'), type: 'check', full: true });
   if (!x && isAdmin()) { fields.push({ k: 'bill', label: L('Create the first invoice for the plan', 'प्लान का पहला इनवॉइस बनाएँ'), type: 'check', def: true, full: true }); if (liveOffers.length) fields.push({ k: 'offer', label: L('Offer (applies to the invoice)', 'ऑफ़र (इनवॉइस पर लागू)'), type: 'select', options: [{ v: '', l: L('No offer', 'कोई ऑफ़र नहीं') }, ...liveOffers.map((o) => ({ v: o.id, l: `${o.name} · ${offerText(o)}` }))], full: true }); }
   openForm({
@@ -464,6 +468,7 @@ async function memberForm(id, prefill, onSaved) {
       const start = v.start_date || todayISO();
       const row = { name: v.name, phone: v.phone, gender: v.gender || null, goal: v.goal || null, notes: v.notes || null, plan_id: plan ? plan.id : null };
       if (isAdmin()) row.wa_opt_out = !!v.wa_opt_out;
+      if (isAdmin() && trainers.length) row.trainer_id = v.trainer_id || null;
       if (plan && (!x || x.plan_id !== plan.id || x.start_date !== start)) { row.start_date = start; row.end_date = addDays(addMonths(start, plan.months), -1); }
       const saved = await act(() => (x ? DB.update('members', x.id, row) : DB.insert('members', { ...row, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
       if (!saved) return false;
@@ -516,7 +521,7 @@ async function memberModal(id) {
   closeAllModals();
   const mod = openModal({
     title: m.name, wide: true,
-    body: `<div style="display:flex;gap:14px;align-items:center;margin-bottom:12px">${avatarM(m, true)}<div class="grow"><b>${esc(m.phone || '')}</b><div class="muted">${esc(plan ? plan.name : L('No plan', 'प्लान नहीं'))} · ${esc(m.goal || '')}${m.profile_id ? ' · ' + esc(L('app login linked', 'ऐप लॉगिन जुड़ा')) : ''}</div></div>${badge(s)}</div>
+    body: `<div style="display:flex;gap:14px;align-items:center;margin-bottom:12px">${avatarM(m, true)}<div class="grow"><b>${esc(m.phone || '')}</b><div class="muted">${esc(plan ? plan.name : L('No plan', 'प्लान नहीं'))} · ${esc(m.goal || '')}${m.profile_id ? ' · ' + esc(L('app login linked', 'ऐप लॉगिन जुड़ा')) : ''}${m.trainer_id ? ' · ' + esc(L('Trainer', 'ट्रेनर') + ': ' + (m.trainer_name || '')) : ''}</div></div>${badge(s)}</div>
       <div class="tiles" style="margin-bottom:12px">${tile(L('Valid till', 'तारीख़ तक'), esc(fmtDate(m.end_date)), dl == null ? '' : dl >= 0 ? L(`${dl} days left`, `${dl} दिन बाक़ी`) : L(`${-dl} days ago`, `${-dl} दिन पहले`))}${isAdmin() ? tile(L('Dues', 'बकाया'), esc(inr(due)), '', due ? 'var(--crimson)' : '') : ''}</div>
       ${m.notes ? `<p class="muted">${esc(m.notes)}</p>` : ''}
       <h3 style="font-size:13px;margin:10px 0 4px">${esc(L('Recent visits', 'हाल की विज़िट'))}</h3>${vs.length ? `<ul class="list">${vs.map((v) => `<li><div class="grow"><b>${esc(fmtDate(v.in_at))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div></li>`).join('')}</ul>` : `<div class="muted">${esc(L('No visits in the last 90 days', 'पिछले 90 दिन में कोई विज़िट नहीं'))}</div>`}
@@ -832,7 +837,7 @@ async function importForm() {
 async function exportMembers() {
   const [members, plans, invoices, payments] = await Promise.all([Q.members(), Q.plans(), isAdmin() ? Q.invoices() : [], isAdmin() ? Q.payments() : []]);
   const pm = planMap(plans), dues = duesByMember(invoices, paidByInvoice(payments));
-  downloadCsv(`members-${todayISO()}.csv`, [['Name', 'Phone', 'Plan', 'Start', 'End', 'Status', 'Dues', 'Goal', 'Notes'], ...members.map((m) => [m.name, m.phone, (pm.get(m.plan_id) || {}).name || '', m.start_date || '', m.end_date || '', memberState(m), dues.get(m.id) || 0, m.goal || '', m.notes || ''])]);
+  downloadCsv(`members-${todayISO()}.csv`, [['Name', 'Phone', 'Plan', 'Start', 'End', 'Status', 'Dues', 'Goal', 'Trainer', 'Notes'], ...members.map((m) => [m.name, m.phone, (pm.get(m.plan_id) || {}).name || '', m.start_date || '', m.end_date || '', memberState(m), dues.get(m.id) || 0, m.goal || '', m.trainer_id ? m.trainer_name || '' : '', m.notes || ''])]);
 }
 /* ================= Extras: member photos, WhatsApp expiry reminders, offers ================= */
 
@@ -1684,7 +1689,7 @@ async function vMyProfile() {
   const m = (await Q.members())[0]; if (!m) return noMember();
   const plans = await Q.plans(), plan = plans.find((p) => p.id === m.plan_id), g = CTX.gym || {}, row = (k, v) => `<dt>${esc(k)}</dt><dd>${v}</dd>`;
   return pageHead(gymName(), L('My profile', 'मेरी प्रोफ़ाइल'), '')
-    + `<div class="grid2">${card(L('My membership', 'मेरी सदस्यता'), 'users', '', `<dl class="kv" style="padding:6px 18px 16px">${row(L('Name', 'नाम'), esc(m.name))}${row(L('Phone', 'फ़ोन'), esc(m.phone || '—'))}${row(L('Plan', 'प्लान'), esc(plan ? plan.name : '—'))}${row(L('Started', 'शुरू'), esc(fmtDate(m.start_date)))}${row(L('Valid till', 'तारीख़ तक'), esc(fmtDate(m.end_date)))}${row(L('Goal', 'लक्ष्य'), esc(m.goal || '—'))}${row(L('Status', 'स्थिति'), badge(memberState(m)))}</dl>`)}`
+    + `<div class="grid2">${card(L('My membership', 'मेरी सदस्यता'), 'users', '', `<dl class="kv" style="padding:6px 18px 16px">${row(L('Name', 'नाम'), esc(m.name))}${row(L('Phone', 'फ़ोन'), esc(m.phone || '—'))}${row(L('Plan', 'प्लान'), esc(plan ? plan.name : '—'))}${row(L('Started', 'शुरू'), esc(fmtDate(m.start_date)))}${row(L('Valid till', 'तारीख़ तक'), esc(fmtDate(m.end_date)))}${row(L('Goal', 'लक्ष्य'), esc(m.goal || '—'))}${m.trainer_id ? row(L('My trainer', 'मेरा ट्रेनर'), esc(m.trainer_name || '—')) : ''}${row(L('Status', 'स्थिति'), badge(memberState(m)))}</dl>`)}`
     + `${card(L('My gym', 'मेरा जिम'), 'building', '', `<dl class="kv" style="padding:6px 18px 16px">${row(L('Gym', 'जिम'), esc(g.name || '—'))}${row(L('City', 'शहर'), esc(g.city || '—'))}${row(L('Phone', 'फ़ोन'), g.phone ? `<a href="tel:${esc(String(g.phone).replace(/[^\d+]/g, ''))}">${esc(g.phone)}</a>` : '—')}${row(L('Timings', 'समय'), esc(g.timings || '—'))}${row('UPI', g.upi_id ? `${esc(g.upi_id)} <button class="btn sm" data-act="copyUpi">${esc(L('Copy', 'कॉपी'))}</button>` : '—')}</dl>`)}</div><div style="height:14px"></div>`
     + card(L('My account', 'मेरा अकाउंट'), 'lock', '', `<div style="padding:6px 18px 18px"><p class="muted" style="margin:0 0 12px">${esc(SESSION.email || '')}</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="changePw">${ic('lock')} ${esc(L('Change password', 'पासवर्ड बदलें'))}</button><button class="btn" data-act="lang">${ic('globe')} ${LANG === 'hi' ? 'English' : 'हिन्दी'}</button><button class="btn" data-act="signOut">${ic('out')} ${esc(L('Sign out', 'लॉग आउट'))}</button></div></div>`);
 }
@@ -2066,7 +2071,7 @@ async function enter() {
 function onSignedOut() { bust(); CTX.profile = null; CTX.gym = null; CTX.locked = false; RENDER_TOKEN++; loginScreen(L('Please sign in again.', 'कृपया दोबारा लॉगिन करें।')); }
 
 /* ---------- actions ---------- */
-const CHIP = { memF: (v) => { U.members.f = v; U.members.page = 1; }, invF: (v) => { U.invoices.f = v; U.invoices.page = 1; }, peakD: (v) => { U.peak.days = v; }, expM: (v) => { U.exp.m = v; }, payM: (v) => { U.pay.m = v; }, sgF: (v) => { U.sg.f = v; }, suF: (v) => { U.su.f = v; }, leadF: (v) => { U.lead.f = v; } };
+const CHIP = { memT: (v) => { U.members.t = v; U.members.page = 1; }, memF: (v) => { U.members.f = v; U.members.page = 1; }, invF: (v) => { U.invoices.f = v; U.invoices.page = 1; }, peakD: (v) => { U.peak.days = v; }, expM: (v) => { U.exp.m = v; }, payM: (v) => { U.pay.m = v; }, sgF: (v) => { U.sg.f = v; }, suF: (v) => { U.su.f = v; }, leadF: (v) => { U.lead.f = v; } };
 const BIND = { mq: (v) => { U.members.q = v; U.members.page = 1; }, sgq: (v) => { U.sg.q = v; }, suq: (v) => { U.su.q = v; }, cq: (v) => { U.checkin.q = v; }, iq: (v) => { U.invoices.q = v; U.invoices.page = 1; }, pq: (v) => { U.payments.q = v; U.payments.page = 1; }, rdays: (v) => { const n = Math.min(14, Math.max(1, parseInt(v, 10) || 2)); U_REMIND.days = n; try { localStorage.setItem('gymos-remind-days', String(n)); } catch (e) {} }, thr: (v) => { const n = Math.min(30, Math.max(1, parseInt(v, 10) || 4)); U.retention.thr = n; try { localStorage.setItem('gymos-thr', String(n)); } catch (e) {} } };
 const ACTIONS = {
   newGym: () => gymForm(), extendGym: (d) => extendForm(d.id), lockGym: (d) => lockForm(d.id), assignUser: (d) => assignForm(d.id),
