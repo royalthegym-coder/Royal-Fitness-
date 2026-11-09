@@ -244,6 +244,8 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('a[href="#expenses"]'); await page.waitForSelector('[data-act=newExpense]');
     await page.waitForFunction(() => /6,000/.test(document.querySelector('.tiles').innerText));
     ok(/6,000/.test(await page.textContent('.tiles')) && /5,500/.test(await page.textContent('.tiles')), 'salaries paid are counted as expenses on the profit page');
+    { const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-act=booksCsv]')]); const txt = fs.readFileSync(await dl.path(), 'utf8');
+      ok(/Fee/.test(txt) && /Salary/.test(txt) && /Vikram Trainer/.test(txt) && /TOTAL,,,,5500,6000/.test(txt) && /NET,,,,-500,/.test(txt), 'accountant CSV lists fees and salaries with totals'); }
     await page.click('a[href="#staff"]'); await page.waitForSelector('[data-act=staffHist]'); await page.click('[data-act=staffHist]'); await page.waitForSelector('[data-act=delSalPay]');
     ok((await page.$$('[data-act=delSalPay]')).length === 2, 'history lists both payments');
     await page.click('[data-act=delSalPay] >> nth=0'); await page.click('[data-yes]'); await page.waitForFunction(() => !document.querySelector('.md'));

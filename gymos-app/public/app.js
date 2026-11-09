@@ -1354,6 +1354,19 @@ function expRange(key) {
 }
 
 /* ---------- Expenses ---------- */
+/* one dated list of everything in the chosen range for the accountant: fees and store sales in, expenses and salaries out */
+async function exportBooks() {
+  const [exps, pays, sales, sal, members, staff] = await Promise.all([Q.expenses(), Q.payments(), Q.sales(), Q.salaryPays(), Q.members(), Q.staff()]);
+  const rng = expRange(U.exp.m), inR = (d) => !rng || rng.has(monthKey(d)), mm = new Map(members.map((m) => [m.id, m])), sm = new Map(staff.map((s) => [s.id, s]));
+  const rows = [
+    ...pays.filter((p) => inR(p.paid_on)).map((p) => [p.paid_on, 'Fee', p.no || '', memberName(mm, p.member_id), p.method, Number(p.amount), '']),
+    ...sales.filter((s) => !s.voided_at && inR(s.sold_on)).map((s) => [String(s.sold_on).slice(0, 10), 'Store sale', `${s.qty} x ${s.product_name}`, s.member_id ? memberName(mm, s.member_id) : '', s.method, Number(s.total), '']),
+    ...exps.filter((e) => inR(e.spent_on)).map((e) => [e.spent_on, 'Expense', e.item, e.category, '', '', Number(e.amount)]),
+    ...sal.filter((p) => inR(p.paid_on)).map((p) => [p.paid_on, 'Salary', `${p.kind} ${p.month}`, (sm.get(p.staff_id) || {}).name || '', p.method, '', Number(p.amount)]),
+  ].sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  const inn = sum(rows, (r) => Number(r[5]) || 0), out = sum(rows, (r) => Number(r[6]) || 0);
+  downloadCsv(`books-${U.exp.m}-${todayISO()}.csv`, [['Date', 'Type', 'Detail', 'Party', 'Method', 'In (INR)', 'Out (INR)'], ...rows, ['', 'TOTAL', '', '', '', inn, out], ['', 'NET', '', '', '', inn - out, '']]);
+}
 async function vExpenses() {
   const [exps, pays, sales, scs, sal] = await Promise.all([Q.expenses(), Q.payments(), Q.sales(), Q.saleCosts(), Q.salaryPays()]);
   const rng = expRange(U.exp.m), inR = (d) => !rng || rng.has(monthKey(d));
@@ -1366,7 +1379,7 @@ async function vExpenses() {
   const tbl = rows.length
     ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Date', 'तारीख़'))}</th><th>${esc(L('Item', 'मद'))}</th><th>${esc(L('Category', 'श्रेणी'))}</th><th class="r">${esc(L('Amount', 'रकम'))}</th><th></th></tr></thead><tbody>${rows.map((e) => `<tr><td>${esc(fmtDate(e.spent_on))}</td><td><b>${esc(e.item)}</b>${e.note ? `<small style="display:block;color:var(--muted)">${esc(e.note)}</small>` : ''}</td><td>${badge(catLabel(e.category), 'mute')}</td><td class="r">${inr(e.amount)}</td><td class="r"><button class="btn sm" data-act="delExpense" data-id="${esc(e.id)}" aria-label="${esc(L('Delete', 'हटाएँ'))}">${esc(L('Delete', 'हटाएँ'))}</button></td></tr>`).join('')}</tbody></table></div>`
     : empty(L('No expenses yet', 'अभी कोई खर्च नहीं'), L('Add rent, electricity, salaries and other costs to see your real profit.', 'किराया, बिजली, वेतन जैसे खर्च जोड़ें ताकि असली मुनाफ़ा दिखे।'), `<button class="btn pri" data-act="newExpense">${esc(L('Add expense', 'खर्च जोड़ें'))}</button>`);
-  return pageHead(L('Money', 'पैसा'), L('Expenses & profit', 'खर्च और मुनाफ़ा'), L('Fees collected plus store profit, minus what you spent. Only the owner can see this page.', 'आई हुई फ़ीस और स्टोर का मुनाफ़ा, घटाकर खर्च। यह पेज सिर्फ़ मालिक देख सकता है।'), `<button class="btn pri" data-act="newExpense">${ic('plus')}${esc(L('Add expense', 'खर्च जोड़ें'))}</button>`)
+  return pageHead(L('Money', 'पैसा'), L('Expenses & profit', 'खर्च और मुनाफ़ा'), L('Fees collected plus store profit, minus what you spent. Only the owner can see this page.', 'आई हुई फ़ीस और स्टोर का मुनाफ़ा, घटाकर खर्च। यह पेज सिर्फ़ मालिक देख सकता है।'), `<button class="btn" data-act="booksCsv">${ic('down')} CSV</button><button class="btn pri" data-act="newExpense">${ic('plus')}${esc(L('Add expense', 'खर्च जोड़ें'))}</button>`)
     + chips
     + `<div class="tiles">${tile(L('Fees collected', 'फ़ीस आई'), inr(got), '', 'var(--ok)')}${tile(L('Store profit', 'स्टोर का मुनाफ़ा'), inr(shop), L('sales minus cost of goods', 'बिक्री − सामान की लागत'), 'var(--ok)')}${tile(L('Expenses', 'खर्च'), inr(spent), payroll ? L(`incl. salaries ${inr(payroll)}`, `वेतन ${inr(payroll)} सहित`) : L(`${rows.length} entries`, `${rows.length} प्रविष्टियाँ`), 'var(--warn)')}${tile(net >= 0 ? L('Profit', 'मुनाफ़ा') : L('Loss', 'घाटा'), inr(Math.abs(net)), '', net >= 0 ? 'var(--ok)' : 'var(--crimson)')}</div>`
     + `<div class="two">${card(L('Where the money went', 'पैसा कहाँ गया'), 'chart', '', catHtml)}${card(L('All entries', 'सभी प्रविष्टियाँ'), 'receipt', '', tbl)}</div>`;
@@ -1802,7 +1815,7 @@ function staffForm(id) {
   Q.staff().then((staff) => {
     const x = id ? staff.find((s) => s.id === id) : null;
     openForm({
-      title: x ? x.name : L('Add staff', 'स्टाफ़ जोड़ें'), values: x || {},
+      title: x ? x.name : L('Add staff', 'स्टाफ़ जोड़ें'), values: x ? { ...x, active: x.active ? '1' : '0' } : {},
       fields: [
         { k: 'name', label: L('Name', 'नाम'), req: true, full: true, check: (v) => (v.trim().length > 120 ? L('Up to 120 characters', 'अधिकतम 120 अक्षर') : '') },
         { k: 'job', label: L('Job', 'काम'), type: 'select', options: STAFF_JOBS.map((j) => ({ v: j, l: jobLabel(j) })), def: x ? x.job : 'Trainer' },
@@ -1984,7 +1997,7 @@ const ACTIONS = {
   lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
   theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
   importMembers: () => importForm(), membersCsv: () => exportMembers(), newOffer: () => offerForm(), editOffer: (d) => offerForm(d.id), shareOffer: (d) => shareOffer(d.id),
-  newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, moreNav: () => openMoreSheet(), installApp: () => installApp(), installLater: () => installLater(), applyUpdate: () => applyUpdate(), newStaff: () => staffForm(), editStaff: (d) => staffForm(d.id), payStaff: (d) => salaryForm(d.id), staffHist: (d) => staffHistory(d.id), delStaff: (d) => deleteStaff(d.id), delSalPay: (d) => deleteSalaryPay(d.id), newExpense: () => expenseForm(), newProduct: () => productForm(), editProduct: (d) => productForm(d.id), sellProduct: (d) => sellForm(d.id), voidSale: (d) => voidSale(d.id), delProduct: (d) => deleteProduct(d.id), delExpense: (d) => deleteExpense(d.id), newLead: () => leadForm(), editLead: (d) => leadForm(d.id), leadNext: (d) => Q.leads().then((ls) => { const l = ls.find((x) => x.id === d.id); const n = l && nextStage(l.stage); if (n) leadSetStage(l.id, n, L('Moved to ' + stageLabel(n), stageLabel(n) + ' में किया')); }), leadLost: (d) => leadSetStage(d.id, 'Lost', L('Marked lost', 'छूटा हुआ चिह्नित')), leadConvert: (d) => leadConvert(d.id), delLead: (d) => deleteLead(d.id), waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
+  newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, moreNav: () => openMoreSheet(), installApp: () => installApp(), installLater: () => installLater(), applyUpdate: () => applyUpdate(), booksCsv: () => exportBooks(), newStaff: () => staffForm(), editStaff: (d) => staffForm(d.id), payStaff: (d) => salaryForm(d.id), staffHist: (d) => staffHistory(d.id), delStaff: (d) => deleteStaff(d.id), delSalPay: (d) => deleteSalaryPay(d.id), newExpense: () => expenseForm(), newProduct: () => productForm(), editProduct: (d) => productForm(d.id), sellProduct: (d) => sellForm(d.id), voidSale: (d) => voidSale(d.id), delProduct: (d) => deleteProduct(d.id), delExpense: (d) => deleteExpense(d.id), newLead: () => leadForm(), editLead: (d) => leadForm(d.id), leadNext: (d) => Q.leads().then((ls) => { const l = ls.find((x) => x.id === d.id); const n = l && nextStage(l.stage); if (n) leadSetStage(l.id, n, L('Moved to ' + stageLabel(n), stageLabel(n) + ' में किया')); }), leadLost: (d) => leadSetStage(d.id, 'Lost', L('Marked lost', 'छूटा हुआ चिह्नित')), leadConvert: (d) => leadConvert(d.id), delLead: (d) => deleteLead(d.id), waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
   changePw: () => openForm({
     title: L('Change password', 'पासवर्ड बदलें'),
     fields: [
