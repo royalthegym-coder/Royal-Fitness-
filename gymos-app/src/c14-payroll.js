@@ -8,6 +8,7 @@ const kindLabel = (k) => { const x = PAY_KINDS.find((q) => q[0] === k); return x
 Q.staff = () => cached('staff', () => DB.select('staff_members', { order: 'name.asc', limit: 500 }));
 Q.salaryPays = () => cached('salary_payments', () => DB.select('salary_payments', { order: 'paid_on.desc,created_at.desc', limit: 5000 }));
 
+Q.commission = () => cached('trainer_commission', () => DB.select('trainer_commission', { limit: 200 }));
 U.pay = { m: 'this' };
 const payMonthKey = () => { const now = monthKey(todayISO()); return U.pay.m === 'last' ? shiftMonth(now, -1) : U.pay.m === 'prev' ? shiftMonth(now, -2) : now; };
 const monthLabel = (mk) => `${MON[Number(mk.slice(5)) - 1]} ${mk.slice(0, 4)}`;
@@ -32,7 +33,7 @@ async function vStaff() {
   return pageHead(L('Money', 'पैसा'), L('Staff & salary', 'स्टाफ़ और वेतन'), L('Monthly salary, advances and bonuses. Only the owner can see this page.', 'मासिक वेतन, एडवांस और बोनस। यह पेज सिर्फ़ मालिक देख सकता है।'), `<button class="btn pri" data-act="newStaff">${ic('plus')}${esc(L('Add staff', 'स्टाफ़ जोड़ें'))}</button>`)
     + chips + `<p class="muted" style="margin:0 0 10px">${esc(monthLabel(mk))}</p>`
     + `<div class="tiles">${tile(L('Payroll', 'कुल वेतन'), inr(due), L(`${rows.filter((r) => r.m.salary > 0).length} people`, `${rows.filter((r) => r.m.salary > 0).length} लोग`))}${tile(L('Paid', 'चुकाया'), inr(paid), '', 'var(--ok)')}${tile(L('Left to pay', 'देना बाक़ी'), inr(left), '', left ? 'var(--crimson)' : '')}</div>`
-    + `<div class="card">${tbl}</div>`;
+    + `<div class="card">${tbl}</div>` + (await commissionCard(mk));
 }
 function slipText(s, m, mk) {
   return L(`Salary slip - ${gymName()}\n${s.name}\nMonth: ${monthLabel(mk)}\nSalary: ${inr(m.salary)}\nPaid: ${inr(m.paid)}${m.bonus ? `\nBonus: ${inr(m.bonus)}` : ''}\nBalance: ${inr(m.left)}\nThank you.`, `वेतन पर्ची - ${gymName()}\n${s.name}\nमहीना: ${monthLabel(mk)}\nवेतन: ${inr(m.salary)}\nचुकाया: ${inr(m.paid)}${m.bonus ? `\nबोनस: ${inr(m.bonus)}` : ''}\nबाक़ी: ${inr(m.left)}\nधन्यवाद।`);
@@ -101,4 +102,34 @@ async function deleteSalaryPay(id) {
   if (!(await askConfirm(L(`Delete this ${kindLabel(p.kind)} payment of ${inr(p.amount)}? It is recorded in the audit log.`, `${inr(p.amount)} का ${kindLabel(p.kind)} भुगतान हटाएँ? यह ऑडिट लॉग में दर्ज रहेगा।`), L('Delete', 'हटाएँ'), 'bad'))) return;
   const ok = await act(() => DB.remove('salary_payments', id), L('Deleted', 'हटा दिया'));
   if (ok) { closeAllModals(); bust('salary_payments'); render(); }
+}
+
+/* ---------- Trainer commission: a share of the fees collected from each trainer's own members ---------- */
+async function commissionCard(mk) {
+  let trainers = [], rates = [], members = [], pays = [];
+  try { [trainers, rates, members, pays] = await Promise.all([Q.profiles(), Q.commission(), Q.members(), Q.payments()]); } catch (e) { return ''; }
+  trainers = trainers.filter((p) => p.gym_id === gymId() && (p.role === 'trainer' || p.role === 'gym_admin') && members.some((m) => m.trainer_id === p.id || p.role === 'trainer'));
+  if (!trainers.length) return '';
+  const rows = trainers.map((p) => {
+    const mine = members.filter((m) => m.trainer_id === p.id), ids = new Set(mine.map((m) => m.id)), r = rates.find((x) => x.trainer_id === p.id), pct = r ? Number(r.pct) : 0;
+    const got = sum(pays.filter((x) => ids.has(x.member_id) && monthKey(x.paid_on) === mk), (x) => x.amount);
+    return { p, n: mine.length, got, pct, due: Math.round((got * pct) / 100), set: !!r };
+  });
+  const total = sum(rows, (r) => r.due);
+  const body = `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Trainer', 'ट्रेनर'))}</th><th class="r">${esc(L('Members', 'सदस्य'))}</th><th class="r">${esc(L('Fees collected', 'वसूली'))}</th><th class="r">${esc(L('Rate', 'दर'))}</th><th class="r">${esc(L('Commission', 'कमीशन'))}</th><th></th></tr></thead><tbody>${rows.map((r) => `<tr><td><b>${esc(r.p.full_name || r.p.email || 'Trainer')}</b></td><td class="r">${r.n}</td><td class="r">${inr(r.got)}</td><td class="r">${r.set ? esc(num1(r.pct)) + '%' : '—'}</td><td class="r"><b>${inr(r.due)}</b></td><td class="r"><button class="btn sm" data-act="setCommission" data-id="${esc(r.p.id)}">${esc(L('Set rate', 'दर तय करें'))}</button></td></tr>`).join('')}</tbody></table></div><p class="muted" style="margin:10px 18px 14px;font-size:12px">${esc(L('Based on fees collected in the month from members currently assigned to the trainer. To pay it out, record it as a Bonus against the person above.', 'महीने में उन सदस्यों से आई फ़ीस पर, जो अभी उस ट्रेनर को सौंपे हैं। चुकाने के लिए ऊपर उस व्यक्ति के नाम "बोनस" दर्ज करें।'))}</p>`;
+  return `<div style="height:14px"></div>` + card(L(`Trainer commission · ${monthLabel(mk)}`, `ट्रेनर कमीशन · ${monthLabel(mk)}`), 'crown', `<span class="muted" style="font-size:13px">${esc(L('Total', 'कुल'))} ${esc(inr(total))}</span>`, body);
+}
+function commissionForm(trainerId) {
+  Promise.all([Q.profiles(), Q.commission()]).then(([profiles, rates]) => {
+    const p = profiles.find((x) => x.id === trainerId); if (!p) return;
+    const r = rates.find((x) => x.trainer_id === trainerId);
+    openForm({
+      title: L(`Commission: ${p.full_name || p.email || 'Trainer'}`, `कमीशन: ${p.full_name || p.email || 'ट्रेनर'}`), values: r ? { pct: r.pct } : {},
+      fields: [{ k: 'pct', label: L('Share of fees from their members (%)', 'उनके सदस्यों की फ़ीस का हिस्सा (%)'), type: 'number', req: true, min: 0, full: true, check: (v) => (v > 100 ? L('Up to 100', 'अधिकतम 100') : '') }],
+      onSubmit: async (v) => {
+        const ok = await act(() => (r ? DB.update('trainer_commission', r.id, { pct: v.pct, updated_at: new Date().toISOString() }) : DB.insert('trainer_commission', { gym_id: gymId(), trainer_id: trainerId, pct: v.pct })), L('Saved', 'सेव हुआ'));
+        if (ok) { bust('trainer_commission'); render(); } return !!ok;
+      },
+    });
+  });
 }

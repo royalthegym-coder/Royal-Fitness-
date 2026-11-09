@@ -19,7 +19,7 @@ function draftRows(eng, db, mem, fit, status) {
 const FIT = { age: 30, height_cm: 175, weight_kg: 80, goal: 'fat_loss', diet_pref: 'veg', activity: 'moderate', experience: 'intermediate', days_per_week: 4, session_min: 60, equipment: 'gym', injuries: null, conditions: null, allergies: null };
 function makeDb(role) {
   const G = '11111111-1111-4111-8111-111111111111', P1 = uid(), P2 = uid();
-  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [], member_progress: [] };
+  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [], member_progress: [], trainer_commission: [] };
   const me = '22222222-2222-4222-8222-222222222222';
   db.me = me; db.G = G;
   db.profiles = [{ id: me, gym_id: role === 'super_admin' ? null : G, role, full_name: 'Test', email: 't@x.in', created_at: new Date().toISOString() }, { id: uid(), gym_id: null, role: 'member', full_name: 'New User', email: 'n@x.in', created_at: new Date().toISOString() }];
@@ -277,6 +277,15 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('[data-key=memT][data-v=mine]'); await page.waitForFunction(() => !/Coach Anil/.test(document.querySelector('#view').innerText));
     ok(true, 'My members filter hides members of other trainers');
     await page.click('[data-key=memT][data-v=all]');
+    // trainer commission
+    const got = db.payments.filter((x) => x.member_id === db.members[0].id && String(x.paid_on).slice(0, 7) === today().slice(0, 7)).reduce((a, x) => a + Number(x.amount), 0);
+    await page.evaluate(() => bust('payments', 'members')); await page.click('a[href="#staff"]'); await page.waitForSelector('[data-act=setCommission]');
+    ok(/Coach Anil/.test(await page.textContent('#view')), 'commission card lists the trainer');
+    await page.click('[data-act=setCommission]'); await page.fill('#f_pct', '10'); await page.click('[data-ok]'); await page.waitForFunction(() => /10%/.test(document.querySelector('#view').innerText));
+    ok(db.trainer_commission.length === 1 && Number(db.trainer_commission[0].pct) === 10 && db.trainer_commission[0].trainer_id === TR, 'commission rate saved for the trainer');
+    ok((await page.textContent('#view')).replace(/,/g, '').includes(String(Math.round(got / 10))), 'commission = rate x fees from the trainer\'s members');
+    await page.click('[data-act=setCommission]'); await page.fill('#f_pct', '150'); await page.click('[data-ok]'); await page.waitForTimeout(250);
+    ok(Number(db.trainer_commission[0].pct) === 10, 'a rate above 100% is refused'); await page.keyboard.press('Escape');
     // leads: add, follow up, convert to member
     await page.click('a[href="#leads"]'); await page.waitForSelector('[data-act=newLead]'); await page.click('[data-act=newLead] >> nth=0');
     await page.fill('#f_name', 'Vikram Lead'); await page.fill('#f_phone', '98123'); await page.click('[data-ok]');
