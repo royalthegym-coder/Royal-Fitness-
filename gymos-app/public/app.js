@@ -521,13 +521,14 @@ async function memberModal(id) {
       ${m.notes ? `<p class="muted">${esc(m.notes)}</p>` : ''}
       <h3 style="font-size:13px;margin:10px 0 4px">${esc(L('Recent visits', 'हाल की विज़िट'))}</h3>${vs.length ? `<ul class="list">${vs.map((v) => `<li><div class="grow"><b>${esc(fmtDate(v.in_at))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div></li>`).join('')}</ul>` : `<div class="muted">${esc(L('No visits in the last 90 days', 'पिछले 90 दिन में कोई विज़िट नहीं'))}</div>`}
       ${isAdmin() ? `<h3 style="font-size:13px;margin:14px 0 4px">${esc(L('Invoices', 'इनवॉइस'))}</h3>${mine.length ? `<ul class="list">${mine.slice(0, 5).map((i) => `<li class="click" data-act="openInvoice" data-id="${esc(i.id)}"><div class="grow"><b class="num">${esc(i.no)}</b><small>${esc(fmtDate(i.date))}</small></div><span class="num">${esc(inr(i.total))}</span>${badge(invStatus(i, paid))}</li>`).join('')}</ul>` : `<div class="muted">—</div>`}` : ''}`,
-    footer: `${waBtnRenew(m).replace('data-stop ', '')}${isAdmin() && !m.profile_id ? `<button type="button" class="btn" data-l>${ic('lock')} ${esc(L('Create login', 'लॉगिन बनाएँ'))}</button>` : ''}<button type="button" class="btn" data-fp>${ic('pulse')} ${esc(L('Diet & workout', 'डाइट / वर्कआउट'))}</button><button type="button" class="btn" data-ph>${ic('plus')} ${esc(L('Photo', 'फ़ोटो'))}</button><input type="file" id="phIn" accept="image/*" hidden><button type="button" class="btn" data-e>${ic('pencil')} ${esc(L('Edit', 'बदलें'))}</button>${isAdmin() ? `<button type="button" class="btn primary" data-r>${esc(L('Renew', 'रिन्यू'))}</button>` : ''}`,
+    footer: `${waBtnRenew(m).replace('data-stop ', '')}${isAdmin() && !m.profile_id ? `<button type="button" class="btn" data-l>${ic('lock')} ${esc(L('Create login', 'लॉगिन बनाएँ'))}</button>` : ''}<button type="button" class="btn" data-pg>${ic('pulse')} ${esc(L('Progress', 'प्रगति'))}</button><button type="button" class="btn" data-fp>${ic('pulse')} ${esc(L('Diet & workout', 'डाइट / वर्कआउट'))}</button><button type="button" class="btn" data-ph>${ic('plus')} ${esc(L('Photo', 'फ़ोटो'))}</button><input type="file" id="phIn" accept="image/*" hidden><button type="button" class="btn" data-e>${ic('pencil')} ${esc(L('Edit', 'बदलें'))}</button>${isAdmin() ? `<button type="button" class="btn primary" data-r>${esc(L('Renew', 'रिन्यू'))}</button>` : ''}`,
   });
   $('[data-e]', mod.el).onclick = () => { mod.close(); memberForm(id); };
   const phb = $('[data-ph]', mod.el), phIn = $('#phIn', mod.el);
   phb.onclick = () => phIn.click();
   phIn.onchange = async () => { const f = phIn.files[0]; if (!f) return; phb.disabled = true; try { await pickMemberPhoto(m, f, mod); } catch (e) { phb.disabled = CTX.locked; } };
   const fp = $('[data-fp]', mod.el); if (fp) fp.onclick = () => fitPlanModal(id);
+  const pg = $('[data-pg]', mod.el); if (pg) pg.onclick = () => progressModal(id);
   const lg = $('[data-l]', mod.el); if (lg) lg.onclick = () => { mod.close(); accountForm('member', m); };
   const r = $('[data-r]', mod.el); if (r) r.onclick = () => { mod.close(); renewForm(id); };
   if (CTX.locked) { $$('[data-e],[data-r],[data-l],[data-ph]', mod.el).forEach((b) => (b.disabled = true)); }
@@ -1651,6 +1652,7 @@ async function vMine() {
     + `<div class="tiles">${tile(L('Membership', 'सदस्यता'), badge(s), esc(plan ? plan.name : ''))}${tile(L('Valid till', 'तारीख़ तक'), esc(fmtDate(m.end_date)), dl == null ? '' : dl >= 0 ? esc(L(`${dl} days left`, `${dl} दिन बाक़ी`)) : esc(L(`Expired ${-dl} days ago`, `${-dl} दिन पहले ख़त्म`)))}${tile(L('Visit streak', 'लगातार दिन'), esc(L(`${streak} days`, `${streak} दिन`)), inNow ? esc(L('You are checked in', 'आप अभी चेक-इन हैं')) : esc(L(`${month} visits this month`, `इस महीने ${month} विज़िट`)), streak ? 'var(--ok)' : '')}${tile(L('Balance due', 'बकाया'), esc(inr(due)), due ? esc(L('Please clear it at the desk', 'कृपया डेस्क पर चुकाएँ')) : esc(L('All clear', 'सब चुकता')), due ? 'var(--crimson)' : '')}</div>`
     + (due && upi ? `<div class="card" style="padding:14px;margin-bottom:14px"><b>${esc(L('Pay your dues', 'बकाया चुकाएँ'))}</b><p class="muted" style="margin:6px 0">${esc(L('Pay to this UPI ID, then tell the front desk. The gym records the payment on its side.', 'इस UPI आईडी पर भुगतान करें, फिर फ़्रंट डेस्क को बताएँ। भुगतान जिम अपनी तरफ़ से दर्ज करता है।'))}</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><code class="num">${esc(upi)}</code><button class="btn sm" data-act="copyUpi">${esc(L('Copy UPI ID', 'UPI आईडी कॉपी'))}</button></div></div>` : '')
     + (offers.length ? card(L('Offers for you', 'आपके लिए ऑफ़र'), 'crown', '', `<ul class="list">${offers.slice(0, 4).map((o) => `<li><div class="grow"><b>${esc(o.name)}</b><small>${esc(offerText(o))}${o.ends_on ? ' · ' + esc(L('till ', 'तक ')) + esc(fmtDate(o.ends_on)) : ''}</small></div></li>`).join('')}</ul>`) + '<div style="height:14px"></div>' : '')
+    + card(L('My progress', 'मेरी प्रगति'), 'pulse', `<a href="#progress" style="font-size:13px">${esc(L('Open', 'खोलें'))}</a>`, `<p class="muted" style="margin:0;padding:0 18px 14px">${esc(L('Track your weight and body measurements.', 'अपना वज़न और शरीर के माप ट्रैक करें।'))}</p>`)
     + `<div class="grid2">${card(L('Last visits', 'हाल की विज़िट'), 'clock', `<a href="#visits" style="font-size:13px">${esc(L('All', 'सभी'))}</a>`, visits.length ? `<ul class="list">${visits.slice(0, 4).map((v) => `<li><div class="grow"><b>${esc(fmtDate(v.in_at))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div></li>`).join('')}</ul>` : empty(L('No visits yet', 'अभी कोई विज़िट नहीं'), ''))}`
     + `${card(L('Latest invoices', 'हाल के इनवॉइस'), 'receipt', `<a href="#pay" style="font-size:13px">${esc(L('All', 'सभी'))}</a>`, invoices.length ? `<ul class="list">${invoices.slice(0, 4).map((i) => `<li><div class="grow"><b class="num">${esc(i.no || '—')}</b><small>${esc(fmtDate(i.date))}</small></div><span class="num">${esc(inr(i.total))}</span>${badge(invStatus(i, paid))}</li>`).join('')}</ul>` : empty(L('No invoices', 'कोई इनवॉइस नहीं'), ''))}</div>`;
 }
@@ -1875,6 +1877,88 @@ async function deleteSalaryPay(id) {
   const ok = await act(() => DB.remove('salary_payments', id), L('Deleted', 'हटा दिया'));
   if (ok) { closeAllModals(); bust('salary_payments'); render(); }
 }
+/* ================= Member progress: weight, body fat and body measurements over time ================= */
+const PROG_FIELDS = [
+  ['weight_kg', 'Weight (kg)', 'वज़न (किग्रा)', 'kg'], ['body_fat_pct', 'Body fat (%)', 'बॉडी फ़ैट (%)', '%'],
+  ['waist_cm', 'Waist (cm)', 'कमर (सेमी)', 'cm'], ['chest_cm', 'Chest (cm)', 'छाती (सेमी)', 'cm'],
+  ['hips_cm', 'Hips (cm)', 'कूल्हे (सेमी)', 'cm'], ['arm_cm', 'Arm (cm)', 'बाँह (सेमी)', 'cm'], ['thigh_cm', 'Thigh (cm)', 'जाँघ (सेमी)', 'cm'],
+];
+const progOf = (memberId) => DB.select('member_progress', { eq: { member_id: memberId }, order: 'measured_on.desc,created_at.desc', limit: 300 });
+const num1 = (v) => (Math.round(Number(v) * 10) / 10).toString();
+
+/* first and latest value of one measure, oldest-first list given */
+function progDelta(asc, key) {
+  const xs = asc.filter((r) => r[key] != null);
+  if (!xs.length) return null;
+  const first = Number(xs[0][key]), last = Number(xs[xs.length - 1][key]);
+  return { first, last, diff: Math.round((last - first) * 10) / 10, n: xs.length };
+}
+const signed = (d) => (d > 0 ? '+' : d < 0 ? '−' : '') + num1(Math.abs(d));
+
+/* small line chart of one measure; plain SVG so it works offline and in both themes */
+function progChart(asc, key) {
+  const pts = asc.filter((r) => r[key] != null).map((r) => ({ d: r.measured_on, v: Number(r[key]) }));
+  if (pts.length < 2) return '';
+  const W = 320, H = 110, P = 14, vs = pts.map((p) => p.v), lo = Math.min(...vs), hi = Math.max(...vs), span = hi - lo || 1;
+  const t0 = new Date(pts[0].d).getTime(), t1 = new Date(pts[pts.length - 1].d).getTime(), ts = t1 - t0 || 1;
+  const xy = pts.map((p) => [P + ((new Date(p.d).getTime() - t0) / ts) * (W - 2 * P), H - P - ((p.v - lo) / span) * (H - 2 * P)]);
+  const line = xy.map((q) => q.map((n) => n.toFixed(1)).join(',')).join(' ');
+  const label = L(`Trend from ${num1(pts[0].v)} to ${num1(pts[pts.length - 1].v)}`, `${num1(pts[0].v)} से ${num1(pts[pts.length - 1].v)} तक का रुझान`);
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}" style="width:100%;height:auto;display:block"><polyline points="${line}" fill="none" stroke="var(--crimson)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>${xy.map((q) => `<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="3.5" fill="var(--crimson)"/>`).join('')}<text x="${P}" y="11" font-size="10" fill="var(--muted)">${esc(num1(hi))}</text><text x="${P}" y="${H - 2}" font-size="10" fill="var(--muted)">${esc(num1(lo))}</text></svg>`;
+}
+
+/* the same view serves the member portal and the staff modal; staff may delete entries */
+function progBody(rows, staff, memberId) {
+  if (!rows.length) return empty(L('No measurements yet', 'अभी कोई माप नहीं'), L('Add your weight and measurements every couple of weeks to see your progress.', 'हर दो हफ़्ते में अपना वज़न और माप जोड़ें, फिर प्रगति यहाँ दिखेगी।'), `<button class="btn pri" data-act="addProgress" data-id="${esc(memberId)}"${staff ? '' : ' data-by="1"'}>${esc(L('Add measurements', 'माप जोड़ें'))}</button>`);
+  const asc = [...rows].reverse(), w = progDelta(asc, 'weight_kg'), wa = progDelta(asc, 'waist_cm'), bf = progDelta(asc, 'body_fat_pct');
+  const tl = (lab, d, unit, good) => (d ? tile(lab, esc(num1(d.last) + ' ' + unit), d.n > 1 ? `<span style="color:${d.diff === 0 ? 'var(--muted)' : good(d.diff) ? 'var(--ok)' : 'var(--crimson)'}">${esc(signed(d.diff) + ' ' + unit)} ${esc(L('since first entry', 'पहली एंट्री से'))}</span>` : esc(L('first entry', 'पहली एंट्री'))) : '');
+  const down = (d) => d <= 0;
+  const chart = progChart(asc, 'weight_kg');
+  const cols = PROG_FIELDS.filter((f) => rows.some((r) => r[f[0]] != null));
+  return `<div class="tiles" style="margin-bottom:12px">${tl(L('Weight', 'वज़न'), w, 'kg', down)}${tl(L('Waist', 'कमर'), wa, 'cm', down)}${tl(L('Body fat', 'बॉडी फ़ैट'), bf, '%', down)}</div>`
+    + (chart ? `<div class="card" style="padding:12px;margin-bottom:12px"><div class="muted" style="font-size:12px;margin-bottom:4px">${esc(L('Weight over time', 'समय के साथ वज़न'))}</div>${chart}</div>` : '')
+    + `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Date', 'तारीख़'))}</th>${cols.map((f) => `<th class="r">${esc(L(f[1], f[2]))}</th>`).join('')}${staff ? '<th></th>' : ''}</tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(fmtDate(r.measured_on))}${r.note ? `<small style="display:block;color:var(--muted)">${esc(r.note)}</small>` : ''}</td>${cols.map((f) => `<td class="r">${r[f[0]] != null ? esc(num1(r[f[0]])) : '—'}</td>`).join('')}${staff ? `<td class="r"><button class="btn sm" data-act="delProgress" data-id="${esc(r.id)}" data-m="${esc(memberId)}">${esc(L('Delete', 'हटाएँ'))}</button></td>` : ''}</tr>`).join('')}</tbody></table></div>`;
+}
+
+function progressForm(memberId, byMember, after) {
+  openForm({
+    title: L('Add measurements', 'माप जोड़ें'), submitLabel: L('Save', 'सेव करें'),
+    fields: [
+      { k: 'measured_on', label: L('Date', 'तारीख़'), type: 'date', def: todayISO(), full: true, check: (v) => (v && v > todayISO() ? L('Cannot be in the future', 'आगे की तारीख़ नहीं') : '') },
+      ...PROG_FIELDS.map((f) => ({ k: f[0], label: L(f[1], f[2]), type: 'number', min: 0, check: (v) => (v === '' ? '' : f[0] === 'weight_kg' ? (v < 20 || v > 400 ? L('Between 20 and 400', '20 से 400 के बीच') : '') : f[0] === 'body_fat_pct' ? (v < 2 || v > 70 ? L('Between 2 and 70', '2 से 70 के बीच') : '') : (v < 10 || v > 250 ? L('Between 10 and 250', '10 से 250 के बीच') : '')) })),
+      { k: 'note', label: L('Note', 'नोट'), full: true, check: (v) => (v.length > 300 ? L('Up to 300 characters', 'अधिकतम 300 अक्षर') : '') },
+    ],
+    extra: `<p class="muted" style="margin:10px 0 0">${esc(L('Fill only what you measured.', 'सिर्फ़ वही भरें जो नापा हो।'))}</p>`,
+    onSubmit: async (v) => {
+      if (!PROG_FIELDS.some((f) => v[f[0]] !== '' && v[f[0]] != null)) { toast(L('Enter at least one measurement', 'कम से कम एक माप भरें'), 'bad'); return false; }
+      const row = { gym_id: gymId(), member_id: memberId, measured_on: v.measured_on || todayISO(), by_member: !!byMember, note: v.note ? v.note.trim() : null };
+      PROG_FIELDS.forEach((f) => { row[f[0]] = v[f[0]] === '' || v[f[0]] == null ? null : v[f[0]]; });
+      const ok = await act(() => DB.insert('member_progress', row), L('Measurements saved', 'माप सेव हुए'));
+      if (ok) { if (after) await after(); else render(); } return !!ok;
+    },
+  });
+}
+
+/* staff: a member's progress in a modal */
+async function progressModal(memberId) {
+  const members = await Q.members(), m = members.find((x) => x.id === memberId); if (!m) return;
+  const rows = await progOf(memberId);
+  closeAllModals();
+  openModal({ title: L(`${m.name}: progress`, `${m.name}: प्रगति`), wide: true, body: progBody(rows, true, memberId) + (rows.length ? `<p style="margin:12px 0 0"><button class="btn pri" data-act="addProgress" data-id="${esc(memberId)}">${ic('plus')} ${esc(L('Add measurements', 'माप जोड़ें'))}</button></p>` : '') });
+}
+async function deleteProgress(id, memberId) {
+  if (!(await askConfirm(L('Delete this entry?', 'यह एंट्री हटाएँ?'), L('Delete', 'हटाएँ'), 'bad'))) return;
+  const ok = await act(() => DB.remove('member_progress', id), L('Deleted', 'हटा दिया'));
+  if (ok) progressModal(memberId);
+}
+
+/* member portal page */
+async function vMyProgress() {
+  const m = (await Q.members())[0]; if (!m) return noMember();
+  const rows = await progOf(m.id);
+  return pageHead(gymName(), L('My progress', 'मेरी प्रगति'), L('Your weight and body measurements over time.', 'समय के साथ आपका वज़न और शरीर के माप।'), rows.length ? `<button class="btn pri" data-act="addProgress" data-id="${esc(m.id)}" data-by="1">${ic('plus')}${esc(L('Add', 'जोड़ें'))}</button>` : '')
+    + `<div class="card" style="padding:16px">${progBody(rows, false, m.id)}</div>`;
+}
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV_GROUPS = { overview: ['Overview', 'अवलोकन'], people: ['People', 'लोग'], money: ['Money', 'पैसा'], business: ['Business', 'व्यापार'], insights: ['Insights', 'जानकारी'], setup: ['Setup', 'सेटअप'], platform: ['Platform', 'प्लेटफ़ॉर्म'], me: ['My gym', 'मेरा जिम'] };
 /* entry: [route, icon, English, Hindi, view, group, shownInPhoneBar] */
@@ -1889,7 +1973,7 @@ const NAV = {
     ['settings', 'gear', 'Settings', 'सेटिंग', vSettings, 'setup'],
   ],
   trainer: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard, 'overview', 1], ['members', 'users', 'Members', 'सदस्य', vMembers, 'people', 1], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin, 'people', 1], ['leads', 'users', 'Leads', 'लीड्स', vLeads, 'people'], ['reminders', 'clock', 'Reminders', 'रिमाइंडर', vReminders, 'people'], ['store', 'tag', 'Store', 'स्टोर', vStore, 'business', 1]],
-  member: [['mine', 'home', 'Home', 'होम', vMine, 'me', 1], ['plan', 'pulse', 'My plan', 'मेरा प्लान', vMyPlan, 'me', 1], ['pay', 'wallet', 'Payments', 'भुगतान', vMyPay, 'me', 1], ['visits', 'clock', 'Visits', 'विज़िट', vMyVisits, 'me', 1], ['me', 'users', 'Profile', 'प्रोफ़ाइल', vMyProfile, 'me', 1]],
+  member: [['mine', 'home', 'Home', 'होम', vMine, 'me', 1], ['plan', 'pulse', 'My plan', 'मेरा प्लान', vMyPlan, 'me', 1], ['pay', 'wallet', 'Payments', 'भुगतान', vMyPay, 'me', 1], ['visits', 'clock', 'Visits', 'विज़िट', vMyVisits, 'me', 1], ['progress', 'pulse', 'My progress', 'मेरी प्रगति', vMyProgress, 'me', 0], ['me', 'users', 'Profile', 'प्रोफ़ाइल', vMyProfile, 'me', 1]],
 };
 const navFor = () => NAV[CTX.profile ? CTX.profile.role : ''] || [];
 let RENDER_TOKEN = 0, WAITING = false;
@@ -1997,7 +2081,7 @@ const ACTIONS = {
   lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
   theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
   importMembers: () => importForm(), membersCsv: () => exportMembers(), newOffer: () => offerForm(), editOffer: (d) => offerForm(d.id), shareOffer: (d) => shareOffer(d.id),
-  newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, moreNav: () => openMoreSheet(), installApp: () => installApp(), installLater: () => installLater(), applyUpdate: () => applyUpdate(), booksCsv: () => exportBooks(), newStaff: () => staffForm(), editStaff: (d) => staffForm(d.id), payStaff: (d) => salaryForm(d.id), staffHist: (d) => staffHistory(d.id), delStaff: (d) => deleteStaff(d.id), delSalPay: (d) => deleteSalaryPay(d.id), newExpense: () => expenseForm(), newProduct: () => productForm(), editProduct: (d) => productForm(d.id), sellProduct: (d) => sellForm(d.id), voidSale: (d) => voidSale(d.id), delProduct: (d) => deleteProduct(d.id), delExpense: (d) => deleteExpense(d.id), newLead: () => leadForm(), editLead: (d) => leadForm(d.id), leadNext: (d) => Q.leads().then((ls) => { const l = ls.find((x) => x.id === d.id); const n = l && nextStage(l.stage); if (n) leadSetStage(l.id, n, L('Moved to ' + stageLabel(n), stageLabel(n) + ' में किया')); }), leadLost: (d) => leadSetStage(d.id, 'Lost', L('Marked lost', 'छूटा हुआ चिह्नित')), leadConvert: (d) => leadConvert(d.id), delLead: (d) => deleteLead(d.id), waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
+  newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, moreNav: () => openMoreSheet(), installApp: () => installApp(), installLater: () => installLater(), applyUpdate: () => applyUpdate(), booksCsv: () => exportBooks(), addProgress: (d) => progressForm(d.id, d.by === '1', d.by === '1' ? null : () => progressModal(d.id)), delProgress: (d) => deleteProgress(d.id, d.m), newStaff: () => staffForm(), editStaff: (d) => staffForm(d.id), payStaff: (d) => salaryForm(d.id), staffHist: (d) => staffHistory(d.id), delStaff: (d) => deleteStaff(d.id), delSalPay: (d) => deleteSalaryPay(d.id), newExpense: () => expenseForm(), newProduct: () => productForm(), editProduct: (d) => productForm(d.id), sellProduct: (d) => sellForm(d.id), voidSale: (d) => voidSale(d.id), delProduct: (d) => deleteProduct(d.id), delExpense: (d) => deleteExpense(d.id), newLead: () => leadForm(), editLead: (d) => leadForm(d.id), leadNext: (d) => Q.leads().then((ls) => { const l = ls.find((x) => x.id === d.id); const n = l && nextStage(l.stage); if (n) leadSetStage(l.id, n, L('Moved to ' + stageLabel(n), stageLabel(n) + ' में किया')); }), leadLost: (d) => leadSetStage(d.id, 'Lost', L('Marked lost', 'छूटा हुआ चिह्नित')), leadConvert: (d) => leadConvert(d.id), delLead: (d) => deleteLead(d.id), waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
   changePw: () => openForm({
     title: L('Change password', 'पासवर्ड बदलें'),
     fields: [

@@ -19,7 +19,7 @@ function draftRows(eng, db, mem, fit, status) {
 const FIT = { age: 30, height_cm: 175, weight_kg: 80, goal: 'fat_loss', diet_pref: 'veg', activity: 'moderate', experience: 'intermediate', days_per_week: 4, session_min: 60, equipment: 'gym', injuries: null, conditions: null, allergies: null };
 function makeDb(role) {
   const G = '11111111-1111-4111-8111-111111111111', P1 = uid(), P2 = uid();
-  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [] };
+  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [], member_progress: [] };
   const me = '22222222-2222-4222-8222-222222222222';
   db.me = me; db.G = G;
   db.profiles = [{ id: me, gym_id: role === 'super_admin' ? null : G, role, full_name: 'Test', email: 't@x.in', created_at: new Date().toISOString() }, { id: uid(), gym_id: null, role: 'member', full_name: 'New User', email: 'n@x.in', created_at: new Date().toISOString() }];
@@ -256,6 +256,17 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('[data-act=editStaff]'); await page.waitForSelector('[data-act=delStaff]'); await page.click('[data-act=delStaff]'); await page.click('[data-yes]');
     await page.waitForFunction(() => !/Vikram Trainer/.test(document.body.innerText));
     ok(db.staff_members.length === 0, 'person without history can be deleted');
+    // member progress, staff side
+    await page.evaluate((id) => memberModal(id), db.members[0].id); await page.waitForSelector('[data-pg]'); await page.click('[data-pg]'); await page.waitForSelector('[data-act=addProgress]');
+    await page.click('[data-act=addProgress]'); await page.fill('#f_weight_kg', '82.5'); await page.fill('#f_waist_cm', '96'); await page.click('[data-ok]');
+    await page.waitForFunction(() => /82\.5/.test(document.body.innerText));
+    ok(db.member_progress.length === 1 && db.member_progress[0].by_member === false && Number(db.member_progress[0].weight_kg) === 82.5 && db.member_progress[0].member_id === db.members[0].id, 'staff can record a member\'s measurements');
+    await page.click('[data-act=addProgress]'); await page.fill('#f_note', 'only a note'); await page.click('[data-ok]'); await page.waitForTimeout(250);
+    ok(db.member_progress.length === 1, 'an entry with no measurement is refused');
+    await page.fill('#f_weight_kg', '10'); await page.click('[data-ok]'); await page.waitForTimeout(250);
+    ok(db.member_progress.length === 1, 'an impossible weight is refused'); await page.keyboard.press('Escape');
+    await page.click('[data-act=delProgress]'); await page.click('[data-yes]'); await page.waitForFunction(() => !/82\.5/.test(document.body.innerText));
+    ok(db.member_progress.length === 0, 'staff can delete an entry'); await page.keyboard.press('Escape');
     // leads: add, follow up, convert to member
     await page.click('a[href="#leads"]'); await page.waitForSelector('[data-act=newLead]'); await page.click('[data-act=newLead] >> nth=0');
     await page.fill('#f_name', 'Vikram Lead'); await page.fill('#f_phone', '98123'); await page.click('[data-ok]');
@@ -369,7 +380,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   console.log('member portal on phone');
   await session(browser, 'member', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
-    for (const r of ['mine', 'plan', 'pay', 'visits', 'me']) { await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(250); await page.waitForSelector('#view .ph'); if (await overflow(page)) ok(false, `member overflow on ${r}`); }
+    for (const r of ['mine', 'plan', 'pay', 'visits', 'progress', 'me']) { await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(250); await page.waitForSelector('#view .ph'); if (await overflow(page)) ok(false, `member overflow on ${r}`); }
     ok(true, 'phone: no overflow on any member page');
   }, { width: 390, height: 800 });
 
@@ -405,7 +416,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
 
   console.log('member + waiting');
   await session(browser, 'member', async (page, db) => { const eng = await ENGINE; db.visits.push({ id: uid(), gym_id: db.G, member_id: db.members[0].id, in_at: new Date().toISOString(), out_at: null }); db.payments.push({ id: uid(), gym_id: db.G, member_id: db.members[0].id, amount: 700, method: 'UPI', paid_on: today(), no: 'RCT-0009' }); draftRows(eng, db, db.members[0], FIT, 'published').forEach((r) => db.member_plans.push(r)); draftRows(eng, db, db.members[0], FIT, 'draft').forEach((r) => db.member_plans.push(r)); await login(page); await page.waitForSelector('.tiles'); ok(/Rahul/.test(await page.textContent('#view')), 'member sees own page');
-    ok((await page.$$eval('#nav a', (a) => a.length)) === 5, 'member portal has 5 pages');
+    ok((await page.$$eval('#nav a', (a) => a.length)) === 6, 'member portal has 6 pages');
     ok(/1/.test(await page.textContent('.tiles .card:nth-child(3) .v')), 'home shows the visit streak');
     await page.click('a[href="#plan"]'); await page.waitForSelector('[data-act=openMyPlan]'); ok((await page.$$('[data-act=openMyPlan]')).length === 2, 'member sees the two published plans');
     await page.click('[data-act=openMyPlan] >> nth=1'); await page.waitForSelector('#planBody'); ok(/Barbell|Dumbbell|Machine|Push|Lat/.test(await page.textContent('#planBody')), 'member can open the workout plan'); await page.keyboard.press('Escape');
@@ -413,7 +424,12 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('[data-act=openReceipt]'); await page.waitForSelector('.md'); ok(true, 'member can open a receipt'); await page.keyboard.press('Escape');
     await page.click('a[href="#visits"]'); await page.waitForSelector('.cal'); ok((await page.$$('.cal i.on')).length === 1, 'visits calendar marks the day trained'); 
     await page.click('a[href="#me"]'); await page.waitForSelector('dl.kv'); ok(/Rahul/.test(await page.textContent('#view')) && !!(await page.$('[data-act=changePw]')), 'profile shows membership and account actions');
-    ok(!(await page.$('.nav .more')), 'member menu has no More button');
+    await page.click('a[href="#progress"]'); await page.waitForSelector('[data-act=addProgress]');
+    await page.click('[data-act=addProgress]'); await page.fill('#f_weight_kg', '80'); await page.fill('#f_measured_on', addD(today(), -20)); await page.click('[data-ok]'); await page.waitForFunction(() => document.querySelector('[data-act=addProgress]') && /80/.test(document.body.innerText) && !document.querySelector('.md'));
+    await page.click('[data-act=addProgress]'); await page.fill('#f_weight_kg', '77.5'); await page.click('[data-ok]'); await page.waitForFunction(() => /77\.5/.test(document.querySelector('#view').innerText));
+    ok(db.member_progress.length === 2 && db.member_progress.every((r) => r.by_member === true), 'member saves own measurements marked as self-entered');
+    ok(/−2\.5/.test(await page.textContent('.tiles')) && !!(await page.$('#view svg polyline')), 'progress shows weight change and a chart');
+    ok(!(await page.$('[data-act=delProgress]')), 'member cannot delete entries');
   });
   {
     const db = makeDb('member'); db.profiles[0].gym_id = null; const ctx = await browser.newContext(), page = await ctx.newPage(); await ctx.route(SB + '/**', handler(db, 'member'));
