@@ -19,7 +19,7 @@ function draftRows(eng, db, mem, fit, status) {
 const FIT = { age: 30, height_cm: 175, weight_kg: 80, goal: 'fat_loss', diet_pref: 'veg', activity: 'moderate', experience: 'intermediate', days_per_week: 4, session_min: 60, equipment: 'gym', injuries: null, conditions: null, allergies: null };
 function makeDb(role) {
   const G = '11111111-1111-4111-8111-111111111111', P1 = uid(), P2 = uid();
-  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [], member_progress: [], trainer_commission: [] };
+  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [], member_progress: [], trainer_commission: [], gym_classes: [], class_bookings: [] };
   const me = '22222222-2222-4222-8222-222222222222';
   db.me = me; db.G = G;
   db.profiles = [{ id: me, gym_id: role === 'super_admin' ? null : G, role, full_name: 'Test', email: 't@x.in', created_at: new Date().toISOString() }, { id: uid(), gym_id: null, role: 'member', full_name: 'New User', email: 'n@x.in', created_at: new Date().toISOString() }];
@@ -49,6 +49,9 @@ function handler(db, role) {
       const fn = p.split('/').pop(), a = JSON.parse(req.postData() || '{}');
       if (fn === 'admin_gym_overview') return json(OV);
       if (fn === 'verify_gym_ledger') return json([]);
+      if (fn === 'class_booked_counts') { const o = {}; db.class_bookings.forEach((b) => (o[b.class_id] = (o[b.class_id] || 0) + 1)); return json(Object.entries(o).map(([class_id, booked]) => ({ class_id, booked }))); }
+      if (fn === 'book_class') { const c = db.gym_classes.find((x) => x.id === a.p_class), mid = a.p_member || (db.members.find((x) => x.profile_id === db.me) || {}).id; if (db.class_bookings.some((b) => b.class_id === c.id && b.member_id === mid)) return json({ message: 'already booked', code: '23505' }, 409); if (db.class_bookings.filter((b) => b.class_id === c.id).length >= c.capacity) return json({ message: 'class full', code: '23514' }, 400); const b = { id: uid(), gym_id: db.G, class_id: c.id, member_id: mid, cancelled_at: null }; db.class_bookings.push(b); return json(b.id); }
+      if (fn === 'cancel_booking') { const i = db.class_bookings.findIndex((b) => b.id === a.p_booking); if (i >= 0) db.class_bookings.splice(i, 1); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'save_product') { let pr = a.p_id && db.products.find((x) => x.id === a.p_id); if (!pr) { pr = { id: uid(), gym_id: db.G, cost: 0 }; db.products.push(pr); } Object.assign(pr, { name: a.p_name, category: a.p_category, price: a.p_price, stock: a.p_stock, low_at: a.p_low_at, active: a.p_active }); const pc = db.product_costs.find((x) => x.product_id === pr.id); if (pc) pc.cost = a.p_cost; else db.product_costs.push({ product_id: pr.id, gym_id: db.G, cost: a.p_cost }); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'record_sale') { const pr = db.products.find((x) => x.id === a.p_product); if (!pr || pr.stock < a.p_qty) return json({ message: 'out of stock' }, 400); pr.stock -= a.p_qty; const sid = uid(); db.sale_costs.push({ sale_id: sid, gym_id: db.G, unit_cost: (db.product_costs.find((x) => x.product_id === pr.id) || { cost: 0 }).cost }); db.sales.unshift({ id: sid, gym_id: db.G, product_id: pr.id, product_name: pr.name, qty: a.p_qty, unit_price: pr.price, unit_cost: 0, total: pr.price * a.p_qty, method: a.p_method, member_id: a.p_member, sold_on: today(), voided_at: null }); db.lastSaleArgs = a; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'void_sale') { const sl = db.sales.find((x) => x.id === a.p_sale); if (sl && !sl.voided_at) { sl.voided_at = new Date().toISOString(); const pr = db.products.find((x) => x.id === sl.product_id); if (pr) pr.stock += sl.qty; } return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
@@ -107,7 +110,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(/ग़लत|Wrong/.test(await page.textContent('.banner.bad')), 'wrong password shows a friendly error');
     await login(page); await page.waitForSelector('.tiles');
     ok(/Royal The Gym/.test(await page.textContent('#gymName')), 'dashboard loads with gym name');
-    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 17, 'gym admin sees 17 menu items');
+    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 18, 'gym admin sees 18 menu items');
     await page.click('a[href="#members"]'); await page.waitForSelector('table.t');
     ok((await page.$$('table.t tbody tr')).length === 4, 'members list shows 4');
     await page.fill('#mq', 'priya'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 1);
@@ -277,6 +280,19 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('[data-key=memT][data-v=mine]'); await page.waitForFunction(() => !/Coach Anil/.test(document.querySelector('#view').innerText));
     ok(true, 'My members filter hides members of other trainers');
     await page.click('[data-key=memT][data-v=all]');
+    // classes, staff side
+    await page.click('a[href="#classes"]'); await page.waitForSelector('[data-act=newClass]'); await page.click('[data-act=newClass] >> nth=0');
+    await page.fill('#f_title', 'Yoga Test'); await page.fill('#f_capacity', '1'); await page.fill('#f_date', addD(today(), 1)); await page.fill('#f_time', '07:00'); await page.selectOption('#f_weeks', '2'); await page.click('[data-ok]');
+    await page.waitForFunction(() => /Yoga Test/.test(document.querySelector('#view').innerText));
+    ok(db.gym_classes.length === 2 && db.gym_classes[0].starts_at.endsWith('T07:00:00+05:30') && Math.abs(new Date(db.gym_classes[0].starts_at) - new Date(db.gym_classes[1].starts_at)) === 7 * 864e5, 'a class can be repeated weekly');
+    await page.click('[data-act=newClass] >> nth=0'); await page.fill('#f_title', 'Past'); await page.fill('#f_date', addD(today(), -1)); await page.click('[data-ok]'); await page.waitForTimeout(250);
+    ok(db.gym_classes.length === 2, 'a class in the past is refused'); await page.keyboard.press('Escape');
+    await page.click('[data-act=clsBookings] >> nth=0'); await page.waitForSelector('#clsAdd'); const priya = db.members.find((x) => x.name === 'Priya Verma'); await page.selectOption('#clsAdd', priya.id); await page.click('#clsAddBtn');
+    await page.waitForFunction(() => !document.querySelector('#clsAdd') && /Priya Verma/.test(document.querySelector('.md').innerText));
+    ok(db.class_bookings.length === 1 && db.class_bookings[0].member_id === db.members.find((x) => x.name === 'Priya Verma').id, 'staff can book a member into a class');
+    ok(!(await page.$('#clsAdd')), 'a full class offers no more booking'); await page.keyboard.press('Escape'); await page.waitForFunction(() => !document.querySelector('.md')); await page.waitForTimeout(300);
+    await page.click('[data-act=cancelClass] >> nth=0'); await page.click('[data-yes]'); await page.waitForFunction(() => /Cancelled|रद्द/.test(document.querySelector('#view').innerText));
+    ok(db.gym_classes.filter((c) => c.cancelled_at).length === 1, 'staff can cancel a class');
     // trainer commission
     const got = db.payments.filter((x) => x.member_id === db.members[0].id && String(x.paid_on).slice(0, 7) === today().slice(0, 7)).reduce((a, x) => a + Number(x.amount), 0);
     await page.evaluate(() => bust('payments', 'members')); await page.click('a[href="#staff"]'); await page.waitForSelector('[data-act=setCommission]');
@@ -353,14 +369,14 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await session(browser, 'gym_admin', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
     ok(!!(await page.$('.nav .more')) && (await page.$$eval('#nav a', (a) => a.filter((x) => x.offsetParent !== null).length)) <= 5, 'phone bar shows only the main pages plus More');
-    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 17, 'More sheet lists all 17 pages in groups');
+    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 18, 'More sheet lists all 18 pages in groups');
     await page.click('.sheet-links a[href="#expenses"]'); await page.waitForFunction(() => location.hash === '#expenses' && !document.querySelector('.ov')); ok(true, 'More sheet opens a page and closes');
     ok((await page.$$('#nav .grp')).length === 6, 'admin menu is split into 6 groups');
     await page.waitForSelector('[data-act=newExpense]'); await page.waitForTimeout(500);
     await page.keyboard.press('Control+k'); await page.waitForSelector('#palQ'); await page.fill('#palQ', 'rahul'); await page.waitForSelector('.pal-list li[data-i]'); await page.keyboard.press('Enter');
     await page.waitForSelector('.md'); ok(/Rahul/.test(await page.textContent('.md')), 'Ctrl+K finds a member and opens their card'); await page.keyboard.press('Escape');
     for (const lang of ['hi', 'en']) {
-      for (const r of ['dashboard', 'members', 'reminders', 'whatsapp', 'leads', 'store', 'expenses', 'staff', 'checkin', 'plans', 'offers', 'invoices', 'payments', 'ledger', 'retention', 'peak', 'settings']) {
+      for (const r of ['dashboard', 'members', 'reminders', 'whatsapp', 'leads', 'store', 'expenses', 'staff', 'classes', 'checkin', 'plans', 'offers', 'invoices', 'payments', 'ledger', 'retention', 'peak', 'settings']) {
         await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(250); await page.waitForSelector('#view .ph');
         if (await overflow(page)) { ok(false, `overflow on ${r} (${lang})`); }
       }
@@ -399,7 +415,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   console.log('member portal on phone');
   await session(browser, 'member', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
-    for (const r of ['mine', 'plan', 'pay', 'visits', 'progress', 'me']) { await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(250); await page.waitForSelector('#view .ph'); if (await overflow(page)) ok(false, `member overflow on ${r}`); }
+    for (const r of ['mine', 'plan', 'pay', 'visits', 'book', 'progress', 'me']) { await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(250); await page.waitForSelector('#view .ph'); if (await overflow(page)) ok(false, `member overflow on ${r}`); }
     ok(true, 'phone: no overflow on any member page');
   }, { width: 390, height: 800 });
 
@@ -435,7 +451,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
 
   console.log('member + waiting');
   await session(browser, 'member', async (page, db) => { const eng = await ENGINE; db.visits.push({ id: uid(), gym_id: db.G, member_id: db.members[0].id, in_at: new Date().toISOString(), out_at: null }); db.payments.push({ id: uid(), gym_id: db.G, member_id: db.members[0].id, amount: 700, method: 'UPI', paid_on: today(), no: 'RCT-0009' }); draftRows(eng, db, db.members[0], FIT, 'published').forEach((r) => db.member_plans.push(r)); draftRows(eng, db, db.members[0], FIT, 'draft').forEach((r) => db.member_plans.push(r)); await login(page); await page.waitForSelector('.tiles'); ok(/Rahul/.test(await page.textContent('#view')), 'member sees own page');
-    ok((await page.$$eval('#nav a', (a) => a.length)) === 6, 'member portal has 6 pages');
+    ok((await page.$$eval('#nav a', (a) => a.length)) === 7, 'member portal has 7 pages');
     ok(/1/.test(await page.textContent('.tiles .card:nth-child(3) .v')), 'home shows the visit streak');
     await page.click('a[href="#plan"]'); await page.waitForSelector('[data-act=openMyPlan]'); ok((await page.$$('[data-act=openMyPlan]')).length === 2, 'member sees the two published plans');
     await page.click('[data-act=openMyPlan] >> nth=1'); await page.waitForSelector('#planBody'); ok(/Barbell|Dumbbell|Machine|Push|Lat/.test(await page.textContent('#planBody')), 'member can open the workout plan'); await page.keyboard.press('Escape');
@@ -443,6 +459,13 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('[data-act=openReceipt]'); await page.waitForSelector('.md'); ok(true, 'member can open a receipt'); await page.keyboard.press('Escape');
     await page.click('a[href="#visits"]'); await page.waitForSelector('.cal'); ok((await page.$$('.cal i.on')).length === 1, 'visits calendar marks the day trained'); 
     await page.click('a[href="#me"]'); await page.waitForSelector('dl.kv'); ok(/Rahul/.test(await page.textContent('#view')) && !!(await page.$('[data-act=changePw]')), 'profile shows membership and account actions');
+    { const mk2 = (t, cap) => ({ id: uid(), gym_id: db.G, title: t, coach: 'Coach', starts_at: new Date(Date.now() + 26 * 3600000).toISOString(), duration_min: 60, capacity: cap, note: null, cancelled_at: null }); const open = mk2('Open Yoga', 5), full = mk2('Full Zumba', 1); db.gym_classes.push(open, full); db.class_bookings.push({ id: uid(), gym_id: db.G, class_id: full.id, member_id: db.members[1].id, cancelled_at: null });
+      await page.click('a[href="#book"]'); await page.waitForSelector('[data-act=clsBook]');
+      ok((await page.$$('[data-act=clsBook]')).length === 1 && /Full/.test(await page.textContent('#view')), 'member can book the open class but not the full one');
+      await page.click('[data-act=clsBook]'); await page.waitForSelector('[data-act=clsCancel]');
+      ok(db.class_bookings.some((b) => b.class_id === open.id && b.member_id === db.members[0].id), 'member booked a spot for themself');
+      await page.click('[data-act=clsCancel]'); await page.click('[data-yes]'); await page.waitForSelector('[data-act=clsBook]');
+      ok(!db.class_bookings.some((b) => b.class_id === open.id), 'member cancelled their spot'); }
     await page.click('a[href="#progress"]'); await page.waitForSelector('[data-act=addProgress]');
     await page.click('[data-act=addProgress]'); await page.fill('#f_weight_kg', '80'); await page.fill('#f_measured_on', addD(today(), -20)); await page.click('[data-ok]'); await page.waitForFunction(() => document.querySelector('[data-act=addProgress]') && /80/.test(document.body.innerText) && !document.querySelector('.md'));
     await page.click('[data-act=addProgress]'); await page.fill('#f_weight_kg', '77.5'); await page.click('[data-ok]'); await page.waitForFunction(() => /77\.5/.test(document.querySelector('#view').innerText));
