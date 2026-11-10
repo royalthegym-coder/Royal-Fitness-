@@ -2062,7 +2062,17 @@ async function cancelClass(id) {
   const n = (await Q.classCounts()).get(id) || 0;
   if (!(await askConfirm(L(`Cancel "${c.title}" on ${clsDay(c.starts_at)}?${n ? ` ${n} booked member(s) will see it as cancelled.` : ''}`, `${clsDay(c.starts_at)} की "${c.title}" रद्द करें?${n ? ` बुक किए ${n} सदस्यों को यह रद्द दिखेगी।` : ''}`), L('Cancel class', 'क्लास रद्द करें'), 'bad'))) return;
   const ok = await actClass(() => DB.update('gym_classes', id, { cancelled_at: new Date().toISOString() }), L('Class cancelled', 'क्लास रद्द हुई'));
-  if (ok) render();
+  if (!ok) return;
+  render();
+  if (n) tellBooked(c);
+}
+/* after a cancellation: one tap per booked member opens WhatsApp with the message ready (works without any WhatsApp Business setup) */
+async function tellBooked(c) {
+  const [members, rows] = await Promise.all([Q.members(), DB.select('class_bookings', { eq: { class_id: c.id }, filters: { cancelled_at: 'is.null' }, limit: 600 })]);
+  const mm = new Map(members.map((m) => [m.id, m])), people = rows.map((r) => mm.get(r.member_id)).filter(Boolean);
+  if (!people.length) return;
+  const text = (m) => L(`Hello ${m.name}, from ${gymName()}. Sorry, the ${c.title} class on ${clsDay(c.starts_at)} at ${fmtTime(c.starts_at)} has been cancelled. We will let you know about the next one.`, `नमस्ते ${m.name} जी, ${gymName()} से। खेद है, ${clsDay(c.starts_at)} को ${fmtTime(c.starts_at)} की ${c.title} क्लास रद्द हो गई है। अगली क्लास की जानकारी हम बताएँगे।`);
+  openModal({ title: L('Tell the booked members', 'बुक किए सदस्यों को बताएँ'), body: `<p class="muted" style="margin:0 0 8px">${esc(L('Tap WhatsApp for each member. The message is ready to send.', 'हर सदस्य के लिए WhatsApp दबाएँ। संदेश तैयार है।'))}</p><ul class="list">${people.map((m) => `<li><div class="grow"><b>${esc(m.name)}</b><small>${esc(m.phone || '')}</small></div>${m.phone ? `<a class="btn wa sm" target="_blank" rel="noopener" href="${esc(waLink(m.phone, text(m)))}">WhatsApp</a>` : `<span class="muted">${esc(L('no phone', 'फ़ोन नहीं'))}</span>`}</li>`).join('')}</ul>` });
 }
 
 /* staff: who booked a class; add or remove a member */

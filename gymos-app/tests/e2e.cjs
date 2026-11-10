@@ -293,6 +293,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(!(await page.$('#clsAdd')), 'a full class offers no more booking'); await page.keyboard.press('Escape'); await page.waitForFunction(() => !document.querySelector('.md')); await page.waitForTimeout(300);
     await page.click('[data-act=cancelClass] >> nth=0'); await page.click('[data-yes]'); await page.waitForFunction(() => /Cancelled|रद्द/.test(document.querySelector('#view').innerText));
     ok(db.gym_classes.filter((c) => c.cancelled_at).length === 1, 'staff can cancel a class');
+    await page.waitForSelector('.md a.btn.wa'); { const href = await page.getAttribute('.md a.btn.wa', 'href'); ok(/wa\.me/.test(href) && /Yoga%20Test|योगा|Yoga/.test(decodeURIComponent(href)) , 'cancelling a class offers a WhatsApp message to each booked member'); } await page.keyboard.press('Escape');
     // trainer commission
     const got = db.payments.filter((x) => x.member_id === db.members[0].id && String(x.paid_on).slice(0, 7) === today().slice(0, 7)).reduce((a, x) => a + Number(x.amount), 0);
     await page.evaluate(() => bust('payments', 'members')); await page.click('a[href="#staff"]'); await page.waitForSelector('[data-act=setCommission]');
