@@ -19,7 +19,7 @@ function draftRows(eng, db, mem, fit, status) {
 const FIT = { age: 30, height_cm: 175, weight_kg: 80, goal: 'fat_loss', diet_pref: 'veg', activity: 'moderate', experience: 'intermediate', days_per_week: 4, session_min: 60, equipment: 'gym', injuries: null, conditions: null, allergies: null };
 function makeDb(role) {
   const G = '11111111-1111-4111-8111-111111111111', P1 = uid(), P2 = uid();
-  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [], member_progress: [], trainer_commission: [], gym_classes: [], class_bookings: [] };
+  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none' }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [], member_progress: [], trainer_commission: [], gym_classes: [], class_bookings: [], gym_tasks: [] };
   const me = '22222222-2222-4222-8222-222222222222';
   db.me = me; db.G = G;
   db.profiles = [{ id: me, gym_id: role === 'super_admin' ? null : G, role, full_name: 'Test', email: 't@x.in', created_at: new Date().toISOString() }, { id: uid(), gym_id: null, role: 'member', full_name: 'New User', email: 'n@x.in', created_at: new Date().toISOString() }];
@@ -110,7 +110,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(/ग़लत|Wrong/.test(await page.textContent('.banner.bad')), 'wrong password shows a friendly error');
     await login(page); await page.waitForSelector('.tiles');
     ok(/Royal The Gym/.test(await page.textContent('#gymName')), 'dashboard loads with gym name');
-    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 18, 'gym admin sees 18 menu items');
+    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 19, 'gym admin sees 19 menu items');
     await page.click('a[href="#members"]'); await page.waitForSelector('table.t');
     ok((await page.$$('table.t tbody tr')).length === 4, 'members list shows 4');
     await page.fill('#mq', 'priya'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 1);
@@ -294,6 +294,19 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('[data-act=cancelClass] >> nth=0'); await page.click('[data-yes]'); await page.waitForFunction(() => /Cancelled|रद्द/.test(document.querySelector('#view').innerText));
     ok(db.gym_classes.filter((c) => c.cancelled_at).length === 1, 'staff can cancel a class');
     await page.waitForSelector('.md a.btn.wa'); { const href = await page.getAttribute('.md a.btn.wa', 'href'); ok(/wa\.me/.test(href) && /Yoga%20Test|योगा|Yoga/.test(decodeURIComponent(href)) , 'cancelling a class offers a WhatsApp message to each booked member'); } await page.keyboard.press('Escape');
+    // staff tasks
+    await page.click('a[href="#tasks"]'); await page.waitForSelector('[data-act=newTask]'); await page.click('[data-act=newTask] >> nth=0');
+    await page.fill('#f_title', 'Restock whey'); await page.selectOption('#f_priority', 'High'); await page.fill('#f_due_on', addD(today(), -1)); await page.click('[data-ok]');
+    await page.waitForFunction(() => /Restock whey/.test(document.querySelector('#view').innerText));
+    ok(db.gym_tasks.length === 1 && db.gym_tasks[0].priority === 'High' && !db.gym_tasks[0].done_at, 'a task can be added');
+    ok(/Overdue|देर/.test(await page.textContent('#view')), 'a task past its date shows as overdue');
+    await page.click('[data-act=toggleTask]'); await page.waitForFunction(() => !/Restock whey/.test(document.querySelector('#view').innerText));
+    ok(!!db.gym_tasks[0].done_at, 'a task can be marked done');
+    await page.click('[data-key=tkF][data-v=done]'); await page.waitForSelector('[data-act=toggleTask]'); await page.click('[data-act=toggleTask]'); await page.waitForFunction(() => !document.querySelector('[data-act=toggleTask]'));
+    ok(!db.gym_tasks[0].done_at, 'a done task can be reopened');
+    await page.click('[data-key=tkF][data-v=open]'); await page.waitForSelector('[data-act=editTask]'); await page.click('[data-act=editTask]'); await page.waitForSelector('[data-act=delTask]'); await page.click('[data-act=delTask]'); await page.click('[data-yes]');
+    await page.waitForFunction(() => !/Restock whey/.test(document.querySelector('#view').innerText));
+    ok(db.gym_tasks.length === 0, 'the owner can delete a task');
     // QR check-in (barcode-scanner box): check in, check out, refuse expired and foreign codes
     await page.click('a[href="#checkin"]'); await page.waitForSelector('#scanIn');
     { const pr = db.members.find((x) => x.name === 'Absent Ajay'), old = db.members.find((x) => x.name === 'Old Timer'), n0 = db.visits.length, scan = async (code) => { await page.fill('#scanIn', code); await page.press('#scanIn', 'Enter'); await page.waitForTimeout(500); };
@@ -377,14 +390,14 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await session(browser, 'gym_admin', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
     ok(!!(await page.$('.nav .more')) && (await page.$$eval('#nav a', (a) => a.filter((x) => x.offsetParent !== null).length)) <= 5, 'phone bar shows only the main pages plus More');
-    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 18, 'More sheet lists all 18 pages in groups');
+    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 19, 'More sheet lists all 19 pages in groups');
     await page.click('.sheet-links a[href="#expenses"]'); await page.waitForFunction(() => location.hash === '#expenses' && !document.querySelector('.ov')); ok(true, 'More sheet opens a page and closes');
     ok((await page.$$('#nav .grp')).length === 6, 'admin menu is split into 6 groups');
     await page.waitForSelector('[data-act=newExpense]'); await page.waitForTimeout(500);
     await page.keyboard.press('Control+k'); await page.waitForSelector('#palQ'); await page.fill('#palQ', 'rahul'); await page.waitForSelector('.pal-list li[data-i]'); await page.keyboard.press('Enter');
     await page.waitForSelector('.md'); ok(/Rahul/.test(await page.textContent('.md')), 'Ctrl+K finds a member and opens their card'); await page.keyboard.press('Escape');
     for (const lang of ['hi', 'en']) {
-      for (const r of ['dashboard', 'members', 'reminders', 'whatsapp', 'leads', 'store', 'expenses', 'staff', 'classes', 'checkin', 'plans', 'offers', 'invoices', 'payments', 'ledger', 'retention', 'peak', 'settings']) {
+      for (const r of ['dashboard', 'members', 'reminders', 'whatsapp', 'leads', 'store', 'expenses', 'staff', 'classes', 'tasks', 'checkin', 'plans', 'offers', 'invoices', 'payments', 'ledger', 'retention', 'peak', 'settings']) {
         await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(250); await page.waitForSelector('#view .ph');
         if (await overflow(page)) { ok(false, `overflow on ${r} (${lang})`); }
       }

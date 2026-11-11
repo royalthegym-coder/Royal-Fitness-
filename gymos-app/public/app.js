@@ -2253,6 +2253,61 @@ document.addEventListener('keydown', async (e) => {
   if (e.key !== 'Enter' || !e.target || e.target.id !== 'scanIn') return;
   e.preventDefault(); const v = e.target.value; e.target.value = ''; if (v.trim()) await scanCheckIn(v);
 });
+/* ================= Staff tasks: a shared to-do list for the gym (owner and trainers) ================= */
+Q.tasks = () => cached('gym_tasks', () => DB.select('gym_tasks', { order: 'created_at.desc', limit: 500 }));
+U.tk = { f: 'open' };
+const PRIO = { High: ['bad', 'ऊँची', 0], Medium: ['warn', 'मध्यम', 1], Low: ['mute', 'कम', 2] };
+const prioLabel = (p) => (LANG === 'hi' ? PRIO[p][1] : p);
+async function staffNames() {
+  try { return new Map((await Q.profiles()).filter((p) => p.gym_id === gymId() && (p.role === 'trainer' || p.role === 'gym_admin')).map((p) => [p.id, p.full_name || p.email || ''])); } catch (e) { return new Map(); }
+}
+
+async function vTasks() {
+  const [tasks, names] = await Promise.all([Q.tasks(), staffNames()]), me = CTX.profile ? CTX.profile.id : '', today = todayISO();
+  const open = tasks.filter((t) => !t.done_at), mine = open.filter((t) => t.assigned_to === me);
+  const list = (U.tk.f === 'done' ? tasks.filter((t) => t.done_at) : U.tk.f === 'mine' ? mine : open)
+    .slice().sort((a, b) => (a.done_at ? 1 : 0) - (b.done_at ? 1 : 0) || (a.due_on || '9999').localeCompare(b.due_on || '9999') || PRIO[a.priority][2] - PRIO[b.priority][2]);
+  const overdue = open.filter((t) => t.due_on && t.due_on < today).length;
+  const row = (t) => {
+    const late = !t.done_at && t.due_on && t.due_on < today, who = t.assigned_to ? (t.assigned_to === me ? L('You', 'आप') : names.get(t.assigned_to) || '') : '';
+    return `<li${t.done_at ? ' style="opacity:.6"' : ''}><button class="btn sm${t.done_at ? '' : ' pri'}" data-act="toggleTask" data-id="${esc(t.id)}" aria-label="${esc(t.done_at ? L('Reopen', 'दोबारा खोलें') : L('Mark done', 'पूरा करें'))}">${t.done_at ? '↺' : '✓'}</button><div class="grow"><b${t.done_at ? ' style="text-decoration:line-through"' : ''}>${esc(t.title)}</b><small>${esc([t.note, who && (L('For ', 'किसके लिए: ') + who), t.due_on && (late ? L('Overdue · ', 'देर · ') : t.due_on === today ? L('Today · ', 'आज · ') : '') + fmtDate(t.due_on)].filter(Boolean).join(' · '))}</small></div>${badge(prioLabel(t.priority), PRIO[t.priority][0])}<button class="btn sm" data-act="editTask" data-id="${esc(t.id)}">${esc(L('Edit', 'बदलें'))}</button></li>`;
+  };
+  return pageHead(L('Business', 'व्यापार'), L('Tasks', 'काम'), L(`${open.length} open${overdue ? ` · ${overdue} overdue` : ''}`, `${open.length} बाक़ी${overdue ? ` · ${overdue} देर से` : ''}`), `<button class="btn pri" data-act="newTask">${ic('plus')}${esc(L('Add task', 'काम जोड़ें'))}</button>`)
+    + chipsHtml('tkF', U.tk.f, [['open', L('Open', 'बाक़ी'), open.length], ['mine', L('Mine', 'मेरे'), mine.length], ['done', L('Done', 'पूरे'), tasks.length - open.length]])
+    + `<div class="card" style="padding:4px 18px 16px">${list.length ? `<ul class="list">${list.map(row).join('')}</ul>` : empty(U.tk.f === 'done' ? L('Nothing finished yet', 'अभी कोई काम पूरा नहीं') : L('No open tasks', 'कोई काम बाक़ी नहीं'), L('Add things like "restock whey", "fix treadmill 2" or "call dues members".', 'जैसे "व्हे स्टॉक करना", "ट्रेडमिल 2 ठीक कराना" या "बाक़ी वालों को फ़ोन"।'), `<button class="btn pri" data-act="newTask">${esc(L('Add task', 'काम जोड़ें'))}</button>`)}</div>`;
+}
+
+async function taskForm(id) {
+  const [tasks, names] = await Promise.all([Q.tasks(), staffNames()]), x = id ? tasks.find((t) => t.id === id) : null, me = CTX.profile ? CTX.profile.id : '';
+  if (me && !names.has(me)) names.set(me, L('Me', 'मैं'));
+  openForm({
+    title: x ? L('Edit task', 'काम बदलें') : L('Add task', 'काम जोड़ें'), submitLabel: L('Save', 'सेव करें'), values: x ? { ...x, assigned_to: x.assigned_to || '' } : {},
+    fields: [
+      { k: 'title', label: L('Task', 'काम'), req: true, full: true, check: (v) => (v.trim().length > 120 ? L('Up to 120 characters', 'अधिकतम 120 अक्षर') : '') },
+      { k: 'priority', label: L('Priority', 'महत्व'), type: 'select', options: ['High', 'Medium', 'Low'].map((p) => ({ v: p, l: prioLabel(p) })), def: x ? x.priority : 'Medium' },
+      { k: 'due_on', label: L('Due date', 'आख़िरी तारीख़'), type: 'date' },
+      { k: 'assigned_to', label: L('Assigned to', 'किसे'), type: 'select', full: true, options: [{ v: '', l: L('Anyone', 'कोई भी') }, ...[...names].map(([v, l]) => ({ v, l }))], def: x ? x.assigned_to || '' : '' },
+      { k: 'note', label: L('Note', 'नोट'), type: 'textarea', full: true, check: (v) => (v.length > 500 ? L('Up to 500 characters', 'अधिकतम 500 अक्षर') : '') },
+    ],
+    extra: x && isAdmin() ? `<p style="margin:12px 0 0"><button type="button" class="btn sm" data-act="delTask" data-id="${esc(x.id)}">${esc(L('Delete task', 'काम हटाएँ'))}</button></p>` : '',
+    onSubmit: async (v) => {
+      const row = { title: v.title.trim(), priority: v.priority, due_on: v.due_on || null, assigned_to: v.assigned_to || null, note: v.note ? v.note.trim() : null };
+      const ok = await act(() => (x ? DB.update('gym_tasks', x.id, row) : DB.insert('gym_tasks', { ...row, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
+      if (ok) { bust('gym_tasks'); render(); } return !!ok;
+    },
+  });
+}
+async function toggleTask(id) {
+  const t = (await Q.tasks()).find((x) => x.id === id); if (!t) return;
+  const ok = await act(() => DB.update('gym_tasks', id, { done_at: t.done_at ? null : new Date().toISOString() }), t.done_at ? L('Reopened', 'दोबारा खोला') : L('Done', 'पूरा हुआ'));
+  if (ok) { bust('gym_tasks'); render(); }
+}
+async function deleteTask(id) {
+  const t = (await Q.tasks()).find((x) => x.id === id); if (!t) return;
+  if (!(await askConfirm(L(`Delete "${t.title}"?`, `"${t.title}" हटाएँ?`), L('Delete', 'हटाएँ'), 'bad'))) return;
+  const ok = await act(() => DB.remove('gym_tasks', id), L('Deleted', 'हटा दिया'));
+  if (ok) { closeAllModals(); bust('gym_tasks'); render(); }
+}
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV_GROUPS = { overview: ['Overview', 'अवलोकन'], people: ['People', 'लोग'], money: ['Money', 'पैसा'], business: ['Business', 'व्यापार'], insights: ['Insights', 'जानकारी'], setup: ['Setup', 'सेटअप'], platform: ['Platform', 'प्लेटफ़ॉर्म'], me: ['My gym', 'मेरा जिम'] };
 /* entry: [route, icon, English, Hindi, view, group, shownInPhoneBar] */
@@ -2262,11 +2317,11 @@ const NAV = {
     ['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard, 'overview', 1],
     ['members', 'users', 'Members', 'सदस्य', vMembers, 'people', 1], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin, 'people', 1], ['leads', 'users', 'Leads', 'लीड्स', vLeads, 'people'], ['reminders', 'clock', 'Reminders', 'रिमाइंडर', vReminders, 'people'], ['whatsapp', 'msg', 'WhatsApp', 'WhatsApp', vWhatsApp, 'people'],
     ['invoices', 'receipt', 'Invoices', 'इनवॉइस', vInvoices, 'money'], ['payments', 'wallet', 'Payments', 'भुगतान', vPayments, 'money', 1], ['expenses', 'wallet', 'Expenses & profit', 'खर्च और मुनाफ़ा', vExpenses, 'money'], ['staff', 'users', 'Staff & salary', 'स्टाफ़ और वेतन', vStaff, 'money'], ['ledger', 'shield', 'Secure ledger', 'सुरक्षित लेजर', vLedger, 'money'],
-    ['store', 'tag', 'Store', 'स्टोर', vStore, 'business'], ['classes', 'clock', 'Classes', 'क्लास', vClasses, 'business'], ['plans', 'tag', 'Plans', 'प्लान', vPlans, 'business'], ['offers', 'crown', 'Offers', 'ऑफ़र', vOffers, 'business'],
+    ['store', 'tag', 'Store', 'स्टोर', vStore, 'business'], ['classes', 'clock', 'Classes', 'क्लास', vClasses, 'business'], ['tasks', 'check', 'Tasks', 'काम', vTasks, 'business'], ['plans', 'tag', 'Plans', 'प्लान', vPlans, 'business'], ['offers', 'crown', 'Offers', 'ऑफ़र', vOffers, 'business'],
     ['retention', 'pulse', 'At risk', 'जोखिम', vRetention, 'insights'], ['peak', 'chart', 'Peak hours', 'भीड़ के समय', vPeak, 'insights'],
     ['settings', 'gear', 'Settings', 'सेटिंग', vSettings, 'setup'],
   ],
-  trainer: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard, 'overview', 1], ['members', 'users', 'Members', 'सदस्य', vMembers, 'people', 1], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin, 'people', 1], ['leads', 'users', 'Leads', 'लीड्स', vLeads, 'people'], ['reminders', 'clock', 'Reminders', 'रिमाइंडर', vReminders, 'people'], ['classes', 'clock', 'Classes', 'क्लास', vClasses, 'business'], ['store', 'tag', 'Store', 'स्टोर', vStore, 'business', 1]],
+  trainer: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard, 'overview', 1], ['members', 'users', 'Members', 'सदस्य', vMembers, 'people', 1], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin, 'people', 1], ['leads', 'users', 'Leads', 'लीड्स', vLeads, 'people'], ['reminders', 'clock', 'Reminders', 'रिमाइंडर', vReminders, 'people'], ['classes', 'clock', 'Classes', 'क्लास', vClasses, 'business'], ['tasks', 'check', 'Tasks', 'काम', vTasks, 'business'], ['store', 'tag', 'Store', 'स्टोर', vStore, 'business', 1]],
   member: [['mine', 'home', 'Home', 'होम', vMine, 'me', 1], ['plan', 'pulse', 'My plan', 'मेरा प्लान', vMyPlan, 'me', 1], ['pay', 'wallet', 'Payments', 'भुगतान', vMyPay, 'me', 1], ['visits', 'clock', 'Visits', 'विज़िट', vMyVisits, 'me', 1], ['book', 'clock', 'Book a class', 'क्लास बुक करें', vBookClass, 'me', 0], ['progress', 'pulse', 'My progress', 'मेरी प्रगति', vMyProgress, 'me', 0], ['me', 'users', 'Profile', 'प्रोफ़ाइल', vMyProfile, 'me', 1]],
 };
 const navFor = () => NAV[CTX.profile ? CTX.profile.role : ''] || [];
@@ -2360,7 +2415,7 @@ async function enter() {
 function onSignedOut() { bust(); CTX.profile = null; CTX.gym = null; CTX.locked = false; RENDER_TOKEN++; loginScreen(L('Please sign in again.', 'कृपया दोबारा लॉगिन करें।')); }
 
 /* ---------- actions ---------- */
-const CHIP = { clsF: (v) => { U.cls.f = v; }, memT: (v) => { U.members.t = v; U.members.page = 1; }, memF: (v) => { U.members.f = v; U.members.page = 1; }, invF: (v) => { U.invoices.f = v; U.invoices.page = 1; }, peakD: (v) => { U.peak.days = v; }, expM: (v) => { U.exp.m = v; }, payM: (v) => { U.pay.m = v; }, sgF: (v) => { U.sg.f = v; }, suF: (v) => { U.su.f = v; }, leadF: (v) => { U.lead.f = v; } };
+const CHIP = { tkF: (v) => { U.tk.f = v; }, clsF: (v) => { U.cls.f = v; }, memT: (v) => { U.members.t = v; U.members.page = 1; }, memF: (v) => { U.members.f = v; U.members.page = 1; }, invF: (v) => { U.invoices.f = v; U.invoices.page = 1; }, peakD: (v) => { U.peak.days = v; }, expM: (v) => { U.exp.m = v; }, payM: (v) => { U.pay.m = v; }, sgF: (v) => { U.sg.f = v; }, suF: (v) => { U.su.f = v; }, leadF: (v) => { U.lead.f = v; } };
 const BIND = { mq: (v) => { U.members.q = v; U.members.page = 1; }, sgq: (v) => { U.sg.q = v; }, suq: (v) => { U.su.q = v; }, cq: (v) => { U.checkin.q = v; }, iq: (v) => { U.invoices.q = v; U.invoices.page = 1; }, pq: (v) => { U.payments.q = v; U.payments.page = 1; }, rdays: (v) => { const n = Math.min(14, Math.max(1, parseInt(v, 10) || 2)); U_REMIND.days = n; try { localStorage.setItem('gymos-remind-days', String(n)); } catch (e) {} }, thr: (v) => { const n = Math.min(30, Math.max(1, parseInt(v, 10) || 4)); U.retention.thr = n; try { localStorage.setItem('gymos-thr', String(n)); } catch (e) {} } };
 const ACTIONS = {
   newGym: () => gymForm(), extendGym: (d) => extendForm(d.id), lockGym: (d) => lockForm(d.id), assignUser: (d) => assignForm(d.id),
@@ -2375,7 +2430,7 @@ const ACTIONS = {
   lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
   theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
   importMembers: () => importForm(), membersCsv: () => exportMembers(), newOffer: () => offerForm(), editOffer: (d) => offerForm(d.id), shareOffer: (d) => shareOffer(d.id),
-  newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, moreNav: () => openMoreSheet(), installApp: () => installApp(), installLater: () => installLater(), applyUpdate: () => applyUpdate(), booksCsv: () => exportBooks(), openScan: () => openScanner(), newClass: () => classForm(), editClass: (d) => classForm(d.id), cancelClass: (d) => cancelClass(d.id), clsBookings: (d) => classBookings(d.id), clsBook: (d) => bookClass(d.id), clsCancel: (d) => cancelMyBooking(d.id), setCommission: (d) => commissionForm(d.id), addProgress: (d) => progressForm(d.id, d.by === '1', d.by === '1' ? null : () => progressModal(d.id)), delProgress: (d) => deleteProgress(d.id, d.m), newStaff: () => staffForm(), editStaff: (d) => staffForm(d.id), payStaff: (d) => salaryForm(d.id), staffHist: (d) => staffHistory(d.id), delStaff: (d) => deleteStaff(d.id), delSalPay: (d) => deleteSalaryPay(d.id), newExpense: () => expenseForm(), newProduct: () => productForm(), editProduct: (d) => productForm(d.id), sellProduct: (d) => sellForm(d.id), voidSale: (d) => voidSale(d.id), delProduct: (d) => deleteProduct(d.id), delExpense: (d) => deleteExpense(d.id), newLead: () => leadForm(), editLead: (d) => leadForm(d.id), leadNext: (d) => Q.leads().then((ls) => { const l = ls.find((x) => x.id === d.id); const n = l && nextStage(l.stage); if (n) leadSetStage(l.id, n, L('Moved to ' + stageLabel(n), stageLabel(n) + ' में किया')); }), leadLost: (d) => leadSetStage(d.id, 'Lost', L('Marked lost', 'छूटा हुआ चिह्नित')), leadConvert: (d) => leadConvert(d.id), delLead: (d) => deleteLead(d.id), waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
+  newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, moreNav: () => openMoreSheet(), installApp: () => installApp(), installLater: () => installLater(), applyUpdate: () => applyUpdate(), booksCsv: () => exportBooks(), newTask: () => taskForm(), editTask: (d) => taskForm(d.id), toggleTask: (d) => toggleTask(d.id), delTask: (d) => deleteTask(d.id), openScan: () => openScanner(), newClass: () => classForm(), editClass: (d) => classForm(d.id), cancelClass: (d) => cancelClass(d.id), clsBookings: (d) => classBookings(d.id), clsBook: (d) => bookClass(d.id), clsCancel: (d) => cancelMyBooking(d.id), setCommission: (d) => commissionForm(d.id), addProgress: (d) => progressForm(d.id, d.by === '1', d.by === '1' ? null : () => progressModal(d.id)), delProgress: (d) => deleteProgress(d.id, d.m), newStaff: () => staffForm(), editStaff: (d) => staffForm(d.id), payStaff: (d) => salaryForm(d.id), staffHist: (d) => staffHistory(d.id), delStaff: (d) => deleteStaff(d.id), delSalPay: (d) => deleteSalaryPay(d.id), newExpense: () => expenseForm(), newProduct: () => productForm(), editProduct: (d) => productForm(d.id), sellProduct: (d) => sellForm(d.id), voidSale: (d) => voidSale(d.id), delProduct: (d) => deleteProduct(d.id), delExpense: (d) => deleteExpense(d.id), newLead: () => leadForm(), editLead: (d) => leadForm(d.id), leadNext: (d) => Q.leads().then((ls) => { const l = ls.find((x) => x.id === d.id); const n = l && nextStage(l.stage); if (n) leadSetStage(l.id, n, L('Moved to ' + stageLabel(n), stageLabel(n) + ' में किया')); }), leadLost: (d) => leadSetStage(d.id, 'Lost', L('Marked lost', 'छूटा हुआ चिह्नित')), leadConvert: (d) => leadConvert(d.id), delLead: (d) => deleteLead(d.id), waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
   changePw: () => openForm({
     title: L('Change password', 'पासवर्ड बदलें'),
     fields: [
