@@ -133,6 +133,15 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     // invalid phone
     await page.click('[data-act=newMember]'); await page.fill('#f_name', 'X'); await page.fill('#f_phone', '123'); await page.click('[data-ok]');
     ok((await page.textContent('#e_phone')).length > 0, 'short phone rejected'); await page.keyboard.press('Escape');
+    // birthdays: a future date of birth is refused; a valid one shows on the Reminders page with a WhatsApp greeting
+    await page.click('[data-act=newMember]'); await page.fill('#f_name', 'Janam Din'); await page.fill('#f_phone', '9888877777'); await page.fill('#f_dob', addD(today(), 30)); await page.click('[data-ok]');
+    ok((await page.textContent('#e_dob')).length > 0 && !db.members.some((m) => m.name === 'Janam Din'), 'future date of birth rejected');
+    await page.fill('#f_dob', '1990' + addD(today(), 3).slice(4)); await page.click('[data-ok]'); await page.waitForFunction(() => /Janam Din/.test(document.body.innerText));
+    ok(db.members.find((m) => m.name === 'Janam Din').dob === '1990' + addD(today(), 3).slice(4), 'date of birth saved on the member');
+    await page.click('a[href="#reminders"]'); await page.waitForSelector('a[data-remind]');
+    const bday = await page.$$eval('#view li', (l) => l.filter((x) => /Janam Din/.test(x.textContent)).map((x) => ({ t: x.textContent, a: (x.querySelector('a.wa') || {}).href })));
+    ok(bday.length === 1 && /3 days|3 दिन/.test(bday[0].t) && /wa\.me\/919888877777/.test(bday[0].a) && /जन्मदिन|birthday/i.test(decodeURIComponent(bday[0].a)), 'birthday card lists the member with a WhatsApp greeting');
+    await page.click('a[href="#members"]'); await page.waitForSelector('[data-act=newMember]');
     // check-in
     await page.click('a[href="#checkin"]'); await page.fill('#cq', 'priya'); await page.waitForSelector('[data-act=checkIn]');
     await page.click('[data-act=checkIn]'); await page.waitForFunction(() => /Checked in|चेक-इन हो गया/.test(document.body.innerText));

@@ -49,6 +49,7 @@ async function memberForm(id, prefill, onSaved) {
   const fields = [
     { k: 'name', label: L('Name', 'नाम'), req: true, full: true }, { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel', req: true },
     { k: 'gender', label: L('Gender', 'लिंग'), type: 'select', options: [{ v: '', l: '—' }, { v: 'Male', l: L('Male', 'पुरुष') }, { v: 'Female', l: L('Female', 'महिला') }, { v: 'Other', l: L('Other', 'अन्य') }] },
+    { k: 'dob', label: L('Date of birth', 'जन्म की तारीख़'), type: 'date', check: (v) => (v && v > todayISO() ? L('Cannot be in the future', 'आगे की तारीख़ नहीं') : v && v < '1900-01-01' ? L('Check the year', 'साल जाँचें') : '') },
     { k: 'goal', label: L('Goal', 'लक्ष्य'), type: 'select', options: [{ v: '', l: '—' }, ...GOALS.map((g) => ({ v: g, l: g }))] },
     { k: 'plan_id', label: L('Plan', 'प्लान'), type: 'select', options: [{ v: '', l: L('No plan yet', 'अभी प्लान नहीं') }, ...act2.map((p) => ({ v: p.id, l: `${p.name} · ${inr(p.price)}` }))], def: x ? x.plan_id || '' : '' },
     { k: 'start_date', label: L('Start date', 'शुरू की तारीख़'), type: 'date', def: x ? x.start_date : todayISO() },
@@ -62,7 +63,7 @@ async function memberForm(id, prefill, onSaved) {
     onSubmit: async (v) => {
       const plan = plans.find((p) => p.id === v.plan_id);
       const start = v.start_date || todayISO();
-      const row = { name: v.name, phone: v.phone, gender: v.gender || null, goal: v.goal || null, notes: v.notes || null, plan_id: plan ? plan.id : null };
+      const row = { name: v.name, phone: v.phone, gender: v.gender || null, dob: v.dob || null, goal: v.goal || null, notes: v.notes || null, plan_id: plan ? plan.id : null };
       if (isAdmin()) row.wa_opt_out = !!v.wa_opt_out;
       if (isAdmin() && trainers.length) row.trainer_id = v.trainer_id || null;
       if (plan && (!x || x.plan_id !== plan.id || x.start_date !== start)) { row.start_date = start; row.end_date = addDays(addMonths(start, plan.months), -1); }

@@ -1,0 +1,14 @@
+import fs from 'fs';
+const src = fs.readFileSync(new URL('../src/c20-birthdays.js', import.meta.url), 'utf8').split('function birthdayCard')[0];
+const { daysToBirthday } = new Function(src + '; return { daysToBirthday };')();
+let n = 0; const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } n++; };
+const d = (dob, today) => daysToBirthday(dob, today);
+ok(d('1995-11-11', '2026-11-11').days === 0 && d('1995-11-11', '2026-11-11').turning === 31, 'today');
+ok(d('1995-11-12', '2026-11-11').days === 1, 'tomorrow');
+ok(d('1995-11-10', '2026-11-11').days === 364, 'yesterday means next year');
+ok(d('1995-12-31', '2026-12-25').days === 6, 'across the month end');
+ok(d('1996-01-02', '2026-12-30').days === 3 && d('1996-01-02', '2026-12-30').turning === 31, 'across the new year');
+ok(d('2000-02-29', '2027-02-27').days === 1, '29 Feb is celebrated on 28 Feb in a common year');
+ok(d('2000-02-29', '2028-02-28').days === 1, '29 Feb stays on 29 Feb in a leap year');
+ok(d('2000-02-29', '2028-02-29').days === 0, '29 Feb in a leap year, on the day');
+console.log(n + ' checks passed');

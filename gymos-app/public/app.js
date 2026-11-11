@@ -141,7 +141,7 @@ const ICONS = {
   tag: '<path d="M12.59 2.59A2 2 0 0 0 11.17 2H4a2 2 0 0 0-2 2v7.17a2 2 0 0 0 .59 1.41l8.7 8.7a2.43 2.43 0 0 0 3.42 0l6.58-6.58a2.43 2.43 0 0 0 0-3.42z"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',
   plus: '<path d="M12 5v14M5 12h14"/>', search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>', x: '<path d="M18 6 6 18M6 6l12 12"/>',
-  check: '<path d="M20 6 9 17l-5-5"/>', left: '<path d="m15 18-6-6 6-6"/>', right: '<path d="m9 18 6-6-6-6"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>', gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/>', star: '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>', left: '<path d="m15 18-6-6 6-6"/>', right: '<path d="m9 18 6-6-6-6"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>', msg: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
   globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20"/>',
@@ -453,6 +453,7 @@ async function memberForm(id, prefill, onSaved) {
   const fields = [
     { k: 'name', label: L('Name', 'नाम'), req: true, full: true }, { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel', req: true },
     { k: 'gender', label: L('Gender', 'लिंग'), type: 'select', options: [{ v: '', l: '—' }, { v: 'Male', l: L('Male', 'पुरुष') }, { v: 'Female', l: L('Female', 'महिला') }, { v: 'Other', l: L('Other', 'अन्य') }] },
+    { k: 'dob', label: L('Date of birth', 'जन्म की तारीख़'), type: 'date', check: (v) => (v && v > todayISO() ? L('Cannot be in the future', 'आगे की तारीख़ नहीं') : v && v < '1900-01-01' ? L('Check the year', 'साल जाँचें') : '') },
     { k: 'goal', label: L('Goal', 'लक्ष्य'), type: 'select', options: [{ v: '', l: '—' }, ...GOALS.map((g) => ({ v: g, l: g }))] },
     { k: 'plan_id', label: L('Plan', 'प्लान'), type: 'select', options: [{ v: '', l: L('No plan yet', 'अभी प्लान नहीं') }, ...act2.map((p) => ({ v: p.id, l: `${p.name} · ${inr(p.price)}` }))], def: x ? x.plan_id || '' : '' },
     { k: 'start_date', label: L('Start date', 'शुरू की तारीख़'), type: 'date', def: x ? x.start_date : todayISO() },
@@ -466,7 +467,7 @@ async function memberForm(id, prefill, onSaved) {
     onSubmit: async (v) => {
       const plan = plans.find((p) => p.id === v.plan_id);
       const start = v.start_date || todayISO();
-      const row = { name: v.name, phone: v.phone, gender: v.gender || null, goal: v.goal || null, notes: v.notes || null, plan_id: plan ? plan.id : null };
+      const row = { name: v.name, phone: v.phone, gender: v.gender || null, dob: v.dob || null, goal: v.goal || null, notes: v.notes || null, plan_id: plan ? plan.id : null };
       if (isAdmin()) row.wa_opt_out = !!v.wa_opt_out;
       if (isAdmin() && trainers.length) row.trainer_id = v.trainer_id || null;
       if (plan && (!x || x.plan_id !== plan.id || x.start_date !== start)) { row.start_date = start; row.end_date = addDays(addMonths(start, plan.months), -1); }
@@ -966,6 +967,7 @@ async function vReminders() {
     + card(L(`Ending within ${d} day(s)`, `${d} दिन में खत्म`), 'clock', '', soon.length ? `<ul class="list">${soon.map(row).join('')}</ul>` : empty(L('Nobody is due right now', 'अभी कोई नहीं'), ''))
     + `<div style="height:14px"></div>`
     + card(L('Ended in the last 14 days', 'पिछले 14 दिन में खत्म'), 'clock', '', lapsed.length ? `<ul class="list">${lapsed.map(row).join('')}</ul>` : empty(L('None', 'कोई नहीं'), ''))
+    + `<div style="height:14px"></div>` + birthdayCard(members)
     + (isAdmin() ? `<div style="height:14px"></div>` + card(L(`Pending dues · ${inr(sum(owing, (x) => x.amt))}`, `बकाया · ${inr(sum(owing, (x) => x.amt))}`), 'wallet', '', owing.length ? `<ul class="list">${owing.map(dueRow).join('')}</ul>` : empty(L('No pending dues', 'कोई बकाया नहीं'), '')) : '');
 }
 function markReminded(id) {
@@ -2307,6 +2309,22 @@ async function deleteTask(id) {
   if (!(await askConfirm(L(`Delete "${t.title}"?`, `"${t.title}" हटाएँ?`), L('Delete', 'हटाएँ'), 'bad'))) return;
   const ok = await act(() => DB.remove('gym_tasks', id), L('Deleted', 'हटा दिया'));
   if (ok) { closeAllModals(); bust('gym_tasks'); render(); }
+}
+/* ================= Birthdays: who has a birthday this week, with a ready WhatsApp greeting ================= */
+const isLeap = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+/* days from today until the next birthday (0 = today); 29 Feb is celebrated on 28 Feb in other years */
+function daysToBirthday(dob, today) {
+  const [by, m, d] = String(dob).slice(0, 10).split('-').map(Number), [ty, tm, td] = today.split('-').map(Number);
+  const at = (y) => Date.UTC(y, m - 1, m === 2 && d === 29 && !isLeap(y) ? 28 : d), t0 = Date.UTC(ty, tm - 1, td);
+  let y = ty, n = at(y); if (n < t0) { y += 1; n = at(y); }
+  return { days: Math.round((n - t0) / 864e5), turning: y - by };
+}
+function birthdayCard(members) {
+  const today = todayISO();
+  const list = members.filter((m) => m.dob && memberState(m) !== 'Cancelled').map((m) => ({ m, ...daysToBirthday(m.dob, today) })).filter((x) => x.days <= 7).sort((a, b) => a.days - b.days);
+  const msg = (m) => L(`Happy birthday ${m.name}! Wishing you a healthy and strong year ahead. - ${gymName()} family`, `जन्मदिन की हार्दिक शुभकामनाएँ ${m.name} जी! आपका नया साल सेहतमंद और ताक़तवर रहे। - ${gymName()} परिवार`);
+  const row = ({ m, days, turning }) => `<li class="click" data-act="openMember" data-id="${esc(m.id)}">${avatarM(m)}<div class="grow"><b>${esc(m.name)}</b><small>${esc(days === 0 ? L('Today', 'आज') : days === 1 ? L('Tomorrow', 'कल') : L(`In ${days} days`, `${days} दिन में`))} · ${esc(L(`turns ${turning}`, `${turning} साल के होंगे`))}</small></div>${m.phone ? `<a class="btn wa sm" target="_blank" rel="noopener" href="${esc(waLink(m.phone, msg(m)))}" onclick="event.stopPropagation()">WhatsApp</a>` : ''}</li>`;
+  return card(L('Birthdays this week', 'इस हफ़्ते जन्मदिन'), 'gift', '', list.length ? `<ul class="list">${list.map(row).join('')}</ul>` : empty(L('No birthdays this week', 'इस हफ़्ते कोई जन्मदिन नहीं'), L('Add the date of birth in a member\'s profile to see birthdays here.', 'सदस्य की प्रोफ़ाइल में जन्म की तारीख़ भरें, फिर जन्मदिन यहाँ दिखेंगे।')));
 }
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV_GROUPS = { overview: ['Overview', 'अवलोकन'], people: ['People', 'लोग'], money: ['Money', 'पैसा'], business: ['Business', 'व्यापार'], insights: ['Insights', 'जानकारी'], setup: ['Setup', 'सेटअप'], platform: ['Platform', 'प्लेटफ़ॉर्म'], me: ['My gym', 'मेरा जिम'] };
