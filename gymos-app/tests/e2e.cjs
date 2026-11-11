@@ -491,6 +491,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('a[href="#me"]'); await page.waitForSelector('dl.kv'); ok(/Rahul/.test(await page.textContent('#view')) && !!(await page.$('[data-act=changePw]')), 'profile shows membership and account actions');
     { const mk2 = (t, cap) => ({ id: uid(), gym_id: db.G, title: t, coach: 'Coach', starts_at: new Date(Date.now() + 26 * 3600000).toISOString(), duration_min: 60, capacity: cap, note: null, cancelled_at: null }); const open = mk2('Open Yoga', 5), full = mk2('Full Zumba', 1); db.gym_classes.push(open, full); db.class_bookings.push({ id: uid(), gym_id: db.G, class_id: full.id, member_id: db.members[1].id, cancelled_at: null });
       await page.click('a[href="#mine"]'); await page.waitForSelector('.qrbox svg path'); ok(true, 'member home shows a check-in QR pass');
+      ok(/Achievements|उपलब्धियाँ/.test(await page.textContent('#view')) && (await page.$$eval('#view .badge.ok', (b) => b.length)) >= 1, 'member home shows earned achievement badges from real visits');
       await page.click('a[href="#book"]'); await page.waitForSelector('[data-act=clsBook]');
       ok((await page.$$('[data-act=clsBook]')).length === 1 && /Full/.test(await page.textContent('#view')), 'member can book the open class but not the full one');
       await page.click('[data-act=clsBook]'); await page.waitForSelector('[data-act=clsCancel]');

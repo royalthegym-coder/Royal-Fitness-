@@ -1,0 +1,16 @@
+import fs from 'fs';
+const src = fs.readFileSync(new URL('../src/c21-achievements.js', import.meta.url), 'utf8').split('function achievementsCard')[0];
+const { badgeStatus } = new Function(src + '; return { badgeStatus };')();
+let n = 0; const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } n++; };
+const ids = (s) => s.list.filter((b) => b.earned).map((b) => b.id).join(',');
+let s = badgeStatus(0, 0);
+ok(ids(s) === '' && s.level[1] === 'Starter' && s.nextLevel[0] === 10, 'a new member has no badges');
+ok(s.goal && s.goal.id, 'a next goal is always offered until all are earned');
+s = badgeStatus(1, 1); ok(ids(s) === 'd1', 'one visit earns First step');
+s = badgeStatus(10, 3); ok(ids(s) === 'd1,d10,s3' && s.level[1] === 'Regular', '10 days and a 3-day run');
+s = badgeStatus(9, 2); ok(ids(s) === 'd1' && s.goal.id === 'd10', 'closest unearned badge is the goal (9 of 10)');
+s = badgeStatus(25, 7); ok(ids(s) === 'd1,d10,d25,s3,s7' && s.level[1] === 'Strong', '25 days, 7-day run');
+s = badgeStatus(50, 30); ok(s.list.every((b) => b.earned) && s.goal === null && s.nextLevel === null && s.level[1] === 'Elite', 'everything earned');
+s = badgeStatus(4, 40); ok(ids(s) === 'd1,s3,s7,s14,s30', 'a run longer than the days is still counted by streak only');
+ok(badgeStatus(3, 1).list.find((b) => b.id === 'd10').have === 3, 'progress is capped and reported');
+console.log(n + ' checks passed');

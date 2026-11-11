@@ -1661,6 +1661,7 @@ async function vMine() {
     + (due && upi ? `<div class="card" style="padding:14px;margin-bottom:14px"><b>${esc(L('Pay your dues', 'बकाया चुकाएँ'))}</b><p class="muted" style="margin:6px 0">${esc(L('Pay to this UPI ID, then tell the front desk. The gym records the payment on its side.', 'इस UPI आईडी पर भुगतान करें, फिर फ़्रंट डेस्क को बताएँ। भुगतान जिम अपनी तरफ़ से दर्ज करता है।'))}</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><code class="num">${esc(upi)}</code><button class="btn sm" data-act="copyUpi">${esc(L('Copy UPI ID', 'UPI आईडी कॉपी'))}</button></div></div>` : '')
     + (offers.length ? card(L('Offers for you', 'आपके लिए ऑफ़र'), 'crown', '', `<ul class="list">${offers.slice(0, 4).map((o) => `<li><div class="grow"><b>${esc(o.name)}</b><small>${esc(offerText(o))}${o.ends_on ? ' · ' + esc(L('till ', 'तक ')) + esc(fmtDate(o.ends_on)) : ''}</small></div></li>`).join('')}</ul>`) + '<div style="height:14px"></div>' : '')
     + memberPassCard(m)
+    + achievementsCard(visits)
     + card(L('My progress', 'मेरी प्रगति'), 'pulse', `<a href="#progress" style="font-size:13px">${esc(L('Open', 'खोलें'))}</a>`, `<p class="muted" style="margin:0;padding:0 18px 14px">${esc(L('Track your weight and body measurements.', 'अपना वज़न और शरीर के माप ट्रैक करें।'))}</p>`)
     + `<div class="grid2">${card(L('Last visits', 'हाल की विज़िट'), 'clock', `<a href="#visits" style="font-size:13px">${esc(L('All', 'सभी'))}</a>`, visits.length ? `<ul class="list">${visits.slice(0, 4).map((v) => `<li><div class="grow"><b>${esc(fmtDate(v.in_at))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div></li>`).join('')}</ul>` : empty(L('No visits yet', 'अभी कोई विज़िट नहीं'), ''))}`
     + `${card(L('Latest invoices', 'हाल के इनवॉइस'), 'receipt', `<a href="#pay" style="font-size:13px">${esc(L('All', 'सभी'))}</a>`, invoices.length ? `<ul class="list">${invoices.slice(0, 4).map((i) => `<li><div class="grow"><b class="num">${esc(i.no || '—')}</b><small>${esc(fmtDate(i.date))}</small></div><span class="num">${esc(inr(i.total))}</span>${badge(invStatus(i, paid))}</li>`).join('')}</ul>` : empty(L('No invoices', 'कोई इनवॉइस नहीं'), ''))}</div>`;
@@ -2325,6 +2326,33 @@ function birthdayCard(members) {
   const msg = (m) => L(`Happy birthday ${m.name}! Wishing you a healthy and strong year ahead. - ${gymName()} family`, `जन्मदिन की हार्दिक शुभकामनाएँ ${m.name} जी! आपका नया साल सेहतमंद और ताक़तवर रहे। - ${gymName()} परिवार`);
   const row = ({ m, days, turning }) => `<li class="click" data-act="openMember" data-id="${esc(m.id)}">${avatarM(m)}<div class="grow"><b>${esc(m.name)}</b><small>${esc(days === 0 ? L('Today', 'आज') : days === 1 ? L('Tomorrow', 'कल') : L(`In ${days} days`, `${days} दिन में`))} · ${esc(L(`turns ${turning}`, `${turning} साल के होंगे`))}</small></div>${m.phone ? `<a class="btn wa sm" target="_blank" rel="noopener" href="${esc(waLink(m.phone, msg(m)))}" onclick="event.stopPropagation()">WhatsApp</a>` : ''}</li>`;
   return card(L('Birthdays this week', 'इस हफ़्ते जन्मदिन'), 'gift', '', list.length ? `<ul class="list">${list.map(row).join('')}</ul>` : empty(L('No birthdays this week', 'इस हफ़्ते कोई जन्मदिन नहीं'), L('Add the date of birth in a member\'s profile to see birthdays here.', 'सदस्य की प्रोफ़ाइल में जन्म की तारीख़ भरें, फिर जन्मदिन यहाँ दिखेंगे।')));
+}
+/* ================= Achievements: badges and a level, worked out from the member's own real visits (last 90 days) ================= */
+const BADGES = [
+  { id: 'd1', kind: 'days', n: 1, en: 'First step', hi: 'पहला कदम' }, { id: 'd10', kind: 'days', n: 10, en: 'Regular', hi: 'नियमित' },
+  { id: 'd25', kind: 'days', n: 25, en: 'Committed', hi: 'पक्का इरादा' }, { id: 'd50', kind: 'days', n: 50, en: 'Iron habit', hi: 'लोहे की आदत' },
+  { id: 's3', kind: 'streak', n: 3, en: 'On a roll', hi: 'लय में' }, { id: 's7', kind: 'streak', n: 7, en: 'Week warrior', hi: 'हफ़्ते का योद्धा' },
+  { id: 's14', kind: 'streak', n: 14, en: 'Two weeks strong', hi: 'दो हफ़्ते डटे' }, { id: 's30', kind: 'streak', n: 30, en: 'Unstoppable', hi: 'रुकने वाले नहीं' },
+];
+const LEVELS = [[0, 'Starter', 'शुरुआती'], [10, 'Regular', 'नियमित'], [25, 'Strong', 'मज़बूत'], [50, 'Elite', 'एलीट']];
+
+/* pure: days trained in the window and the best run of days in a row -> every badge with earned flag, the level, and the next goal */
+function badgeStatus(daysTrained, bestRun) {
+  const val = (b) => (b.kind === 'days' ? daysTrained : bestRun);
+  const list = BADGES.map((b) => ({ ...b, earned: val(b) >= b.n, have: Math.min(val(b), b.n) }));
+  let lv = LEVELS[0]; LEVELS.forEach((x) => { if (daysTrained >= x[0]) lv = x; });
+  const nxt = LEVELS.find((x) => x[0] > daysTrained) || null;
+  const todo = list.filter((b) => !b.earned).sort((a, b) => (b.have / b.n) - (a.have / a.n))[0] || null;
+  return { list, level: lv, nextLevel: nxt, goal: todo };
+}
+
+function achievementsCard(visits) {
+  const days = visitDays(visits), st = badgeStatus(days.size, bestStreak(days)), got = st.list.filter((b) => b.earned).length;
+  const pill = (b) => `<span class="badge ${b.earned ? 'ok' : ''}" title="${esc(b.kind === 'days' ? L(`Train on ${b.n} different days`, `${b.n} अलग-अलग दिन ट्रेनिंग करें`) : L(`Train ${b.n} days in a row`, `लगातार ${b.n} दिन ट्रेनिंग करें`))}" style="${b.earned ? '' : 'color:var(--muted);border-color:var(--line)'}">${ic(b.earned ? 'check' : 'lock')} ${esc(L(b.en, b.hi))}</span>`;
+  const g = st.goal;
+  const goal = g ? `<p class="muted" style="margin:12px 0 0">${esc(L('Next badge: ', 'अगला बैज: '))}<b>${esc(L(g.en, g.hi))}</b> · ${esc(g.kind === 'days' ? L(`${g.have} of ${g.n} training days`, `${g.n} में से ${g.have} ट्रेनिंग दिन`) : L(`best run ${g.have} of ${g.n} days in a row`, `लगातार ${g.n} में से सबसे लंबा ${g.have} दिन`))}</p><div style="height:6px;border-radius:6px;background:var(--line);margin-top:6px;overflow:hidden"><div style="height:100%;width:${Math.round((g.have / g.n) * 100)}%;background:var(--crimson)"></div></div>` : `<p class="muted" style="margin:12px 0 0">${esc(L('All badges earned. Keep the habit going!', 'सारे बैज मिल गए। यही आदत बनाए रखें!'))}</p>`;
+  return card(L('Achievements', 'उपलब्धियाँ'), 'crown', `<span class="muted" style="font-size:13px">${esc(L(`${got} of ${st.list.length}`, `${st.list.length} में से ${got}`))}</span>`,
+    `<p style="margin:0 0 10px"><b>${esc(L('Level: ', 'स्तर: '))}${esc(L(st.level[1], st.level[2]))}</b>${st.nextLevel ? `<span class="muted"> · ${esc(L(`${st.nextLevel[0] - days.size} more training days to ${st.nextLevel[1]}`, `${st.nextLevel[2]} तक ${st.nextLevel[0] - days.size} और ट्रेनिंग दिन`))}</span>` : ''}</p><div style="display:flex;flex-wrap:wrap;gap:8px">${st.list.map(pill).join('')}</div>${goal}<p class="muted" style="margin:10px 0 0;font-size:12px">${esc(L('Counted from your check-ins in the last 90 days.', 'पिछले 90 दिनों की आपकी चेक-इन से गिना गया।'))}</p>`);
 }
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV_GROUPS = { overview: ['Overview', 'अवलोकन'], people: ['People', 'लोग'], money: ['Money', 'पैसा'], business: ['Business', 'व्यापार'], insights: ['Insights', 'जानकारी'], setup: ['Setup', 'सेटअप'], platform: ['Platform', 'प्लेटफ़ॉर्म'], me: ['My gym', 'मेरा जिम'] };
