@@ -294,6 +294,13 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('[data-act=cancelClass] >> nth=0'); await page.click('[data-yes]'); await page.waitForFunction(() => /Cancelled|रद्द/.test(document.querySelector('#view').innerText));
     ok(db.gym_classes.filter((c) => c.cancelled_at).length === 1, 'staff can cancel a class');
     await page.waitForSelector('.md a.btn.wa'); { const href = await page.getAttribute('.md a.btn.wa', 'href'); ok(/wa\.me/.test(href) && /Yoga%20Test|योगा|Yoga/.test(decodeURIComponent(href)) , 'cancelling a class offers a WhatsApp message to each booked member'); } await page.keyboard.press('Escape');
+    // QR check-in (barcode-scanner box): check in, check out, refuse expired and foreign codes
+    await page.click('a[href="#checkin"]'); await page.waitForSelector('#scanIn');
+    { const pr = db.members.find((x) => x.name === 'Absent Ajay'), old = db.members.find((x) => x.name === 'Old Timer'), n0 = db.visits.length, scan = async (code) => { await page.fill('#scanIn', code); await page.press('#scanIn', 'Enter'); await page.waitForTimeout(500); };
+      await scan('gymos:' + pr.id); ok(db.visits.length === n0 + 1 && db.visits[0].member_id === pr.id && !db.visits[0].out_at, 'scanning a pass checks the member in');
+      await page.waitForSelector('#scanIn'); await scan('gymos:' + pr.id); ok(db.visits.length === n0 + 1 && !!db.visits.find((v) => v.member_id === pr.id).out_at, 'scanning again checks the member out');
+      await page.waitForSelector('#scanIn'); await scan('gymos:' + old.id); ok(db.visits.length === n0 + 1, 'an expired member is not checked in by a scan');
+      await page.waitForSelector('#scanIn'); await scan('hello'); await scan('gymos:' + uid()); ok(db.visits.length === n0 + 1, 'unknown and foreign codes are refused'); }
     // trainer commission
     const got = db.payments.filter((x) => x.member_id === db.members[0].id && String(x.paid_on).slice(0, 7) === today().slice(0, 7)).reduce((a, x) => a + Number(x.amount), 0);
     await page.evaluate(() => bust('payments', 'members')); await page.click('a[href="#staff"]'); await page.waitForSelector('[data-act=setCommission]');
@@ -461,6 +468,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('a[href="#visits"]'); await page.waitForSelector('.cal'); ok((await page.$$('.cal i.on')).length === 1, 'visits calendar marks the day trained'); 
     await page.click('a[href="#me"]'); await page.waitForSelector('dl.kv'); ok(/Rahul/.test(await page.textContent('#view')) && !!(await page.$('[data-act=changePw]')), 'profile shows membership and account actions');
     { const mk2 = (t, cap) => ({ id: uid(), gym_id: db.G, title: t, coach: 'Coach', starts_at: new Date(Date.now() + 26 * 3600000).toISOString(), duration_min: 60, capacity: cap, note: null, cancelled_at: null }); const open = mk2('Open Yoga', 5), full = mk2('Full Zumba', 1); db.gym_classes.push(open, full); db.class_bookings.push({ id: uid(), gym_id: db.G, class_id: full.id, member_id: db.members[1].id, cancelled_at: null });
+      await page.click('a[href="#mine"]'); await page.waitForSelector('.qrbox svg path'); ok(true, 'member home shows a check-in QR pass');
       await page.click('a[href="#book"]'); await page.waitForSelector('[data-act=clsBook]');
       ok((await page.$$('[data-act=clsBook]')).length === 1 && /Full/.test(await page.textContent('#view')), 'member can book the open class but not the full one');
       await page.click('[data-act=clsBook]'); await page.waitForSelector('[data-act=clsCancel]');

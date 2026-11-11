@@ -320,3 +320,6 @@ button, a, .chip, .click, label { touch-action: manipulation; }
 .pwabar > span { flex: 1 1 200px; min-width: 0; }
 .pwabar.warn { border-color: var(--warn, #e0a030); }
 @media (min-width: 901px) { .pwabar { bottom: 16px; } }
+
+.qrbox{width:min(240px,100%);margin:0 auto;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#fff}
+.qrbox svg{display:block;width:100%;height:auto}

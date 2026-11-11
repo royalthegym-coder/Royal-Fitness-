@@ -545,7 +545,8 @@ async function vCheckin() {
   const today = todayISO(), todays = visits.filter((v) => istDate(v.in_at) === today), open = new Map(todays.filter((v) => !v.out_at).map((v) => [v.member_id, v]));
   const q = U.checkin.q.trim().toLowerCase(), mm = memberMap(members);
   const found = q ? members.filter((m) => m.name.toLowerCase().includes(q) || String(m.phone || '').includes(q)).slice(0, 8) : [];
-  return pageHead(L('Floor', 'फ़्लोर'), L('Check-in', 'चेक-इन'), L(`${todays.length} today · ${open.size} inside`, `आज ${todays.length} · अंदर ${open.size}`))
+  return pageHead(L('Floor', 'फ़्लोर'), L('Check-in', 'चेक-इन'), L(`${todays.length} today · ${open.size} inside`, `आज ${todays.length} · अंदर ${open.size}`), `<button class="btn pri" data-act="openScan">${ic('door')} ${esc(L('Scan QR', 'QR स्कैन'))}</button>`)
+    + `<div class="bar"><input class="in" id="scanIn" autocomplete="off" placeholder="${esc(L('Scanner code box', 'स्कैनर कोड बॉक्स'))}" aria-label="${esc(L('Scanner code box', 'स्कैनर कोड बॉक्स'))}" style="max-width:220px"></div>`
     + `<div class="bar">${searchBox('cq', U.checkin.q, L('Type a name or phone', 'नाम या फ़ोन लिखें'))}</div>`
     + (q ? `<div class="card" style="margin-bottom:14px">${found.length ? `<ul class="list">${found.map((m) => { const s = memberState(m), inV = open.get(m.id), blocked = ['Expired', 'Frozen', 'Cancelled'].includes(s); return `<li>${avatarM(m)}<div class="grow"><b>${esc(m.name)}</b><small>${esc(m.phone || '')} · ${esc(LANG === 'hi' ? STATE_HI[s] : s)}${m.end_date ? ' · ' + esc(fmtShort(m.end_date)) : ''}</small></div>${inV ? `<button class="btn sm" data-act="checkOut" data-id="${esc(inV.id)}">${esc(L('Check out', 'चेक-आउट'))}</button>` : `<button class="btn primary sm" data-act="checkIn" data-id="${esc(m.id)}" ${blocked || CTX.locked ? 'disabled' : ''}>${esc(blocked ? L('Renew first', 'पहले रिन्यू') : L('Check in', 'चेक-इन'))}</button>`}</li>`; }).join('')}</ul>` : empty(L('No match', 'कोई मेल नहीं'), '')}</div>` : '')
     + card(L('Today', 'आज'), 'clock', '', todays.length ? `<ul class="list">${todays.map((v) => `<li><div class="grow"><b>${esc(memberName(mm, v.member_id))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div>${v.out_at ? badge(L('Done', 'पूरा'), 'mute') : `<button class="btn sm" data-act="checkOut" data-id="${esc(v.id)}">${esc(L('Check out', 'चेक-आउट'))}</button>`}</li>`).join('')}</ul>` : empty(L('Nobody yet today', 'आज अभी कोई नहीं'), ''));
@@ -1657,6 +1658,7 @@ async function vMine() {
     + `<div class="tiles">${tile(L('Membership', 'सदस्यता'), badge(s), esc(plan ? plan.name : ''))}${tile(L('Valid till', 'तारीख़ तक'), esc(fmtDate(m.end_date)), dl == null ? '' : dl >= 0 ? esc(L(`${dl} days left`, `${dl} दिन बाक़ी`)) : esc(L(`Expired ${-dl} days ago`, `${-dl} दिन पहले ख़त्म`)))}${tile(L('Visit streak', 'लगातार दिन'), esc(L(`${streak} days`, `${streak} दिन`)), inNow ? esc(L('You are checked in', 'आप अभी चेक-इन हैं')) : esc(L(`${month} visits this month`, `इस महीने ${month} विज़िट`)), streak ? 'var(--ok)' : '')}${tile(L('Balance due', 'बकाया'), esc(inr(due)), due ? esc(L('Please clear it at the desk', 'कृपया डेस्क पर चुकाएँ')) : esc(L('All clear', 'सब चुकता')), due ? 'var(--crimson)' : '')}</div>`
     + (due && upi ? `<div class="card" style="padding:14px;margin-bottom:14px"><b>${esc(L('Pay your dues', 'बकाया चुकाएँ'))}</b><p class="muted" style="margin:6px 0">${esc(L('Pay to this UPI ID, then tell the front desk. The gym records the payment on its side.', 'इस UPI आईडी पर भुगतान करें, फिर फ़्रंट डेस्क को बताएँ। भुगतान जिम अपनी तरफ़ से दर्ज करता है।'))}</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><code class="num">${esc(upi)}</code><button class="btn sm" data-act="copyUpi">${esc(L('Copy UPI ID', 'UPI आईडी कॉपी'))}</button></div></div>` : '')
     + (offers.length ? card(L('Offers for you', 'आपके लिए ऑफ़र'), 'crown', '', `<ul class="list">${offers.slice(0, 4).map((o) => `<li><div class="grow"><b>${esc(o.name)}</b><small>${esc(offerText(o))}${o.ends_on ? ' · ' + esc(L('till ', 'तक ')) + esc(fmtDate(o.ends_on)) : ''}</small></div></li>`).join('')}</ul>`) + '<div style="height:14px"></div>' : '')
+    + memberPassCard(m)
     + card(L('My progress', 'मेरी प्रगति'), 'pulse', `<a href="#progress" style="font-size:13px">${esc(L('Open', 'खोलें'))}</a>`, `<p class="muted" style="margin:0;padding:0 18px 14px">${esc(L('Track your weight and body measurements.', 'अपना वज़न और शरीर के माप ट्रैक करें।'))}</p>`)
     + `<div class="grid2">${card(L('Last visits', 'हाल की विज़िट'), 'clock', `<a href="#visits" style="font-size:13px">${esc(L('All', 'सभी'))}</a>`, visits.length ? `<ul class="list">${visits.slice(0, 4).map((v) => `<li><div class="grow"><b>${esc(fmtDate(v.in_at))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div></li>`).join('')}</ul>` : empty(L('No visits yet', 'अभी कोई विज़िट नहीं'), ''))}`
     + `${card(L('Latest invoices', 'हाल के इनवॉइस'), 'receipt', `<a href="#pay" style="font-size:13px">${esc(L('All', 'सभी'))}</a>`, invoices.length ? `<ul class="list">${invoices.slice(0, 4).map((i) => `<li><div class="grow"><b class="num">${esc(i.no || '—')}</b><small>${esc(fmtDate(i.date))}</small></div><span class="num">${esc(inr(i.total))}</span>${badge(invStatus(i, paid))}</li>`).join('')}</ul>` : empty(L('No invoices', 'कोई इनवॉइस नहीं'), ''))}</div>`;
@@ -2117,6 +2119,140 @@ async function cancelMyBooking(bid) {
   if (!(await askConfirm(L('Cancel your spot?', 'अपनी जगह रद्द करें?'), L('Cancel spot', 'जगह रद्द करें'), 'bad'))) return;
   const ok = await actClass(() => DB.rpc('cancel_booking', { p_booking: bid }), L('Booking cancelled', 'बुकिंग रद्द हुई')); if (ok) render();
 }
+/* ================= QR code (byte mode, error correction M, versions 1-6): made in the browser, works offline ================= */
+const QR_EXP = new Uint8Array(512), QR_LOG = new Uint8Array(256);
+(() => { let x = 1; for (let i = 0; i < 255; i++) { QR_EXP[i] = x; QR_LOG[x] = i; x <<= 1; if (x & 256) x ^= 0x11d; } for (let i = 255; i < 512; i++) QR_EXP[i] = QR_EXP[i - 255]; })();
+const qrMul = (a, b) => (a && b ? QR_EXP[QR_LOG[a] + QR_LOG[b]] : 0);
+/* version: [data codewords per block, blocks, error codewords per block, byte capacity] */
+const QR_VER = { 1: [16, 1, 10, 14], 2: [28, 1, 16, 26], 3: [44, 1, 26, 42], 4: [32, 2, 18, 62], 5: [43, 2, 24, 84], 6: [27, 4, 16, 106] };
+const QR_ALIGN = { 1: [], 2: [6, 18], 3: [6, 22], 4: [6, 26], 5: [6, 30], 6: [6, 34] };
+
+function qrRemainder(data, ecLen) {
+  let gen = [1];
+  for (let i = 0; i < ecLen; i++) { const next = new Array(gen.length + 1).fill(0); gen.forEach((c, j) => { next[j] ^= c; next[j + 1] ^= qrMul(c, QR_EXP[i]); }); gen = next; }
+  const rem = new Array(ecLen).fill(0);
+  data.forEach((b) => { const f = b ^ rem[0]; rem.shift(); rem.push(0); if (f) for (let i = 0; i < ecLen; i++) rem[i] ^= qrMul(gen[i + 1], f); });
+  return rem;
+}
+
+function qrMatrix(text) {
+  const bytes = Array.from(new TextEncoder().encode(text));
+  const ver = Number(Object.keys(QR_VER).find((v) => bytes.length <= QR_VER[v][3]));
+  if (!ver) throw new Error('QR text too long');
+  const [dpb, blocks, epb] = QR_VER[ver], total = dpb * blocks, size = 17 + 4 * ver;
+  /* data bits */
+  const bits = []; const put = (v, n) => { for (let i = n - 1; i >= 0; i--) bits.push((v >>> i) & 1); };
+  put(4, 4); put(bytes.length, 8); bytes.forEach((b) => put(b, 8));
+  for (let i = 0; i < 4 && bits.length < total * 8; i++) bits.push(0);
+  while (bits.length % 8) bits.push(0);
+  const cw = []; for (let i = 0; i < bits.length; i += 8) cw.push(parseInt(bits.slice(i, i + 8).join(''), 2));
+  for (let pad = 0xec; cw.length < total; pad ^= 0xec ^ 0x11) cw.push(pad);
+  /* blocks, error correction, interleave */
+  const data = [], ecs = [];
+  for (let b = 0; b < blocks; b++) { const d = cw.slice(b * dpb, (b + 1) * dpb); data.push(d); ecs.push(qrRemainder(d, epb)); }
+  const final = []; for (let i = 0; i < dpb; i++) data.forEach((d) => final.push(d[i])); for (let i = 0; i < epb; i++) ecs.forEach((e) => final.push(e[i]));
+  const stream = []; final.forEach((c) => put2(stream, c)); function put2(a, v) { for (let i = 7; i >= 0; i--) a.push((v >>> i) & 1); }
+  /* function patterns */
+  const M = Array.from({ length: size }, () => new Array(size).fill(null)), fn = Array.from({ length: size }, () => new Array(size).fill(false));
+  const set = (r, c, v) => { if (r >= 0 && c >= 0 && r < size && c < size) { M[r][c] = v; fn[r][c] = true; } };
+  const finder = (r, c) => { for (let dr = -1; dr <= 7; dr++) for (let dc = -1; dc <= 7; dc++) { const on = dr >= 0 && dr <= 6 && dc >= 0 && dc <= 6 && (dr === 0 || dr === 6 || dc === 0 || dc === 6 || (dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4)); set(r + dr, c + dc, on); } };
+  finder(0, 0); finder(0, size - 7); finder(size - 7, 0);
+  for (let i = 8; i < size - 8; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+  const al = QR_ALIGN[ver]; al.forEach((r) => al.forEach((c) => { if (fn[r][c]) return; for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) set(r + dr, c + dc, Math.max(Math.abs(dr), Math.abs(dc)) !== 1); }));
+  set(size - 8, 8, true);
+  for (let i = 0; i < 9; i++) { if (!fn[8][i]) set(8, i, false); if (!fn[i][8]) set(i, 8, false); }
+  for (let i = 0; i < 8; i++) { if (!fn[8][size - 1 - i]) set(8, size - 1 - i, false); if (!fn[size - 1 - i][8]) set(size - 1 - i, 8, false); }
+  const reserved = fn.map((r) => r.slice());
+  /* place data bits in the zigzag */
+  let idx = 0, up = true;
+  for (let c = size - 1; c > 0; c -= 2) {
+    if (c === 6) c--;
+    for (let k = 0; k < size; k++) { const r = up ? size - 1 - k : k; for (let dc = 0; dc < 2; dc++) { const cc = c - dc; if (!reserved[r][cc]) { M[r][cc] = idx < stream.length ? stream[idx] === 1 : false; idx++; } } }
+    up = !up;
+  }
+  /* masks, format information, penalty */
+  const maskFn = [(r, c) => (r + c) % 2 === 0, (r) => r % 2 === 0, (r, c) => c % 3 === 0, (r, c) => (r + c) % 3 === 0, (r, c) => (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0, (r, c) => ((r * c) % 2) + ((r * c) % 3) === 0, (r, c) => (((r * c) % 2) + ((r * c) % 3)) % 2 === 0, (r, c) => (((r + c) % 2) + ((r * c) % 3)) % 2 === 0];
+  const build = (m) => {
+    const g = M.map((row, r) => row.map((v, c) => (reserved[r][c] ? v : v !== maskFn[m](r, c))));
+    let fmt = (0 << 3 | m) << 10, rem = fmt; for (let i = 14; i >= 10; i--) if ((rem >>> i) & 1) rem ^= 0x537 << (i - 10); fmt = ((((0 << 3) | m) << 10) | rem) ^ 0x5412;
+    const bit = (i) => ((fmt >>> i) & 1) === 1;
+    for (let i = 0; i <= 5; i++) g[i][8] = bit(i); g[7][8] = bit(6); g[8][8] = bit(7); g[8][7] = bit(8); for (let i = 9; i < 15; i++) g[8][14 - i] = bit(i);
+    for (let i = 0; i < 8; i++) g[8][size - 1 - i] = bit(i); for (let i = 8; i < 15; i++) g[size - 15 + i][8] = bit(i);
+    g[size - 8][8] = true;
+    return g;
+  };
+  const penalty = (g) => {
+    let p = 0;
+    const line = (get) => { for (let a = 0; a < size; a++) { let run = 1; for (let b = 1; b < size; b++) { if (get(a, b) === get(a, b - 1)) { run++; if (run === 5) p += 3; else if (run > 5) p++; } else run = 1; } } };
+    line((a, b) => g[a][b]); line((a, b) => g[b][a]);
+    for (let r = 0; r < size - 1; r++) for (let c = 0; c < size - 1; c++) if (g[r][c] === g[r][c + 1] && g[r][c] === g[r + 1][c] && g[r][c] === g[r + 1][c + 1]) p += 3;
+    const pat = [true, false, true, true, true, false, true, false, false, false, false], pat2 = pat.slice().reverse();
+    const has = (get, a, b, pt) => pt.every((v, i) => get(a, b + i) === v);
+    for (let a = 0; a < size; a++) for (let b = 0; b <= size - 11; b++) { if (has((x, y) => g[x][y], a, b, pat) || has((x, y) => g[x][y], a, b, pat2)) p += 40; if (has((x, y) => g[y][x], a, b, pat) || has((x, y) => g[y][x], a, b, pat2)) p += 40; }
+    let dark = 0; g.forEach((r) => r.forEach((v) => { if (v) dark++; })); p += Math.floor(Math.abs((dark * 100) / (size * size) - 50) / 5) * 10;
+    return p;
+  };
+  let best = null, bestP = Infinity; for (let m = 0; m < 8; m++) { const g = build(m), p = penalty(g); if (p < bestP) { bestP = p; best = g; } }
+  return best;
+}
+
+/* the picture: black squares on white with the 4-square quiet zone scanners need; fixed colours so it scans in dark mode too */
+function qrSvg(text, px = 220) {
+  const g = qrMatrix(text), n = g.length, q = 4, d = [];
+  g.forEach((row, r) => row.forEach((on, c) => { if (on) d.push(`M${c + q} ${r + q}h1v1h-1z`); }));
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n + 2 * q} ${n + 2 * q}" width="${px}" height="${px}" shape-rendering="crispEdges" role="img" aria-label="QR code"><rect width="100%" height="100%" fill="#fff"/><path d="${d.join('')}" fill="#000"/></svg>`;
+}
+/* ================= QR check-in: the member shows a QR pass, staff scan it (camera or a barcode scanner) ================= */
+const PASS_RE = /^gymos:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+const passCode = (m) => `gymos:${m.id}`;
+
+/* member side: the pass shown on the home page (made in the browser, works offline) */
+function memberPassCard(m) {
+  return card(L('My check-in pass', 'मेरा चेक-इन पास'), 'door', '', `<div style="padding:4px 18px 18px;text-align:center"><div class="qrbox">${qrSvg(passCode(m), 240)}</div><p class="muted" style="margin:10px 0 0">${esc(L('Show this QR at the front desk to check in. Turn the screen brightness up.', 'चेक-इन के लिए रिसेप्शन पर यह QR दिखाएँ। स्क्रीन की रोशनी बढ़ा लें।'))}</p></div>`);
+}
+
+/* staff side: turn one scan into a check-in, or a check-out if the member is already inside today */
+async function scanCheckIn(text) {
+  const mt = PASS_RE.exec(String(text || '').trim());
+  if (!mt) { toast(L('This is not a GymOS pass', 'यह GymOS पास नहीं है'), 'bad'); return false; }
+  const id = mt[1].toLowerCase();
+  bust('members', 'visits');
+  const [members, visits] = await Promise.all([Q.members(), Q.visits()]), m = members.find((x) => x.id === id);
+  if (!m) { toast(L('This member is not in your gym', 'यह सदस्य आपके जिम का नहीं है'), 'bad'); return false; }
+  const s = memberState(m);
+  if (['Expired', 'Frozen', 'Cancelled'].includes(s)) { toast(`${m.name}: ${LANG === 'hi' && STATE_HI[s] ? STATE_HI[s] : s}`, 'bad'); return false; }
+  const open = visits.find((v) => v.member_id === id && !v.out_at && istDate(v.in_at) === todayISO());
+  const r = open
+    ? await act(() => DB.update('visits', open.id, { out_at: new Date().toISOString() }), L(`${m.name} checked out`, `${m.name} चेक-आउट`))
+    : await act(() => DB.insert('visits', { gym_id: gymId(), member_id: id }), L(`${m.name} checked in`, `${m.name} चेक-इन`));
+  if (r) { bust('visits'); render(); setTimeout(() => { const i = $('#scanIn'); if (i) i.focus(); }, 250); }
+  return !!r;
+}
+
+/* camera scanner, where the browser has a built-in QR reader (Chrome on Android and desktop); otherwise the code box below still works */
+const canScanCamera = () => 'BarcodeDetector' in window && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+async function openScanner() {
+  if (!canScanCamera()) { toast(L('This browser cannot scan with the camera. Use Chrome, or a barcode scanner with the code box.', 'यह ब्राउज़र कैमरे से स्कैन नहीं कर सकता। Chrome चलाएँ, या कोड बॉक्स में बारकोड स्कैनर इस्तेमाल करें।'), 'bad'); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }); } catch (e) { toast(L('Camera permission was not given', 'कैमरे की अनुमति नहीं मिली'), 'bad'); return; }
+  const mod = openModal({ title: L('Scan member pass', 'सदस्य का पास स्कैन करें'), body: `<video id="scanVid" playsinline muted style="width:100%;border-radius:10px;background:#000"></video><p class="muted" style="margin:8px 0 0">${esc(L('Hold the member\'s QR in front of the camera.', 'सदस्य का QR कैमरे के सामने रखें।'))}</p>` });
+  const vid = $('#scanVid', mod.el); vid.srcObject = stream; try { await vid.play(); } catch (e) { /* the user may have closed the window */ }
+  const det = new window.BarcodeDetector({ formats: ['qr_code'] });
+  let busy = false;
+  const stop = () => stream.getTracks().forEach((t) => t.stop());
+  const loop = async () => {
+    if (!mod.el.isConnected) { stop(); return; }
+    if (!busy) { try { const found = await det.detect(vid); if (found.length) { busy = true; const ok = await scanCheckIn(found[0].rawValue); if (ok && mod.el.isConnected) mod.close(); else setTimeout(() => { busy = false; }, 2500); } } catch (e) { /* a frame that cannot be read is skipped */ } }
+    setTimeout(loop, 300);
+  };
+  loop();
+}
+
+/* a barcode scanner that types the code and presses Enter (a "keyboard wedge" scanner) fills this box */
+document.addEventListener('keydown', async (e) => {
+  if (e.key !== 'Enter' || !e.target || e.target.id !== 'scanIn') return;
+  e.preventDefault(); const v = e.target.value; e.target.value = ''; if (v.trim()) await scanCheckIn(v);
+});
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV_GROUPS = { overview: ['Overview', 'अवलोकन'], people: ['People', 'लोग'], money: ['Money', 'पैसा'], business: ['Business', 'व्यापार'], insights: ['Insights', 'जानकारी'], setup: ['Setup', 'सेटअप'], platform: ['Platform', 'प्लेटफ़ॉर्म'], me: ['My gym', 'मेरा जिम'] };
 /* entry: [route, icon, English, Hindi, view, group, shownInPhoneBar] */
@@ -2239,7 +2375,7 @@ const ACTIONS = {
   lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
   theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
   importMembers: () => importForm(), membersCsv: () => exportMembers(), newOffer: () => offerForm(), editOffer: (d) => offerForm(d.id), shareOffer: (d) => shareOffer(d.id),
-  newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, moreNav: () => openMoreSheet(), installApp: () => installApp(), installLater: () => installLater(), applyUpdate: () => applyUpdate(), booksCsv: () => exportBooks(), newClass: () => classForm(), editClass: (d) => classForm(d.id), cancelClass: (d) => cancelClass(d.id), clsBookings: (d) => classBookings(d.id), clsBook: (d) => bookClass(d.id), clsCancel: (d) => cancelMyBooking(d.id), setCommission: (d) => commissionForm(d.id), addProgress: (d) => progressForm(d.id, d.by === '1', d.by === '1' ? null : () => progressModal(d.id)), delProgress: (d) => deleteProgress(d.id, d.m), newStaff: () => staffForm(), editStaff: (d) => staffForm(d.id), payStaff: (d) => salaryForm(d.id), staffHist: (d) => staffHistory(d.id), delStaff: (d) => deleteStaff(d.id), delSalPay: (d) => deleteSalaryPay(d.id), newExpense: () => expenseForm(), newProduct: () => productForm(), editProduct: (d) => productForm(d.id), sellProduct: (d) => sellForm(d.id), voidSale: (d) => voidSale(d.id), delProduct: (d) => deleteProduct(d.id), delExpense: (d) => deleteExpense(d.id), newLead: () => leadForm(), editLead: (d) => leadForm(d.id), leadNext: (d) => Q.leads().then((ls) => { const l = ls.find((x) => x.id === d.id); const n = l && nextStage(l.stage); if (n) leadSetStage(l.id, n, L('Moved to ' + stageLabel(n), stageLabel(n) + ' में किया')); }), leadLost: (d) => leadSetStage(d.id, 'Lost', L('Marked lost', 'छूटा हुआ चिह्नित')), leadConvert: (d) => leadConvert(d.id), delLead: (d) => deleteLead(d.id), waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
+  newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, moreNav: () => openMoreSheet(), installApp: () => installApp(), installLater: () => installLater(), applyUpdate: () => applyUpdate(), booksCsv: () => exportBooks(), openScan: () => openScanner(), newClass: () => classForm(), editClass: (d) => classForm(d.id), cancelClass: (d) => cancelClass(d.id), clsBookings: (d) => classBookings(d.id), clsBook: (d) => bookClass(d.id), clsCancel: (d) => cancelMyBooking(d.id), setCommission: (d) => commissionForm(d.id), addProgress: (d) => progressForm(d.id, d.by === '1', d.by === '1' ? null : () => progressModal(d.id)), delProgress: (d) => deleteProgress(d.id, d.m), newStaff: () => staffForm(), editStaff: (d) => staffForm(d.id), payStaff: (d) => salaryForm(d.id), staffHist: (d) => staffHistory(d.id), delStaff: (d) => deleteStaff(d.id), delSalPay: (d) => deleteSalaryPay(d.id), newExpense: () => expenseForm(), newProduct: () => productForm(), editProduct: (d) => productForm(d.id), sellProduct: (d) => sellForm(d.id), voidSale: (d) => voidSale(d.id), delProduct: (d) => deleteProduct(d.id), delExpense: (d) => deleteExpense(d.id), newLead: () => leadForm(), editLead: (d) => leadForm(d.id), leadNext: (d) => Q.leads().then((ls) => { const l = ls.find((x) => x.id === d.id); const n = l && nextStage(l.stage); if (n) leadSetStage(l.id, n, L('Moved to ' + stageLabel(n), stageLabel(n) + ' में किया')); }), leadLost: (d) => leadSetStage(d.id, 'Lost', L('Marked lost', 'छूटा हुआ चिह्नित')), leadConvert: (d) => leadConvert(d.id), delLead: (d) => deleteLead(d.id), waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
   changePw: () => openForm({
     title: L('Change password', 'पासवर्ड बदलें'),
     fields: [
