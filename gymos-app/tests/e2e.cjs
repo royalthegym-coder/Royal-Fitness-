@@ -137,11 +137,14 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     // birthdays: a future date of birth is refused; a valid one shows on the Reminders page with a WhatsApp greeting
     await page.click('[data-act=newMember]'); await page.fill('#f_name', 'Janam Din'); await page.fill('#f_phone', '9888877777'); await page.fill('#f_dob', addD(today(), 30)); await page.click('[data-ok]');
     ok((await page.textContent('#e_dob')).length > 0 && !db.members.some((m) => m.name === 'Janam Din'), 'future date of birth rejected');
-    await page.fill('#f_dob', '1990' + addD(today(), 3).slice(4)); await page.click('[data-ok]'); await page.waitForFunction(() => /Janam Din/.test(document.body.innerText));
+    await page.fill('#f_dob', '1990' + addD(today(), 3).slice(4)); await page.selectOption('#f_referred_by', db.members.find((m) => m.name === 'Rahul Sharma').id); await page.click('[data-ok]'); await page.waitForFunction(() => /Janam Din/.test(document.body.innerText));
     ok(db.members.find((m) => m.name === 'Janam Din').dob === '1990' + addD(today(), 3).slice(4), 'date of birth saved on the member');
     await page.click('a[href="#reminders"]'); await page.waitForSelector('a[data-remind]');
-    const bday = await page.$$eval('#view li', (l) => l.filter((x) => /Janam Din/.test(x.textContent)).map((x) => ({ t: x.textContent, a: (x.querySelector('a.wa') || {}).href })));
+    const bday = await page.$$eval('#view li', (l) => l.filter((x) => /Janam Din/.test(x.textContent) && /turns|साल के होंगे/.test(x.textContent)).map((x) => ({ t: x.textContent, a: (x.querySelector('a.wa') || {}).href })));
     ok(bday.length === 1 && /3 days|3 दिन/.test(bday[0].t) && /wa\.me\/919888877777/.test(bday[0].a) && /जन्मदिन|birthday/i.test(decodeURIComponent(bday[0].a)), 'birthday card lists the member with a WhatsApp greeting');
+    ok(db.members.find((m) => m.name === 'Janam Din').referred_by === db.members.find((m) => m.name === 'Rahul Sharma').id, 'referrer saved on the member');
+    const refs = await page.$$eval('#view li', (l) => l.filter((x) => /1 joined|1 जुड़े/.test(x.textContent) && /Rahul/.test(x.textContent) && /Janam Din/.test(x.textContent)).map((x) => (x.querySelector('a.wa') || {}).href));
+    ok(refs.length === 1 && /wa\.me\/919876543210/.test(refs[0]), 'top referrers card lists Rahul with his referral and a WhatsApp thank-you');
     await page.click('a[href="#members"]'); await page.waitForSelector('[data-act=newMember]');
     // check-in
     await page.click('a[href="#checkin"]'); await page.fill('#cq', 'priya'); await page.waitForSelector('[data-act=checkIn]');

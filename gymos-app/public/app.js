@@ -459,6 +459,7 @@ async function memberForm(id, prefill, onSaved) {
     { k: 'start_date', label: L('Start date', 'शुरू की तारीख़'), type: 'date', def: x ? x.start_date : todayISO() },
     { k: 'notes', label: L('Notes', 'नोट'), type: 'textarea', full: true },
   ];
+  if (isAdmin()) fields.splice(fields.length - 1, 0, { k: 'referred_by', label: L('Referred by (member)', 'किसने जुड़वाया (सदस्य)'), type: 'select', full: true, options: [{ v: '', l: '—' }, ...members.filter((m) => !x || m.id !== x.id).sort((p, q) => p.name.localeCompare(q.name)).map((m) => ({ v: m.id, l: `${m.name} · ${m.phone || ''}` }))], def: x ? x.referred_by || '' : '' });
   if (isAdmin() && trainers.length) fields.push({ k: 'trainer_id', label: L('Trainer', 'ट्रेनर'), type: 'select', full: true, options: [{ v: '', l: L('Not assigned', 'सौंपा नहीं') }, ...trainers.map((p) => ({ v: p.id, l: (p.full_name || p.email || 'Trainer') + (p.role === 'gym_admin' ? ` (${L('owner', 'मालिक')})` : '') }))], def: x ? x.trainer_id || '' : '' });
   if (isAdmin()) fields.push({ k: 'wa_opt_out', label: L('Do not send automatic WhatsApp messages (member asked to stop)', 'ऑटोमैटिक WhatsApp मैसेज न भेजें (सदस्य ने मना किया)'), type: 'check', full: true });
   if (!x && isAdmin()) { fields.push({ k: 'bill', label: L('Create the first invoice for the plan', 'प्लान का पहला इनवॉइस बनाएँ'), type: 'check', def: true, full: true }); if (liveOffers.length) fields.push({ k: 'offer', label: L('Offer (applies to the invoice)', 'ऑफ़र (इनवॉइस पर लागू)'), type: 'select', options: [{ v: '', l: L('No offer', 'कोई ऑफ़र नहीं') }, ...liveOffers.map((o) => ({ v: o.id, l: `${o.name} · ${offerText(o)}` }))], full: true }); }
@@ -469,6 +470,7 @@ async function memberForm(id, prefill, onSaved) {
       const start = v.start_date || todayISO();
       const row = { name: v.name, phone: v.phone, gender: v.gender || null, dob: v.dob || null, goal: v.goal || null, notes: v.notes || null, plan_id: plan ? plan.id : null };
       if (isAdmin()) row.wa_opt_out = !!v.wa_opt_out;
+      if (isAdmin()) row.referred_by = v.referred_by || null;
       if (isAdmin() && trainers.length) row.trainer_id = v.trainer_id || null;
       if (plan && (!x || x.plan_id !== plan.id || x.start_date !== start)) { row.start_date = start; row.end_date = addDays(addMonths(start, plan.months), -1); }
       const saved = await act(() => (x ? DB.update('members', x.id, row) : DB.insert('members', { ...row, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
@@ -968,7 +970,7 @@ async function vReminders() {
     + card(L(`Ending within ${d} day(s)`, `${d} दिन में खत्म`), 'clock', '', soon.length ? `<ul class="list">${soon.map(row).join('')}</ul>` : empty(L('Nobody is due right now', 'अभी कोई नहीं'), ''))
     + `<div style="height:14px"></div>`
     + card(L('Ended in the last 14 days', 'पिछले 14 दिन में खत्म'), 'clock', '', lapsed.length ? `<ul class="list">${lapsed.map(row).join('')}</ul>` : empty(L('None', 'कोई नहीं'), ''))
-    + `<div style="height:14px"></div>` + birthdayCard(members)
+    + `<div style="height:14px"></div>` + birthdayCard(members) + `<div style="height:14px"></div>` + referralCard(members)
     + (isAdmin() ? `<div style="height:14px"></div>` + card(L(`Pending dues · ${inr(sum(owing, (x) => x.amt))}`, `बकाया · ${inr(sum(owing, (x) => x.amt))}`), 'wallet', '', owing.length ? `<ul class="list">${owing.map(dueRow).join('')}</ul>` : empty(L('No pending dues', 'कोई बकाया नहीं'), '')) : '');
 }
 function markReminded(id) {
@@ -2374,6 +2376,18 @@ function reviewQrCard() {
 function reviewMemberCard() {
   const u = gymReview(); if (!u) return '';
   return `<div class="card" style="padding:14px;margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:200px"><b>${esc(L('Enjoying the gym?', 'जिम पसंद आ रहा है?'))}</b><br><span class="muted">${esc(L('A short Google review helps us a lot.', 'गूगल पर छोटा सा रिव्यू हमारे लिए बहुत मायने रखता है।'))}</span></span><a class="btn" target="_blank" rel="noopener noreferrer" href="${esc(u)}">${esc(L('Write a review', 'रिव्यू लिखें'))}</a></div>`;
+}
+/* ================= Referrals: who brought whom. Counts only, no rewards are promised by the app ================= */
+function referralRows(members) {
+  const byId = new Map(members.map((m) => [m.id, m])), tally = new Map();
+  members.forEach((m) => { if (m.referred_by && byId.has(m.referred_by)) { const a = tally.get(m.referred_by) || []; a.push(m); tally.set(m.referred_by, a); } });
+  return [...tally.entries()].map(([id, kids]) => ({ m: byId.get(id), kids })).sort((a, b) => b.kids.length - a.kids.length || a.m.name.localeCompare(b.m.name));
+}
+function referralCard(members) {
+  const rows = referralRows(members).slice(0, 10);
+  const msg = (m, n) => L(`Thank you ${m.name}! ${n} friend${n > 1 ? 's' : ''} joined ${gymName()} because of you. We truly appreciate it.`, `धन्यवाद ${m.name} जी! आपकी वजह से ${n} साथी ${gymName()} से जुड़े। हम दिल से आभारी हैं।`);
+  const row = ({ m, kids }) => `<li class="click" data-act="openMember" data-id="${esc(m.id)}">${avatarM(m)}<div class="grow"><b>${esc(m.name)}</b><small>${esc(L(`${kids.length} joined`, `${kids.length} जुड़े`))}: ${esc(kids.slice(0, 3).map((k) => k.name).join(', '))}${kids.length > 3 ? '…' : ''}</small></div>${m.phone ? `<a class="btn wa sm" target="_blank" rel="noopener" href="${esc(waLink(m.phone, msg(m, kids.length)))}" onclick="event.stopPropagation()">WhatsApp</a>` : ''}</li>`;
+  return card(L('Top referrers', 'सबसे ज़्यादा जुड़वाने वाले'), 'users', '', rows.length ? `<ul class="list">${rows.map(row).join('')}</ul>` : empty(L('No referrals yet', 'अभी कोई रेफ़रल नहीं'), L('When adding a member, pick who referred them. Your best promoters show up here.', 'सदस्य जोड़ते समय चुनें कि किसने जुड़वाया। आपके सबसे अच्छे प्रचारक यहाँ दिखेंगे।')));
 }
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV_GROUPS = { overview: ['Overview', 'अवलोकन'], people: ['People', 'लोग'], money: ['Money', 'पैसा'], business: ['Business', 'व्यापार'], insights: ['Insights', 'जानकारी'], setup: ['Setup', 'सेटअप'], platform: ['Platform', 'प्लेटफ़ॉर्म'], me: ['My gym', 'मेरा जिम'] };

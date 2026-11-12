@@ -55,6 +55,7 @@ async function memberForm(id, prefill, onSaved) {
     { k: 'start_date', label: L('Start date', 'शुरू की तारीख़'), type: 'date', def: x ? x.start_date : todayISO() },
     { k: 'notes', label: L('Notes', 'नोट'), type: 'textarea', full: true },
   ];
+  if (isAdmin()) fields.splice(fields.length - 1, 0, { k: 'referred_by', label: L('Referred by (member)', 'किसने जुड़वाया (सदस्य)'), type: 'select', full: true, options: [{ v: '', l: '—' }, ...members.filter((m) => !x || m.id !== x.id).sort((p, q) => p.name.localeCompare(q.name)).map((m) => ({ v: m.id, l: `${m.name} · ${m.phone || ''}` }))], def: x ? x.referred_by || '' : '' });
   if (isAdmin() && trainers.length) fields.push({ k: 'trainer_id', label: L('Trainer', 'ट्रेनर'), type: 'select', full: true, options: [{ v: '', l: L('Not assigned', 'सौंपा नहीं') }, ...trainers.map((p) => ({ v: p.id, l: (p.full_name || p.email || 'Trainer') + (p.role === 'gym_admin' ? ` (${L('owner', 'मालिक')})` : '') }))], def: x ? x.trainer_id || '' : '' });
   if (isAdmin()) fields.push({ k: 'wa_opt_out', label: L('Do not send automatic WhatsApp messages (member asked to stop)', 'ऑटोमैटिक WhatsApp मैसेज न भेजें (सदस्य ने मना किया)'), type: 'check', full: true });
   if (!x && isAdmin()) { fields.push({ k: 'bill', label: L('Create the first invoice for the plan', 'प्लान का पहला इनवॉइस बनाएँ'), type: 'check', def: true, full: true }); if (liveOffers.length) fields.push({ k: 'offer', label: L('Offer (applies to the invoice)', 'ऑफ़र (इनवॉइस पर लागू)'), type: 'select', options: [{ v: '', l: L('No offer', 'कोई ऑफ़र नहीं') }, ...liveOffers.map((o) => ({ v: o.id, l: `${o.name} · ${offerText(o)}` }))], full: true }); }
@@ -65,6 +66,7 @@ async function memberForm(id, prefill, onSaved) {
       const start = v.start_date || todayISO();
       const row = { name: v.name, phone: v.phone, gender: v.gender || null, dob: v.dob || null, goal: v.goal || null, notes: v.notes || null, plan_id: plan ? plan.id : null };
       if (isAdmin()) row.wa_opt_out = !!v.wa_opt_out;
+      if (isAdmin()) row.referred_by = v.referred_by || null;
       if (isAdmin() && trainers.length) row.trainer_id = v.trainer_id || null;
       if (plan && (!x || x.plan_id !== plan.id || x.start_date !== start)) { row.start_date = start; row.end_date = addDays(addMonths(start, plan.months), -1); }
       const saved = await act(() => (x ? DB.update('members', x.id, row) : DB.insert('members', { ...row, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
