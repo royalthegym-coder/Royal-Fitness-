@@ -167,6 +167,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     // retention + peak + settings
     await page.click('a[href="#retention"]'); await page.waitForSelector('.list');
     ok(/Absent Ajay/.test(await page.textContent('#view')), 'retention lists the absent member');
+    await page.click('a[href="#dashboard"]'); await page.waitForSelector('#view a.wa[href^="https://wa.me/?text="]'); ok(/Last 7 days|पिछले 7 दिन/.test(await page.textContent('#view')), 'dashboard shows the last-7-days card with a share button');
     await page.click('a[href="#peak"]'); await page.waitForSelector('.heat'); ok(true, 'peak heatmap renders');
     await page.click('a[href="#settings"]'); await page.click('[data-act=editGym]'); await page.fill('#f_city', 'Jaipur'); await page.fill('#f_timings', 'Mon-Sat 5:30 AM - 10 PM'); await page.click('[data-ok]'); for (let i = 0; i < 20 && db.gyms[0].timings !== 'Mon-Sat 5:30 AM - 10 PM'; i++) await page.waitForTimeout(150); ok(db.gyms[0].timings === 'Mon-Sat 5:30 AM - 10 PM', 'gym timings saved');
     await page.waitForFunction(() => /Jaipur/.test(document.body.innerText)); ok(db.gyms[0].city === 'Jaipur', 'gym settings saved via RPC');
