@@ -65,6 +65,7 @@ function fieldHtml(f, v) {
   else if (f.type === 'textarea') inner = `<textarea class="ta" id="${id}" placeholder="${esc(f.ph || '')}">${esc(val)}</textarea>`;
   else if (f.type === 'check') return `<label class="ck fl${f.full ? ' full' : ''}"><input type="checkbox" id="${id}"${val ? ' checked' : ''}> ${esc(f.label)}</label>`;
   else inner = `<input class="in" id="${id}" type="${f.type || 'text'}" value="${esc(val)}" placeholder="${esc(f.ph || '')}"${f.type === 'number' ? ` step="${f.step || 'any'}" min="${f.min ?? 0}" inputmode="decimal"` : ''}${f.type === 'tel' ? ' inputmode="tel" autocomplete="off"' : ''}${f.type === 'password' ? ' autocomplete="new-password"' : ''}${f.type === 'email' ? ' autocomplete="username"' : ''}${!f.type || f.type === 'text' || f.type === 'tel' || f.type === 'number' || f.type === 'date' ? ' autocomplete="off"' : ''}>`;
+  if (f.list) inner = inner.replace('<input ', `<input list="${id}_dl" `) + `<datalist id="${id}_dl">${f.list.map((o) => `<option value="${esc(o)}">`).join('')}</datalist>`;
   return `<label class="fl${f.full ? ' full' : ''}"><span>${esc(f.label)}${f.req ? ' *' : ''}</span>${inner}<small class="err" id="e_${f.k}"></small></label>`;
 }
 function readForm(root, fields) {
