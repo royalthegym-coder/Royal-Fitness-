@@ -1,0 +1,15 @@
+import fs from 'fs';
+const lib = fs.readFileSync(new URL('../src/a-lib.js', import.meta.url), 'utf8');
+const src = fs.readFileSync(new URL('../src/c28-wellness.js', import.meta.url), 'utf8').split('function addWater')[0];
+const { waterOn, mealTotals, sleepAverage, FOODS } = new Function('document', 'window', 'localStorage', lib + '\n' + src + '; return { waterOn, mealTotals, sleepAverage, FOODS };')({ querySelector() {}, querySelectorAll() { return []; }, documentElement: {} }, {}, { getItem() {}, setItem() {} });
+let n = 0; const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } n++; };
+const T = '2026-11-12';
+ok(waterOn([{ drunk_on: T, amount_ml: 250 }, { drunk_on: T, amount_ml: '500' }, { drunk_on: '2026-11-11', amount_ml: 750 }], T) === 750, 'water adds only that day');
+const t = mealTotals([{ eaten_on: T, kcal: 120, protein_g: 3.5, carbs_g: 22, fat_g: 2.5 }, { eaten_on: T, kcal: '78', protein_g: '6.3', carbs_g: '0.6', fat_g: '5.3' }, { eaten_on: '2026-11-11', kcal: 999, protein_g: 9, carbs_g: 9, fat_g: 9 }], T);
+ok(t.kcal === 198 && t.p === 9.8 && t.c === 22.6 && t.f === 7.8 && t.n === 2, 'meal totals for the day, decimals not drifting (' + JSON.stringify(t) + ')');
+ok(mealTotals([], T).kcal === 0, 'empty day');
+ok(sleepAverage([{ slept_on: T, hours: 7 }, { slept_on: '2026-11-10', hours: '8' }, { slept_on: '2026-11-01', hours: 3 }], T, 7) === 7.5, 'average of logged nights inside the window only');
+ok(sleepAverage([], T, 7) === null && sleepAverage([{ slept_on: '2026-11-01', hours: 3 }], T, 7) === null, 'no nights logged gives null, not zero');
+ok(FOODS.every((f) => f.length === 7 && f[3] >= 0 && f[3] <= 3000), 'every food row is complete and in range');
+ok(FOODS.every((f) => { const est = f[4] * 4 + f[5] * 4 + f[6] * 9; return Math.abs(est - f[3]) / Math.max(f[3], 1) < 0.35; }), 'macros roughly add up to the calories for every food (within 35%)');
+console.log(n + ' checks passed');
