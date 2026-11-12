@@ -529,17 +529,19 @@ async function memberModal(id) {
       ${m.notes ? `<p class="muted">${esc(m.notes)}</p>` : ''}
       <h3 style="font-size:13px;margin:10px 0 4px">${esc(L('Recent visits', 'हाल की विज़िट'))}</h3>${vs.length ? `<ul class="list">${vs.map((v) => `<li><div class="grow"><b>${esc(fmtDate(v.in_at))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div></li>`).join('')}</ul>` : `<div class="muted">${esc(L('No visits in the last 90 days', 'पिछले 90 दिन में कोई विज़िट नहीं'))}</div>`}
       ${isAdmin() ? `<h3 style="font-size:13px;margin:14px 0 4px">${esc(L('Invoices', 'इनवॉइस'))}</h3>${mine.length ? `<ul class="list">${mine.slice(0, 5).map((i) => `<li class="click" data-act="openInvoice" data-id="${esc(i.id)}"><div class="grow"><b class="num">${esc(i.no)}</b><small>${esc(fmtDate(i.date))}</small></div><span class="num">${esc(inr(i.total))}</span>${badge(invStatus(i, paid))}</li>`).join('')}</ul>` : `<div class="muted">—</div>`}` : ''}`,
-    footer: `${waBtnRenew(m).replace('data-stop ', '')}${isAdmin() && !m.profile_id ? `<button type="button" class="btn" data-l>${ic('lock')} ${esc(L('Create login', 'लॉगिन बनाएँ'))}</button>` : ''}<button type="button" class="btn" data-pg>${ic('pulse')} ${esc(L('Progress', 'प्रगति'))}</button><button type="button" class="btn" data-fp>${ic('pulse')} ${esc(L('Diet & workout', 'डाइट / वर्कआउट'))}</button><button type="button" class="btn" data-ph>${ic('plus')} ${esc(L('Photo', 'फ़ोटो'))}</button><input type="file" id="phIn" accept="image/*" hidden><button type="button" class="btn" data-e>${ic('pencil')} ${esc(L('Edit', 'बदलें'))}</button>${isAdmin() ? `<button type="button" class="btn primary" data-r>${esc(L('Renew', 'रिन्यू'))}</button>` : ''}`,
+    footer: `${waBtnRenew(m).replace('data-stop ', '')}${isAdmin() && !m.profile_id ? `<button type="button" class="btn" data-l>${ic('lock')} ${esc(L('Create login', 'लॉगिन बनाएँ'))}</button>` : ''}${isAdmin() && s === 'Frozen' ? `<button type="button" class="btn" data-uf>${ic('sun')} ${esc(L('Unfreeze', 'फ़्रीज़ हटाएँ'))}</button>` : isAdmin() && (s === 'Active' || s === 'Expiring') ? `<button type="button" class="btn" data-fz>${ic('moon')} ${esc(L('Freeze', 'फ़्रीज़'))}</button>` : ''}<button type="button" class="btn" data-pg>${ic('pulse')} ${esc(L('Progress', 'प्रगति'))}</button><button type="button" class="btn" data-fp>${ic('pulse')} ${esc(L('Diet & workout', 'डाइट / वर्कआउट'))}</button><button type="button" class="btn" data-ph>${ic('plus')} ${esc(L('Photo', 'फ़ोटो'))}</button><input type="file" id="phIn" accept="image/*" hidden><button type="button" class="btn" data-e>${ic('pencil')} ${esc(L('Edit', 'बदलें'))}</button>${isAdmin() ? `<button type="button" class="btn primary" data-r>${esc(L('Renew', 'रिन्यू'))}</button>` : ''}`,
   });
   $('[data-e]', mod.el).onclick = () => { mod.close(); memberForm(id); };
   const phb = $('[data-ph]', mod.el), phIn = $('#phIn', mod.el);
   phb.onclick = () => phIn.click();
   phIn.onchange = async () => { const f = phIn.files[0]; if (!f) return; phb.disabled = true; try { await pickMemberPhoto(m, f, mod); } catch (e) { phb.disabled = CTX.locked; } };
   const fp = $('[data-fp]', mod.el); if (fp) fp.onclick = () => fitPlanModal(id);
+  const fz = $('[data-fz]', mod.el); if (fz) fz.onclick = () => { mod.close(); freezeForm(m); };
+  const uf = $('[data-uf]', mod.el); if (uf) uf.onclick = () => unfreezeMember(m);
   const pg = $('[data-pg]', mod.el); if (pg) pg.onclick = () => progressModal(id);
   const lg = $('[data-l]', mod.el); if (lg) lg.onclick = () => { mod.close(); accountForm('member', m); };
   const r = $('[data-r]', mod.el); if (r) r.onclick = () => { mod.close(); renewForm(id); };
-  if (CTX.locked) { $$('[data-e],[data-r],[data-l],[data-ph]', mod.el).forEach((b) => (b.disabled = true)); }
+  if (CTX.locked) { $$('[data-e],[data-r],[data-l],[data-ph],[data-fz],[data-uf]', mod.el).forEach((b) => (b.disabled = true)); }
 }
 
 /* ---------- Check-in ---------- */
@@ -2388,6 +2390,29 @@ function referralCard(members) {
   const msg = (m, n) => L(`Thank you ${m.name}! ${n} friend${n > 1 ? 's' : ''} joined ${gymName()} because of you. We truly appreciate it.`, `धन्यवाद ${m.name} जी! आपकी वजह से ${n} साथी ${gymName()} से जुड़े। हम दिल से आभारी हैं।`);
   const row = ({ m, kids }) => `<li class="click" data-act="openMember" data-id="${esc(m.id)}">${avatarM(m)}<div class="grow"><b>${esc(m.name)}</b><small>${esc(L(`${kids.length} joined`, `${kids.length} जुड़े`))}: ${esc(kids.slice(0, 3).map((k) => k.name).join(', '))}${kids.length > 3 ? '…' : ''}</small></div>${m.phone ? `<a class="btn wa sm" target="_blank" rel="noopener" href="${esc(waLink(m.phone, msg(m, kids.length)))}" onclick="event.stopPropagation()">WhatsApp</a>` : ''}</li>`;
   return card(L('Top referrers', 'सबसे ज़्यादा जुड़वाने वाले'), 'users', '', rows.length ? `<ul class="list">${rows.map(row).join('')}</ul>` : empty(L('No referrals yet', 'अभी कोई रेफ़रल नहीं'), L('When adding a member, pick who referred them. Your best promoters show up here.', 'सदस्य जोड़ते समय चुनें कि किसने जुड़वाया। आपके सबसे अच्छे प्रचारक यहाँ दिखेंगे।')));
+}
+/* ================= Membership freeze: pause a running membership, the end date moves by the days frozen ================= */
+const openFreeze = (memberId) => DB.select('member_freezes', { eq: { member_id: memberId }, filters: { ended_on: 'is.null' }, limit: 1 }).then((r) => r[0] || null);
+
+function freezeForm(m) {
+  openForm({
+    title: `${L('Freeze membership', 'सदस्यता फ़्रीज़ करें')} · ${m.name}`, submitLabel: L('Freeze', 'फ़्रीज़ करें'),
+    fields: [{ k: 'reason', label: L('Reason (optional)', 'कारण (वैकल्पिक)'), full: true, ph: L('Travelling, injury…', 'बाहर जाना, चोट…'), check: (v) => (v.length > 200 ? L('Up to 200 characters', 'अधिकतम 200 अक्षर') : '') }],
+    extra: `<p class="muted" style="margin:10px 0 0">${esc(L('The member cannot check in while frozen. When you unfreeze, the end date moves ahead by the days frozen.', 'फ़्रीज़ में सदस्य चेक-इन नहीं कर सकेगा। खोलने पर समाप्ति की तारीख़ फ़्रीज़ के दिनों जितनी आगे बढ़ जाएगी।'))}</p>`,
+    onSubmit: async (v) => {
+      const ok = await act(() => DB.rpc('freeze_member', { member: m.id, why: v.reason ? v.reason.trim() : null }), L('Membership frozen', 'सदस्यता फ़्रीज़ हुई'));
+      if (ok) { bust('members'); render(); } return !!ok;
+    },
+  });
+}
+
+async function unfreezeMember(m) {
+  let f = null; try { f = await openFreeze(m.id); } catch (e) { /* the question below still works without the date */ }
+  const days = f ? Math.max(diffDays(f.started_on, todayISO()), 0) : 0, nu = m.end_date ? addDays(m.end_date, days) : null;
+  const sentence = f ? L(`Frozen since ${fmtDate(f.started_on)} (${days} days). The end date moves from ${fmtDate(m.end_date)} to ${fmtDate(nu)}.`, `${fmtDate(f.started_on)} से फ़्रीज़ (${days} दिन)। समाप्ति ${fmtDate(m.end_date)} से बढ़कर ${fmtDate(nu)} होगी।`) : L('Unfreeze this membership?', 'यह सदस्यता खोलें?');
+  if (!(await askConfirm(sentence, L('Unfreeze', 'फ़्रीज़ हटाएँ'), 'primary'))) return;
+  const ok = await act(() => DB.rpc('unfreeze_member', { member: m.id }), L('Membership is active again', 'सदस्यता फिर चालू हुई'));
+  if (ok !== null && ok !== false) { closeAllModals(); bust('members'); render(); }
 }
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV_GROUPS = { overview: ['Overview', 'अवलोकन'], people: ['People', 'लोग'], money: ['Money', 'पैसा'], business: ['Business', 'व्यापार'], insights: ['Insights', 'जानकारी'], setup: ['Setup', 'सेटअप'], platform: ['Platform', 'प्लेटफ़ॉर्म'], me: ['My gym', 'मेरा जिम'] };
