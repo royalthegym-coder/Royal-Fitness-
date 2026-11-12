@@ -163,20 +163,21 @@ async function vSettings() {
   try { staff = (await Q.profiles()).filter((p) => p.gym_id === gymId()); } catch (e) {}
   return pageHead(L('Setup', 'सेटअप'), L('Gym settings', 'जिम सेटिंग'), '', `<button class="btn primary" data-act="editGym" ${CTX.locked ? 'disabled' : ''}>${ic('pencil')} ${esc(L('Edit', 'बदलें'))}</button>`)
     + `<div class="grid2">${card(L('Gym', 'जिम'), 'building', '', `<ul class="list"><li><div class="grow"><small>${esc(L('Name', 'नाम'))}</small><b>${esc(g.name || '')}</b></div></li><li><div class="grow"><small>${esc(L('Owner', 'मालिक'))}</small><b>${esc(g.owner_name || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Phone', 'फ़ोन'))}</small><b>${esc(g.phone || '—')}</b></div></li><li><div class="grow"><small>${esc(L('City', 'शहर'))}</small><b>${esc(g.city || '—')}</b></div></li><li><div class="grow"><small>UPI</small><b>${esc(g.upi_id || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Gym timings', 'जिम का समय'))}</small><b>${esc(g.timings || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Subscription valid till', 'सब्सक्रिप्शन की तारीख़'))}</small><b>${esc(fmtDate(g.subscription_ends_on))}</b></div>${CTX.locked ? badge(L('Locked', 'लॉक'), 'bad') : badge(L('Open', 'खुला'), 'ok')}</li></ul>`)}
-    ${card(L('Team', 'टीम'), 'users', `<button class="btn sm" data-act="newTrainer" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('Trainer login', 'ट्रेनर लॉगिन'))}</button>`, staff.length ? `<ul class="list">${staff.map((p) => `<li>${avatar(p.full_name || p.email)}<div class="grow"><b>${esc(p.full_name || p.email || '—')}</b><small>${esc(p.email || '')}</small></div>${badge(roleName(p.role), 'mute')}</li>`).join('')}</ul><div class="muted" style="margin-top:8px">${esc(L('Roles are assigned by the platform admin.', 'भूमिकाएँ प्लेटफ़ॉर्म एडमिन तय करता है।'))}</div>` : empty(L('No team listed', 'टीम सूची में नहीं'), ''))}</div>`;
+    ${card(L('Team', 'टीम'), 'users', `<button class="btn sm" data-act="newTrainer" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('Trainer login', 'ट्रेनर लॉगिन'))}</button>`, staff.length ? `<ul class="list">${staff.map((p) => `<li>${avatar(p.full_name || p.email)}<div class="grow"><b>${esc(p.full_name || p.email || '—')}</b><small>${esc(p.email || '')}</small></div>${badge(roleName(p.role), 'mute')}</li>`).join('')}</ul><div class="muted" style="margin-top:8px">${esc(L('Roles are assigned by the platform admin.', 'भूमिकाएँ प्लेटफ़ॉर्म एडमिन तय करता है।'))}</div>` : empty(L('No team listed', 'टीम सूची में नहीं'), ''))}</div>` + reviewQrCard();
 }
 function editGymForm() {
   const g = CTX.gym || {};
   openForm({
-    title: L('Edit gym', 'जिम बदलें'), values: { name: g.name, owner: g.owner_name, phone: g.phone, city: g.city, upi: g.upi_id, timings: g.timings || '' },
+    title: L('Edit gym', 'जिम बदलें'), values: { name: g.name, owner: g.owner_name, phone: g.phone, city: g.city, upi: g.upi_id, timings: g.timings || '', review: g.review_url || '' },
     fields: [
       { k: 'name', label: L('Gym name', 'जिम का नाम'), req: true, full: true, check: (v) => (v.length < 2 ? L('Too short', 'बहुत छोटा') : '') },
       { k: 'owner', label: L('Owner', 'मालिक') }, { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel' }, { k: 'city', label: L('City', 'शहर') },
       { k: 'upi', label: L('Merchant UPI ID', 'मर्चेंट UPI आईडी'), ph: 'name@bank', check: (v) => (v && !UPI_RE.test(v) ? L('Example: name@bank', 'उदाहरण: name@bank') : '') },
+      { k: 'review', label: L('Google review link', 'गूगल रिव्यू लिंक'), full: true, ph: 'https://g.page/r/…/review', check: (v) => (v && !reviewOk(v.trim()) ? L('Must start with https:// and be a Google link (g.page, search.google.com, maps.app.goo.gl)', 'https:// से शुरू होने वाला गूगल लिंक चाहिए (g.page, search.google.com, maps.app.goo.gl)') : '') },
       { k: 'timings', label: L('Gym timings', 'जिम का समय'), full: true, ph: L('Mon-Sat 5:30 AM - 10 PM, Sun 6-11 AM', 'सोम-शनि सुबह 5:30 - रात 10, रवि 6-11 सुबह'), check: (v) => (v.length > 200 ? L('Up to 200 characters', 'अधिकतम 200 अक्षर') : '') },
     ],
     onSubmit: async (v) => {
-      const ok = await act(() => DB.rpc('admin_update_gym', { gym: gymId(), gym_name: v.name, owner: v.owner || null, phone_no: v.phone || null, city_name: v.city || null, upi: v.upi || null }).then(() => DB.rpc('admin_set_gym_timings', { gym: gymId(), timing_text: v.timings || null })), L('Saved', 'सेव हुआ'));
+      const ok = await act(() => DB.rpc('admin_update_gym', { gym: gymId(), gym_name: v.name, owner: v.owner || null, phone_no: v.phone || null, city_name: v.city || null, upi: v.upi || null }).then(() => DB.rpc('admin_set_gym_timings', { gym: gymId(), timing_text: v.timings || null })).then(() => DB.rpc('admin_set_gym_review_url', { gym: gymId(), link: v.review ? v.review.trim() : null })), L('Saved', 'सेव हुआ'));
       if (ok) { await loadContext(); render(); } return !!ok;
     },
   });

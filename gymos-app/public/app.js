@@ -738,20 +738,21 @@ async function vSettings() {
   try { staff = (await Q.profiles()).filter((p) => p.gym_id === gymId()); } catch (e) {}
   return pageHead(L('Setup', 'सेटअप'), L('Gym settings', 'जिम सेटिंग'), '', `<button class="btn primary" data-act="editGym" ${CTX.locked ? 'disabled' : ''}>${ic('pencil')} ${esc(L('Edit', 'बदलें'))}</button>`)
     + `<div class="grid2">${card(L('Gym', 'जिम'), 'building', '', `<ul class="list"><li><div class="grow"><small>${esc(L('Name', 'नाम'))}</small><b>${esc(g.name || '')}</b></div></li><li><div class="grow"><small>${esc(L('Owner', 'मालिक'))}</small><b>${esc(g.owner_name || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Phone', 'फ़ोन'))}</small><b>${esc(g.phone || '—')}</b></div></li><li><div class="grow"><small>${esc(L('City', 'शहर'))}</small><b>${esc(g.city || '—')}</b></div></li><li><div class="grow"><small>UPI</small><b>${esc(g.upi_id || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Gym timings', 'जिम का समय'))}</small><b>${esc(g.timings || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Subscription valid till', 'सब्सक्रिप्शन की तारीख़'))}</small><b>${esc(fmtDate(g.subscription_ends_on))}</b></div>${CTX.locked ? badge(L('Locked', 'लॉक'), 'bad') : badge(L('Open', 'खुला'), 'ok')}</li></ul>`)}
-    ${card(L('Team', 'टीम'), 'users', `<button class="btn sm" data-act="newTrainer" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('Trainer login', 'ट्रेनर लॉगिन'))}</button>`, staff.length ? `<ul class="list">${staff.map((p) => `<li>${avatar(p.full_name || p.email)}<div class="grow"><b>${esc(p.full_name || p.email || '—')}</b><small>${esc(p.email || '')}</small></div>${badge(roleName(p.role), 'mute')}</li>`).join('')}</ul><div class="muted" style="margin-top:8px">${esc(L('Roles are assigned by the platform admin.', 'भूमिकाएँ प्लेटफ़ॉर्म एडमिन तय करता है।'))}</div>` : empty(L('No team listed', 'टीम सूची में नहीं'), ''))}</div>`;
+    ${card(L('Team', 'टीम'), 'users', `<button class="btn sm" data-act="newTrainer" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('Trainer login', 'ट्रेनर लॉगिन'))}</button>`, staff.length ? `<ul class="list">${staff.map((p) => `<li>${avatar(p.full_name || p.email)}<div class="grow"><b>${esc(p.full_name || p.email || '—')}</b><small>${esc(p.email || '')}</small></div>${badge(roleName(p.role), 'mute')}</li>`).join('')}</ul><div class="muted" style="margin-top:8px">${esc(L('Roles are assigned by the platform admin.', 'भूमिकाएँ प्लेटफ़ॉर्म एडमिन तय करता है।'))}</div>` : empty(L('No team listed', 'टीम सूची में नहीं'), ''))}</div>` + reviewQrCard();
 }
 function editGymForm() {
   const g = CTX.gym || {};
   openForm({
-    title: L('Edit gym', 'जिम बदलें'), values: { name: g.name, owner: g.owner_name, phone: g.phone, city: g.city, upi: g.upi_id, timings: g.timings || '' },
+    title: L('Edit gym', 'जिम बदलें'), values: { name: g.name, owner: g.owner_name, phone: g.phone, city: g.city, upi: g.upi_id, timings: g.timings || '', review: g.review_url || '' },
     fields: [
       { k: 'name', label: L('Gym name', 'जिम का नाम'), req: true, full: true, check: (v) => (v.length < 2 ? L('Too short', 'बहुत छोटा') : '') },
       { k: 'owner', label: L('Owner', 'मालिक') }, { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel' }, { k: 'city', label: L('City', 'शहर') },
       { k: 'upi', label: L('Merchant UPI ID', 'मर्चेंट UPI आईडी'), ph: 'name@bank', check: (v) => (v && !UPI_RE.test(v) ? L('Example: name@bank', 'उदाहरण: name@bank') : '') },
+      { k: 'review', label: L('Google review link', 'गूगल रिव्यू लिंक'), full: true, ph: 'https://g.page/r/…/review', check: (v) => (v && !reviewOk(v.trim()) ? L('Must start with https:// and be a Google link (g.page, search.google.com, maps.app.goo.gl)', 'https:// से शुरू होने वाला गूगल लिंक चाहिए (g.page, search.google.com, maps.app.goo.gl)') : '') },
       { k: 'timings', label: L('Gym timings', 'जिम का समय'), full: true, ph: L('Mon-Sat 5:30 AM - 10 PM, Sun 6-11 AM', 'सोम-शनि सुबह 5:30 - रात 10, रवि 6-11 सुबह'), check: (v) => (v.length > 200 ? L('Up to 200 characters', 'अधिकतम 200 अक्षर') : '') },
     ],
     onSubmit: async (v) => {
-      const ok = await act(() => DB.rpc('admin_update_gym', { gym: gymId(), gym_name: v.name, owner: v.owner || null, phone_no: v.phone || null, city_name: v.city || null, upi: v.upi || null }).then(() => DB.rpc('admin_set_gym_timings', { gym: gymId(), timing_text: v.timings || null })), L('Saved', 'सेव हुआ'));
+      const ok = await act(() => DB.rpc('admin_update_gym', { gym: gymId(), gym_name: v.name, owner: v.owner || null, phone_no: v.phone || null, city_name: v.city || null, upi: v.upi || null }).then(() => DB.rpc('admin_set_gym_timings', { gym: gymId(), timing_text: v.timings || null })).then(() => DB.rpc('admin_set_gym_review_url', { gym: gymId(), link: v.review ? v.review.trim() : null })), L('Saved', 'सेव हुआ'));
       if (ok) { await loadContext(); render(); } return !!ok;
     },
   });
@@ -1661,6 +1662,7 @@ async function vMine() {
     + (due && upi ? `<div class="card" style="padding:14px;margin-bottom:14px"><b>${esc(L('Pay your dues', 'बकाया चुकाएँ'))}</b><p class="muted" style="margin:6px 0">${esc(L('Pay to this UPI ID, then tell the front desk. The gym records the payment on its side.', 'इस UPI आईडी पर भुगतान करें, फिर फ़्रंट डेस्क को बताएँ। भुगतान जिम अपनी तरफ़ से दर्ज करता है।'))}</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><code class="num">${esc(upi)}</code><button class="btn sm" data-act="copyUpi">${esc(L('Copy UPI ID', 'UPI आईडी कॉपी'))}</button></div></div>` : '')
     + (offers.length ? card(L('Offers for you', 'आपके लिए ऑफ़र'), 'crown', '', `<ul class="list">${offers.slice(0, 4).map((o) => `<li><div class="grow"><b>${esc(o.name)}</b><small>${esc(offerText(o))}${o.ends_on ? ' · ' + esc(L('till ', 'तक ')) + esc(fmtDate(o.ends_on)) : ''}</small></div></li>`).join('')}</ul>`) + '<div style="height:14px"></div>' : '')
     + memberPassCard(m)
+    + reviewMemberCard()
     + achievementsCard(visits)
     + card(L('My progress', 'मेरी प्रगति'), 'pulse', `<a href="#progress" style="font-size:13px">${esc(L('Open', 'खोलें'))}</a>`, `<p class="muted" style="margin:0;padding:0 18px 14px">${esc(L('Track your weight and body measurements.', 'अपना वज़न और शरीर के माप ट्रैक करें।'))}</p>`)
     + `<div class="grid2">${card(L('Last visits', 'हाल की विज़िट'), 'clock', `<a href="#visits" style="font-size:13px">${esc(L('All', 'सभी'))}</a>`, visits.length ? `<ul class="list">${visits.slice(0, 4).map((v) => `<li><div class="grow"><b>${esc(fmtDate(v.in_at))}</b><small>${esc(fmtTime(v.in_at))}${v.out_at ? ' – ' + esc(fmtTime(v.out_at)) : ''}</small></div></li>`).join('')}</ul>` : empty(L('No visits yet', 'अभी कोई विज़िट नहीं'), ''))}`
@@ -2353,6 +2355,25 @@ function achievementsCard(visits) {
   const goal = g ? `<p class="muted" style="margin:12px 0 0">${esc(L('Next badge: ', 'अगला बैज: '))}<b>${esc(L(g.en, g.hi))}</b> · ${esc(g.kind === 'days' ? L(`${g.have} of ${g.n} training days`, `${g.n} में से ${g.have} ट्रेनिंग दिन`) : L(`best run ${g.have} of ${g.n} days in a row`, `लगातार ${g.n} में से सबसे लंबा ${g.have} दिन`))}</p><div style="height:6px;border-radius:6px;background:var(--line);margin-top:6px;overflow:hidden"><div style="height:100%;width:${Math.round((g.have / g.n) * 100)}%;background:var(--crimson)"></div></div>` : `<p class="muted" style="margin:12px 0 0">${esc(L('All badges earned. Keep the habit going!', 'सारे बैज मिल गए। यही आदत बनाए रखें!'))}</p>`;
   return card(L('Achievements', 'उपलब्धियाँ'), 'crown', `<span class="muted" style="font-size:13px">${esc(L(`${got} of ${st.list.length}`, `${st.list.length} में से ${got}`))}</span>`,
     `<p style="margin:0 0 10px"><b>${esc(L('Level: ', 'स्तर: '))}${esc(L(st.level[1], st.level[2]))}</b>${st.nextLevel ? `<span class="muted"> · ${esc(L(`${st.nextLevel[0] - days.size} more training days to ${st.nextLevel[1]}`, `${st.nextLevel[2]} तक ${st.nextLevel[0] - days.size} और ट्रेनिंग दिन`))}</span>` : ''}</p><div style="display:flex;flex-wrap:wrap;gap:8px">${st.list.map(pill).join('')}</div>${goal}<p class="muted" style="margin:10px 0 0;font-size:12px">${esc(L('Counted from your check-ins in the last 90 days.', 'पिछले 90 दिनों की आपकी चेक-इन से गिना गया।'))}</p>`);
+}
+/* ================= Google review link: the owner pastes it once; a QR for the front desk and a button for members ================= */
+/* same rule as the database check: https and a Google address only, no spaces, up to 300 characters */
+const REVIEW_RE = /^https:\/\/(search\.google\.com|www\.google\.com|google\.com|g\.page|maps\.app\.goo\.gl|goo\.gl)\/\S+$/;
+const reviewOk = (u) => typeof u === 'string' && u.length <= 300 && REVIEW_RE.test(u);
+const gymReview = () => { const u = CTX.gym && CTX.gym.review_url; return reviewOk(u) ? u : ''; };
+
+/* staff: a QR the owner can show on the screen or print and stick at the front desk */
+function reviewQrCard() {
+  const u = gymReview();
+  if (!u) return card(L('Google reviews', 'गूगल रिव्यू'), 'globe', '', empty(L('No review link yet', 'अभी रिव्यू लिंक नहीं'), L('Paste your Google review link in Edit gym. A QR for the front desk appears here.', 'जिम बदलें में अपना गूगल रिव्यू लिंक डालें। फ़्रंट डेस्क के लिए QR यहाँ दिखेगा।')));
+  let svg = ''; try { svg = qrSvg(u, 200); } catch (e) { svg = ''; }
+  return card(L('Google reviews', 'गूगल रिव्यू'), 'globe', '', `<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">${svg ? `<div class="qrbox">${svg}</div>` : ''}<div style="flex:1;min-width:200px"><p style="margin:0 0 8px">${esc(L('Ask happy members to scan this and leave a review.', 'खुश सदस्यों से कहें कि इसे स्कैन करके रिव्यू दें।'))}</p>${svg ? '' : `<p class="muted" style="margin:0 0 8px">${esc(L('This link is too long for a QR. Use the short g.page link from Google Business Profile.', 'यह लिंक QR के लिए बहुत लंबा है। गूगल बिज़नेस प्रोफ़ाइल का छोटा g.page लिंक इस्तेमाल करें।'))}</p>`}<a class="btn sm" target="_blank" rel="noopener noreferrer" href="${esc(u)}">${esc(L('Open the review page', 'रिव्यू पेज खोलें'))}</a></div></div>`);
+}
+
+/* member home: one clear button */
+function reviewMemberCard() {
+  const u = gymReview(); if (!u) return '';
+  return `<div class="card" style="padding:14px;margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:200px"><b>${esc(L('Enjoying the gym?', 'जिम पसंद आ रहा है?'))}</b><br><span class="muted">${esc(L('A short Google review helps us a lot.', 'गूगल पर छोटा सा रिव्यू हमारे लिए बहुत मायने रखता है।'))}</span></span><a class="btn" target="_blank" rel="noopener noreferrer" href="${esc(u)}">${esc(L('Write a review', 'रिव्यू लिखें'))}</a></div>`;
 }
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV_GROUPS = { overview: ['Overview', 'अवलोकन'], people: ['People', 'लोग'], money: ['Money', 'पैसा'], business: ['Business', 'व्यापार'], insights: ['Insights', 'जानकारी'], setup: ['Setup', 'सेटअप'], platform: ['Platform', 'प्लेटफ़ॉर्म'], me: ['My gym', 'मेरा जिम'] };
