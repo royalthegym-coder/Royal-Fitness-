@@ -73,6 +73,7 @@ async function vMine() {
     + (offers.length ? card(L('Offers for you', 'आपके लिए ऑफ़र'), 'crown', '', `<ul class="list">${offers.slice(0, 4).map((o) => `<li><div class="grow"><b>${esc(o.name)}</b><small>${esc(offerText(o))}${o.ends_on ? ' · ' + esc(L('till ', 'तक ')) + esc(fmtDate(o.ends_on)) : ''}</small></div></li>`).join('')}</ul>`) + '<div style="height:14px"></div>' : '')
     + memberPassCard(m)
     + reviewMemberCard()
+    + (await inviteCard(m))
     + achievementsCard(visits)
     + (await leaderboardCard(m)) + '<div style="height:14px"></div>'
     + card(L('My progress', 'मेरी प्रगति'), 'pulse', `<a href="#progress" style="font-size:13px">${esc(L('Open', 'खोलें'))}</a>`, `<p class="muted" style="margin:0;padding:0 18px 14px">${esc(L('Track your weight and body measurements.', 'अपना वज़न और शरीर के माप ट्रैक करें।'))}</p>`)

@@ -119,12 +119,13 @@ async function vReminders() {
   const soon = members.filter((m) => isDueSoon(m, d)).sort((a, b) => daysLeft(a) - daysLeft(b));
   const lapsed = members.filter((m) => memberState(m) === 'Expired' && daysLeft(m) >= -14).sort((a, b) => daysLeft(b) - daysLeft(a));
   const row = (m) => { const left = daysLeft(m), done = m.reminded_on === today; return `<li class="click" data-act="openMember" data-id="${esc(m.id)}">${avatarM(m)}<div class="grow"><b>${esc(m.name)}</b><small>${esc(left < 0 ? L(`Ended ${-left} day(s) ago`, `${-left} दिन पहले खत्म`) : left === 0 ? L('Ends today', 'आज खत्म') : L(`Ends in ${left} day(s) · ${fmtDate(m.end_date)}`, `${left} दिन में खत्म · ${fmtDate(m.end_date)}`))}${m.reminded_on ? ' · ' + esc(L(`reminded ${fmtShort(m.reminded_on)}`, `रिमाइंडर ${fmtShort(m.reminded_on)} को`)) : ''}</small></div>${done ? badge(L('Sent today', 'आज भेजा'), 'ok') : ''}<a class="btn wa sm" data-stop data-remind="${esc(m.id)}" target="_blank" rel="noreferrer" href="${esc(waLink(m.phone, remindMsg(m, bestOffer(m, offers, plans))))}">${ic('msg')} ${esc(done ? L('Again', 'फिर') : L('Remind', 'रिमाइंडर'))}</a></li>`; };
+  const rewardsHtml = isAdmin() ? await referralRewardsCard(members) : '';
   return pageHead(L('Members', 'सदस्य'), L('Renewal reminders', 'रिन्यूअल रिमाइंडर'), L('WhatsApp opens with a ready message (and your best live offer). Press send. For fully automatic sending open the WhatsApp page.', 'WhatsApp तैयार मैसेज के साथ खुलता है (चालू सबसे अच्छे ऑफ़र के साथ)। बस भेज दीजिए। पूरी तरह अपने-आप भेजने के लिए WhatsApp पेज खोलिए।'),
     `<label class="fl" style="margin:0"><span>${esc(L('Remind this many days before', 'इतने दिन पहले याद दिलाएँ'))}</span><input class="in" id="rdays" type="number" min="1" max="14" value="${d}" data-bind="rdays" style="width:90px"></label>`)
     + card(L(`Ending within ${d} day(s)`, `${d} दिन में खत्म`), 'clock', '', soon.length ? `<ul class="list">${soon.map(row).join('')}</ul>` : empty(L('Nobody is due right now', 'अभी कोई नहीं'), ''))
     + `<div style="height:14px"></div>`
     + card(L('Ended in the last 14 days', 'पिछले 14 दिन में खत्म'), 'clock', '', lapsed.length ? `<ul class="list">${lapsed.map(row).join('')}</ul>` : empty(L('None', 'कोई नहीं'), ''))
-    + `<div style="height:14px"></div>` + birthdayCard(members) + `<div style="height:14px"></div>` + referralCard(members)
+    + `<div style="height:14px"></div>` + birthdayCard(members) + `<div style="height:14px"></div>` + referralCard(members) + (rewardsHtml ? `<div style="height:14px"></div>` + rewardsHtml : '')
     + (isAdmin() ? `<div style="height:14px"></div>` + card(L(`Pending dues · ${inr(sum(owing, (x) => x.amt))}`, `बकाया · ${inr(sum(owing, (x) => x.amt))}`), 'wallet', '', owing.length ? `<ul class="list">${owing.map(dueRow).join('')}</ul>` : empty(L('No pending dues', 'कोई बकाया नहीं'), '')) : '');
 }
 function markReminded(id) {

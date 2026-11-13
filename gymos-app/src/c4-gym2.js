@@ -168,16 +168,17 @@ async function vSettings() {
 function editGymForm() {
   const g = CTX.gym || {};
   openForm({
-    title: L('Edit gym', 'जिम बदलें'), values: { name: g.name, owner: g.owner_name, phone: g.phone, city: g.city, upi: g.upi_id, timings: g.timings || '', review: g.review_url || '' },
+    title: L('Edit gym', 'जिम बदलें'), values: { name: g.name, owner: g.owner_name, phone: g.phone, city: g.city, upi: g.upi_id, timings: g.timings || '', review: g.review_url || '', refdays: g.referral_reward_days || 0 },
     fields: [
       { k: 'name', label: L('Gym name', 'जिम का नाम'), req: true, full: true, check: (v) => (v.length < 2 ? L('Too short', 'बहुत छोटा') : '') },
       { k: 'owner', label: L('Owner', 'मालिक') }, { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel' }, { k: 'city', label: L('City', 'शहर') },
       { k: 'upi', label: L('Merchant UPI ID', 'मर्चेंट UPI आईडी'), ph: 'name@bank', check: (v) => (v && !UPI_RE.test(v) ? L('Example: name@bank', 'उदाहरण: name@bank') : '') },
+      { k: 'refdays', label: L('Referral reward (bonus days, 0 = off)', 'रेफ़रल इनाम (बोनस दिन, 0 = बंद)'), type: 'number', min: 0, check: (v) => (v !== '' && (!Number.isInteger(Number(v)) || v < 0 || v > 365) ? L('Whole number, 0 to 365', 'पूरी संख्या, 0 से 365') : '') },
       { k: 'review', label: L('Google review link', 'गूगल रिव्यू लिंक'), full: true, ph: 'https://g.page/r/…/review', check: (v) => (v && !reviewOk(v.trim()) ? L('Must start with https:// and be a Google link (g.page, search.google.com, maps.app.goo.gl)', 'https:// से शुरू होने वाला गूगल लिंक चाहिए (g.page, search.google.com, maps.app.goo.gl)') : '') },
       { k: 'timings', label: L('Gym timings', 'जिम का समय'), full: true, ph: L('Mon-Sat 5:30 AM - 10 PM, Sun 6-11 AM', 'सोम-शनि सुबह 5:30 - रात 10, रवि 6-11 सुबह'), check: (v) => (v.length > 200 ? L('Up to 200 characters', 'अधिकतम 200 अक्षर') : '') },
     ],
     onSubmit: async (v) => {
-      const ok = await act(() => DB.rpc('admin_update_gym', { gym: gymId(), gym_name: v.name, owner: v.owner || null, phone_no: v.phone || null, city_name: v.city || null, upi: v.upi || null }).then(() => DB.rpc('admin_set_gym_timings', { gym: gymId(), timing_text: v.timings || null })).then(() => DB.rpc('admin_set_gym_review_url', { gym: gymId(), link: v.review ? v.review.trim() : null })), L('Saved', 'सेव हुआ'));
+      const ok = await act(() => DB.rpc('admin_update_gym', { gym: gymId(), gym_name: v.name, owner: v.owner || null, phone_no: v.phone || null, city_name: v.city || null, upi: v.upi || null }).then(() => DB.rpc('admin_set_gym_timings', { gym: gymId(), timing_text: v.timings || null })).then(() => DB.rpc('admin_set_gym_review_url', { gym: gymId(), link: v.review ? v.review.trim() : null })).then(() => DB.rpc('admin_set_referral_reward', { gym: gymId(), days: v.refdays === '' || v.refdays == null ? 0 : Number(v.refdays) })), L('Saved', 'सेव हुआ'));
       if (ok) { await loadContext(); render(); } return !!ok;
     },
   });
