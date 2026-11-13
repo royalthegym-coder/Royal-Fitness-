@@ -1,0 +1,26 @@
+import fs from 'fs';
+const lib = fs.readFileSync(new URL('../src/a-lib.js', import.meta.url), 'utf8');
+const src = fs.readFileSync(new URL('../src/c31-reorder.js', import.meta.url), 'utf8').split('function reorderCard')[0];
+let fn; try { fn = new Function('document', 'window', 'localStorage', lib + '\n' + src + '; return { reorderCalc, reorderText };'); } catch (e) { console.error('load', e.message); process.exit(1); }
+const { reorderCalc, reorderText } = fn({ querySelector() {}, querySelectorAll() { return []; }, documentElement: {} }, {}, { getItem() {}, setItem() {} });
+let n = 0; const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } n++; };
+const T = '2026-11-13';
+const P = (id, stock, low_at, active = true) => ({ id, name: id.toUpperCase(), stock, low_at, active });
+const S = (product_id, qty, sold_on, voided_at = null) => ({ product_id, qty, sold_on, voided_at });
+const prods = [P('a', 0, 3), P('b', 20, 3), P('c', 10, 3), P('d', 2, 3), P('e', 1, 0, false), P('f', 40, 3)];
+const sales = [S('b', 30, '2026-11-10'), S('c', 30, '2026-11-01'), S('c', 5, '2026-10-15'), S('c', 99, '2026-10-14'), S('f', 4, '2026-11-12'), S('f', 500, '2026-11-12', '2026-11-12T10:00:00Z'), S('d', 3, '2026-11-13')];
+const r = reorderCalc(prods, sales, T);
+const ids = r.map((x) => x.p.id);
+ok(!ids.includes('e'), 'inactive product is never listed');
+ok(!ids.includes('f'), 'voided sale ignored: only 4 units in 30 days, 40 in stock, plenty of cover');
+ok(ids[0] === 'a', 'out of stock first: ' + ids);
+const c = r.find((x) => x.p.id === 'c');
+ok(!ids.includes('b'), 'b has 20 days of cover and is above its warning level: ' + ids);
+ok(c && c.units === 35 && c.cover !== null && c.cover < 14, 'c: window is 30 days incl. today (15 Oct counts, 14 Oct does not): units ' + (c && c.units));
+ok(c.qty === Math.max(Math.ceil((35 / 30) * 14) + 3, 6) - 10 && c.qty >= 1, 'c quantity = 14 days of sales + warning level - stock: ' + c.qty);
+const a = r.find((x) => x.p.id === 'a'); ok(a.qty === 6 && a.cover === 0 || a.qty === 6, 'no sales at all, stock 0: twice the warning level (6): ' + a.qty);
+const d = r.find((x) => x.p.id === 'd'); ok(d && d.p.stock <= d.p.low_at && d.qty >= 1, 'at/below warning level is listed');
+const z = reorderCalc([P('z', 0, 0)], [], T); ok(z.length === 1 && z[0].qty === 1, 'warning level 0 and empty: still at least 1');
+ok(reorderCalc([], [], T).length === 0, 'no products, no list');
+ok(reorderText([{ p: { name: 'Whey' }, qty: 4 }], 'Royal The Gym').includes('Whey × 4'), 'message text lists item and quantity');
+console.log(n + ' checks passed');

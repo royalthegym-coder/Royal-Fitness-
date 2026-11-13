@@ -19,7 +19,7 @@ function draftRows(eng, db, mem, fit, status) {
 const FIT = { age: 30, height_cm: 175, weight_kg: 80, goal: 'fat_loss', diet_pref: 'veg', activity: 'moderate', experience: 'intermediate', days_per_week: 4, session_min: 60, equipment: 'gym', injuries: null, conditions: null, allergies: null };
 function makeDb(role) {
   const G = '11111111-1111-4111-8111-111111111111', P1 = uid(), P2 = uid();
-  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none', review_url: role === 'member' ? 'https://g.page/r/CabcDEF123/review' : null }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [], member_progress: [], member_workouts: [], member_water: [], member_meals: [], member_sleep: [], referral_rewards: [], member_freezes: [], gym_equipment: [], trainer_commission: [], gym_classes: [], class_bookings: [], gym_tasks: [] };
+  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none', review_url: role === 'member' ? 'https://g.page/r/CabcDEF123/review' : null }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [], member_progress: [], member_workouts: [], member_water: [], member_meals: [], member_sleep: [], referral_rewards: [], member_freezes: [], gym_equipment: [], trainer_commission: [], gym_classes: [], class_bookings: [], gym_tasks: [], staff_attendance: [] };
   const me = '22222222-2222-4222-8222-222222222222';
   db.me = me; db.G = G;
   db.profiles = [{ id: me, gym_id: role === 'super_admin' ? null : G, role, full_name: 'Test', email: 't@x.in', created_at: new Date().toISOString() }, { id: uid(), gym_id: null, role: 'member', full_name: 'New User', email: 'n@x.in', created_at: new Date().toISOString() }];
@@ -59,6 +59,7 @@ function handler(db, role) {
       if (fn === 'void_sale') { const sl = db.sales.find((x) => x.id === a.p_sale); if (sl && !sl.voided_at) { sl.voided_at = new Date().toISOString(); const pr = db.products.find((x) => x.id === sl.product_id); if (pr) pr.stock += sl.qty; } return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'admin_set_referral_reward') { db.gyms[0].referral_reward_days = a.days; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'admin_grant_referral_reward') { const f = db.members.find((x) => x.id === a.referred), rr = db.members.find((x) => x.id === f.referred_by); if (db.referral_rewards.some((x) => x.referred_id === f.id)) return json({ message: 'reward already given' }, 409); db.referral_rewards.push({ id: uid(), referred_id: f.id, referrer_id: rr.id, days: db.gyms[0].referral_reward_days }); rr.end_date = addD(rr.end_date || today(), db.gyms[0].referral_reward_days); return json(db.gyms[0].referral_reward_days); }
+      if (fn === 'mark_staff_attendance') { const st = db.staff_members.find((x) => x.id === a.p_staff); if (!st || a.p_day > today() || (st.joined_on && a.p_day < st.joined_on)) return json({ message: 'refused' }, 400); const i = db.staff_attendance.findIndex((x) => x.staff_id === a.p_staff && x.day === a.p_day); if (a.p_status === null) { if (i >= 0) db.staff_attendance.splice(i, 1); } else if (i >= 0) db.staff_attendance[i].status = a.p_status; else db.staff_attendance.push({ id: uid(), gym_id: db.G, staff_id: a.p_staff, day: a.p_day, status: a.p_status }); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'set_my_leaderboard') { db.members[0].leaderboard_opt_in = !!a.opt; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'gym_leaderboard') return json(db.members[0].leaderboard_opt_in ? [{ rank: 1, display_name: 'Rohit S.', days: 12, is_me: false }, { rank: 2, display_name: 'Rahul S.', days: 9, is_me: true }] : []);
       if (fn === 'admin_set_gym_review_url') { db.gyms[0].review_url = a.link; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
@@ -118,7 +119,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(/ग़लत|Wrong/.test(await page.textContent('.banner.bad')), 'wrong password shows a friendly error');
     await login(page); await page.waitForSelector('.tiles');
     ok(/Royal The Gym/.test(await page.textContent('#gymName')), 'dashboard loads with gym name');
-    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 20, 'gym admin sees 20 menu items');
+    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 22, 'gym admin sees 22 menu items');
     await page.click('a[href="#members"]'); await page.waitForSelector('table.t');
     ok((await page.$$('table.t tbody tr')).length === 4, 'members list shows 4');
     await page.fill('#mq', 'priya'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 1);
@@ -462,7 +463,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await session(browser, 'gym_admin', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
     ok(!!(await page.$('.nav .more')) && (await page.$$eval('#nav a', (a) => a.filter((x) => x.offsetParent !== null).length)) <= 5, 'phone bar shows only the main pages plus More');
-    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 20, 'More sheet lists all 20 pages in groups');
+    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 22, 'More sheet lists all 22 pages in groups');
     await page.click('.sheet-links a[href="#expenses"]'); await page.waitForFunction(() => location.hash === '#expenses' && !document.querySelector('.ov')); ok(true, 'More sheet opens a page and closes');
     ok((await page.$$('#nav .grp')).length === 6, 'admin menu is split into 6 groups');
     await page.waitForSelector('[data-act=newExpense]'); await page.waitForTimeout(500);
@@ -600,6 +601,56 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(db.member_sleep.length === 1 && Number(db.member_sleep[0].hours) === 7.5 && db.member_sleep[0].quality === 4, 'member logs a night of sleep');
     await page.click('[data-act=delHabit][data-t="member_water"]'); await page.click('[data-yes]'); await page.waitForFunction(() => document.querySelectorAll('[data-act=delHabit][data-t="member_water"]').length === 1);
     ok(db.member_water.length === 1, 'member can delete a water entry');
+  });
+
+  console.log('revenue forecast, staff attendance, reorder list');
+  await session(browser, 'gym_admin', async (page, db) => {
+    const S1 = uid(), plan1 = db.plans[0].id, plan2 = db.plans[1].id, mem = (name, end, plan, status = 'Active') => ({ id: uid(), gym_id: db.G, name, phone: '9000000001', plan_id: plan, start_date: addD(today(), -20), end_date: end, status, joined_on: addD(today(), -25) });
+    db.members.length = 0; db.invoices.length = 0; db.payments.length = 0; db.visits.length = 0;
+    db.members.push(mem('Due Soon', addD(today(), 5), plan1), mem('Far One', addD(today(), 45), plan2), mem('Frozen One', addD(today(), 3), plan1, 'Frozen'));
+    db.staff_members.push({ id: S1, gym_id: db.G, name: 'Vikram Trainer', job: 'Trainer', phone: null, monthly_salary: 12000, joined_on: addD(today(), -40), active: true, shift: 'full', weekly_off: null, note: null },
+      { id: uid(), gym_id: db.G, name: 'Naya Joiner', job: 'Trainer', phone: null, monthly_salary: 9000, joined_on: addD(today(), 3), active: true, shift: 'full', weekly_off: null, note: null },
+      { id: uid(), gym_id: db.G, name: 'Purana Staff', job: 'Trainer', phone: null, monthly_salary: 9000, joined_on: addD(today(), -90), active: false, shift: 'full', weekly_off: null, note: null });
+    db.products.push({ id: 'p-whey', gym_id: db.G, name: 'Whey 1kg', category: 'Supplements', price: 3000, cost: 0, stock: 2, low_at: 3, active: true }, { id: 'p-water', gym_id: db.G, name: 'Water bottle', category: 'Drinks', price: 20, cost: 0, stock: 100, low_at: 3, active: true });
+    db.sales.push({ id: uid(), gym_id: db.G, product_id: 'p-whey', product_name: 'Whey 1kg', qty: 6, unit_price: 3000, total: 18000, method: 'Cash', member_id: null, sold_on: addD(today(), -3), voided_at: null, created_at: new Date().toISOString() });
+    await login(page); await page.waitForSelector('.tiles');
+    await page.click('a[href="#forecast"]'); await page.waitForSelector('[data-act=chip][data-key=fcRate]');
+    let txt = await page.textContent('#view');
+    ok(/826/.test(txt) && /Due Soon/.test(txt) && !/Frozen One/.test(txt), 'forecast: 70% of one 1,180 renewal, frozen member left out of the list');
+    ok(/3,056\.2/.test(txt), 'forecast: 90-day total adds the second bucket (1180 + 3186) x 70%');
+    await page.click('[data-act=chip][data-key=fcRate][data-v="100"]'); await page.waitForFunction(() => /1,180/.test(document.querySelector('.tiles').innerText));
+    ok(/4,366/.test(await page.textContent('.tiles')), 'forecast: rate 100% shows every renewal in full');
+    ok(!(await overflow(page)), 'forecast page: no horizontal overflow');
+    await page.click('a[href="#attendance"]'); await page.waitForSelector('[data-act=attMark]');
+    txt = await page.textContent('#view');
+    ok(/Vikram Trainer/.test(txt) && !/Naya Joiner/.test(txt) && !/Purana Staff/.test(txt), 'attendance lists only active staff who had joined by that day');
+    await page.click('[data-act=attMark][data-s=present]'); for (let i = 0; i < 20 && !db.staff_attendance.length; i++) await page.waitForTimeout(150);
+    ok(db.staff_attendance.length === 1 && db.staff_attendance[0].status === 'present' && db.staff_attendance[0].day === today(), 'present marked for today');
+    await page.click('[data-act=attMark][data-s=half]'); for (let i = 0; i < 20 && db.staff_attendance[0].status !== 'half'; i++) await page.waitForTimeout(150);
+    ok(db.staff_attendance.length === 1 && db.staff_attendance[0].status === 'half', 'changing the status keeps one row for the day');
+    await page.click('[data-act=attMark][data-s=half]'); for (let i = 0; i < 20 && db.staff_attendance.length; i++) await page.waitForTimeout(150);
+    ok(db.staff_attendance.length === 0, 'tapping the same status again clears it');
+    await page.click('[data-act=attMark][data-s=present]'); for (let i = 0; i < 20 && !db.staff_attendance.length; i++) await page.waitForTimeout(150);
+    await page.waitForFunction(() => /Vikram Trainer10001/.test(document.querySelector('.t tbody tr').textContent));
+    ok(true, 'monthly summary: 1 present, 0 half, 0 leave, 0 absent, 1 day worked');
+    ok(await page.$eval('[data-act=attDay][data-d="1"]', (b) => b.disabled), 'cannot move to a future day');
+    await page.click('[data-act=attDay][data-d="-1"]'); await page.waitForSelector('[data-act=attToday]'); await page.click('[data-act=attMark][data-s=leave]'); for (let i = 0; i < 20 && db.staff_attendance.length < 2; i++) await page.waitForTimeout(150);
+    ok(db.staff_attendance.some((r) => r.day === addD(today(), -1) && r.status === 'leave'), 'yesterday can be marked from the day arrows');
+    await page.click('[data-act=attToday]'); await page.waitForFunction(() => !document.querySelector('[data-act=attToday]'));
+    await page.click('a[href="#staff"]'); await page.waitForSelector('[data-act=editStaff]'); await page.click('[data-act=editStaff]'); await page.waitForSelector('#f_shift');
+    await page.selectOption('#f_shift', 'morning'); await page.selectOption('#f_weekly_off', '0'); await page.click('[data-ok]'); for (let i = 0; i < 20 && db.staff_members[0].shift !== 'morning'; i++) await page.waitForTimeout(150);
+    ok(db.staff_members[0].shift === 'morning' && db.staff_members[0].weekly_off === 0, 'staff form saves shift and weekly off (0 = Sunday)');
+    await page.click('a[href="#store"]'); await page.waitForSelector('[data-act=newProduct]');
+    const card = await page.$$eval('section.card', (c) => c.filter((x) => x.querySelector('h2') && /Reorder list|दोबारा मँगाने की सूची/.test(x.querySelector('h2').textContent)).map((x) => ({ t: x.textContent, h: [...x.querySelectorAll('a')].map((a) => a.href) })));
+    ok(card.length === 1 && /Whey 1kg/.test(card[0].t) && !/Water bottle/.test(card[0].t), 'reorder list names the low product and not the well-stocked one');
+    ok(card[0].h.some((h) => /^https:\/\/wa\.me\//.test(h) && /Whey%201kg%20%C3%97%20/.test(h)), 'reorder list can be sent on WhatsApp with item and quantity');
+  });
+  console.log('trainer does not get owner-only pages');
+  await session(browser, 'trainer', async (page) => {
+    await login(page); await page.waitForSelector('.tiles');
+    ok(!(await page.$('a[href="#forecast"]')) && !(await page.$('a[href="#attendance"]')), 'trainer has no forecast or attendance page');
+    await page.click('a[href="#store"]'); await page.waitForSelector('#view h1');
+    ok(!/Reorder list|दोबारा मँगाने की सूची/.test(await page.textContent('#view')), 'trainer does not see the reorder list');
   });
   {
     const db = makeDb('member'); db.profiles[0].gym_id = null; const ctx = await browser.newContext(), page = await ctx.newPage(); await ctx.route(SB + '/**', handler(db, 'member'));

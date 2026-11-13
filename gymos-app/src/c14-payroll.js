@@ -50,12 +50,14 @@ function staffForm(id) {
         { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel', check: (v) => (v && String(v).replace(/\D/g, '').length < 10 ? L('Enter a 10-digit number', '10 अंकों का नंबर डालें') : '') },
         { k: 'monthly_salary', label: L('Monthly salary (₹)', 'मासिक वेतन (₹)'), type: 'number', req: true, min: 0, check: (v) => (v >= 10000000 ? L('Too large', 'बहुत बड़ी रकम') : '') },
         { k: 'joined_on', label: L('Joined on', 'जॉइन की तारीख़'), type: 'date', def: x ? x.joined_on : todayISO() },
+        { k: 'shift', label: L('Shift', 'शिफ़्ट'), type: 'select', options: Object.entries(SHIFT_LABEL).map(([v, l]) => ({ v, l: L(l[0], l[1]) })), def: x && x.shift ? x.shift : 'full' },
+        { k: 'weekly_off', label: L('Weekly off', 'साप्ताहिक छुट्टी'), type: 'select', options: [{ v: '', l: L('None', 'कोई नहीं') }, ...L('Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday', 'रविवार,सोमवार,मंगलवार,बुधवार,गुरुवार,शुक्रवार,शनिवार').split(',').map((l, i) => ({ v: String(i), l }))], def: x && x.weekly_off !== null && x.weekly_off !== undefined ? String(x.weekly_off) : '' },
         { k: 'active', label: L('Status', 'स्थिति'), type: 'select', options: [{ v: '1', l: L('Working', 'काम कर रहे हैं') }, { v: '0', l: L('Left', 'छोड़ चुके') }], def: x ? (x.active ? '1' : '0') : '1' },
         { k: 'note', label: L('Note', 'नोट'), type: 'textarea', full: true, check: (v) => (v.length > 300 ? L('Up to 300 characters', 'अधिकतम 300 अक्षर') : '') },
       ],
       extra: x ? `<p style="margin:12px 0 0"><button type="button" class="btn sm" data-act="delStaff" data-id="${esc(x.id)}">${esc(L('Delete person', 'व्यक्ति हटाएँ'))}</button></p>` : '',
       onSubmit: async (v) => {
-        const row = { name: v.name.trim(), job: v.job, phone: v.phone ? String(v.phone).trim() : null, monthly_salary: v.monthly_salary, joined_on: v.joined_on || todayISO(), active: v.active === '1', note: v.note ? v.note.trim() : null };
+        const row = { name: v.name.trim(), job: v.job, phone: v.phone ? String(v.phone).trim() : null, monthly_salary: v.monthly_salary, joined_on: v.joined_on || todayISO(), shift: v.shift || 'full', weekly_off: v.weekly_off === '' || v.weekly_off === undefined || v.weekly_off === null ? null : Number(v.weekly_off), active: v.active === '1', note: v.note ? v.note.trim() : null };
         const ok = await act(() => (x ? DB.update('staff_members', x.id, row) : DB.insert('staff_members', { ...row, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
         if (ok) { bust('staff'); render(); } return !!ok;
       },

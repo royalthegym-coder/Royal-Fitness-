@@ -1538,6 +1538,7 @@ async function vStore() {
     : empty(L('No sales yet', 'अभी कोई बिक्री नहीं'), L('Sell a product and it appears here. Stock goes down by itself.', 'कुछ बेचें तो यहाँ दिखेगा। स्टॉक अपने-आप घटेगा।'));
   return pageHead(L('Store', 'स्टोर'), L('Store & stock', 'स्टोर और स्टॉक'), L('Sell supplements and drinks at the counter. Stock goes down with every sale.', 'काउंटर पर सप्लीमेंट और ड्रिंक बेचें। हर बिक्री पर स्टॉक घटता है।'), admin ? `<button class="btn pri" data-act="newProduct">${ic('plus')}${esc(L('Add product', 'प्रोडक्ट जोड़ें'))}</button>` : '')
     + `<div class="tiles">${tile(L('Sold today', 'आज की बिक्री'), inr(saleTotal(today)), L(`${today.filter((s) => !s.voided_at).length} sales`, `${today.filter((s) => !s.voided_at).length} बिक्री`), 'var(--ok)')}${tile(L('This month', 'यह महीना'), inr(saleTotal(month)), admin ? L('Profit ', 'मुनाफ़ा ') + inr(saleMargin(month, scost)) : '')}${tile(L('Low stock', 'कम स्टॉक'), low.length, low.length ? esc(low.slice(0, 3).map((p) => p.name).join(', ')) : '', low.length ? 'var(--crimson)' : '')}${admin ? tile(L('Stock value', 'स्टॉक की क़ीमत'), inr(stockValue), L('at cost price', 'लागत पर')) : ''}</div>`
+    + (admin ? reorderCard(prods, sales, pcost) : '')
     + (prods.length ? `<div class="cg" style="margin-bottom:14px">${prods.map(card1).join('')}</div>` : `<div class="card" style="margin-bottom:14px">${empty(L('No products yet', 'अभी कोई प्रोडक्ट नहीं'), admin ? L('Add what you sell: protein, shakers, water, T-shirts.', 'जो बेचते हैं वह जोड़ें: प्रोटीन, शेकर, पानी, टी-शर्ट।') : L('Ask the owner to add products.', 'मालिक से प्रोडक्ट जुड़वाएँ।'), admin ? `<button class="btn pri" data-act="newProduct">${esc(L('Add product', 'प्रोडक्ट जोड़ें'))}</button>` : '')}</div>`)
     + card(L('Recent sales', 'हाल की बिक्री'), 'receipt', '', tbl);
 }
@@ -1849,12 +1850,14 @@ function staffForm(id) {
         { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel', check: (v) => (v && String(v).replace(/\D/g, '').length < 10 ? L('Enter a 10-digit number', '10 अंकों का नंबर डालें') : '') },
         { k: 'monthly_salary', label: L('Monthly salary (₹)', 'मासिक वेतन (₹)'), type: 'number', req: true, min: 0, check: (v) => (v >= 10000000 ? L('Too large', 'बहुत बड़ी रकम') : '') },
         { k: 'joined_on', label: L('Joined on', 'जॉइन की तारीख़'), type: 'date', def: x ? x.joined_on : todayISO() },
+        { k: 'shift', label: L('Shift', 'शिफ़्ट'), type: 'select', options: Object.entries(SHIFT_LABEL).map(([v, l]) => ({ v, l: L(l[0], l[1]) })), def: x && x.shift ? x.shift : 'full' },
+        { k: 'weekly_off', label: L('Weekly off', 'साप्ताहिक छुट्टी'), type: 'select', options: [{ v: '', l: L('None', 'कोई नहीं') }, ...L('Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday', 'रविवार,सोमवार,मंगलवार,बुधवार,गुरुवार,शुक्रवार,शनिवार').split(',').map((l, i) => ({ v: String(i), l }))], def: x && x.weekly_off !== null && x.weekly_off !== undefined ? String(x.weekly_off) : '' },
         { k: 'active', label: L('Status', 'स्थिति'), type: 'select', options: [{ v: '1', l: L('Working', 'काम कर रहे हैं') }, { v: '0', l: L('Left', 'छोड़ चुके') }], def: x ? (x.active ? '1' : '0') : '1' },
         { k: 'note', label: L('Note', 'नोट'), type: 'textarea', full: true, check: (v) => (v.length > 300 ? L('Up to 300 characters', 'अधिकतम 300 अक्षर') : '') },
       ],
       extra: x ? `<p style="margin:12px 0 0"><button type="button" class="btn sm" data-act="delStaff" data-id="${esc(x.id)}">${esc(L('Delete person', 'व्यक्ति हटाएँ'))}</button></p>` : '',
       onSubmit: async (v) => {
-        const row = { name: v.name.trim(), job: v.job, phone: v.phone ? String(v.phone).trim() : null, monthly_salary: v.monthly_salary, joined_on: v.joined_on || todayISO(), active: v.active === '1', note: v.note ? v.note.trim() : null };
+        const row = { name: v.name.trim(), job: v.job, phone: v.phone ? String(v.phone).trim() : null, monthly_salary: v.monthly_salary, joined_on: v.joined_on || todayISO(), shift: v.shift || 'full', weekly_off: v.weekly_off === '' || v.weekly_off === undefined || v.weekly_off === null ? null : Number(v.weekly_off), active: v.active === '1', note: v.note ? v.note.trim() : null };
         const ok = await act(() => (x ? DB.update('staff_members', x.id, row) : DB.insert('staff_members', { ...row, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
         if (ok) { bust('staff'); render(); } return !!ok;
       },
@@ -2724,6 +2727,114 @@ async function setLeaderboard(on) {
   const ok = await act(() => DB.rpc('set_my_leaderboard', { opt: on }), on ? L('You are on the leaderboard', 'आप लीडरबोर्ड में हैं') : L('You left the leaderboard', 'आप लीडरबोर्ड से निकल गए'));
   if (ok) { bust('members'); render(); }
 }
+/* ================= Revenue forecast: what renewals can bring in over the next 90 days, from the gym's own data. A plain estimate, not AI. ================= */
+U.fc = { rate: '70' };
+const FC_MONTHS = 6;
+
+/* pure: members with a live membership (not frozen, not cancelled) that ends in 0-30, 31-60, 61-90 days, priced at their current plan (GST included).
+   rate = the owner's own guess of how many of them renew (0-100). Nothing here predicts a person; it only adds up what is due and multiplies by that guess. */
+function forecastCalc(members, plans, invoices, payments, today, rate) {
+  const r = Math.min(Math.max(Number(rate) || 0, 0), 100) / 100, pm = new Map(plans.map((p) => [p.id, p]));
+  const priceOf = (m) => { const p = pm.get(m.plan_id); return p ? round2(Number(p.price) * (1 + Number(p.gst_pct || 0) / 100)) : 0; };
+  const live = members.filter((m) => m.end_date && m.status !== 'Frozen' && m.status !== 'Cancelled');
+  const mk = (from, to) => {
+    const rows = live.filter((m) => { const d = diffDays(today, m.end_date); return d >= from && d <= to; }).map((m) => ({ m, price: priceOf(m), end: m.end_date })).sort((a, b) => (a.end < b.end ? -1 : a.end > b.end ? 1 : 0));
+    const gross = round2(sum(rows, (x) => x.price));
+    return { from, to, rows, count: rows.length, gross, expected: round2(gross * r), noPlan: rows.filter((x) => !x.price).length };
+  };
+  const buckets = [mk(0, 30), mk(31, 60), mk(61, 90)];
+  const gone = live.filter((m) => { const d = diffDays(today, m.end_date); return d < 0 && d >= -30; });
+  const paid = new Map(); payments.forEach((p) => paid.set(p.invoice_id, round2((paid.get(p.invoice_id) || 0) + Number(p.amount))));
+  const dues = round2(sum(invoices.filter((i) => !i.cancelled), (i) => Math.max(round2(Number(i.total) - (paid.get(i.id) || 0)), 0)));
+  const [y, mo] = today.split('-').map(Number), history = [];
+  for (let i = FC_MONTHS - 1; i >= 0; i--) { const d = new Date(Date.UTC(y, mo - 1 - i, 1)), key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; history.push({ mk: key, amt: round2(sum(payments.filter((p) => monthKey(p.paid_on) === key), (p) => Number(p.amount))) }); }
+  const full = history.slice(-4, -1), avg3 = full.length ? round2(sum(full, (h) => h.amt) / full.length) : 0;
+  return { buckets, winback: { count: gone.length, gross: round2(sum(gone, priceOf)) }, dues, history, avg3, rate: Math.round(r * 100) };
+}
+
+async function vForecast() {
+  const [members, plans, invoices, payments] = await Promise.all([Q.members(), Q.plans(), Q.invoices(), Q.payments()]);
+  const f = forecastCalc(members, plans, invoices, payments, todayISO(), U.fc.rate), b = f.buckets, top = Math.max(1, ...f.history.map((h) => h.amt));
+  const names = [L('Next 30 days', 'अगले 30 दिन'), L('31 to 60 days', '31 से 60 दिन'), L('61 to 90 days', '61 से 90 दिन')];
+  const mm = (k) => { const [y, m] = k.split('-').map(Number); return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(LANG === 'hi' ? 'hi-IN' : 'en-IN', { month: 'short', year: '2-digit', timeZone: 'UTC' }); };
+  const first = b[0].rows.slice(0, 40);
+  return pageHead(L('Insights', 'इनसाइट'), L('Revenue forecast', 'आमदनी का अनुमान'), L('Memberships that end soon, priced at each member’s current plan. It is an estimate from your own data.', 'जिन सदस्यों की मेंबरशिप जल्द ख़त्म हो रही है, उनके मौजूदा प्लान के भाव से। यह आपके अपने डेटा से लगाया अनुमान है।'))
+    + `<div class="note" style="margin-bottom:12px">${esc(L('How many of them will renew? Pick your own guess:', 'इनमें से कितने रिन्यू करेंगे? अपना अंदाज़ा चुनें:'))}</div>`
+    + chipsHtml('fcRate', U.fc.rate, [['50', '50%'], ['70', '70%'], ['90', '90%'], ['100', '100%']])
+    + `<div class="tiles">${tile(L('Expected, next 30 days', 'अपेक्षित, अगले 30 दिन'), inr(b[0].expected), L(`${b[0].count} ending · ${inr(b[0].gross)} if all renew`, `${b[0].count} ख़त्म · सब रिन्यू करें तो ${inr(b[0].gross)}`), 'var(--ok)')}`
+    + `${tile(L('Expected, 90 days', 'अपेक्षित, 90 दिन'), inr(sum(b, (x) => x.expected)), L(`${sum(b, (x) => x.count)} memberships`, `${sum(b, (x) => x.count)} मेंबरशिप`))}`
+    + `${tile(L('Unpaid dues', 'बाक़ी रकम'), inr(f.dues), L('on open invoices', 'खुले इनवॉइस पर'), f.dues ? 'var(--crimson)' : '')}`
+    + `${tile(L('Usual month', 'आम महीना'), inr(f.avg3), L('average of the last 3 full months', 'पिछले 3 पूरे महीनों का औसत'))}</div>`
+    + `<div class="grid2">${card(L('Renewals due', 'रिन्यू होने हैं'), 'clock', '', `<ul class="list">${b.map((x, i) => `<li><div class="grow"><b>${esc(names[i])}</b><small>${esc(L(`${x.count} memberships · ${inr(x.gross)} if all renew`, `${x.count} मेंबरशिप · सब रिन्यू करें तो ${inr(x.gross)}`))}${x.noPlan ? ' · ' + esc(L(`${x.noPlan} without a plan, counted as ₹0`, `${x.noPlan} का प्लान नहीं, ₹0 गिना`)) : ''}</small></div><span class="num">${inr(x.expected)}</span></li>`).join('')}`
+      + `<li><div class="grow"><b>${esc(L('Ended in the last 30 days', 'पिछले 30 दिन में ख़त्म'))}</b><small>${esc(L(`${f.winback.count} members not renewed yet · ${inr(f.winback.gross)} if they come back`, `${f.winback.count} सदस्य अभी रिन्यू नहीं हुए · लौटें तो ${inr(f.winback.gross)}`))}</small></div></li></ul>`)}`
+    + `${card(L('Money collected', 'जमा हुई रकम'), 'wallet', '', `<ul class="list">${f.history.map((h) => `<li><div class="grow"><small>${esc(mm(h.mk))}</small><div style="height:8px;border-radius:4px;background:var(--line);margin-top:4px"><div style="height:8px;border-radius:4px;background:var(--ok);width:${Math.round((h.amt / top) * 100)}%"></div></div></div><span class="num">${inr(h.amt)}</span></li>`).join('')}</ul>`)}</div>`
+    + card(L('Who is due in the next 30 days', 'अगले 30 दिन में किसकी बारी'), 'users', '', first.length
+      ? `<ul class="list">${first.map((x) => `<li class="click" data-act="openMember" data-id="${esc(x.m.id)}">${avatarM(x.m)}<div class="grow"><b>${esc(x.m.name)}</b><small>${esc(L(`Ends ${fmtShort(x.end)}`, `${fmtShort(x.end)} को ख़त्म`))}</small></div><span class="num">${x.price ? inr(x.price) : '—'}</span></li>`).join('')}</ul>${b[0].rows.length > first.length ? `<p class="muted" style="margin:8px 0 0">${esc(L(`Showing the first ${first.length} of ${b[0].rows.length}.`, `${b[0].rows.length} में से पहले ${first.length} दिखाए।`))}</p>` : ''}`
+      : empty(L('Nobody is due in the next 30 days', 'अगले 30 दिन में किसी की मेंबरशिप ख़त्म नहीं हो रही'), ''))
+    + `<div class="note" style="margin-top:14px">${esc(L('This is not a promise or an AI prediction. It adds up the plan prices of memberships that end in each period and multiplies by the percentage you chose. Frozen and cancelled members are left out. Prices include GST.', 'यह कोई वादा या AI की भविष्यवाणी नहीं है। यह हर अवधि में ख़त्म होने वाली मेंबरशिप के प्लान की क़ीमत जोड़कर आपके चुने प्रतिशत से गुणा करता है। फ़्रीज़ और रद्द सदस्य शामिल नहीं हैं। क़ीमतों में GST शामिल है।'))}</div>`;
+}
+/* ================= Store reorder list: what to buy again, from the gym's own sales of the last 30 days. Simple rules, no AI. ================= */
+/* pure: a product is listed when it is at or below its warning level, or when, at the pace it sold over the last `lookback` days, it runs out within `horizon` days.
+   The suggested quantity brings stock up to `horizon` days of sales plus the warning level (at least twice the warning level). Voided sales are ignored. */
+function reorderCalc(products, sales, today, horizon = 14, lookback = 30) {
+  const since = addDays(today, -(lookback - 1)), sold = new Map();
+  sales.filter((s) => !s.voided_at && s.sold_on >= since && s.sold_on <= today).forEach((s) => sold.set(s.product_id, (sold.get(s.product_id) || 0) + Number(s.qty)));
+  const rows = products.filter((p) => p.active).map((p) => {
+    const units = sold.get(p.id) || 0, perDay = units / lookback, cover = perDay > 0 ? p.stock / perDay : null;
+    const need = p.stock <= p.low_at || (cover !== null && cover < horizon);
+    const target = Math.max(Math.ceil(perDay * horizon) + p.low_at, p.low_at * 2), qty = Math.max(target - p.stock, 1);
+    return { p, units, perDay, cover, qty, need };
+  }).filter((r) => r.need);
+  return rows.sort((a, b) => (a.p.stock === 0 ? 0 : 1) - (b.p.stock === 0 ? 0 : 1) || (a.cover === null ? 1e9 : a.cover) - (b.cover === null ? 1e9 : b.cover) || (a.p.name < b.p.name ? -1 : 1));
+}
+const reorderText = (rows, gym) => `नमस्ते, ${gym} के लिए ये सामान चाहिए:\n` + rows.map((r) => `• ${r.p.name} × ${r.qty}`).join('\n') + '\nकृपया रेट और डिलीवरी का समय बताइए।';
+
+function reorderCard(prods, sales, pcost) {
+  const rows = reorderCalc(prods, sales, todayISO()); if (!rows.length) return '';
+  const est = round2(sum(rows, (r) => r.qty * (pcost.get(r.p.id) || 0))), t = reorderText(rows, gymName());
+  const left = (r) => (r.p.stock === 0 ? badge(L('Out of stock', 'स्टॉक ख़त्म'), 'bad') : r.cover === null ? badge(L('Low', 'कम'), 'warn') : badge(L(`~${Math.max(Math.floor(r.cover), 0)} days left`, `लगभग ${Math.max(Math.floor(r.cover), 0)} दिन का स्टॉक`), r.cover < 7 ? 'bad' : 'warn'));
+  return `<div style="margin-bottom:14px">${card(L('Reorder list', 'दोबारा मँगाने की सूची'), 'tag', `<a class="btn sm" target="_blank" rel="noopener" href="${esc(waLink('', t))}">${esc(L('Send on WhatsApp', 'WhatsApp पर भेजें'))}</a>`,
+    `<ul class="list">${rows.map((r) => `<li><div class="grow"><b>${esc(r.p.name)}</b><small>${esc(L(`${r.p.stock} in stock · sold ${r.units} in 30 days`, `${r.p.stock} स्टॉक में · 30 दिन में ${r.units} बिके`))}</small></div>${left(r)}<span class="num">× ${r.qty}</span></li>`).join('')}</ul>`
+    + `<p class="muted" style="margin:10px 0 0">${esc(L('Quantity covers about 14 days of sales plus your warning level.', 'मात्रा लगभग 14 दिन की बिक्री और आपकी चेतावनी सीमा के बराबर है।'))}${est > 0 ? ' ' + esc(L(`Cost about ${inr(est)}.`, `लागत लगभग ${inr(est)}।`)) : ''}</p>`)}</div>`;
+}
+/* ================= Staff attendance and shifts (owner only). Marks go through the database function mark_staff_attendance, which refuses future dates, days before joining and other gyms. ================= */
+U.att = { day: '' };
+Q.attendance = () => cached('attendance', () => DB.select('staff_attendance', { order: 'day.desc', limit: 3000 }));
+const ATT_STATES = [['present', 'Present', 'हाज़िर'], ['half', 'Half day', 'आधा दिन'], ['leave', 'Leave', 'छुट्टी'], ['absent', 'Absent', 'गैरहाज़िर']];
+const SHIFT_LABEL = { full: ['Full day', 'पूरा दिन'], morning: ['Morning', 'सुबह'], evening: ['Evening', 'शाम'] };
+const dowOf = (day) => new Date(day + 'T00:00:00Z').getUTCDay();
+
+/* pure: counts for one person in one month ('YYYY-MM'); worked = present + half a day for each half day. Leave and absent are counted, not judged. */
+function attendanceSummary(rows, staffId, mk) {
+  const mine = rows.filter((r) => r.staff_id === staffId && monthKey(r.day) === mk), c = (s) => mine.filter((r) => r.status === s).length;
+  const present = c('present'), half = c('half');
+  return { present, half, leave: c('leave'), absent: c('absent'), worked: present + half / 2, marked: mine.length };
+}
+const isWeeklyOff = (st, day) => st.weekly_off !== null && st.weekly_off !== undefined && Number(st.weekly_off) === dowOf(day);
+
+async function vAttendance() {
+  const [staff, rows] = await Promise.all([Q.staff(), Q.attendance()]), today = todayISO();
+  if (!U.att.day || U.att.day > today) U.att.day = today;
+  const day = U.att.day, mk = monthKey(day), DN = L('Sun,Mon,Tue,Wed,Thu,Fri,Sat', 'रवि,सोम,मंगल,बुध,गुरु,शुक्र,शनि').split(',');
+  const list = staff.filter((s) => s.active && (!s.joined_on || s.joined_on <= day)), cur = new Map(rows.filter((r) => r.day === day).map((r) => [r.staff_id, r.status]));
+  const marked = list.filter((s) => cur.has(s.id)).length, sh = (s) => L(...(SHIFT_LABEL[s.shift] || SHIFT_LABEL.full));
+  const stLabel = (k) => L(...ATT_STATES.find((x) => x[0] === k).slice(1));
+  const nav = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px"><button class="btn sm" data-act="attDay" data-d="-1" aria-label="${esc(L('Previous day', 'पिछला दिन'))}">‹</button><b>${esc(DN[dowOf(day)])}, ${esc(fmtDate(day))}</b><button class="btn sm" data-act="attDay" data-d="1"${day >= today ? ' disabled' : ''} aria-label="${esc(L('Next day', 'अगला दिन'))}">›</button>${day !== today ? `<button class="btn sm" data-act="attToday">${esc(L('Today', 'आज'))}</button>` : ''}<span class="muted">${esc(L(`${marked} of ${list.length} marked`, `${list.length} में से ${marked} दर्ज`))}</span></div>`;
+  const body = list.length
+    ? `<ul class="list">${list.map((s) => `<li><div class="grow"><b>${esc(s.name)}</b><small>${esc(jobLabel(s.job))} · ${esc(sh(s))}${isWeeklyOff(s, day) ? ' · ' + esc(L('weekly off', 'साप्ताहिक छुट्टी')) : ''}</small></div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${ATT_STATES.map(([k]) => `<button class="btn sm${cur.get(s.id) === k ? ' pri' : ''}" aria-pressed="${cur.get(s.id) === k}" data-act="attMark" data-id="${esc(s.id)}" data-s="${k}"${CTX.locked ? ' disabled' : ''}>${esc(stLabel(k))}</button>`).join('')}</div></li>`).join('')}</ul><p class="muted" style="margin:10px 0 0">${esc(L('Tap a status to mark it. Tap the same one again to clear it.', 'स्थिति पर टैप करके दर्ज करें। उसी पर दोबारा टैप करें तो हट जाएगी।'))}</p>`
+    : empty(L('No staff to mark', 'दर्ज करने के लिए कोई स्टाफ़ नहीं'), L('Add people on the Staff & salary page first. Only people who had joined by this date are listed.', 'पहले "स्टाफ़ और वेतन" पेज पर लोग जोड़ें। इस तारीख़ तक जॉइन कर चुके लोग ही दिखते हैं।'), '<a class="btn pri" href="#staff">' + esc(L('Staff & salary', 'स्टाफ़ और वेतन')) + '</a>');
+  const mlabel = new Date(day.slice(0, 7) + '-01T00:00:00Z').toLocaleDateString(LANG === 'hi' ? 'hi-IN' : 'en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const sums = list.map((s) => ({ s, a: attendanceSummary(rows, s.id, mk) })), num = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
+  const table = sums.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Name', 'नाम'))}</th><th class="r">${esc(L('Present', 'हाज़िर'))}</th><th class="r">${esc(L('Half', 'आधा'))}</th><th class="r">${esc(L('Leave', 'छुट्टी'))}</th><th class="r">${esc(L('Absent', 'गैर'))}</th><th class="r">${esc(L('Days worked', 'काम के दिन'))}</th></tr></thead><tbody>${sums.map(({ s, a }) => `<tr><td><b>${esc(s.name)}</b></td><td class="r">${a.present}</td><td class="r">${a.half}</td><td class="r">${a.leave}</td><td class="r">${a.absent}</td><td class="r"><b>${num(a.worked)}</b></td></tr>`).join('')}</tbody></table></div>` : '';
+  return pageHead(L('People', 'लोग'), L('Staff attendance', 'स्टाफ़ हाज़िरी'), L('Mark who came each day. Only the owner can see this page.', 'रोज़ दर्ज करें कि कौन आया। यह पेज सिर्फ़ मालिक देख सकता है।'))
+    + nav + `<div class="card" style="margin-bottom:14px">${body}</div>`
+    + (table ? card(L(`Summary for ${mlabel}`, `${mlabel} का सार`), 'list', '', table + `<p class="muted" style="margin:10px 0 0">${esc(L('Days worked counts a half day as 0.5. It is not connected to salary: you decide pay and leave rules, and record salary on the Staff & salary page.', 'काम के दिन में आधा दिन 0.5 गिना जाता है। यह वेतन से जुड़ा नहीं है: वेतन और छुट्टी के नियम आप तय करते हैं और वेतन "स्टाफ़ और वेतन" पेज पर दर्ज होता है।'))}</p>`) : '');
+}
+async function attMark(id, status) {
+  const rows = await Q.attendance(), day = U.att.day, was = (rows.find((r) => r.staff_id === id && r.day === day) || {}).status, next = was === status ? null : status;
+  const ok = await act(() => DB.rpc('mark_staff_attendance', { p_staff: id, p_day: day, p_status: next }), next ? L('Marked', 'दर्ज हुआ') : L('Cleared', 'हटाया'));
+  if (ok) { bust('attendance'); render(); }
+}
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV_GROUPS = { overview: ['Overview', 'अवलोकन'], people: ['People', 'लोग'], money: ['Money', 'पैसा'], business: ['Business', 'व्यापार'], insights: ['Insights', 'जानकारी'], setup: ['Setup', 'सेटअप'], platform: ['Platform', 'प्लेटफ़ॉर्म'], me: ['My gym', 'मेरा जिम'] };
 /* entry: [route, icon, English, Hindi, view, group, shownInPhoneBar] */
@@ -2731,10 +2842,10 @@ const NAV = {
   super_admin: [['overview', 'home', 'Overview', 'ओवरव्यू', vSuperHome, 'platform', 1], ['gyms', 'building', 'Gyms', 'जिम', vSuperGyms, 'platform', 1], ['users', 'users', 'Users', 'यूज़र', vSuperUsers, 'platform', 1], ['audit', 'list', 'Audit log', 'ऑडिट लॉग', vSuperAudit, 'platform', 1], ['status', 'pulse', 'Status', 'स्थिति', vSuperStatus, 'platform', 1]],
   gym_admin: [
     ['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard, 'overview', 1],
-    ['members', 'users', 'Members', 'सदस्य', vMembers, 'people', 1], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin, 'people', 1], ['leads', 'users', 'Leads', 'लीड्स', vLeads, 'people'], ['reminders', 'clock', 'Reminders', 'रिमाइंडर', vReminders, 'people'], ['whatsapp', 'msg', 'WhatsApp', 'WhatsApp', vWhatsApp, 'people'],
+    ['members', 'users', 'Members', 'सदस्य', vMembers, 'people', 1], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin, 'people', 1], ['leads', 'users', 'Leads', 'लीड्स', vLeads, 'people'], ['reminders', 'clock', 'Reminders', 'रिमाइंडर', vReminders, 'people'], ['whatsapp', 'msg', 'WhatsApp', 'WhatsApp', vWhatsApp, 'people'], ['attendance', 'clock', 'Staff attendance', 'स्टाफ़ हाज़िरी', vAttendance, 'people'],
     ['invoices', 'receipt', 'Invoices', 'इनवॉइस', vInvoices, 'money'], ['payments', 'wallet', 'Payments', 'भुगतान', vPayments, 'money', 1], ['expenses', 'wallet', 'Expenses & profit', 'खर्च और मुनाफ़ा', vExpenses, 'money'], ['staff', 'users', 'Staff & salary', 'स्टाफ़ और वेतन', vStaff, 'money'], ['ledger', 'shield', 'Secure ledger', 'सुरक्षित लेजर', vLedger, 'money'],
     ['store', 'tag', 'Store', 'स्टोर', vStore, 'business'], ['classes', 'clock', 'Classes', 'क्लास', vClasses, 'business'], ['tasks', 'check', 'Tasks', 'काम', vTasks, 'business'], ['equipment', 'gear', 'Equipment', 'उपकरण', vEquipment, 'business'], ['plans', 'tag', 'Plans', 'प्लान', vPlans, 'business'], ['offers', 'crown', 'Offers', 'ऑफ़र', vOffers, 'business'],
-    ['retention', 'pulse', 'At risk', 'जोखिम', vRetention, 'insights'], ['peak', 'chart', 'Peak hours', 'भीड़ के समय', vPeak, 'insights'],
+    ['retention', 'pulse', 'At risk', 'जोखिम', vRetention, 'insights'], ['peak', 'chart', 'Peak hours', 'भीड़ के समय', vPeak, 'insights'], ['forecast', 'wallet', 'Revenue forecast', 'आमदनी का अनुमान', vForecast, 'insights'],
     ['settings', 'gear', 'Settings', 'सेटिंग', vSettings, 'setup'],
   ],
   trainer: [['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard, 'overview', 1], ['members', 'users', 'Members', 'सदस्य', vMembers, 'people', 1], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin, 'people', 1], ['leads', 'users', 'Leads', 'लीड्स', vLeads, 'people'], ['reminders', 'clock', 'Reminders', 'रिमाइंडर', vReminders, 'people'], ['classes', 'clock', 'Classes', 'क्लास', vClasses, 'business'], ['tasks', 'check', 'Tasks', 'काम', vTasks, 'business'], ['equipment', 'gear', 'Equipment', 'उपकरण', vEquipment, 'business'], ['store', 'tag', 'Store', 'स्टोर', vStore, 'business', 1]],
@@ -2831,7 +2942,7 @@ async function enter() {
 function onSignedOut() { bust(); CTX.profile = null; CTX.gym = null; CTX.locked = false; RENDER_TOKEN++; loginScreen(L('Please sign in again.', 'कृपया दोबारा लॉगिन करें।')); }
 
 /* ---------- actions ---------- */
-const CHIP = { eqF: (v) => { U.eq.f = v; }, tkF: (v) => { U.tk.f = v; }, clsF: (v) => { U.cls.f = v; }, memT: (v) => { U.members.t = v; U.members.page = 1; }, memF: (v) => { U.members.f = v; U.members.page = 1; }, invF: (v) => { U.invoices.f = v; U.invoices.page = 1; }, peakD: (v) => { U.peak.days = v; }, expM: (v) => { U.exp.m = v; }, payM: (v) => { U.pay.m = v; }, sgF: (v) => { U.sg.f = v; }, suF: (v) => { U.su.f = v; }, leadF: (v) => { U.lead.f = v; } };
+const CHIP = { eqF: (v) => { U.eq.f = v; }, tkF: (v) => { U.tk.f = v; }, clsF: (v) => { U.cls.f = v; }, memT: (v) => { U.members.t = v; U.members.page = 1; }, memF: (v) => { U.members.f = v; U.members.page = 1; }, invF: (v) => { U.invoices.f = v; U.invoices.page = 1; }, peakD: (v) => { U.peak.days = v; }, fcRate: (v) => { U.fc.rate = v; }, expM: (v) => { U.exp.m = v; }, payM: (v) => { U.pay.m = v; }, sgF: (v) => { U.sg.f = v; }, suF: (v) => { U.su.f = v; }, leadF: (v) => { U.lead.f = v; } };
 const BIND = { mq: (v) => { U.members.q = v; U.members.page = 1; }, sgq: (v) => { U.sg.q = v; }, suq: (v) => { U.su.q = v; }, cq: (v) => { U.checkin.q = v; }, iq: (v) => { U.invoices.q = v; U.invoices.page = 1; }, pq: (v) => { U.payments.q = v; U.payments.page = 1; }, rdays: (v) => { const n = Math.min(14, Math.max(1, parseInt(v, 10) || 2)); U_REMIND.days = n; try { localStorage.setItem('gymos-remind-days', String(n)); } catch (e) {} }, thr: (v) => { const n = Math.min(30, Math.max(1, parseInt(v, 10) || 4)); U.retention.thr = n; try { localStorage.setItem('gymos-thr', String(n)); } catch (e) {} } };
 const ACTIONS = {
   newGym: () => gymForm(), extendGym: (d) => extendForm(d.id), lockGym: (d) => lockForm(d.id), assignUser: (d) => assignForm(d.id),
@@ -2846,6 +2957,7 @@ const ACTIONS = {
   lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
   theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
   importMembers: () => importForm(), membersCsv: () => exportMembers(), newOffer: () => offerForm(), editOffer: (d) => offerForm(d.id), shareOffer: (d) => shareOffer(d.id),
+  attDay: (d) => { U.att.day = addDays(U.att.day || todayISO(), Number(d.d)); if (U.att.day > todayISO()) U.att.day = todayISO(); render(); }, attToday: () => { U.att.day = todayISO(); render(); }, attMark: (d) => attMark(d.id, d.s),
   newEq: () => equipmentForm(), editEq: (d) => equipmentForm(d.id), eqServiced: (d) => eqServiced(d.id), delEq: (d) => deleteEquipment(d.id),
   newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, moreNav: () => openMoreSheet(), installApp: () => installApp(), installLater: () => installLater(), applyUpdate: () => applyUpdate(), booksCsv: () => exportBooks(), newTask: () => taskForm(), editTask: (d) => taskForm(d.id), toggleTask: (d) => toggleTask(d.id), delTask: (d) => deleteTask(d.id), openScan: () => openScanner(), newClass: () => classForm(), editClass: (d) => classForm(d.id), cancelClass: (d) => cancelClass(d.id), clsBookings: (d) => classBookings(d.id), clsBook: (d) => bookClass(d.id), clsCancel: (d) => cancelMyBooking(d.id), setCommission: (d) => commissionForm(d.id), addProgress: (d) => progressForm(d.id, d.by === '1', d.by === '1' ? null : () => progressModal(d.id)), delProgress: (d) => deleteProgress(d.id, d.m), giveReward: (d) => giveReward(d.id), lbJoin: () => setLeaderboard(true), lbLeave: () => setLeaderboard(false), waterAdd: (d) => addWater(d.id, Number(d.ml)).then((ok) => ok && render()), delHabit: (d) => deleteHabit(d.t, d.id), quickFood: (d) => mealForm(d.id, FOODS[Number(d.i)], () => render()), customFood: (d) => mealForm(d.id, null, () => render()), logSleep: (d) => sleepForm(d.id, () => render()), addWorkout: (d) => Q.members().then(() => wkOf(d.id)).then((rows) => workoutForm(d.id, rows)), delWorkout: (d) => deleteWorkout(d.id), newStaff: () => staffForm(), editStaff: (d) => staffForm(d.id), payStaff: (d) => salaryForm(d.id), staffHist: (d) => staffHistory(d.id), delStaff: (d) => deleteStaff(d.id), delSalPay: (d) => deleteSalaryPay(d.id), newExpense: () => expenseForm(), newProduct: () => productForm(), editProduct: (d) => productForm(d.id), sellProduct: (d) => sellForm(d.id), voidSale: (d) => voidSale(d.id), delProduct: (d) => deleteProduct(d.id), delExpense: (d) => deleteExpense(d.id), newLead: () => leadForm(), editLead: (d) => leadForm(d.id), leadNext: (d) => Q.leads().then((ls) => { const l = ls.find((x) => x.id === d.id); const n = l && nextStage(l.stage); if (n) leadSetStage(l.id, n, L('Moved to ' + stageLabel(n), stageLabel(n) + ' में किया')); }), leadLost: (d) => leadSetStage(d.id, 'Lost', L('Marked lost', 'छूटा हुआ चिह्नित')), leadConvert: (d) => leadConvert(d.id), delLead: (d) => deleteLead(d.id), waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
   changePw: () => openForm({

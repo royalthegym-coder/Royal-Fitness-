@@ -1,0 +1,26 @@
+import fs from 'fs';
+const lib = fs.readFileSync(new URL('../src/a-lib.js', import.meta.url), 'utf8');
+const src = fs.readFileSync(new URL('../src/c30-forecast.js', import.meta.url), 'utf8').split('async function vForecast')[0];
+let fn; try { fn = new Function('document', 'window', 'localStorage', 'U', lib + '\n' + src + '; return { forecastCalc };'); } catch (e) { console.error('load', e.message); process.exit(1); }
+const { forecastCalc } = fn({ querySelector() {}, querySelectorAll() { return []; }, documentElement: {} }, {}, { getItem() {}, setItem() {} }, {});
+let n = 0; const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } n++; };
+const T = '2026-11-13';
+const plans = [{ id: 'p1', price: 1000, gst_pct: 18 }, { id: 'p2', price: 500, gst_pct: 0 }];
+const M = (id, end, plan = 'p1', status = 'Active') => ({ id, name: id, end_date: end, plan_id: plan, status });
+const members = [M('a', '2026-11-13'), M('b', '2026-12-13', 'p2'), M('c', '2026-12-14'), M('d', '2027-02-11'), M('e', '2027-02-12'), M('f', '2026-11-20', 'p1', 'Frozen'), M('g', '2026-11-20', 'p1', 'Cancelled'), M('h', '2026-11-01'), M('i', '2026-10-14'), M('j', '2026-10-13'), M('k', '2026-11-30', 'none')];
+const inv = [{ id: 'i1', total: 1180 }, { id: 'i2', total: 500, cancelled: true }, { id: 'i3', total: 300 }];
+const pays = [{ invoice_id: 'i1', amount: 1000, paid_on: '2026-11-02' }, { invoice_id: 'i3', amount: 300, paid_on: '2026-10-05' }, { invoice_id: 'i1', amount: 50, paid_on: '2026-08-30' }];
+const f = forecastCalc(members, plans, inv, pays, T, 70);
+ok(f.buckets[0].count === 3 && f.buckets[0].rows.map((x) => x.m.id).join('') === 'akb', 'day 0..30 (inclusive of today and day 30), sorted by end date: ' + f.buckets[0].rows.map((x) => x.m.id));
+ok(f.buckets[0].gross === 1680 && f.buckets[0].noPlan === 1, 'GST included, member without plan counts as 0 and is flagged: ' + f.buckets[0].gross);
+ok(f.buckets[0].expected === 1176, 'expected = gross x rate: ' + f.buckets[0].expected);
+ok(f.buckets[1].rows.map((x) => x.m.id).join('') === 'c', 'day 30 stays in the first bucket, day 31 starts the second');
+ok(f.buckets[2].rows.map((x) => x.m.id).join('') === 'd' && f.buckets[2].count === 1, 'day 90 included, day 91 excluded: ' + f.buckets[2].rows.map((x) => x.m.id));
+ok(!f.buckets.some((b) => b.rows.some((x) => x.m.id === 'f' || x.m.id === 'g')), 'frozen and cancelled are left out');
+ok(f.winback.count === 2 && f.winback.gross === 2360, 'ended 1..30 days ago (h, i), not 31 days (j): ' + JSON.stringify(f.winback));
+ok(f.dues === 130, 'dues ignore cancelled invoices and never go below zero: ' + f.dues);
+ok(f.history.length === 6 && f.history[5].mk === '2026-11' && f.history[5].amt === 1000 && f.history[2].mk === '2026-08' && f.history[2].amt === 50, 'six months, oldest first');
+ok(f.avg3 === 116.67 , 'average of the last 3 FULL months (this month excluded): ' + f.avg3);
+ok(forecastCalc(members, plans, inv, pays, T, 250).rate === 100 && forecastCalc(members, plans, inv, pays, T, -5).buckets[0].expected === 0, 'rate is clamped to 0-100');
+const e = forecastCalc([], [], [], [], T, 70); ok(e.buckets[0].count === 0 && e.dues === 0 && e.avg3 === 0, 'empty gym does not break');
+console.log(n + ' checks passed');
