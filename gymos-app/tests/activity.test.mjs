@@ -1,0 +1,26 @@
+import fs from 'fs';
+const lib = fs.readFileSync(new URL('../src/a-lib.js', import.meta.url), 'utf8');
+const src = fs.readFileSync(new URL('../src/c33-activity.js', import.meta.url), 'utf8').split('async function vActivity')[0];
+let fn; try { fn = new Function('document', 'window', 'localStorage', 'U', lib + '\n' + src + '; return { activityInfo };'); } catch (e) { console.error('load', e.message); process.exit(1); }
+const { activityInfo } = fn({ querySelector() {}, querySelectorAll() { return []; }, documentElement: {} }, {}, { getItem() {}, setItem() {} }, {});
+let n = 0; const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } n++; };
+const pay = activityInfo('act_payment_add', { no: 'RCT-0007', amount: 400.0, method: 'UPI', member: 'Rahul Sharma', paid_on: '2026-11-14' }, false);
+ok(pay.group === 'money' && /₹400/.test(pay.text) && /Rahul Sharma/.test(pay.text) && /RCT-0007/.test(pay.text) && /UPI/.test(pay.text), 'payment sentence (en): ' + pay.text);
+const payHi = activityInfo('act_payment_add', { no: 'RCT-0007', amount: 400, method: 'UPI', member: 'Rahul Sharma' }, true);
+ok(/मिले/.test(payHi.text) && /Rahul Sharma/.test(payHi.text), 'payment sentence (hi): ' + payHi.text);
+const mu = activityInfo('act_member_update', { name: 'Rahul', changes: { status: ['Active', 'Frozen'], end_date: ['2026-11-20', '2026-12-05'] } }, false);
+ok(mu.group === 'members' && /status: Active → Frozen/.test(mu.text) && /ends on: 20 Nov → 5 Dec/.test(mu.text), 'member change lists each field old -> new: ' + mu.text);
+const muHi = activityInfo('act_member_update', { name: 'Rahul', changes: { status: ['Active', 'Frozen'] } }, true);
+ok(/स्थिति: सक्रिय → फ़्रीज़/.test(muHi.text), 'statuses are translated in Hindi: ' + muHi.text);
+ok(activityInfo('act_member_update', { name: 'A', changes: { plan: [null, 'Monthly'] } }, false).text.includes('plan: — → Monthly'), 'a missing old value shows a dash');
+const sv = activityInfo('act_sale_void', { product: 'Whey 1kg', qty: 2, total: 6000, method: 'Cash' }, false);
+ok(sv.group === 'store' && /cancelled/.test(sv.text) && /₹6,000/.test(sv.text), 'sale void: ' + sv.text);
+const sal = activityInfo('act_salary_add', { staff: 'Vikram', kind: 'bonus', amount: 1000, month: '2026-11' }, true);
+ok(sal.group === 'money' && /बोनस/.test(sal.text) && /Vikram/.test(sal.text), 'salary kind translated: ' + sal.text);
+const st = activityInfo('act_staff_update', { name: 'Vikram', changes: { monthly_salary: [12000, 15000], active: [true, false] } }, false);
+ok(st.group === 'staff' && /salary: ₹12,000 → ₹15,000/.test(st.text) && /status: working → left/.test(st.text), 'staff change: ' + st.text);
+const un = activityInfo('act_something_new', {}, false);
+ok(un.group === 'other' && un.text === 'act_something_new', 'unknown actions are shown, not hidden');
+ok(activityInfo('act_payment_add', null, false).text.length > 0, 'a row with no detail does not throw');
+ok(['act_payment_add', 'act_payment_delete', 'act_invoice_add', 'act_invoice_cancel', 'act_invoice_delete', 'act_expense_add', 'act_expense_update', 'act_expense_delete', 'act_salary_add', 'act_salary_delete', 'act_member_add', 'act_member_update', 'act_member_delete', 'act_freeze', 'act_unfreeze', 'act_sale_add', 'act_sale_void', 'act_product_add', 'act_product_update', 'act_product_delete', 'act_staff_add', 'act_staff_update', 'act_staff_delete'].every((a) => activityInfo(a, { name: 'x' }, false).group !== 'other'), 'every action the database writes has a sentence');
+console.log(n + ' checks passed');

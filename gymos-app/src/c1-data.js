@@ -12,7 +12,7 @@ const Q = {
   ledger: () => cached('ledger', () => DB.select('payment_ledger', { order: 'seq.desc', limit: 5000 })),
   gyms: () => cached('gyms', () => DB.select('gyms', { order: 'created_at.asc' })),
   profiles: () => cached('profiles', () => DB.select('profiles', { order: 'created_at.asc', limit: 2000 })),
-  audit: () => cached('audit', () => DB.select('audit_log', { order: 'at.desc', limit: 100 })),
+  audit: () => cached('audit', () => DB.select('audit_log', { filters: { action: 'not.like.act_*' }, order: 'at.desc', limit: 100 })),
   overview: () => cached('overview', () => DB.rpc('admin_gym_overview')),
 };
 const memberMap = (list) => new Map(list.map((m) => [m.id, m]));

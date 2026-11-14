@@ -119,7 +119,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(/ग़लत|Wrong/.test(await page.textContent('.banner.bad')), 'wrong password shows a friendly error');
     await login(page); await page.waitForSelector('.tiles');
     ok(/Royal The Gym/.test(await page.textContent('#gymName')), 'dashboard loads with gym name');
-    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 22, 'gym admin sees 22 menu items');
+    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 23, 'gym admin sees 23 menu items');
     await page.click('a[href="#members"]'); await page.waitForSelector('table.t');
     ok((await page.$$('table.t tbody tr')).length === 4, 'members list shows 4');
     await page.fill('#mq', 'priya'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 1);
@@ -186,7 +186,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     // referral rewards: owner sets the reward, then gives it once after the referred member has paid
     await page.click('[data-act=editGym]'); await page.fill('#f_refdays', '400'); await page.click('[data-ok]'); await page.waitForTimeout(250);
     ok(!db.gyms[0].referral_reward_days, 'a referral reward of 400 days is refused');
-    await page.fill('#f_refdays', '15'); await page.click('[data-ok]'); await page.waitForFunction(() => CTX.gym.referral_reward_days === 15);
+    await page.fill('#f_refdays', '15'); await page.click('[data-ok]'); await page.waitForFunction(() => CTX.gym && CTX.gym.referral_reward_days === 15);
     ok(db.gyms[0].referral_reward_days === 15, 'owner switches on a 15 day referral reward');
     await page.click('a[href="#reminders"]'); await page.waitForSelector('a[data-remind]');
     ok(!(await page.$('[data-act=giveReward]')), 'no reward is offered before the friend has paid');
@@ -463,7 +463,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await session(browser, 'gym_admin', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
     ok(!!(await page.$('.nav .more')) && (await page.$$eval('#nav a', (a) => a.filter((x) => x.offsetParent !== null).length)) <= 5, 'phone bar shows only the main pages plus More');
-    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 22, 'More sheet lists all 22 pages in groups');
+    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 23, 'More sheet lists all 23 pages in groups');
     await page.click('.sheet-links a[href="#expenses"]'); await page.waitForFunction(() => location.hash === '#expenses' && !document.querySelector('.ov')); ok(true, 'More sheet opens a page and closes');
     ok((await page.$$('#nav .grp')).length === 6, 'admin menu is split into 6 groups');
     await page.waitForSelector('[data-act=newExpense]'); await page.waitForTimeout(500);
@@ -645,10 +645,35 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(card.length === 1 && /Whey 1kg/.test(card[0].t) && !/Water bottle/.test(card[0].t), 'reorder list names the low product and not the well-stocked one');
     ok(card[0].h.some((h) => /^https:\/\/wa\.me\//.test(h) && /Whey%201kg%20%C3%97%20/.test(h)), 'reorder list can be sent on WhatsApp with item and quantity');
   });
+
+  console.log('activity log');
+  await session(browser, 'gym_admin', async (page, db) => {
+    const at = (min) => new Date(Date.now() - min * 60000).toISOString(), row = (action, detail, actor, min) => ({ id: db.audit_log.length + 1, at: at(min), actor, gym_id: db.G, action, detail });
+    db.audit_log.push(row('act_payment_add', { no: 'RCT-0007', amount: 400, method: 'UPI', member: 'Rahul Sharma', paid_on: today() }, db.me, 5),
+      row('act_sale_add', { product: 'Whey 1kg', qty: 2, total: 6000, method: 'Cash' }, db.me, 20),
+      row('act_member_update', { name: 'Rahul Sharma', changes: { status: ['Active', 'Frozen'] } }, null, 40),
+      row('act_staff_update', { name: 'Vikram Trainer', changes: { monthly_salary: [12000, 15000] } }, db.me, 60),
+      row('act_brand_new_thing', {}, null, 90));
+    await login(page); await page.waitForSelector('.tiles');
+    await page.click('a[href="#activity"]'); await page.waitForSelector('[data-act=chip][data-key=actF]');
+    let txt = await page.textContent('#view');
+    ok(/Rahul Sharma/.test(txt) && /RCT-0007/.test(txt) && /Whey 1kg/.test(txt) && /Vikram Trainer/.test(txt), 'activity log lists payment, sale and staff change');
+    ok(/act_brand_new_thing/.test(txt), 'an action the page does not know yet is still shown');
+    ok(/अपने-आप|Automatic/.test(txt), 'a row with no person is labelled automatic');
+    ok((await page.$$('#view .list li')).length === 5, 'all five rows shown under All');
+    await page.click('[data-act=chip][data-key=actF][data-v=money]'); await page.waitForFunction(() => document.querySelectorAll('#view .list li').length === 1);
+    ok(/RCT-0007/.test(await page.textContent('#view .list')), 'Money filter keeps only the payment');
+    await page.click('[data-act=chip][data-key=actF][data-v=store]'); await page.waitForFunction(() => document.querySelectorAll('#view .list li').length === 1);
+    ok(/Whey 1kg/.test(await page.textContent('#view .list')), 'Store filter keeps only the sale');
+    await page.click('[data-act=chip][data-key=actF][data-v=all]');
+    { const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-act=actCsv]')]); const csv = fs.readFileSync(await dl.path(), 'utf8');
+      ok(/When \(IST\)/.test(csv) && /RCT-0007/.test(csv) && /Vikram Trainer/.test(csv), 'activity CSV downloads with the readable sentences'); }
+    ok(!(await overflow(page)), 'activity page: no horizontal overflow');
+  });
   console.log('trainer does not get owner-only pages');
   await session(browser, 'trainer', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
-    ok(!(await page.$('a[href="#forecast"]')) && !(await page.$('a[href="#attendance"]')), 'trainer has no forecast or attendance page');
+    ok(!(await page.$('a[href="#forecast"]')) && !(await page.$('a[href="#attendance"]')) && !(await page.$('a[href="#activity"]')), 'trainer has no forecast, attendance or activity page');
     await page.click('a[href="#store"]'); await page.waitForSelector('#view h1');
     ok(!/Reorder list|दोबारा मँगाने की सूची/.test(await page.textContent('#view')), 'trainer does not see the reorder list');
   });
