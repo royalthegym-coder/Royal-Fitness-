@@ -19,7 +19,7 @@ function draftRows(eng, db, mem, fit, status) {
 const FIT = { age: 30, height_cm: 175, weight_kg: 80, goal: 'fat_loss', diet_pref: 'veg', activity: 'moderate', experience: 'intermediate', days_per_week: 4, session_min: 60, equipment: 'gym', injuries: null, conditions: null, allergies: null };
 function makeDb(role) {
   const G = '11111111-1111-4111-8111-111111111111', P1 = uid(), P2 = uid();
-  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none', review_url: role === 'member' ? 'https://g.page/r/CabcDEF123/review' : null }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [], member_progress: [], member_workouts: [], member_water: [], member_meals: [], member_sleep: [], referral_rewards: [], member_freezes: [], gym_equipment: [], trainer_commission: [], gym_classes: [], class_bookings: [], gym_tasks: [], staff_attendance: [] };
+  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none', review_url: role === 'member' ? 'https://g.page/r/CabcDEF123/review' : null }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [], member_progress: [], member_workouts: [], member_water: [], member_meals: [], member_sleep: [], referral_rewards: [], member_freezes: [], gym_equipment: [], trainer_commission: [], gym_classes: [], class_bookings: [], gym_tasks: [], staff_attendance: [], online_orders: [], online_pay: [] };
   const me = '22222222-2222-4222-8222-222222222222';
   db.me = me; db.G = G;
   db.profiles = [{ id: me, gym_id: role === 'super_admin' ? null : G, role, full_name: 'Test', email: 't@x.in', created_at: new Date().toISOString() }, { id: uid(), gym_id: null, role: 'member', full_name: 'New User', email: 'n@x.in', created_at: new Date().toISOString() }];
@@ -40,6 +40,7 @@ function handler(db, role) {
     db.calls.push(`${m} ${p}${u.search ? '?' + u.search.slice(1, 40) : ''}`);
     if (p === '/auth/v1/token') { const b = JSON.parse(req.postData() || '{}'); if (b.password === 'bad') return json({ msg: 'Invalid login credentials' }, 400); return json({ access_token: jwt(db.me), refresh_token: 'r', expires_in: 3600, user: { email: 't@x.in' } }); }
     if (p === '/functions/v1/create-account') { const b = JSON.parse(req.postData()); db.created = b; if (b.email === 'taken@x.in') return json({ error: 'email_taken' }, 409); return json({ email: b.email, password: 'GenPass1234abcd', role: b.role }); }
+    if (p === '/functions/v1/razorpay') { const b = JSON.parse(req.postData() || '{}'); (db.rzCalls = db.rzCalls || []).push(b); if (b.action === 'status') return json({ configured: db.rzConf !== false, enabled: !!db.rzEnabled }); if (db.rzFail) return json({ error: 'gateway' }, 502); return json({ url: db.rzUrl || 'https://rzp.io/i/test1', amount: 1180 }); }
     if (p === '/functions/v1/wa-dispatch') { const b = JSON.parse(req.postData() || '{}'); (db.waCalls = db.waCalls || []).push(b); return json({ configured: false }); }
     if (p === '/functions/v1/generate-plan') { const b = JSON.parse(req.postData() || '{}'), eng = await ENGINE, fit = db.member_fit.find((f) => f.member_id === b.member_id), mem = db.members.find((x) => x.id === b.member_id); db.genCalls = (db.genCalls || 0) + 1; if (!fit) return json({ error: 'missing_profile' }, 400); db.member_plans = db.member_plans.filter((r) => !(r.member_id === b.member_id && r.status === 'draft')); draftRows(eng, db, mem, fit, 'draft').forEach((r) => db.member_plans.unshift(r)); return json({ ok: true, plans: [], ai: false, needs_review: false }); }
     if (p === '/functions/v1/daily-summary') { db.sumCalls = (db.sumCalls || 0) + 1; if (db.sumFail) return json({ error: 'facts_failed' }, 500); return json({ day: today(), text: 'आज (' + today() + ') की वसूली ₹500 रही (1 भुगतान)। कुल बकाया ₹680 है (1 सदस्य)। आज 1 सदस्य जिम आए।', source: 'rules', cached: false, facts: {} }); }
@@ -59,6 +60,7 @@ function handler(db, role) {
       if (fn === 'void_sale') { const sl = db.sales.find((x) => x.id === a.p_sale); if (sl && !sl.voided_at) { sl.voided_at = new Date().toISOString(); const pr = db.products.find((x) => x.id === sl.product_id); if (pr) pr.stock += sl.qty; } return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'admin_set_referral_reward') { db.gyms[0].referral_reward_days = a.days; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'admin_grant_referral_reward') { const f = db.members.find((x) => x.id === a.referred), rr = db.members.find((x) => x.id === f.referred_by); if (db.referral_rewards.some((x) => x.referred_id === f.id)) return json({ message: 'reward already given' }, 409); db.referral_rewards.push({ id: uid(), referred_id: f.id, referrer_id: rr.id, days: db.gyms[0].referral_reward_days }); rr.end_date = addD(rr.end_date || today(), db.gyms[0].referral_reward_days); return json(db.gyms[0].referral_reward_days); }
+      if (fn === 'set_online_pay') { db.onlinePayArgs = a; db.online_pay = [{ gym_id: a.p_gym, enabled: a.p_enabled }]; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'mark_staff_attendance') { const st = db.staff_members.find((x) => x.id === a.p_staff); if (!st || a.p_day > today() || (st.joined_on && a.p_day < st.joined_on)) return json({ message: 'refused' }, 400); const i = db.staff_attendance.findIndex((x) => x.staff_id === a.p_staff && x.day === a.p_day); if (a.p_status === null) { if (i >= 0) db.staff_attendance.splice(i, 1); } else if (i >= 0) db.staff_attendance[i].status = a.p_status; else db.staff_attendance.push({ id: uid(), gym_id: db.G, staff_id: a.p_staff, day: a.p_day, status: a.p_status }); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'set_my_leaderboard') { db.members[0].leaderboard_opt_in = !!a.opt; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'gym_leaderboard') return json(db.members[0].leaderboard_opt_in ? [{ rank: 1, display_name: 'Rohit S.', days: 12, is_me: false }, { rank: 2, display_name: 'Rahul S.', days: 9, is_me: true }] : []);
@@ -119,7 +121,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(/ग़लत|Wrong/.test(await page.textContent('.banner.bad')), 'wrong password shows a friendly error');
     await login(page); await page.waitForSelector('.tiles');
     ok(/Royal The Gym/.test(await page.textContent('#gymName')), 'dashboard loads with gym name');
-    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 23, 'gym admin sees 23 menu items');
+    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 24, 'gym admin sees 24 menu items');
     await page.click('a[href="#members"]'); await page.waitForSelector('table.t');
     ok((await page.$$('table.t tbody tr')).length === 4, 'members list shows 4');
     await page.fill('#mq', 'priya'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 1);
@@ -463,7 +465,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await session(browser, 'gym_admin', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
     ok(!!(await page.$('.nav .more')) && (await page.$$eval('#nav a', (a) => a.filter((x) => x.offsetParent !== null).length)) <= 5, 'phone bar shows only the main pages plus More');
-    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 23, 'More sheet lists all 23 pages in groups');
+    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 24, 'More sheet lists all 24 pages in groups');
     await page.click('.sheet-links a[href="#expenses"]'); await page.waitForFunction(() => location.hash === '#expenses' && !document.querySelector('.ov')); ok(true, 'More sheet opens a page and closes');
     ok((await page.$$('#nav .grp')).length === 6, 'admin menu is split into 6 groups');
     await page.waitForSelector('[data-act=newExpense]'); await page.waitForTimeout(500);
@@ -512,6 +514,42 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     for (const r of ['mine', 'plan', 'pay', 'visits', 'book', 'train', 'habits', 'progress', 'me']) { await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(250); await page.waitForSelector('#view .ph'); if (await overflow(page)) ok(false, `member overflow on ${r}`); }
     ok(true, 'phone: no overflow on any member page');
   }, { width: 390, height: 800 });
+
+  console.log('online payment');
+  await session(browser, 'member', async (page, db) => {
+    db.rzEnabled = false; await login(page); await page.waitForSelector('.tiles'); await page.click('a[href="#pay"]'); await page.waitForSelector('#view .list');
+    ok((await page.$$('[data-act=payOnline]')).length === 0, 'member: no Pay online button while the gym has it switched off');
+  });
+  await session(browser, 'member', async (page, db) => {
+    db.rzEnabled = true; await login(page); await page.waitForSelector('.tiles'); await page.click('a[href="#pay"]'); await page.waitForSelector('[data-act=payOnline]');
+    const lbl = await page.textContent('[data-act=payOnline]'); ok(/1,180|1180/.test(lbl), 'member: button shows the amount due: ' + lbl);
+    await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return {}; }; });
+    await page.click('[data-act=payOnline]'); await page.waitForFunction(() => window.__opened.length === 1);
+    ok(await page.evaluate(() => window.__opened[0]) === 'https://rzp.io/i/test1', 'member: the Razorpay page is opened');
+    const call = db.rzCalls.filter((c) => c.action === 'create'); ok(call.length === 1 && call[0].invoice_id === db.invoices[0].id && !('amount' in call[0]), 'member: only the invoice id is sent, never an amount');
+    db.rzUrl = 'https://evil.example.com/pay'; await page.click('[data-act=payOnline]'); await page.waitForTimeout(500);
+    ok((await page.evaluate(() => window.__opened.length)) === 1, 'member: a link that is not Razorpay is never opened');
+    db.rzUrl = null; db.rzFail = true; await page.click('[data-act=payOnline]'); await page.waitForSelector('.toast, #toasts *'); await page.waitForTimeout(300);
+    ok((await page.evaluate(() => window.__opened.length)) === 1 && /could not be created|नहीं बन सका/.test(await page.textContent('body')), 'member: a gateway failure shows a message and opens nothing');
+  });
+  await session(browser, 'member', async (page, db) => {
+    db.rzEnabled = true; db.rzConf = false; await login(page); await page.waitForSelector('.tiles'); await page.click('a[href="#pay"]'); await page.waitForSelector('#view .list');
+    ok((await page.$$('[data-act=payOnline]')).length === 0, 'member: no button when the Razorpay keys are not saved on the server');
+  });
+  await session(browser, 'gym_admin', async (page, db) => {
+    db.rzEnabled = true; const m = db.members[0];
+    db.online_orders.push({ id: uid(), gym_id: db.G, invoice_id: db.invoices[0].id, member_id: m.id, amount: 1180, status: 'paid', rz_link_id: 'plink_1', rz_payment_id: 'pay_1', paid_at: new Date().toISOString(), created_at: new Date().toISOString() },
+      { id: uid(), gym_id: db.G, invoice_id: db.invoices[0].id, member_id: m.id, amount: 300, status: 'review', rz_link_id: 'plink_2', rz_payment_id: 'pay_2', note: 'amount mismatch: paid 5000 paise, expected 30000', created_at: new Date().toISOString() });
+    await login(page); await page.waitForSelector('.tiles'); await page.click('a[href="#onlinepay"]'); await page.waitForFunction(() => /razorpay/i.test(document.querySelector('#view').innerText));
+    const txt = await page.textContent('#view');
+    ok(/Rahul Sharma/.test(txt) && /amount mismatch/.test(txt) && /functions\/v1\/razorpay/.test(txt), 'owner page lists orders, the review reason and the webhook URL');
+    ok(/1,180/.test(txt) && (await page.$$eval('#view .tiles .tile, #view .tiles > *', (x) => x.length)) >= 3, 'owner page shows this month\'s received amount and tiles');
+  });
+  await session(browser, 'super_admin', async (page, db) => {
+    await login(page); await page.waitForSelector('.tiles'); await page.click('a[href="#gyms"]'); await page.waitForSelector('[data-act=onlinePayGym]');
+    await page.click('[data-act=onlinePayGym]'); await page.waitForSelector('#modals [data-o="1"]'); await page.click('#modals [data-o="1"]');
+    await page.waitForFunction(() => !document.querySelector('#modals [data-o]')); ok(db.onlinePayArgs && db.onlinePayArgs.p_enabled === true && db.onlinePayArgs.p_gym === db.gyms[0].id, 'super admin: switch on sends the gym and true');
+  });
 
   console.log('installable app (PWA)');
   {
@@ -663,7 +701,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok((await page.$$('#view .list li')).length === 5, 'all five rows shown under All');
     await page.click('[data-act=chip][data-key=actF][data-v=money]'); await page.waitForFunction(() => document.querySelectorAll('#view .list li').length === 1);
     ok(/RCT-0007/.test(await page.textContent('#view .list')), 'Money filter keeps only the payment');
-    await page.click('[data-act=chip][data-key=actF][data-v=store]'); await page.waitForFunction(() => document.querySelectorAll('#view .list li').length === 1);
+    await page.click('[data-act=chip][data-key=actF][data-v=store]'); await page.waitForFunction(() => document.querySelectorAll('#view .list li').length === 1 && /Whey 1kg/.test(document.querySelector('#view .list').innerText));
     ok(/Whey 1kg/.test(await page.textContent('#view .list')), 'Store filter keeps only the sale');
     await page.click('[data-act=chip][data-key=actF][data-v=all]');
     { const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-act=actCsv]')]); const csv = fs.readFileSync(await dl.path(), 'utf8');

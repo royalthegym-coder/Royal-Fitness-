@@ -321,7 +321,7 @@ async function vSuperGyms() {
   return pageHead(L('Super admin', 'सुपर एडमिन'), L('Gyms', 'जिम'), L('Every gym, its subscription and lock. Member and payment details are not visible here.', 'हर जिम, उसकी सदस्यता और लॉक। सदस्य और भुगतान का ब्योरा यहाँ नहीं दिखता।'), `<button class="btn primary" data-act="newGym">${ic('plus')} ${esc(L('New gym', 'नया जिम'))}</button>`)
     + `<div class="tiles">${tile(L('Gyms', 'जिम'), rows0.length)}${tile(L('Locked now', 'अभी लॉक'), rows0.filter((g) => g.locked).length, '', rows0.some((g) => g.locked) ? 'var(--crimson)' : '')}${tile(L('Members in total', 'कुल सदस्य'), sum(rows0, (g) => g.members))}${tile(L('Ending in 7 days', '7 दिन में खत्म'), rows0.filter((g) => g.subscription_ends_on && diffDays(todayISO(), g.subscription_ends_on) >= 0 && diffDays(todayISO(), g.subscription_ends_on) <= 7).length)}</div>`
     + chipsHtml('sgF', U.sg.f, [['all', L('All', 'सभी'), rows0.length], ['locked', L('Locked', 'लॉक'), rows0.filter((g) => g.locked).length], ['soon', L('Ending soon', 'जल्दी ख़त्म'), rows0.filter((g) => subState(g, t0) === 'soon').length], ['expired', L('Expired', 'ख़त्म'), rows0.filter((g) => subState(g, t0) === 'expired').length]]) + searchBox('sgq', U.sg.q, L('Search gym or city', 'जिम या शहर खोजें'))
-    + `<div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Gym', 'जिम'))}</th><th>${esc(L('Plan', 'प्लान'))}</th><th>${esc(L('Valid till', 'तारीख़ तक'))}</th><th>${esc(L('State', 'स्थिति'))}</th><th class="r">${esc(L('Members', 'सदस्य'))}</th><th class="r">${esc(L('Staff', 'स्टाफ़'))}</th><th>${esc(L('Last visit', 'आख़िरी विज़िट'))}</th><th></th></tr></thead><tbody>${rows.map((g) => `<tr><td class="edge ${g.locked ? 'e-bad' : 'e-ok'}"><b>${esc(g.name)}</b><br><small class="muted">${esc(g.city || '')}</small></td><td>${esc(g.plan)}${g.status === 'suspended' ? '<br>' + badge(L('Suspended', 'निलंबित'), 'warn') : ''}</td><td class="num">${esc(fmtDate(g.subscription_ends_on))}</td><td>${lockBadge(g)}${ovr(g)}</td><td class="r num">${g.members}</td><td class="r num">${g.staff}</td><td class="num">${g.last_visit ? esc(fmtShort(g.last_visit)) : '—'}</td><td class="r" style="white-space:nowrap"><button class="btn sm" data-act="extendGym" data-id="${esc(g.gym_id)}">${esc(L('Subscription', 'सब्सक्रिप्शन'))}</button> <button class="btn sm" data-act="lockGym" data-id="${esc(g.gym_id)}">${ic('lock')} ${esc(L('Lock', 'लॉक'))}</button></td></tr>`).join('')}</tbody></table></div>` : (rows0.length ? empty(L('No gym matches', 'कोई जिम नहीं मिला'), '') : empty(L('No gyms yet', 'अभी कोई जिम नहीं'), L('Create the first gym, then assign its admin in Users.', 'पहला जिम बनाएँ, फिर Users में उसका एडमिन तय करें।'), `<button class="btn primary" data-act="newGym">${esc(L('New gym', 'नया जिम'))}</button>`))}</div>`;
+    + `<div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Gym', 'जिम'))}</th><th>${esc(L('Plan', 'प्लान'))}</th><th>${esc(L('Valid till', 'तारीख़ तक'))}</th><th>${esc(L('State', 'स्थिति'))}</th><th class="r">${esc(L('Members', 'सदस्य'))}</th><th class="r">${esc(L('Staff', 'स्टाफ़'))}</th><th>${esc(L('Last visit', 'आख़िरी विज़िट'))}</th><th></th></tr></thead><tbody>${rows.map((g) => `<tr><td class="edge ${g.locked ? 'e-bad' : 'e-ok'}"><b>${esc(g.name)}</b><br><small class="muted">${esc(g.city || '')}</small></td><td>${esc(g.plan)}${g.status === 'suspended' ? '<br>' + badge(L('Suspended', 'निलंबित'), 'warn') : ''}</td><td class="num">${esc(fmtDate(g.subscription_ends_on))}</td><td>${lockBadge(g)}${ovr(g)}</td><td class="r num">${g.members}</td><td class="r num">${g.staff}</td><td class="num">${g.last_visit ? esc(fmtShort(g.last_visit)) : '—'}</td><td class="r" style="white-space:nowrap"><button class="btn sm" data-act="extendGym" data-id="${esc(g.gym_id)}">${esc(L('Subscription', 'सब्सक्रिप्शन'))}</button> <button class="btn sm" data-act="lockGym" data-id="${esc(g.gym_id)}">${ic('lock')} ${esc(L('Lock', 'लॉक'))}</button> <button class="btn sm" data-act="onlinePayGym" data-id="${esc(g.gym_id)}">${ic('wallet')} ${esc(L('Online pay', 'ऑनलाइन पे'))}</button></td></tr>`).join('')}</tbody></table></div>` : (rows0.length ? empty(L('No gym matches', 'कोई जिम नहीं मिला'), '') : empty(L('No gyms yet', 'अभी कोई जिम नहीं'), L('Create the first gym, then assign its admin in Users.', 'पहला जिम बनाएँ, फिर Users में उसका एडमिन तय करें।'), `<button class="btn primary" data-act="newGym">${esc(L('New gym', 'नया जिम'))}</button>`))}</div>`;
 }
 function gymForm() {
   openForm({
@@ -1689,11 +1689,11 @@ async function vMyPlan() {
 }
 async function vMyPay() {
   const m = (await Q.members())[0]; if (!m) return noMember();
-  const [invoices, payments] = await Promise.all([Q.invoices(), Q.payments()]);
-  const paid = paidByInvoice(payments), due = sum(invoices, (i) => balanceOf(i, paid)), total = sum(payments, (p) => p.amount);
+  const [invoices, payments, rz] = await Promise.all([Q.invoices(), Q.payments(), Q.rzStatus()]);
+  const paid = paidByInvoice(payments), due = sum(invoices, (i) => balanceOf(i, paid)), total = sum(payments, (p) => p.amount), canPay = rz.enabled && rz.configured;
   return pageHead(gymName(), L('My payments', 'मेरे भुगतान'), L('Every invoice and receipt for your membership.', 'आपकी सदस्यता के सभी इनवॉइस और रसीदें।'))
     + `<div class="tiles">${tile(L('Paid so far', 'अब तक चुकाया'), esc(inr(total)), '', 'var(--ok)')}${tile(L('Balance due', 'बकाया'), esc(inr(due)), '', due ? 'var(--crimson)' : '')}${tile(L('Receipts', 'रसीदें'), payments.length, '')}</div>`
-    + `<div class="grid2">${card(L('Invoices', 'इनवॉइस'), 'receipt', '', invoices.length ? `<ul class="list">${invoices.map((i) => `<li><div class="grow"><b class="num">${esc(i.no || '—')}</b><small>${esc(fmtDate(i.date))}${i.due ? ' · ' + esc(L('due ', 'देय ')) + esc(fmtDate(i.due)) : ''}</small></div><span class="num">${esc(inr(i.total))}</span>${badge(invStatus(i, paid))}</li>`).join('')}</ul>` : empty(L('No invoices', 'कोई इनवॉइस नहीं'), ''))}`
+    + `<div class="grid2">${card(L('Invoices', 'इनवॉइस'), 'receipt', '', invoices.length ? `<ul class="list">${invoices.map((i) => `<li><div class="grow"><b class="num">${esc(i.no || '—')}</b><small>${esc(fmtDate(i.date))}${i.due ? ' · ' + esc(L('due ', 'देय ')) + esc(fmtDate(i.due)) : ''}</small></div><span class="num">${esc(inr(i.total))}</span>${badge(invStatus(i, paid))}${canPay && balanceOf(i, paid) >= 1 ? `<button class="btn sm primary" data-act="payOnline" data-id="${esc(i.id)}">${esc(L('Pay ' + inr(balanceOf(i, paid)) + ' online', inr(balanceOf(i, paid)) + ' ऑनलाइन भरें'))}</button>` : ''}</li>`).join('')}</ul>` : empty(L('No invoices', 'कोई इनवॉइस नहीं'), ''))}`
     + `${card(L('Receipts', 'रसीदें'), 'wallet', '', payments.length ? `<ul class="list">${payments.map((p) => `<li class="click" data-act="openReceipt" data-id="${esc(p.id)}"><div class="grow"><b class="num">${esc(p.no || '—')}</b><small>${esc(fmtDate(p.paid_on))} · ${esc(p.method || '')}</small></div><span class="num">${esc(inr(p.amount))}</span></li>`).join('')}</ul>` : empty(L('No payments yet', 'अभी कोई भुगतान नहीं'), ''))}</div>`;
 }
 async function vMyVisits() {
@@ -1716,7 +1716,7 @@ async function vMyProfile() {
 
 /* ================= Super admin overview ================= */
 const subState = (g, t) => (g.locked ? 'locked' : !g.subscription_ends_on ? 'open' : g.subscription_ends_on < t ? 'expired' : diffDays(t, g.subscription_ends_on) <= 14 ? 'soon' : 'open');
-const AUDIT_TXT = () => ({ create_gym: L('Gym created', 'जिम बना'), set_lock: L('Lock changed', 'लॉक बदला'), set_subscription: L('Subscription changed', 'सब्सक्रिप्शन बदला'), assign_user: L('User assigned', 'यूज़र तय हुआ'), update_gym: L('Gym edited', 'जिम बदला'), void_sale: L('Sale cancelled', 'बिक्री रद्द') });
+const AUDIT_TXT = () => ({ create_gym: L('Gym created', 'जिम बना'), set_lock: L('Lock changed', 'लॉक बदला'), set_subscription: L('Subscription changed', 'सब्सक्रिप्शन बदला'), assign_user: L('User assigned', 'यूज़र तय हुआ'), update_gym: L('Gym edited', 'जिम बदला'), void_sale: L('Sale cancelled', 'बिक्री रद्द'), set_online_pay: L('Online pay changed', 'ऑनलाइन पेमेंट बदला') });
 async function vSuperHome() {
   const [rows, audit] = await Promise.all([Q.overview(), Q.audit().catch(() => [])]), t = todayISO();
   const st = (g) => subState(g, t), locked = rows.filter((g) => g.locked), soon = rows.filter((g) => st(g) === 'soon'), expired = rows.filter((g) => st(g) === 'expired' && !g.locked);
@@ -2898,6 +2898,101 @@ async function activityCsv() {
   const pm = new Map(profs.map((p) => [p.id, p.full_name || p.email || '']));
   downloadCsv(`activity-${todayISO()}.csv`, [['When (IST)', 'By', 'Type', 'What'], ...rows.map((r) => { const i = activityInfo(r.action, r.detail, LANG === 'hi'); return [`${istDate(r.at)} ${fmtTime(r.at)}`, r.actor ? pm.get(r.actor) || 'staff login' : 'automatic', i.group, i.text]; })]);
 }
+/* ================= Online fee payment (Razorpay Payment Links) =================
+   The member taps "Pay online" on an invoice, the razorpay Edge Function asks Razorpay for a one-time link for the amount DUE right now
+   (the database works that out, never the browser), and the member pays on Razorpay's own page. When Razorpay confirms through a signed webhook,
+   the database records the payment once, so the usual receipt, ledger, activity log and WhatsApp receipt all happen by themselves.
+   Card or UPI details never enter this app. Nothing works until the platform admin switches it on for a gym and the Razorpay keys are set. */
+Q.onlineOrders = () => cached('online_orders', () => DB.select('online_orders', { order: 'created_at.desc', limit: 60 }));
+Q.rzStatus = () => cached('rz_status', async () => {
+  try { const r = await Promise.race([payFn({ action: 'status' }), new Promise((_, rej) => setTimeout(() => rej(new Error('t')), 6000))]); return { known: true, configured: r.configured === true, enabled: r.enabled === true }; } catch (e) { return { known: false, configured: false, enabled: false }; }
+});
+
+async function payFn(body) {
+  if (SESSION && SESSION.expires_at && SESSION.expires_at - 30 < Date.now() / 1000) await refreshSession();
+  const res = await rawFetch('/functions/v1/razorpay', { method: 'POST', headers: { apikey: CFG.key, Authorization: 'Bearer ' + (SESSION && SESSION.access_token), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await res.json().catch(() => ({}));
+  if (res.status === 401) { saveSession(null); if (typeof onSignedOut === 'function') onSignedOut(); throw new ApiError('session expired', 401, 'jwt'); }
+  if (!res.ok && !j.error) j.error = 'HTTP ' + res.status;
+  return j;
+}
+
+/* pure: only ever open a Razorpay link over https (the link text comes from a server, but we still check it) */
+function safeRzUrl(u) {
+  try { const x = new URL(String(u)); return x.protocol === 'https:' && /(^|\.)(rzp\.io|razorpay\.com)$/i.test(x.hostname) ? x.href : ''; } catch (e) { return ''; }
+}
+/* pure: numbers for the owner's page. paid_at is a timestamp; the month is the Indian calendar month. */
+function onlineSummary(orders, mk) {
+  const paid = orders.filter((o) => o.status === 'paid');
+  return {
+    month: round2(sum(paid.filter((o) => o.paid_at && monthKey(istDate(o.paid_at)) === mk), (o) => Number(o.amount))),
+    review: orders.filter((o) => o.status === 'review').length,
+    open: orders.filter((o) => o.status === 'created' && o.rz_link_id).length,
+    paidCount: paid.length,
+  };
+}
+const PAY_ERR = (c) => ({
+  not_enabled: L('Online payment is not switched on for this gym yet.', 'इस जिम के लिए ऑनलाइन पेमेंट अभी चालू नहीं है।'),
+  gym_closed: L('This gym’s subscription has ended. Please pay at the gym.', 'इस जिम का सब्सक्रिप्शन ख़त्म है। कृपया जिम में भुगतान करें।'),
+  cancelled: L('This invoice was cancelled.', 'यह इनवॉइस रद्द हो चुका है।'),
+  nothing_due: L('Nothing is due on this invoice.', 'इस इनवॉइस पर कुछ बकाया नहीं है।'),
+  not_found: L('Invoice not found.', 'इनवॉइस नहीं मिला।'),
+  not_configured: L('Online payment is not set up yet. Please pay at the gym.', 'ऑनलाइन पेमेंट अभी सेट नहीं हुआ है। कृपया जिम में भुगतान करें।'),
+  gateway: L('The payment page could not be created. Try again in a minute.', 'पेमेंट पेज नहीं बन सका। एक मिनट बाद फिर कोशिश करें।'),
+}[c] || L('Could not start the payment. Try again.', 'पेमेंट शुरू नहीं हो सका। फिर कोशिश करें।'));
+
+async function payOnline(invoiceId) {
+  if (U.rzBusy) return; U.rzBusy = true;
+  try {
+    let r; try { r = await payFn({ action: 'create', invoice_id: invoiceId }); } catch (e) { toast(friendlyError(e), 'bad'); return; }
+    const url = safeRzUrl(r.url);
+    if (!url) { toast(PAY_ERR(r.error), 'bad'); return; }
+    bust('online_orders');
+    toast(L('Complete the payment on the Razorpay page. It appears here within a minute after you pay.', 'Razorpay के पेज पर भुगतान पूरा करें। भुगतान के बाद यहाँ एक मिनट में दिख जाएगा।'), 'ok');
+    const w = window.open(url, '_blank', 'noopener'); if (!w) location.assign(url);
+  } finally { U.rzBusy = false; }
+}
+
+const ONLINE_STATUS = () => ({ created: [L('Link open', 'लिंक खुला'), 'info'], paid: [L('Paid', 'भुगतान हुआ'), 'ok'], review: [L('Needs your attention', 'आपका ध्यान चाहिए'), 'bad'], closed: [L('Closed', 'बंद'), 'mute'] });
+
+async function vOnlinePay() {
+  const [st, orders, members] = await Promise.all([Q.rzStatus(), Q.onlineOrders().catch(() => []), Q.members()]);
+  const mm = memberMap(members), S = onlineSummary(orders, monthKey(todayISO())), lab = ONLINE_STATUS();
+  const hook = `${CFG.url}/functions/v1/razorpay`;
+  const on = (b, yes, no) => badge(b ? yes : no, b ? 'ok' : 'mute');
+  const head = pageHead(L('Money', 'पैसा'), L('Online payments', 'ऑनलाइन भुगतान'), L('Members pay their fee on their phone from the Payments page. The money is recorded here by itself and the usual receipt goes out.', 'सदस्य अपने फ़ोन में भुगतान पेज से फ़ीस भर सकते हैं। रकम अपने-आप यहाँ दर्ज होती है और रसीद चली जाती है।'));
+  const status = card(L('Status', 'स्थिति'), 'wallet', st.known ? (st.enabled && st.configured ? badge(L('Working', 'चालू'), 'ok') : badge(L('Not active', 'चालू नहीं'), 'info')) : badge(L('Unknown', 'पता नहीं'), 'mute'),
+    `<ul class="list"><li><div class="grow"><b>${esc(L('Switched on for your gym', 'आपके जिम के लिए चालू'))}</b><small>${esc(L('Set by the platform admin, because the money goes to the Razorpay account connected to the platform.', 'प्लेटफ़ॉर्म एडमिन तय करता है, क्योंकि रकम प्लेटफ़ॉर्म से जुड़े Razorpay अकाउंट में जाती है।'))}</small></div>${on(st.enabled, L('Yes', 'हाँ'), L('No', 'नहीं'))}</li>`
+    + `<li><div class="grow"><b>${esc(L('Razorpay connected on the server', 'सर्वर पर Razorpay जुड़ा'))}</b><small>${esc(L('The three keys below are saved in Supabase', 'नीचे की तीन चाबियाँ Supabase में सेव हैं'))}</small></div>${on(st.configured, L('Yes', 'हाँ'), L('Not yet', 'अभी नहीं'))}</li></ul>`);
+  const tiles = `<div class="tiles" style="margin:14px 0">${tile(L('Received this month', 'इस महीने मिला'), inr(S.month), L(`${S.paidCount} online payments in total`, `कुल ${S.paidCount} ऑनलाइन भुगतान`), 'var(--ok)')}${tile(L('Needs attention', 'ध्यान चाहिए'), String(S.review), L('paid on Razorpay, not recorded', 'Razorpay पर चुकाया, यहाँ दर्ज नहीं'), S.review ? 'var(--crimson)' : '')}${tile(L('Links waiting', 'इंतज़ार में लिंक'), String(S.open), '')}</div>`;
+  const steps = card(L('Connect Razorpay (platform admin, one time)', 'Razorpay जोड़ें (प्लेटफ़ॉर्म एडमिन, एक बार)'), 'gear', '',
+    `<ol class="muted" style="padding-left:20px;margin:0;display:grid;gap:8px;line-height:1.5">
+      <li>${esc(L('Create and verify a Razorpay business account (razorpay.com). Use Test mode first.', 'Razorpay का बिज़नेस अकाउंट बनाइए और वेरिफ़ाई कीजिए (razorpay.com)। पहले Test mode में आज़माइए।'))}</li>
+      <li>${esc(L('In Razorpay → Settings → API keys, generate a Key ID and Key Secret.', 'Razorpay → Settings → API keys में Key ID और Key Secret बनाइए।'))}</li>
+      <li>${esc(L('In Razorpay → Settings → Webhooks add this URL, choose a secret of your own, and tick the events payment_link.paid, payment_link.expired and payment_link.cancelled:', 'Razorpay → Settings → Webhooks में यह URL जोड़िए, अपना एक secret चुनिए और ये events टिक कीजिए: payment_link.paid, payment_link.expired, payment_link.cancelled:'))}<br><code style="word-break:break-all">${esc(hook)}</code></li>
+      <li>${esc(L('In Supabase → Edge Functions → Secrets add RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET and RAZORPAY_WEBHOOK_SECRET (the webhook secret from step 3). Never type these anywhere else.', 'Supabase → Edge Functions → Secrets में RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET और RAZORPAY_WEBHOOK_SECRET (चरण 3 वाला secret) जोड़िए। इन्हें कहीं और मत लिखिए।'))}</li>
+      <li>${esc(L('Switch the gym on from Super admin → Gyms → “Online pay”, then pay a small test invoice with a Razorpay test card or UPI.', 'Super admin → Gyms → “Online pay” से जिम चालू कीजिए, फिर Razorpay के test कार्ड या UPI से छोटा टेस्ट इनवॉइस चुकाकर देखिए।'))}</li>
+    </ol>
+    <p class="muted" style="margin:10px 0 0">${esc(L('Razorpay charges its own fee per payment (check current rates). The fee is not added to the member’s bill here. Money settles to the Razorpay account whose keys you saved, so switch it on only for gyms that belong to that account.', 'Razorpay हर भुगतान पर अपना शुल्क लेता है (ताज़ा दरें देखें)। यह शुल्क यहाँ सदस्य के बिल में नहीं जुड़ता। रकम उसी Razorpay अकाउंट में जाती है जिसकी चाबियाँ सेव हैं, इसलिए सिर्फ़ उन्हीं जिम के लिए चालू करें जो उस अकाउंट के हैं।'))}</p>`);
+  const list = card(L('Online payments', 'ऑनलाइन भुगतान'), 'receipt', '', orders.length ? `<ul class="list">${orders.map((o) => { const m = mm.get(o.member_id), [l, tone] = lab[o.status] || [o.status, 'mute']; return `<li><div class="grow"><b>${esc(m ? m.name : '—')}</b><small>${esc(fmtDate(istDate(o.created_at)))} ${esc(fmtTime(o.created_at))}${o.status === 'review' && o.note ? ' · ' + esc(o.note) : ''}</small></div><span class="num">${esc(inr(o.amount))}</span>${badge(l, tone)}</li>`; }).join('')}</ul>${S.review ? `<p class="muted" style="margin:10px 0 0">${esc(L('“Needs your attention” means the member paid on Razorpay but the system could not add it to the invoice (for example it was already paid in cash). Refund it from the Razorpay dashboard, or add the payment by hand.', '“आपका ध्यान चाहिए” का मतलब है कि सदस्य ने Razorpay पर चुकाया पर सिस्टम इसे इनवॉइस में जोड़ नहीं सका (जैसे इनवॉइस पहले ही नकद में चुक गया था)। Razorpay डैशबोर्ड से रिफ़ंड कीजिए या भुगतान हाथ से जोड़िए।'))}</p>` : ''}` : empty(L('No online payments yet', 'अभी कोई ऑनलाइन भुगतान नहीं'), ''));
+  return head + status + tiles + list + '<div style="height:14px"></div>' + steps;
+}
+
+/* Super admin: switch online payment on or off for one gym */
+async function onlinePayForm(id) {
+  const g = (await Q.overview()).find((x) => x.gym_id === id); if (!g) return;
+  let on = false; try { const r = await DB.select('online_pay', { eq: { gym_id: id } }); on = !!(r[0] && r[0].enabled); } catch (e) { /* treated as off */ }
+  const m = openModal({
+    title: `${g.name} · ${L('Online pay', 'ऑनलाइन पेमेंट')}`,
+    body: `<p style="margin-top:0">${esc(on ? L('Online payment is ON for this gym.', 'इस जिम के लिए ऑनलाइन पेमेंट चालू है।') : L('Online payment is OFF for this gym.', 'इस जिम के लिए ऑनलाइन पेमेंट बंद है।'))}</p><div class="note">${esc(L('Money from online payments settles to the Razorpay account whose keys are saved on the server. Switch it on only for a gym that belongs to that account.', 'ऑनलाइन भुगतान की रकम सर्वर पर सेव चाबियों वाले Razorpay अकाउंट में जाती है। सिर्फ़ उसी अकाउंट के जिम के लिए चालू कीजिए।'))}</div>`,
+    footer: `<button type="button" class="btn ${on ? '' : 'primary'}" data-o="1" ${on ? 'disabled' : ''}>${esc(L('Switch on', 'चालू करें'))}</button><button type="button" class="btn ${on ? 'danger' : ''}" data-o="0" ${on ? '' : 'disabled'}>${esc(L('Switch off', 'बंद करें'))}</button>`,
+  });
+  $$('[data-o]', m.el).forEach((b) => (b.onclick = async () => {
+    b.disabled = true;
+    const ok = await act(() => DB.rpc('set_online_pay', { p_gym: id, p_enabled: b.dataset.o === '1' }), L('Saved', 'सेव हुआ'));
+    if (ok) { bust('audit', 'rz_status'); m.close(); render(); } else b.disabled = false;
+  }));
+}
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV_GROUPS = { overview: ['Overview', 'अवलोकन'], people: ['People', 'लोग'], money: ['Money', 'पैसा'], business: ['Business', 'व्यापार'], insights: ['Insights', 'जानकारी'], setup: ['Setup', 'सेटअप'], platform: ['Platform', 'प्लेटफ़ॉर्म'], me: ['My gym', 'मेरा जिम'] };
 /* entry: [route, icon, English, Hindi, view, group, shownInPhoneBar] */
@@ -2906,7 +3001,7 @@ const NAV = {
   gym_admin: [
     ['dashboard', 'home', 'Dashboard', 'डैशबोर्ड', vDashboard, 'overview', 1],
     ['members', 'users', 'Members', 'सदस्य', vMembers, 'people', 1], ['checkin', 'door', 'Check-in', 'चेक-इन', vCheckin, 'people', 1], ['leads', 'users', 'Leads', 'लीड्स', vLeads, 'people'], ['reminders', 'clock', 'Reminders', 'रिमाइंडर', vReminders, 'people'], ['whatsapp', 'msg', 'WhatsApp', 'WhatsApp', vWhatsApp, 'people'], ['attendance', 'clock', 'Staff attendance', 'स्टाफ़ हाज़िरी', vAttendance, 'people'],
-    ['invoices', 'receipt', 'Invoices', 'इनवॉइस', vInvoices, 'money'], ['payments', 'wallet', 'Payments', 'भुगतान', vPayments, 'money', 1], ['expenses', 'wallet', 'Expenses & profit', 'खर्च और मुनाफ़ा', vExpenses, 'money'], ['staff', 'users', 'Staff & salary', 'स्टाफ़ और वेतन', vStaff, 'money'], ['ledger', 'shield', 'Secure ledger', 'सुरक्षित लेजर', vLedger, 'money'],
+    ['invoices', 'receipt', 'Invoices', 'इनवॉइस', vInvoices, 'money'], ['payments', 'wallet', 'Payments', 'भुगतान', vPayments, 'money', 1], ['onlinepay', 'wallet', 'Online payments', 'ऑनलाइन भुगतान', vOnlinePay, 'money'], ['expenses', 'wallet', 'Expenses & profit', 'खर्च और मुनाफ़ा', vExpenses, 'money'], ['staff', 'users', 'Staff & salary', 'स्टाफ़ और वेतन', vStaff, 'money'], ['ledger', 'shield', 'Secure ledger', 'सुरक्षित लेजर', vLedger, 'money'],
     ['store', 'tag', 'Store', 'स्टोर', vStore, 'business'], ['classes', 'clock', 'Classes', 'क्लास', vClasses, 'business'], ['tasks', 'check', 'Tasks', 'काम', vTasks, 'business'], ['equipment', 'gear', 'Equipment', 'उपकरण', vEquipment, 'business'], ['plans', 'tag', 'Plans', 'प्लान', vPlans, 'business'], ['offers', 'crown', 'Offers', 'ऑफ़र', vOffers, 'business'],
     ['retention', 'pulse', 'At risk', 'जोखिम', vRetention, 'insights'], ['peak', 'chart', 'Peak hours', 'भीड़ के समय', vPeak, 'insights'], ['forecast', 'wallet', 'Revenue forecast', 'आमदनी का अनुमान', vForecast, 'insights'], ['activity', 'list', 'Activity log', 'गतिविधि लॉग', vActivity, 'insights'],
     ['settings', 'gear', 'Settings', 'सेटिंग', vSettings, 'setup'],
@@ -3020,7 +3115,7 @@ const ACTIONS = {
   lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
   theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
   importMembers: () => importForm(), membersCsv: () => exportMembers(), newOffer: () => offerForm(), editOffer: (d) => offerForm(d.id), shareOffer: (d) => shareOffer(d.id),
-  actMore: () => { U.act.n = Math.min(U.act.n + 200, 1000); render(); }, actCsv: () => activityCsv(),
+  payOnline: (d) => payOnline(d.id), onlinePayGym: (d) => onlinePayForm(d.id), actMore: () => { U.act.n = Math.min(U.act.n + 200, 1000); render(); }, actCsv: () => activityCsv(),
   attDay: (d) => { U.att.day = addDays(U.att.day || todayISO(), Number(d.d)); if (U.att.day > todayISO()) U.att.day = todayISO(); render(); }, attToday: () => { U.att.day = todayISO(); render(); }, attMark: (d) => attMark(d.id, d.s),
   newEq: () => equipmentForm(), editEq: (d) => equipmentForm(d.id), eqServiced: (d) => eqServiced(d.id), delEq: (d) => deleteEquipment(d.id),
   newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, moreNav: () => openMoreSheet(), installApp: () => installApp(), installLater: () => installLater(), applyUpdate: () => applyUpdate(), booksCsv: () => exportBooks(), newTask: () => taskForm(), editTask: (d) => taskForm(d.id), toggleTask: (d) => toggleTask(d.id), delTask: (d) => deleteTask(d.id), openScan: () => openScanner(), newClass: () => classForm(), editClass: (d) => classForm(d.id), cancelClass: (d) => cancelClass(d.id), clsBookings: (d) => classBookings(d.id), clsBook: (d) => bookClass(d.id), clsCancel: (d) => cancelMyBooking(d.id), setCommission: (d) => commissionForm(d.id), addProgress: (d) => progressForm(d.id, d.by === '1', d.by === '1' ? null : () => progressModal(d.id)), delProgress: (d) => deleteProgress(d.id, d.m), giveReward: (d) => giveReward(d.id), lbJoin: () => setLeaderboard(true), lbLeave: () => setLeaderboard(false), waterAdd: (d) => addWater(d.id, Number(d.ml)).then((ok) => ok && render()), delHabit: (d) => deleteHabit(d.t, d.id), quickFood: (d) => mealForm(d.id, FOODS[Number(d.i)], () => render()), customFood: (d) => mealForm(d.id, null, () => render()), logSleep: (d) => sleepForm(d.id, () => render()), addWorkout: (d) => Q.members().then(() => wkOf(d.id)).then((rows) => workoutForm(d.id, rows)), delWorkout: (d) => deleteWorkout(d.id), newStaff: () => staffForm(), editStaff: (d) => staffForm(d.id), payStaff: (d) => salaryForm(d.id), staffHist: (d) => staffHistory(d.id), delStaff: (d) => deleteStaff(d.id), delSalPay: (d) => deleteSalaryPay(d.id), newExpense: () => expenseForm(), newProduct: () => productForm(), editProduct: (d) => productForm(d.id), sellProduct: (d) => sellForm(d.id), voidSale: (d) => voidSale(d.id), delProduct: (d) => deleteProduct(d.id), delExpense: (d) => deleteExpense(d.id), newLead: () => leadForm(), editLead: (d) => leadForm(d.id), leadNext: (d) => Q.leads().then((ls) => { const l = ls.find((x) => x.id === d.id); const n = l && nextStage(l.stage); if (n) leadSetStage(l.id, n, L('Moved to ' + stageLabel(n), stageLabel(n) + ' में किया')); }), leadLost: (d) => leadSetStage(d.id, 'Lost', L('Marked lost', 'छूटा हुआ चिह्नित')), leadConvert: (d) => leadConvert(d.id), delLead: (d) => deleteLead(d.id), waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
