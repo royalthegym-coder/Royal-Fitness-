@@ -19,7 +19,7 @@ function draftRows(eng, db, mem, fit, status) {
 const FIT = { age: 30, height_cm: 175, weight_kg: 80, goal: 'fat_loss', diet_pref: 'veg', activity: 'moderate', experience: 'intermediate', days_per_week: 4, session_min: 60, equipment: 'gym', injuries: null, conditions: null, allergies: null };
 function makeDb(role) {
   const G = '11111111-1111-4111-8111-111111111111', P1 = uid(), P2 = uid();
-  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none', review_url: role === 'member' ? 'https://g.page/r/CabcDEF123/review' : null }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [], member_progress: [], member_workouts: [], member_water: [], member_meals: [], member_sleep: [], referral_rewards: [], member_freezes: [], gym_equipment: [], trainer_commission: [], gym_classes: [], class_bookings: [], gym_tasks: [], staff_attendance: [], online_orders: [], online_pay: [] };
+  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none', review_url: role === 'member' ? 'https://g.page/r/CabcDEF123/review' : null }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [], member_progress: [], member_workouts: [], member_water: [], member_meals: [], member_sleep: [], referral_rewards: [], member_freezes: [], gym_equipment: [], trainer_commission: [], gym_classes: [], class_bookings: [], gym_tasks: [], staff_attendance: [], online_orders: [], online_pay: [], push_outbox: [] };
   const me = '22222222-2222-4222-8222-222222222222';
   db.me = me; db.G = G;
   db.profiles = [{ id: me, gym_id: role === 'super_admin' ? null : G, role, full_name: 'Test', email: 't@x.in', created_at: new Date().toISOString() }, { id: uid(), gym_id: null, role: 'member', full_name: 'New User', email: 'n@x.in', created_at: new Date().toISOString() }];
@@ -60,6 +60,8 @@ function handler(db, role) {
       if (fn === 'void_sale') { const sl = db.sales.find((x) => x.id === a.p_sale); if (sl && !sl.voided_at) { sl.voided_at = new Date().toISOString(); const pr = db.products.find((x) => x.id === sl.product_id); if (pr) pr.stock += sl.qty; } return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'admin_set_referral_reward') { db.gyms[0].referral_reward_days = a.days; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'admin_grant_referral_reward') { const f = db.members.find((x) => x.id === a.referred), rr = db.members.find((x) => x.id === f.referred_by); if (db.referral_rewards.some((x) => x.referred_id === f.id)) return json({ message: 'reward already given' }, 409); db.referral_rewards.push({ id: uid(), referred_id: f.id, referrer_id: rr.id, days: db.gyms[0].referral_reward_days }); rr.end_date = addD(rr.end_date || today(), db.gyms[0].referral_reward_days); return json(db.gyms[0].referral_reward_days); }
+      if (fn === 'push_stats') return json({ members_with_login: 3, subscribed: 1, last_announce: null });
+      if (fn === 'push_announce') { (db.annCalls = db.annCalls || []).push(a); if (db.annSoon) return json({ error: 'too_soon' }); db.push_outbox.push({ id: db.push_outbox.length + 1, gym_id: db.G, profile_id: db.me, kind: 'announce', dedupe_key: 'ann:' + Date.now() + ':p', title: a.p_title, body: a.p_body, status: 'sent', created_at: new Date().toISOString() }); return json({ queued: 1 }); }
       if (fn === 'set_online_pay') { db.onlinePayArgs = a; db.online_pay = [{ gym_id: a.p_gym, enabled: a.p_enabled }]; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'mark_staff_attendance') { const st = db.staff_members.find((x) => x.id === a.p_staff); if (!st || a.p_day > today() || (st.joined_on && a.p_day < st.joined_on)) return json({ message: 'refused' }, 400); const i = db.staff_attendance.findIndex((x) => x.staff_id === a.p_staff && x.day === a.p_day); if (a.p_status === null) { if (i >= 0) db.staff_attendance.splice(i, 1); } else if (i >= 0) db.staff_attendance[i].status = a.p_status; else db.staff_attendance.push({ id: uid(), gym_id: db.G, staff_id: a.p_staff, day: a.p_day, status: a.p_status }); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'set_my_leaderboard') { db.members[0].leaderboard_opt_in = !!a.opt; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
@@ -121,7 +123,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(/ग़लत|Wrong/.test(await page.textContent('.banner.bad')), 'wrong password shows a friendly error');
     await login(page); await page.waitForSelector('.tiles');
     ok(/Royal The Gym/.test(await page.textContent('#gymName')), 'dashboard loads with gym name');
-    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 24, 'gym admin sees 24 menu items');
+    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 25, 'gym admin sees 25 menu items');
     await page.click('a[href="#members"]'); await page.waitForSelector('table.t');
     ok((await page.$$('table.t tbody tr')).length === 4, 'members list shows 4');
     await page.fill('#mq', 'priya'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 1);
@@ -165,6 +167,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('a[href="#invoices"]'); await page.waitForSelector('tr.click'); await page.click('tr.click:has-text("INV-0001")');
     await page.waitForSelector('[data-p]'); await page.click('[data-p]'); await page.fill('#f_amount', '2000'); await page.click('[data-ok]');
     ok((await page.textContent('#e_amount')).length > 0, 'overpayment rejected'); await page.fill('#f_amount', '500'); await page.focus('#f_amount'); await page.keyboard.press('Enter'); await page.keyboard.press('Enter');
+    await page.waitForTimeout(1500);
     await page.waitForSelector('a.btn.wa'); ok(/wa\.me\/919876543210/.test(await page.getAttribute('a.btn.wa', 'href')), 'receipt has WhatsApp link to member');
     ok(db.payments.length === 1 && db.payments[0].amount === 500, 'partial payment stored');
     await page.waitForSelector('#rcBox img', { timeout: 8000 }); ok(await page.$eval('#rcBox img', (i) => i.naturalWidth === 800 && i.naturalHeight === 1220), 'receipt image is generated with the logo layout');
@@ -465,7 +468,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await session(browser, 'gym_admin', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
     ok(!!(await page.$('.nav .more')) && (await page.$$eval('#nav a', (a) => a.filter((x) => x.offsetParent !== null).length)) <= 5, 'phone bar shows only the main pages plus More');
-    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 24, 'More sheet lists all 24 pages in groups');
+    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 25, 'More sheet lists all 25 pages in groups');
     await page.click('.sheet-links a[href="#expenses"]'); await page.waitForFunction(() => location.hash === '#expenses' && !document.querySelector('.ov')); ok(true, 'More sheet opens a page and closes');
     ok((await page.$$('#nav .grp')).length === 6, 'admin menu is split into 6 groups');
     await page.waitForSelector('[data-act=newExpense]'); await page.waitForTimeout(500);
@@ -549,6 +552,29 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await login(page); await page.waitForSelector('.tiles'); await page.click('a[href="#gyms"]'); await page.waitForSelector('[data-act=onlinePayGym]');
     await page.click('[data-act=onlinePayGym]'); await page.waitForSelector('#modals [data-o="1"]'); await page.click('#modals [data-o="1"]');
     await page.waitForFunction(() => !document.querySelector('#modals [data-o]')); ok(db.onlinePayArgs && db.onlinePayArgs.p_enabled === true && db.onlinePayArgs.p_gym === db.gyms[0].id, 'super admin: switch on sends the gym and true');
+  });
+
+  console.log('push notifications');
+  await session(browser, 'member', async (page) => {
+    await login(page); await page.waitForSelector('.tiles'); await page.click('a[href="#me"]'); await page.waitForFunction(() => /Notifications|सूचनाएँ/.test(document.querySelector('#view').innerText), null, { timeout: 15000 });
+    ok((await page.$$('[data-act=pushOn]')).length === 0 && /blocked|बंद हैं/.test(await page.textContent('#view')), 'member: blocked browser permission shows an explanation and no switch-on button');
+    await page.addInitScript(() => { Object.defineProperty(Notification, 'permission', { get: () => 'default' }); }); await page.reload(); await page.waitForSelector('#l_email, #view .ph'); if (await page.$('#l_email')) await login(page);
+    await page.waitForSelector('#view .ph'); await page.evaluate(() => (location.hash = 'me')); await page.waitForSelector('[data-act=pushOn]', { timeout: 15000 });
+    ok(/Notifications|सूचनाएँ/.test(await page.textContent('#view')), 'member: Profile has a Notifications card with a switch-on button');
+    ok((await page.$$('[data-act=pushTest]')).length === 0, 'member: no test button while notifications are off');
+  });
+  await session(browser, 'gym_admin', async (page, db) => {
+    await login(page); await page.waitForSelector('.tiles'); await page.click('a[href="#announce"]'); await page.waitForFunction(() => { const h = document.querySelector('#view h1'); return !!h && /Announcements|घोषणाएँ/.test(h.innerText); });
+    ok(/3/.test(await page.textContent('#view .tiles')) && /No announcements yet|अभी कोई घोषणा नहीं/.test(await page.textContent('#view')), 'owner: announcements page shows who will receive and an empty history');
+    await page.click('[data-act=announceNew]'); await page.waitForSelector('#f_title'); await page.fill('#f_title', 'Holiday'); await page.fill('#f_body', 'Gym closed on Sunday');
+    await page.click('[data-ok]'); await page.waitForFunction(() => /Holiday/.test(document.querySelector('#view').innerText));
+    ok(db.annCalls.length === 1 && db.annCalls[0].p_title === 'Holiday' && db.annCalls[0].p_body === 'Gym closed on Sunday', 'owner: the announcement is sent with title and message');
+    ok(/Gym closed on Sunday/.test(await page.textContent('#view')), 'owner: sent announcement appears in the history');
+    db.annSoon = true; await page.click('[data-act=announceNew]'); await page.waitForSelector('#f_title'); await page.fill('#f_title', 'Again'); await page.fill('#f_body', 'too soon');
+    await page.click('[data-ok]'); await page.waitForTimeout(600);
+    ok((await page.$$('#f_title')).length === 1, 'owner: a second announcement within 10 minutes is refused and the form stays open');
+    await page.fill('#f_title', 'x'.repeat(61)); await page.click('[data-ok]'); await page.waitForTimeout(300);
+    ok(db.annCalls.length === 2, 'owner: an over-long title is stopped before it is sent');
   });
 
   console.log('installable app (PWA)');

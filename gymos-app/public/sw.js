@@ -1,6 +1,6 @@
 /* GymOS service worker. Caches the app shell only. Data is never cached: every request to Supabase (another origin) is left alone.
    BUILD is replaced by build.sh with a hash of the app files, so each release gets its own cache and the old one is deleted. */
-const BUILD = 'd50074c86e';
+const BUILD = 'c5f4fcb458';
 const CACHE = 'gymos-' + BUILD;
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest', 'offline.html', 'logo.webp', 'icon-192.png', 'icon-512.png'];
 
@@ -14,6 +14,27 @@ self.addEventListener('activate', (e) => {
     await Promise.all(keys.filter((k) => k.startsWith('gymos-') && k !== CACHE).map((k) => caches.delete(k)));
     if (self.registration.navigationPreload) { try { await self.registration.navigationPreload.enable(); } catch (err) { /* optional */ } }
     await self.clients.claim();
+  })());
+});
+
+/* Web Push: the server sends {title, body, url}. Tapping opens the app on a page of THIS site only. */
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(String(d.title || 'Gym').slice(0, 60), {
+    body: String(d.body || '').slice(0, 200), icon: 'icon-192.png', badge: 'icon-192.png', data: { url: String(d.url || '/') },
+  }));
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  let target = self.location.origin + '/';
+  try { const u = new URL((e.notification.data && e.notification.data.url) || '/', self.location.origin); if (u.origin === self.location.origin) target = u.href; } catch (err) { /* keep the home page */ }
+  e.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of all) {
+      if (c.url.startsWith(self.location.origin)) { try { await c.navigate(target); } catch (err) { /* focus anyway */ } return c.focus(); }
+    }
+    return self.clients.openWindow(target);
   })());
 });
 

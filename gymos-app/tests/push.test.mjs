@@ -1,0 +1,17 @@
+import { classify, safePath, cleanPayload, outcome } from '../supabase/functions/push-dispatch/lib.js';
+let n = 0; const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } n++; };
+ok(classify(404) === 'gone' && classify(410) === 'gone', 'removed devices are forgotten');
+ok(classify(undefined) === 'retry' && classify(429) === 'retry' && classify(503) === 'retry', 'network errors, rate limits and server errors retry');
+ok(classify(201) === 'ok' && classify(400) === 'bad' && classify(401) === 'bad' && classify(403) === 'bad', 'success and refusals');
+ok(safePath('/#pay') === '/#pay' && safePath('/') === '/' && safePath('/#mine') === '/#mine' && safePath(undefined) === '/', 'normal paths pass');
+ok(safePath('//evil.com') === '/' && safePath('https://evil.com') === '/' && safePath('javascript:alert(1)') === '/' && safePath('/x\\evil') === '/' && safePath('/a b') === '/', 'anything off-site becomes /');
+const p = JSON.parse(cleanPayload({ title: 'Royal The Gym', body: 'Rs 400 का भुगतान\nमिल गया', url: '//evil.com', kind: 'receipt' }));
+ok(p.title === 'Royal The Gym' && p.body === 'Rs 400 का भुगतान मिल गया' && p.url === '/' && p.kind === 'receipt', 'payload is cleaned: ' + JSON.stringify(p));
+ok(JSON.parse(cleanPayload({ title: 'x'.repeat(200), body: 'y'.repeat(900), url: '/#pay' })).body.length === 200 && JSON.parse(cleanPayload({ title: 'x'.repeat(200), body: 'b' })).title.length === 60, 'lengths are capped');
+ok(JSON.parse(cleanPayload({ title: '', body: 'b' })).title === 'Gym', 'empty title gets a default');
+ok(outcome([], 1).status === 'skipped', 'no device: skipped, not retried');
+ok(outcome(['ok', 'gone'], 1).status === 'sent' && outcome(['bad', 'ok'], 1).status === 'sent', 'one working device is enough');
+ok(outcome(['gone', 'gone'], 1).status === 'skipped', 'all devices removed: skipped');
+ok(outcome(['retry'], 1).status === 'queued' && outcome(['retry'], 2).status === 'queued', 'temporary failure retries');
+ok(outcome(['retry'], 3).status === 'failed' && outcome(['bad'], 1).status === 'failed', 'gives up after 3 tries or when refused');
+console.log(n + ' checks passed');
