@@ -19,7 +19,7 @@ function draftRows(eng, db, mem, fit, status) {
 const FIT = { age: 30, height_cm: 175, weight_kg: 80, goal: 'fat_loss', diet_pref: 'veg', activity: 'moderate', experience: 'intermediate', days_per_week: 4, session_min: 60, equipment: 'gym', injuries: null, conditions: null, allergies: null };
 function makeDb(role) {
   const G = '11111111-1111-4111-8111-111111111111', P1 = uid(), P2 = uid();
-  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none', review_url: role === 'member' ? 'https://g.page/r/CabcDEF123/review' : null }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [], member_progress: [], member_workouts: [], member_water: [], member_meals: [], member_sleep: [], referral_rewards: [], member_freezes: [], gym_equipment: [], trainer_commission: [], gym_classes: [], class_bookings: [], gym_tasks: [], staff_attendance: [], online_orders: [], online_pay: [], push_outbox: [] };
+  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none', review_url: role === 'member' ? 'https://g.page/r/CabcDEF123/review' : null }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [], member_progress: [], member_workouts: [], member_water: [], member_meals: [], member_sleep: [], referral_rewards: [], member_freezes: [], gym_equipment: [], trainer_commission: [], gym_classes: [], class_bookings: [], gym_tasks: [], staff_attendance: [], online_orders: [], online_pay: [], coach_messages: [], coach_settings: [], push_outbox: [] };
   const me = '22222222-2222-4222-8222-222222222222';
   db.me = me; db.G = G;
   db.profiles = [{ id: me, gym_id: role === 'super_admin' ? null : G, role, full_name: 'Test', email: 't@x.in', created_at: new Date().toISOString() }, { id: uid(), gym_id: null, role: 'member', full_name: 'New User', email: 'n@x.in', created_at: new Date().toISOString() }];
@@ -41,6 +41,17 @@ function handler(db, role) {
     if (p === '/auth/v1/token') { const b = JSON.parse(req.postData() || '{}'); if (b.password === 'bad') return json({ msg: 'Invalid login credentials' }, 400); return json({ access_token: jwt(db.me), refresh_token: 'r', expires_in: 3600, user: { email: 't@x.in' } }); }
     if (p === '/functions/v1/create-account') { const b = JSON.parse(req.postData()); db.created = b; if (b.email === 'taken@x.in') return json({ error: 'email_taken' }, 409); return json({ email: b.email, password: 'GenPass1234abcd', role: b.role }); }
     if (p === '/functions/v1/razorpay') { const b = JSON.parse(req.postData() || '{}'); (db.rzCalls = db.rzCalls || []).push(b); if (b.action === 'status') return json({ configured: db.rzConf !== false, enabled: !!db.rzEnabled }); if (db.rzFail) return json({ error: 'gateway' }, 502); return json({ url: db.rzUrl || 'https://rzp.io/i/test1', amount: 1180 }); }
+    if (p === '/functions/v1/ai-coach') {
+      const b = JSON.parse(req.postData() || '{}'); (db.coachCalls = db.coachCalls || []).push(b);
+      const used = () => db.coach_messages.filter((r) => r.role === 'user').length;
+      if (b.action === 'status') return json({ enabled: db.coachOn !== false, configured: db.coachConf !== false, limit: 10, used: used(), remaining: 10 - used() });
+      if (db.coachFail) return json({ error: db.coachFail }, db.coachFail === 'unavailable' ? 502 : 429);
+      const id = db.coach_messages.length + 1, risky = /chest pain/i.test(b.text);
+      db.coach_messages.push({ id, role: 'user', kind: 'ai', content: b.text });
+      const reply = risky ? 'This is a matter for a doctor.' : 'Eat a banana and some curd 60 minutes before.';
+      db.coach_messages.push({ id: id + 1, role: 'assistant', kind: risky ? 'safety' : 'ai', content: reply });
+      return json({ reply, kind: risky ? 'safety' : 'ai', remaining: 10 - used() });
+    }
     if (p === '/functions/v1/wa-dispatch') { const b = JSON.parse(req.postData() || '{}'); (db.waCalls = db.waCalls || []).push(b); return json({ configured: false }); }
     if (p === '/functions/v1/generate-plan') { const b = JSON.parse(req.postData() || '{}'), eng = await ENGINE, fit = db.member_fit.find((f) => f.member_id === b.member_id), mem = db.members.find((x) => x.id === b.member_id); db.genCalls = (db.genCalls || 0) + 1; if (!fit) return json({ error: 'missing_profile' }, 400); db.member_plans = db.member_plans.filter((r) => !(r.member_id === b.member_id && r.status === 'draft')); draftRows(eng, db, mem, fit, 'draft').forEach((r) => db.member_plans.unshift(r)); return json({ ok: true, plans: [], ai: false, needs_review: false }); }
     if (p === '/functions/v1/daily-summary') { db.sumCalls = (db.sumCalls || 0) + 1; if (db.sumFail) return json({ error: 'facts_failed' }, 500); return json({ day: today(), text: 'आज (' + today() + ') की वसूली ₹500 रही (1 भुगतान)। कुल बकाया ₹680 है (1 सदस्य)। आज 1 सदस्य जिम आए।', source: 'rules', cached: false, facts: {} }); }
@@ -62,6 +73,9 @@ function handler(db, role) {
       if (fn === 'admin_grant_referral_reward') { const f = db.members.find((x) => x.id === a.referred), rr = db.members.find((x) => x.id === f.referred_by); if (db.referral_rewards.some((x) => x.referred_id === f.id)) return json({ message: 'reward already given' }, 409); db.referral_rewards.push({ id: uid(), referred_id: f.id, referrer_id: rr.id, days: db.gyms[0].referral_reward_days }); rr.end_date = addD(rr.end_date || today(), db.gyms[0].referral_reward_days); return json(db.gyms[0].referral_reward_days); }
       if (fn === 'push_stats') return json({ members_with_login: 3, subscribed: 1, last_announce: null });
       if (fn === 'push_announce') { (db.annCalls = db.annCalls || []).push(a); if (db.annSoon) return json({ error: 'too_soon' }); db.push_outbox.push({ id: db.push_outbox.length + 1, gym_id: db.G, profile_id: db.me, kind: 'announce', dedupe_key: 'ann:' + Date.now() + ':p', title: a.p_title, body: a.p_body, status: 'sent', created_at: new Date().toISOString() }); return json({ queued: 1 }); }
+      if (fn === 'coach_stats') return json({ enabled: db.coachOn !== false, limit: 10, members_with_login: 3, questions_today: db.coach_messages.filter((r) => r.role === 'user').length, questions_7d: 4, members_7d: 2 });
+      if (fn === 'set_coach') { db.coachArgs = a; db.coachOn = a.p_enabled; db.coach_settings = [{ gym_id: a.p_gym, enabled: a.p_enabled, daily_limit: a.p_limit || 10 }]; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
+      if (fn === 'coach_clear') { const n = db.coach_messages.length; db.coach_messages.length = 0; return json(n); }
       if (fn === 'set_online_pay') { db.onlinePayArgs = a; db.online_pay = [{ gym_id: a.p_gym, enabled: a.p_enabled }]; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'mark_staff_attendance') { const st = db.staff_members.find((x) => x.id === a.p_staff); if (!st || a.p_day > today() || (st.joined_on && a.p_day < st.joined_on)) return json({ message: 'refused' }, 400); const i = db.staff_attendance.findIndex((x) => x.staff_id === a.p_staff && x.day === a.p_day); if (a.p_status === null) { if (i >= 0) db.staff_attendance.splice(i, 1); } else if (i >= 0) db.staff_attendance[i].status = a.p_status; else db.staff_attendance.push({ id: uid(), gym_id: db.G, staff_id: a.p_staff, day: a.p_day, status: a.p_status }); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'set_my_leaderboard') { db.members[0].leaderboard_opt_in = !!a.opt; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
@@ -123,7 +137,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(/ग़लत|Wrong/.test(await page.textContent('.banner.bad')), 'wrong password shows a friendly error');
     await login(page); await page.waitForSelector('.tiles');
     ok(/Royal The Gym/.test(await page.textContent('#gymName')), 'dashboard loads with gym name');
-    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 25, 'gym admin sees 25 menu items');
+    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 26, 'gym admin sees 26 menu items');
     await page.click('a[href="#members"]'); await page.waitForSelector('table.t');
     ok((await page.$$('table.t tbody tr')).length === 4, 'members list shows 4');
     await page.fill('#mq', 'priya'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 1);
@@ -468,7 +482,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await session(browser, 'gym_admin', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
     ok(!!(await page.$('.nav .more')) && (await page.$$eval('#nav a', (a) => a.filter((x) => x.offsetParent !== null).length)) <= 5, 'phone bar shows only the main pages plus More');
-    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 25, 'More sheet lists all 25 pages in groups');
+    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 26, 'More sheet lists all 26 pages in groups');
     await page.click('.sheet-links a[href="#expenses"]'); await page.waitForFunction(() => location.hash === '#expenses' && !document.querySelector('.ov')); ok(true, 'More sheet opens a page and closes');
     ok((await page.$$('#nav .grp')).length === 6, 'admin menu is split into 6 groups');
     await page.waitForSelector('[data-act=newExpense]'); await page.waitForTimeout(500);
@@ -511,10 +525,62 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.waitForFunction(() => location.hash === '#gyms'); ok(true, 'quick search finds a gym');
   });
 
+
+  console.log('AI coach');
+  await session(browser, 'member', async (page, db) => {
+    await login(page); await page.waitForSelector('.tiles'); await page.evaluate(() => (location.hash = 'coach')); await page.waitForSelector('#coachIn', { timeout: 15000 });
+    ok(/AI coach|AI कोच/.test(await page.textContent('#view h1')) && (await page.$$('[data-act=coachAsk]')).length === 4, 'member: coach page shows the greeting and four starter questions');
+    ok(/10 questions left|10 सवाल बाकी/.test(await page.textContent('#coachLeft')), 'member: remaining questions are shown');
+    ok(await page.isHidden('[data-act=coachClear]'), 'member: the clear button is hidden on an empty chat');
+    await page.click('[data-act=coachAsk]'); await page.waitForFunction(() => /banana/.test(document.querySelector('#coachLog').innerText), null, { timeout: 10000 });
+    ok(db.coachCalls.some((c) => c.action === 'ask' && /eat before the gym/i.test(c.text)), 'member: a starter question is sent as the question text');
+    ok((await page.$$('[data-act=coachAsk]')).length === 0 && /9 questions left|9 सवाल बाकी/.test(await page.textContent('#coachLeft')), 'member: starter questions disappear and the count goes down');
+    await page.fill('#coachIn', 'I get chest pain on stairs'); await page.press('#coachIn', 'Enter');
+    await page.waitForFunction(() => /matter for a doctor/.test(document.querySelector('#coachLog').innerText), null, { timeout: 10000 });
+    ok((await page.$$('.cbub.safe')).length === 1 && /Safety note|सुरक्षा सूचना/.test(await page.textContent('.cbub.safe')), 'member: a safety answer is marked as a safety note');
+    ok((await page.inputValue('#coachIn')) === '', 'member: the box is empty after sending');
+    const order = await page.$$eval('#coachLog .cbub', (b) => b.map((x) => x.classList.contains('me') ? 'me' : 'bot').join(','));
+    ok(order === 'bot,me,bot,me,bot' && !(await page.isHidden('[data-act=coachClear]')), 'member: newest message is first in the column-reverse log, the greeting stays last, and the clear button appears: ' + order);
+    await page.fill('#coachIn', 'x'); await page.click('#coachGo'); await page.waitForTimeout(300);
+    ok(db.coachCalls.filter((c) => c.action === 'ask').length === 2, 'member: a one-letter question is refused on the page without calling the server');
+    db.coachFail = 'too_fast'; await page.fill('#coachIn', 'Another question please'); await page.click('#coachGo'); await page.waitForTimeout(500);
+    ok((await page.inputValue('#coachIn')) === 'Another question please' && (await page.$$('#coachLog .cbub.me')).length === 2, 'member: when the server refuses, the question comes back into the box and no extra bubble stays');
+    db.coachFail = 'limit'; await page.fill('#coachIn', 'One more please'); await page.click('#coachGo'); await page.waitForTimeout(500);
+    ok((await page.$$('#coachLog .cbub.me')).length === 2 && /0 of 10|आज 10 में से 0/.test(await page.textContent('#coachLeft')), 'member: at the daily limit the question is not kept and the count shows zero');
+    db.coachFail = null;
+    page.once('dialog', (d) => d.accept()); await page.click('[data-act=coachClear]');
+    await page.waitForFunction(() => document.querySelectorAll('[data-act=coachAsk]').length === 4, null, { timeout: 10000 });
+    ok(db.coach_messages.length === 0, 'member: clear chat deletes the history and shows the starters again');
+  });
+  await session(browser, 'member', async (page, db) => {
+    db.coachOn = false; await login(page); await page.waitForSelector('.tiles'); await page.evaluate(() => (location.hash = 'coach')); await page.waitForFunction(() => /not switched on|चालू नहीं/.test(document.querySelector('#view').innerText));
+    ok((await page.$$('#coachIn')).length === 0, 'member: coach switched off for the gym shows a message and no chat box');
+  });
+  await session(browser, 'member', async (page, db) => {
+    db.coachConf = false; await login(page); await page.waitForSelector('.tiles'); await page.evaluate(() => (location.hash = 'coach')); await page.waitForFunction(() => /being set up|तैयार किया जा रहा/.test(document.querySelector('#view').innerText));
+    ok((await page.$$('#coachIn')).length === 0, 'member: gateway keys missing shows "being set up" and no chat box');
+  });
+  await session(browser, 'gym_admin', async (page, db) => {
+    await login(page); await page.waitForSelector('.tiles'); await page.click('a[href="#coach"]'); await page.waitForFunction(() => { const h = document.querySelector('#view h1'); return !!h && /AI coach|AI कोच/.test(h.innerText); });
+    const t = await page.textContent('#view');
+    ok(/never what they asked|उनके सवाल नहीं/.test(t) && /2 of 3 members asked|3 में से 2/.test(t), 'owner: coach page shows counts and says the owner never sees the questions');
+    page.once('dialog', (d) => d.accept()); await page.click('[data-act=coachOff]'); await page.waitForFunction(() => /Off|बंद/.test(document.querySelector('#view .tiles').innerText));
+    ok(db.coachArgs && db.coachArgs.p_enabled === false && db.coachArgs.p_gym === db.gyms[0].id, 'owner: switch off sends the gym and false');
+    ok((await page.$$('[data-act=coachOff]')).length === 0, 'owner: no off button once it is off');
+  });
+  await session(browser, 'super_admin', async (page, db) => {
+    db.coachOn = false; await login(page); await page.waitForSelector('.tiles'); await page.click('a[href="#gyms"]'); await page.waitForSelector('[data-act=coachGym]');
+    await page.click('[data-act=coachGym]'); await page.waitForSelector('#coachLimit');
+    await page.fill('#coachLimit', '99'); await page.click('#modals [data-o="1"]'); await page.waitForTimeout(400);
+    ok(!db.coachArgs && (await page.$$('#coachLimit')).length === 1, 'super admin: a limit above 50 is refused and nothing is saved');
+    await page.fill('#coachLimit', '15'); await page.click('#modals [data-o="1"]'); await page.waitForFunction(() => !document.querySelector('#coachLimit'));
+    ok(db.coachArgs.p_enabled === true && db.coachArgs.p_limit === 15 && db.coachArgs.p_gym === db.gyms[0].id, 'super admin: switch on sends the gym, true and the limit');
+  });
+
   console.log('member portal on phone');
   await session(browser, 'member', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
-    for (const r of ['mine', 'plan', 'pay', 'visits', 'book', 'train', 'habits', 'progress', 'me']) { await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(250); await page.waitForSelector('#view .ph'); if (await overflow(page)) ok(false, `member overflow on ${r}`); }
+    for (const r of ['mine', 'plan', 'pay', 'visits', 'book', 'train', 'habits', 'progress', 'coach', 'me']) { await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(250); await page.waitForSelector('#view .ph'); if (await overflow(page)) ok(false, `member overflow on ${r}`); }
     ok(true, 'phone: no overflow on any member page');
   }, { width: 390, height: 800 });
 
@@ -609,7 +675,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
 
   console.log('member + waiting');
   await session(browser, 'member', async (page, db) => { const eng = await ENGINE; db.visits.push({ id: uid(), gym_id: db.G, member_id: db.members[0].id, in_at: new Date().toISOString(), out_at: null }); db.payments.push({ id: uid(), gym_id: db.G, member_id: db.members[0].id, amount: 700, method: 'UPI', paid_on: today(), no: 'RCT-0009' }); draftRows(eng, db, db.members[0], FIT, 'published').forEach((r) => db.member_plans.push(r)); draftRows(eng, db, db.members[0], FIT, 'draft').forEach((r) => db.member_plans.push(r)); await login(page); await page.waitForSelector('.tiles'); ok(/Rahul/.test(await page.textContent('#view')), 'member sees own page');
-    ok((await page.$$eval('#nav a', (a) => a.length)) === 9, 'member portal has 9 pages');
+    ok((await page.$$eval('#nav a', (a) => a.length)) === 10, 'member portal has 10 pages');
     ok(/1/.test(await page.textContent('.tiles .card:nth-child(3) .v')), 'home shows the visit streak');
     await page.click('a[href="#plan"]'); await page.waitForSelector('[data-act=openMyPlan]'); ok((await page.$$('[data-act=openMyPlan]')).length === 2, 'member sees the two published plans');
     await page.click('[data-act=openMyPlan] >> nth=1'); await page.waitForSelector('#planBody'); ok(/Barbell|Dumbbell|Machine|Push|Lat/.test(await page.textContent('#planBody')), 'member can open the workout plan'); await page.keyboard.press('Escape');
