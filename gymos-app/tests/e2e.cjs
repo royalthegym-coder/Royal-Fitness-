@@ -40,7 +40,7 @@ function handler(db, role) {
     db.calls.push(`${m} ${p}${u.search ? '?' + u.search.slice(1, 40) : ''}`);
     if (p === '/auth/v1/token') { const b = JSON.parse(req.postData() || '{}'); if (b.password === 'bad') return json({ msg: 'Invalid login credentials' }, 400); return json({ access_token: jwt(db.me), refresh_token: 'r', expires_in: 3600, user: { email: 't@x.in' } }); }
     if (p === '/functions/v1/create-account') { const b = JSON.parse(req.postData()); db.created = b; if (b.email === 'taken@x.in') return json({ error: 'email_taken' }, 409); return json({ email: b.email, password: 'GenPass1234abcd', role: b.role }); }
-    if (p === '/functions/v1/razorpay') { const b = JSON.parse(req.postData() || '{}'); (db.rzCalls = db.rzCalls || []).push(b); if (b.action === 'status') return json({ configured: db.rzConf !== false, enabled: !!db.rzEnabled }); if (db.rzFail) return json({ error: 'gateway' }, 502); return json({ url: db.rzUrl || 'https://rzp.io/i/test1', amount: 1180 }); }
+    if (p === '/functions/v1/razorpay') { const b = JSON.parse(req.postData() || '{}'); (db.rzCalls = db.rzCalls || []).push(b); if (b.action === 'status') return json({ configured: db.rzConf !== false, enabled: !!db.rzEnabled }); if (b.action === 'route_retry') { db.routeRetry = b; return json({ ok: true, result: 'processed' }); } if (db.rzFail) return json({ error: 'gateway' }, 502); return json({ url: db.rzUrl || 'https://rzp.io/i/test1', amount: 1180 }); }
     if (p === '/functions/v1/ai-coach') {
       const b = JSON.parse(req.postData() || '{}'); (db.coachCalls = db.coachCalls || []).push(b);
       const used = () => db.coach_messages.filter((r) => r.role === 'user').length;
@@ -79,6 +79,9 @@ function handler(db, role) {
       if (fn === 'emi_create_plan') { const inv = db.invoices.find((x) => x.id === a.p_invoice), pid = uid(), n = a.p_count, base = Math.floor(Math.round(inv.total * 100) / n) / 100; db.emiCreateArgs = a; db.emi_plans.push({ id: pid, gym_id: db.G, invoice_id: inv.id, member_id: inv.member_id, status: 'active', created_at: new Date().toISOString() }); for (let i = 1; i <= n; i++) db.emi_installments.push({ id: uid(), plan_id: pid, seq: i, due_on: addD(a.p_start, 30 * (i - 1)), amount: i < n ? base : +(inv.total - base * (n - 1)).toFixed(2) }); return json(pid); }
       if (fn === 'emi_cancel_plan') { const pl = db.emi_plans.find((x) => x.id === a.p_plan); if (pl) pl.status = 'cancelled'; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'emi_schedule') { const pl = db.emi_plans.find((x) => x.invoice_id === a.p_invoice && x.status === 'active'); if (!pl) return json([]); const paid = db.payments.filter((x) => x.invoice_id === a.p_invoice).reduce((s, x) => s + x.amount, 0), t = today(); let cum = 0; return json(db.emi_installments.filter((x) => x.plan_id === pl.id).sort((x, y) => x.seq - y.seq).map((r) => { cum = +(cum + r.amount).toFixed(2); const st = cum <= paid + 0.005 ? 'paid' : r.due_on < t ? 'overdue' : r.due_on === t ? 'due_today' : 'upcoming'; return { plan_id: pl.id, seq: r.seq, due_on: r.due_on, amount: r.amount, cum_amount: cum, paid_since: +paid.toFixed(2), state: st }; })); }
+      if (fn === 'set_route_account') { db.routeArgs = a; db.gyms[0].rz_account_id = a.p_account || null; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
+      if (fn === 'route_summary') { const paidO = db.online_orders.filter((o) => o.status === 'paid'), acc = db.gyms[0].rz_account_id || null, nul = paidO.filter((o) => !o.transfer_status), amt = (xs) => xs.reduce((s, o) => s + o.amount, 0), sent = paidO.filter((o) => ['created', 'pending', 'processed'].includes(o.transfer_status)); return json({ account: acc, sent: sent.length, sent_amount: amt(sent), unrouted: acc ? nul.length : 0, no_account: acc ? 0 : nul.length, no_account_amount: acc ? 0 : amt(nul), failed: paidO.filter((o) => o.transfer_status === 'failed').length, routing: paidO.filter((o) => o.transfer_status === 'routing').length, online_on: !!(db.online_pay[0] && db.online_pay[0].enabled) }); }
+      if (fn === 'route_list') return json(db.online_orders.filter((o) => o.status === 'paid' && (!o.transfer_status || ['failed', 'routing'].includes(o.transfer_status))).map((o) => ({ id: o.id, amount: o.amount, paid_at: o.paid_at || null, transfer_status: o.transfer_status || null, transfer_error: o.transfer_error || null, transfer_at: null, member_name: ((db.members.find((m) => m.id === o.member_id) || {}).name) || null })));
       if (fn === 'set_online_pay') { db.onlinePayArgs = a; db.online_pay = [{ gym_id: a.p_gym, enabled: a.p_enabled }]; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'mark_staff_attendance') { const st = db.staff_members.find((x) => x.id === a.p_staff); if (!st || a.p_day > today() || (st.joined_on && a.p_day < st.joined_on)) return json({ message: 'refused' }, 400); const i = db.staff_attendance.findIndex((x) => x.staff_id === a.p_staff && x.day === a.p_day); if (a.p_status === null) { if (i >= 0) db.staff_attendance.splice(i, 1); } else if (i >= 0) db.staff_attendance[i].status = a.p_status; else db.staff_attendance.push({ id: uid(), gym_id: db.G, staff_id: a.p_staff, day: a.p_day, status: a.p_status }); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'set_my_leaderboard') { db.members[0].leaderboard_opt_in = !!a.opt; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
@@ -621,6 +624,33 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await login(page); await page.waitForSelector('.tiles'); await page.click('a[href="#gyms"]'); await page.waitForSelector('[data-act=onlinePayGym]');
     await page.click('[data-act=onlinePayGym]'); await page.waitForSelector('#modals [data-o="1"]'); await page.click('#modals [data-o="1"]');
     await page.waitForFunction(() => !document.querySelector('#modals [data-o]')); ok(db.onlinePayArgs && db.onlinePayArgs.p_enabled === true && db.onlinePayArgs.p_gym === db.gyms[0].id, 'super admin: switch on sends the gym and true');
+  });
+  await session(browser, 'super_admin', async (page, db) => {
+    // Route: a gym without its own linked account, one payment never sent, one failed, one with an unknown outcome
+    db.online_pay = [{ gym_id: db.G, enabled: true }];
+    const now = new Date().toISOString();
+    db.online_orders.push(
+      { id: 'ord_fail', gym_id: db.G, invoice_id: 'inv_a', member_id: null, amount: 1180, status: 'paid', rz_payment_id: 'pay_F1', paid_at: now, transfer_status: 'failed', transfer_error: 'Razorpay 400: account not activated' },
+      { id: 'ord_nul', gym_id: db.G, invoice_id: 'inv_b', member_id: null, amount: 500, status: 'paid', rz_payment_id: 'pay_N1', paid_at: now, transfer_status: null },
+      { id: 'ord_unk', gym_id: db.G, invoice_id: 'inv_c', member_id: null, amount: 300, status: 'paid', rz_payment_id: 'pay_U1', paid_at: now, transfer_status: 'routing', transfer_error: 'unknown outcome: timeout' });
+    await login(page); await page.waitForSelector('.tiles'); await page.click('a[href="#gyms"]'); await page.waitForSelector('[data-act=onlinePayGym]');
+    await page.click('[data-act=onlinePayGym]'); await page.waitForSelector('#modals #rzAcc');
+    let txt = await page.textContent('#modals');
+    ok(/No linked account|कोई linked account नहीं/.test(txt) && /Online pay is ON but this gym has no linked account|चालू है पर इस जिम का linked account नहीं/.test(txt) && /Razorpay 400: account not activated/.test(txt), 'super admin: a gym with no linked account is said so, and its failed transfer is listed with the reason');
+    await page.fill('#modals #rzAcc', 'acc_ROYAL12345'); await page.click('#modals [data-route-save]');
+    await page.waitForSelector('#modals [data-route-retry]');
+    ok(db.routeArgs && db.routeArgs.p_account === 'acc_ROYAL12345' && db.routeArgs.p_gym === db.gyms[0].id, 'super admin: saving the account sends the gym and the acc_ id');
+    txt = await page.textContent('#modals');
+    ok(/(Not sent yet|अभी नहीं भेजा): 1/.test(txt) && /(Failed|असफल): 1/.test(txt) && /(Unknown|पता नहीं): 1/.test(txt), 'super admin: the summary counts not-yet-sent, failed and unknown payments');
+    await page.click('#modals [data-route-retry][data-order="ord_fail"]'); await page.click('[data-yes]');
+    for (let i = 0; i < 60 && !db.routeRetry; i++) await page.waitForTimeout(100);
+    ok(db.routeRetry && db.routeRetry.order_id === 'ord_fail' && db.routeRetry.force === false, 'a retry of a failed transfer is not forced');
+    await page.waitForSelector('#modals [data-route-retry][data-order="ord_unk"]');
+    await page.click('#modals [data-route-retry][data-order="ord_unk"]'); await page.waitForSelector('[data-yes]');
+    ok(/check the Razorpay dashboard|Razorpay डैशबोर्ड में देखें/i.test(await page.textContent('body')), 'an unknown transfer asks for a look at the Razorpay dashboard first');
+    await page.click('[data-yes]');
+    for (let i = 0; i < 60 && !(db.routeRetry && db.routeRetry.order_id === 'ord_unk'); i++) await page.waitForTimeout(100);
+    ok(db.routeRetry && db.routeRetry.order_id === 'ord_unk' && db.routeRetry.force === true, 'an unknown transfer is sent again only with force');
   });
 
   console.log('EMI plans');

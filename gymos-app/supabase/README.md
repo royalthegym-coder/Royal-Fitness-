@@ -130,3 +130,15 @@ Testing:
 Not verifiable in the sandbox: a real Razorpay payment of an installment, push delivery to phones, and the cron run at 03:50 UTC.
 
 Deploy: migrations are applied in order. Redeploy the `razorpay` function after this change (verify_jwt false, as before).
+
+## Razorpay Route: each gym's own account
+
+- `gyms.rz_account_id` holds the gym's linked account id (`acc_…`). The super admin sets it in Gyms → Online pay. Only this public id is stored. Keys, bank details and KYC never enter this database or the app.
+- When a payment is recorded (`rz_apply_payment` returns `recorded`), the `razorpay` function claims it (`rz_route_claim`), reads the payment from Razorpay (fee and GST), and creates one transfer of `captured − fee − GST` to the gym's account. The gym's cost is Razorpay's fee; the member pays the full amount.
+- `online_orders.transfer_status`: `null` (not sent) → `routing` (claimed) → `created` / `pending` / `processed` (Razorpay accepted it), or `failed` (Razorpay refused it; a retry is safe). A `routing` that stays means the outcome is unknown.
+- A timeout or 5xx while creating a transfer leaves the order at `routing`. Before "Send again" with force, check the Razorpay dashboard for that payment; otherwise the gym could be paid twice. Razorpay has no idempotency key for transfers, so the claim in `rz_route_claim` is the only guard.
+- A gym without a linked account keeps its money in the platform account. Payments made before the gym is linked are not sent automatically. They show as "Waiting for a linked account" and can be sent one by one afterwards.
+- A refund does not reverse a transfer. Reverse it in the Razorpay dashboard (INR only).
+- Only creation of a transfer is recorded. Later changes (processed, failed after creation, reversed) are not synced. Check the dashboard, or add a transfer webhook once its event names are confirmed.
+- Not verified against live Razorpay: the transfer response shape and status values, the fee arithmetic (`captured − fee − tax`, deliberately conservative), and Route's own transfer charge. Test in Test mode with a linked test account before going live.
+- Files: `supabase/migrations/20261117_route_accounts.sql`, `20261117_route_transfers.sql`, `supabase/functions/razorpay/` (`routePayment`, `route_retry`), `src/c34-onlinepay.js` (`routeBox`, `routeBind`), `tests/route.test.mjs`, `tests/onlinepay.test.mjs`, the Route block in `tests/e2e.cjs`.

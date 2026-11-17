@@ -58,3 +58,42 @@ export function linkPayload({ orderId, amount, invoiceNo, memberName, gymName, n
     notes: { order_id: String(orderId) },
   };
 }
+
+/* ---- Route: sending a recorded payment to the gym's own linked account ---- */
+
+/** Razorpay refuses a transfer under Rs 1. */
+export const MIN_TRANSFER_PAISE = 100;
+
+/** Transfer states we store: Razorpay's own words. */
+export const ROUTE_STATES = ['created', 'pending', 'processed', 'failed', 'reversed', 'partially_reversed'];
+
+/** An acc_ id is public (it identifies the gym's linked account). Keys and bank details never reach this code. */
+export const isAccountId = (s) => typeof s === 'string' && /^acc_[A-Za-z0-9]{6,40}$/.test(s);
+
+/**
+ * What the gym is owed for one captured payment, in paise: captured − Razorpay's fee − the GST on that fee.
+ * Returns null unless all three are whole, non-negative paise (a missing fee or tax is NOT treated as zero: that would overpay).
+ * A result below MIN_TRANSFER_PAISE (including negative) means there is nothing to send.
+ * Conservative on purpose: if Razorpay's fee already includes that GST, the gym is short by the GST on the fee, never over.
+ */
+export function routeNetPaise({ captured, fee, tax }) {
+  const vals = [captured, fee, tax].map((x) => (x === undefined || x === null || x === '' ? NaN : Number(x)));
+  if (!vals.every((n) => Number.isInteger(n) && n >= 0) || vals[0] <= 0) return null;
+  return vals[0] - vals[1] - vals[2];
+}
+
+/** Body for POST /v1/payments/{id}/transfers. Throws before anything is sent when a value would be refused. */
+export function transferPayload({ account, netPaise, orderId }) {
+  if (!isAccountId(account)) throw new Error('bad_account');
+  if (!Number.isInteger(netPaise) || netPaise < MIN_TRANSFER_PAISE) throw new Error('amount_too_small');
+  return { transfers: [{ account, amount: netPaise, currency: 'INR', notes: { order_id: String(orderId) } }] };
+}
+
+/** A transfer state from Razorpay, kept to the states we store. Anything unexpected becomes 'pending' (check it in the dashboard). */
+export const transferState = (s) => (ROUTE_STATES.includes(s) ? s : 'pending');
+
+/**
+ * What a failed Razorpay call means. A 4xx is a refusal: nothing was created, so a retry is safe ('failed').
+ * A 5xx, a timeout or a broken connection (status 0) may have created a transfer: the outcome is unknown ('routing').
+ */
+export const failureKind = (httpStatus) => (httpStatus >= 400 && httpStatus < 500 ? 'failed' : 'routing');

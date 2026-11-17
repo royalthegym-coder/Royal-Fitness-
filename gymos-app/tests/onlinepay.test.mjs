@@ -1,8 +1,8 @@
 import fs from 'fs';
 const lib = fs.readFileSync(new URL('../src/a-lib.js', import.meta.url), 'utf8');
 const src = fs.readFileSync(new URL('../src/c34-onlinepay.js', import.meta.url), 'utf8').split('const ONLINE_STATUS')[0];
-let fn; try { fn = new Function('document', 'window', 'localStorage', 'U', 'Q', 'cached', lib + '\n' + src + '; return { safeRzUrl, onlineSummary, PAY_ERR };'); } catch (e) { console.error('load', e.message); process.exit(1); }
-const { safeRzUrl, onlineSummary, PAY_ERR } = fn({ querySelector() {}, querySelectorAll() { return []; }, documentElement: {} }, {}, { getItem() {}, setItem() {} }, {}, {}, () => {});
+let fn; try { fn = new Function('document', 'window', 'localStorage', 'U', 'Q', 'cached', lib + '\n' + src + '; return { safeRzUrl, onlineSummary, PAY_ERR, routeRowLabel };'); } catch (e) { console.error('load', e.message); process.exit(1); }
+const { safeRzUrl, onlineSummary, PAY_ERR, routeRowLabel } = fn({ querySelector() {}, querySelectorAll() { return []; }, documentElement: {} }, {}, { getItem() {}, setItem() {} }, {}, {}, () => {});
 let n = 0; const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } n++; };
 ok(safeRzUrl('https://rzp.io/i/abc123') === 'https://rzp.io/i/abc123', 'rzp.io link is allowed');
 ok(safeRzUrl('https://pages.razorpay.com/pl_x') === 'https://pages.razorpay.com/pl_x', 'razorpay.com subdomain is allowed');
@@ -19,4 +19,10 @@ ok(s.paidCount === 3 && s.review === 1 && s.open === 1, 'counts: ' + JSON.string
 ok(onlineSummary([O('paid', 100, '2026-10-31T19:00:00Z')], '2026-11').month === 100, 'a payment at 00:30 IST on 1 Nov belongs to November');
 ok(onlineSummary([], '2026-11').month === 0, 'empty list is fine');
 ok(PAY_ERR('nothing_due') !== PAY_ERR('gateway') && PAY_ERR('zzz').length > 5, 'every code has a message, unknown codes too');
+// Route: what the super admin sees for a payment that has not reached the gym's account
+ok(routeRowLabel({ transfer_status: 'failed' }, true)[1] === 'bad', 'failed is a problem');
+ok(routeRowLabel({ transfer_status: 'routing' }, true)[1] === 'warn', 'an unknown outcome asks for a look at Razorpay first');
+ok(routeRowLabel({ transfer_status: null }, false)[1] === 'mute', 'no account yet: waiting, not a problem');
+ok(routeRowLabel({ transfer_status: null }, true)[1] === 'info', 'account linked, not sent yet');
+ok(routeRowLabel({ transfer_status: 'failed' }, false)[1] === 'bad', 'a failure is shown even without an account');
 console.log(n + ' checks passed');
