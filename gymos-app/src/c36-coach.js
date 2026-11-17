@@ -41,6 +41,20 @@ function coachOwnerSummary(s) {
   return { on: !!x.enabled, today: Number(x.questions_today) || 0, week: q7, users, all, share: all ? Math.round((users / all) * 100) : 0 };
 }
 
+/* voice: the speech language, and a spoken phrase added to the box. A dictated question is never sent by itself: the member reads it and presses Ask. */
+const voiceLang = (lang) => (lang === 'hi' ? 'hi-IN' : 'en-IN');
+const voiceAppend = (current, text, max = 500) => {
+  const cur = String(current == null ? '' : current).replace(/\s+$/, '');
+  const add = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+  return (cur && add ? cur + ' ' + add : cur || add).slice(0, max);
+};
+const voiceErrText = (code) => {
+  const mic = L('Microphone permission was not given.', 'माइक्रोफ़ोन की अनुमति नहीं मिली।');
+  const map = { 'not-allowed': mic, 'service-not-allowed': mic, 'no-speech': L('Could not hear anything. Try again.', 'कुछ सुनाई नहीं दिया। फिर कोशिश करें।'), network: L('Voice input needs internet. Type your question.', 'बोलकर लिखने के लिए इंटरनेट चाहिए। सवाल टाइप करें।') };
+  return map[code] || L('Voice input did not work. Type your question.', 'बोलकर लिखना काम नहीं किया। सवाल टाइप करें।');
+};
+const voiceSupported = () => typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
 async function coachFn(body) {
   if (SESSION && SESSION.expires_at && SESSION.expires_at - 30 < Date.now() / 1000) await refreshSession();
   const res = await rawFetch('/functions/v1/ai-coach', { method: 'POST', headers: { apikey: CFG.key, Authorization: 'Bearer ' + (SESSION && SESSION.access_token), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -64,7 +78,7 @@ async function vCoach() {
   const log = rows.length ? rows.slice().reverse().map(coachBubble).join('') : `<div class="cbub bot"><span>${esc(L('Hi! Ask me about workouts, food and staying regular. For pain, illness or medicines, please see a doctor.', 'नमस्ते! वर्कआउट, खान-पान और नियमितता के बारे में पूछिए। दर्द, बीमारी या दवाइयों के लिए डॉक्टर को दिखाइए।'))}</span></div>`;
   const chips = rows.length ? '' : `<div class="cchips">${COACH_CHIPS().map(([label, q]) => `<button type="button" class="chip" data-act="coachAsk" data-q="${esc(q)}">${esc(label)}</button>`).join('')}</div>`;
   return head + `<section class="card coach"><div class="clog" id="coachLog" aria-live="polite">${log}</div>${chips}
-    <div class="cform"><textarea class="in" id="coachIn" rows="2" maxlength="500" placeholder="${esc(L('Type your question…', 'अपना सवाल लिखिए…'))}" aria-label="${esc(L('Your question', 'आपका सवाल'))}"></textarea><button type="button" class="btn primary" id="coachGo" data-act="coachSend">${ic('msg')} ${esc(L('Ask', 'पूछें'))}</button></div>
+    <div class="cform"><textarea class="in" id="coachIn" rows="2" maxlength="500" placeholder="${esc(L('Type your question…', 'अपना सवाल लिखिए…'))}" aria-label="${esc(L('Your question', 'आपका सवाल'))}"></textarea>${voiceSupported() ? `<button type="button" class="btn" id="coachMic" data-act="coachVoice" aria-pressed="false" aria-label="${esc(L('Speak your question', 'बोलकर सवाल लिखें'))}" title="${esc(L('Speak your question', 'बोलकर सवाल लिखें'))}">${ic('mic')}</button>` : ''}<button type="button" class="btn primary" id="coachGo" data-act="coachSend">${ic('msg')} ${esc(L('Ask', 'पूछें'))}</button></div>
     <div class="cmeta"><span id="coachLeft" class="muted">${esc(coachLeftLabel(st))}</span><button type="button" class="btn sm" id="coachClr" data-act="coachClear"${rows.length ? '' : ' hidden'}>${esc(L('Clear chat', 'चैट मिटाएँ'))}</button></div></section>
     <div class="note" style="margin-top:12px">${esc(L('Your questions are private: your gym owner sees only how many questions were asked, not what you wrote. The coach uses your profile, plan and visits to answer.', 'आपके सवाल निजी हैं: जिम मालिक को सिर्फ़ सवालों की गिनती दिखती है, आपने क्या लिखा यह नहीं। कोच आपके प्रोफ़ाइल, प्लान और विज़िट के आधार पर जवाब देता है।'))}</div>`;
 }
@@ -100,6 +114,31 @@ async function coachClear() {
   if (!confirm(L('Delete this whole chat?', 'पूरी चैट मिटा दें?'))) return;
   const ok = await act(() => DB.rpc('coach_clear', {}), L('Chat deleted', 'चैट मिट गई'));
   if (ok !== null) render();
+}
+
+/* speech to text: fills the box with what was heard, then the member reads it and presses Ask */
+let COACH_REC = null;
+function coachVoice() {
+  const Rec = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const btn = $('#coachMic');
+  if (!Rec || !btn) { toast(voiceErrText(''), 'bad'); return; }
+  if (COACH_REC) { try { COACH_REC.stop(); } catch (e) { /* already stopped */ } return; }
+  let rec;
+  try { rec = new Rec(); } catch (e) { toast(voiceErrText(''), 'bad'); return; }
+  let heard = '', failed = '';
+  rec.lang = voiceLang(LANG); rec.interimResults = false; rec.continuous = false; rec.maxAlternatives = 1;
+  rec.onresult = (ev) => { for (let i = ev.resultIndex; i < ev.results.length; i++) if (ev.results[i].isFinal) heard += ' ' + ev.results[i][0].transcript; };
+  rec.onerror = (ev) => { failed = (ev && ev.error) || 'error'; };
+  rec.onend = () => {
+    COACH_REC = null;
+    const b = $('#coachMic'); if (b) { b.setAttribute('aria-pressed', 'false'); b.classList.remove('listening'); }
+    if (failed) { toast(voiceErrText(failed), 'bad'); return; }
+    const box = $('#coachIn');
+    if (heard.trim() && box) { box.value = voiceAppend(box.value, heard); box.focus(); }
+  };
+  COACH_REC = rec;
+  btn.setAttribute('aria-pressed', 'true'); btn.classList.add('listening');
+  try { rec.start(); } catch (e) { COACH_REC = null; btn.setAttribute('aria-pressed', 'false'); btn.classList.remove('listening'); toast(voiceErrText(''), 'bad'); }
 }
 
 /* ---------- gym owner: usage and the off switch ---------- */

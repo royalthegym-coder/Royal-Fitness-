@@ -150,6 +150,7 @@ const ICONS = {
   shield: '<path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5z"/><path d="m9 12 2 2 4-4"/>',
   pulse: '<path d="M3 12h4l3-8 4 16 3-8h4"/>', chart: '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
   building: '<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
   lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
   down: '<path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/>', out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
@@ -2226,31 +2227,155 @@ function qrSvg(text, px = 220) {
   g.forEach((row, r) => row.forEach((on, c) => { if (on) d.push(`M${c + q} ${r + q}h1v1h-1z`); }));
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n + 2 * q} ${n + 2 * q}" width="${px}" height="${px}" shape-rendering="crispEdges" role="img" aria-label="QR code"><rect width="100%" height="100%" fill="#fff"/><path d="${d.join('')}" fill="#000"/></svg>`;
 }
-/* ================= QR check-in: the member shows a QR pass, staff scan it (camera or a barcode scanner) ================= */
+/* ================= QR check-in: the member shows a QR pass, staff scan it (camera or a barcode scanner) =================
+   Offline-safe: a scan is written to this device's outbox first, with the visit id made here, and then sent. With no
+   connection it waits and is sent in order when the connection returns. A resend is harmless: the id is the primary key. */
 const PASS_RE = /^gymos:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 const passCode = (m) => `gymos:${m.id}`;
+const SCAN_REPEAT_MS = 120000; /* a second scan within 2 minutes of a check-in is a repeat, not a check-out */
+const OUTBOX_KEY = 'gymos-checkin-outbox', ROSTER_KEY = 'gymos-checkin-roster';
+
+/* pure: a version-4 id made in the browser, so an offline scan already has its id */
+function newVisitId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const b = new Uint8Array(16);
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') crypto.getRandomValues(b);
+  else for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+/* pure: what one scan means. visits = the known visits (server or snapshot), outbox = scans not yet sent.
+   'in' = new check-in; 'out' = check out of visit id; 'repeat' = already checked in a moment ago, so nothing is written. */
+function planScan(visits, outbox, memberId, today, nowMs) {
+  const sessions = new Map();
+  (Array.isArray(visits) ? visits : []).forEach((v) => { if (v && v.member_id === memberId) sessions.set(v.id, { id: v.id, in_at: v.in_at, out_at: v.out_at || null }); });
+  (Array.isArray(outbox) ? outbox : []).forEach((e) => {
+    if (!e) return;
+    if (e.type === 'in' && e.member_id === memberId) sessions.set(e.id, { id: e.id, in_at: e.in_at, out_at: null });
+    if (e.type === 'out' && sessions.has(e.visit_id)) sessions.get(e.visit_id).out_at = e.out_at;
+  });
+  let open = null;
+  sessions.forEach((s) => { if (!s.out_at && istDate(s.in_at) === today && (!open || s.in_at > open.in_at)) open = s; });
+  if (!open) return { action: 'in' };
+  return nowMs - Date.parse(open.in_at) < SCAN_REPEAT_MS ? { action: 'repeat', id: open.id } : { action: 'out', id: open.id };
+}
+
+/* storage: this device's localStorage, or an in-memory stand-in in private windows where it is blocked */
+const MEM_STORE = { m: new Map(), getItem(k) { return this.m.has(k) ? this.m.get(k) : null; }, setItem(k, v) { this.m.set(k, String(v)); }, removeItem(k) { this.m.delete(k); } };
+function safeStore() { try { return window.localStorage || MEM_STORE; } catch (e) { return MEM_STORE; } }
+function outboxRead(store) {
+  try {
+    const v = JSON.parse(store.getItem(OUTBOX_KEY) || '[]');
+    return Array.isArray(v) ? v.filter((e) => e && e.key && e.gym_id && (e.type === 'in' || e.type === 'out')) : [];
+  } catch (e) { return []; }
+}
+function outboxWrite(store, list) {
+  try { if (list.length) store.setItem(OUTBOX_KEY, JSON.stringify(list)); else store.removeItem(OUTBOX_KEY); return true; } catch (e) { return false; }
+}
+/* the members and recent visits of this gym, kept for when the connection is down (minimum fields only) */
+function rosterSave(store, members, visits) {
+  try {
+    const cutoff = addDays(todayISO(), -2);
+    store.setItem(ROSTER_KEY, JSON.stringify({
+      gym: gymId(), at: Date.now(),
+      members: (members || []).map((m) => ({ id: m.id, name: m.name, status: m.status, end_date: m.end_date })),
+      visits: (visits || []).filter((v) => istDate(v.in_at) >= cutoff).map((v) => ({ id: v.id, member_id: v.member_id, in_at: v.in_at, out_at: v.out_at || null })),
+    }));
+  } catch (e) { /* storage full: offline check-in is then unavailable; online check-in still works */ }
+}
+function rosterLoad(store, gym) {
+  try {
+    const s = JSON.parse(store.getItem(ROSTER_KEY) || 'null');
+    return s && s.gym === gym && Array.isArray(s.members) && Array.isArray(s.visits) ? s : null;
+  } catch (e) { return null; }
+}
+
+/* sign-out removes the member names kept for offline use (shared front-desk devices). Unsent scans stay: they are still owed to the gym. */
+function rosterClear() { try { safeStore().removeItem(ROSTER_KEY); } catch (e) { /* nothing stored */ } }
+
+/* sends the queued scans in order. Returns one result per scan it finished: sent, or dropped with a reason.
+   It stops at the first scan that cannot be sent now (no connection, signed out, no access), and keeps the rest. */
+let OUTBOX_BUSY = false;
+async function flushCheckIns() {
+  const store = safeStore();
+  if (OUTBOX_BUSY || !SESSION || !CTX.profile || !CTX.profile.gym_id) return [];
+  const results = [];
+  OUTBOX_BUSY = true;
+  try {
+    for (const e of outboxRead(store)) {
+      if (e.gym_id !== gymId()) continue; /* another gym's queue on this device: leave it for that login */
+      let outcome = 'sent', msg = '';
+      try {
+        if (e.type === 'in') {
+          try { await DB.insert('visits', { id: e.id, gym_id: e.gym_id, member_id: e.member_id, in_at: e.in_at }); }
+          catch (err) { if (!(err && err.code === '23505')) throw err; } /* already recorded by an earlier try: fine */
+        } else {
+          await DB.update('visits', e.visit_id, { out_at: e.out_at });
+        }
+      } catch (err) {
+        if (err && (err.status === 0 || err.status === 401 || err.code === '42501')) break;
+        outcome = 'dropped';
+        msg = L(`One check-in could not be saved: ${friendlyError(err)}`, `एक चेक-इन सेव नहीं हो सका: ${friendlyError(err)}`);
+      }
+      outboxWrite(store, outboxRead(store).filter((x) => x.key !== e.key));
+      results.push({ key: e.key, outcome, msg });
+    }
+  } finally { OUTBOX_BUSY = false; }
+  return results;
+}
+function reportFlush(results) {
+  if (!results.length) return;
+  const sent = results.filter((r) => r.outcome === 'sent').length;
+  results.filter((r) => r.outcome === 'dropped').forEach((r) => toast(r.msg, 'bad'));
+  if (sent) toast(L(`${sent} offline check-in(s) synced`, `${sent} ऑफ़लाइन चेक-इन सिंक हुए`));
+  bust('visits');
+  const cur = currentRoute();
+  if (cur && cur[0] === 'checkin') render();
+}
 
 /* member side: the pass shown on the home page (made in the browser, works offline) */
 function memberPassCard(m) {
   return card(L('My check-in pass', 'मेरा चेक-इन पास'), 'door', '', `<div style="padding:4px 18px 18px;text-align:center"><div class="qrbox">${qrSvg(passCode(m), 240)}</div><p class="muted" style="margin:10px 0 0">${esc(L('Show this QR at the front desk to check in. Turn the screen brightness up.', 'चेक-इन के लिए रिसेप्शन पर यह QR दिखाएँ। स्क्रीन की रोशनी बढ़ा लें।'))}</p></div>`);
 }
 
-/* staff side: turn one scan into a check-in, or a check-out if the member is already inside today */
+/* staff side: one scan is a check-in, or a check-out if the member is already inside today (not within 2 minutes) */
 async function scanCheckIn(text) {
   const mt = PASS_RE.exec(String(text || '').trim());
   if (!mt) { toast(L('This is not a GymOS pass', 'यह GymOS पास नहीं है'), 'bad'); return false; }
-  const id = mt[1].toLowerCase();
-  bust('members', 'visits');
-  const [members, visits] = await Promise.all([Q.members(), Q.visits()]), m = members.find((x) => x.id === id);
+  if (gymLocked(CTX.gym)) { toast(L('Subscription expired. Please renew to make changes.', 'सब्सक्रिप्शन खत्म हो गया है। बदलाव के लिए रिन्यू करें।'), 'bad'); return false; }
+  const id = mt[1].toLowerCase(), store = safeStore();
+  let members, visits;
+  try {
+    bust('members', 'visits');
+    [members, visits] = await Promise.all([Q.members(), Q.visits()]);
+    rosterSave(store, members, visits);
+  } catch (e) {
+    if (e && e.status === 401) return false;
+    if (!(e && e.status === 0)) { toast(friendlyError(e), 'bad'); return false; }
+    const snap = rosterLoad(store, gymId());
+    if (!snap) { toast(L('No connection, and members are not loaded on this device yet. Connect once first.', 'इंटरनेट नहीं है, और इस डिवाइस पर सदस्य अभी लोड नहीं हैं। पहले एक बार कनेक्ट करें।'), 'bad'); return false; }
+    members = snap.members; visits = snap.visits;
+  }
+  const m = members.find((x) => x.id === id);
   if (!m) { toast(L('This member is not in your gym', 'यह सदस्य आपके जिम का नहीं है'), 'bad'); return false; }
   const s = memberState(m);
   if (['Expired', 'Frozen', 'Cancelled'].includes(s)) { toast(`${m.name}: ${LANG === 'hi' && STATE_HI[s] ? STATE_HI[s] : s}`, 'bad'); return false; }
-  const open = visits.find((v) => v.member_id === id && !v.out_at && istDate(v.in_at) === todayISO());
-  const r = open
-    ? await act(() => DB.update('visits', open.id, { out_at: new Date().toISOString() }), L(`${m.name} checked out`, `${m.name} चेक-आउट`))
-    : await act(() => DB.insert('visits', { gym_id: gymId(), member_id: id }), L(`${m.name} checked in`, `${m.name} चेक-इन`));
-  if (r) { bust('visits'); render(); setTimeout(() => { const i = $('#scanIn'); if (i) i.focus(); }, 250); }
-  return !!r;
+  const plan = planScan(visits, outboxRead(store), id, todayISO(), Date.now());
+  if (plan.action === 'repeat') { toast(L(`${m.name} is already checked in`, `${m.name} पहले से चेक-इन है`)); return true; }
+  const now = new Date().toISOString(), key = newVisitId();
+  const entry = plan.action === 'in'
+    ? { key, type: 'in', id: key, gym_id: gymId(), member_id: id, in_at: now }
+    : { key, type: 'out', gym_id: gymId(), visit_id: plan.id, out_at: now };
+  if (!outboxWrite(store, [...outboxRead(store), entry])) { toast(L('This device cannot store the check-in. Free some browser storage and scan again.', 'इस डिवाइस में चेक-इन सेव नहीं हो सकता। ब्राउज़र की जगह खाली करके फिर स्कैन करें।'), 'bad'); return false; }
+  const mine = (await flushCheckIns()).find((r) => r.key === key);
+  bust('visits');
+  if (mine && mine.outcome === 'dropped') { toast(mine.msg, 'bad'); return false; }
+  if (outboxRead(store).some((x) => x.key === key)) toast(L(`${m.name}: saved on this device, will sync when online`, `${m.name}: इस डिवाइस पर सेव, इंटरनेट आने पर सिंक होगा`));
+  else toast(plan.action === 'in' ? L(`${m.name} checked in`, `${m.name} चेक-इन`) : L(`${m.name} checked out`, `${m.name} चेक-आउट`));
+  render();
+  setTimeout(() => { const i = $('#scanIn'); if (i) i.focus(); }, 250);
+  return true;
 }
 
 /* camera scanner, where the browser has a built-in QR reader (Chrome on Android and desktop); otherwise the code box below still works */
@@ -2277,6 +2402,14 @@ document.addEventListener('keydown', async (e) => {
   if (e.key !== 'Enter' || !e.target || e.target.id !== 'scanIn') return;
   e.preventDefault(); const v = e.target.value; e.target.value = ''; if (v.trim()) await scanCheckIn(v);
 });
+
+/* start-up: send anything queued when the connection returns, when the app comes back to the screen, and once shortly after start */
+function checkinInit() {
+  const again = () => flushCheckIns().then(reportFlush).catch(() => {});
+  window.addEventListener('online', again);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') again(); });
+  setTimeout(again, 4000);
+}
 /* ================= Staff tasks: a shared to-do list for the gym (owner and trainers) ================= */
 Q.tasks = () => cached('gym_tasks', () => DB.select('gym_tasks', { order: 'created_at.desc', limit: 500 }));
 U.tk = { f: 'open' };
@@ -3211,6 +3344,20 @@ function coachOwnerSummary(s) {
   return { on: !!x.enabled, today: Number(x.questions_today) || 0, week: q7, users, all, share: all ? Math.round((users / all) * 100) : 0 };
 }
 
+/* voice: the speech language, and a spoken phrase added to the box. A dictated question is never sent by itself: the member reads it and presses Ask. */
+const voiceLang = (lang) => (lang === 'hi' ? 'hi-IN' : 'en-IN');
+const voiceAppend = (current, text, max = 500) => {
+  const cur = String(current == null ? '' : current).replace(/\s+$/, '');
+  const add = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+  return (cur && add ? cur + ' ' + add : cur || add).slice(0, max);
+};
+const voiceErrText = (code) => {
+  const mic = L('Microphone permission was not given.', 'माइक्रोफ़ोन की अनुमति नहीं मिली।');
+  const map = { 'not-allowed': mic, 'service-not-allowed': mic, 'no-speech': L('Could not hear anything. Try again.', 'कुछ सुनाई नहीं दिया। फिर कोशिश करें।'), network: L('Voice input needs internet. Type your question.', 'बोलकर लिखने के लिए इंटरनेट चाहिए। सवाल टाइप करें।') };
+  return map[code] || L('Voice input did not work. Type your question.', 'बोलकर लिखना काम नहीं किया। सवाल टाइप करें।');
+};
+const voiceSupported = () => typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
 async function coachFn(body) {
   if (SESSION && SESSION.expires_at && SESSION.expires_at - 30 < Date.now() / 1000) await refreshSession();
   const res = await rawFetch('/functions/v1/ai-coach', { method: 'POST', headers: { apikey: CFG.key, Authorization: 'Bearer ' + (SESSION && SESSION.access_token), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -3234,7 +3381,7 @@ async function vCoach() {
   const log = rows.length ? rows.slice().reverse().map(coachBubble).join('') : `<div class="cbub bot"><span>${esc(L('Hi! Ask me about workouts, food and staying regular. For pain, illness or medicines, please see a doctor.', 'नमस्ते! वर्कआउट, खान-पान और नियमितता के बारे में पूछिए। दर्द, बीमारी या दवाइयों के लिए डॉक्टर को दिखाइए।'))}</span></div>`;
   const chips = rows.length ? '' : `<div class="cchips">${COACH_CHIPS().map(([label, q]) => `<button type="button" class="chip" data-act="coachAsk" data-q="${esc(q)}">${esc(label)}</button>`).join('')}</div>`;
   return head + `<section class="card coach"><div class="clog" id="coachLog" aria-live="polite">${log}</div>${chips}
-    <div class="cform"><textarea class="in" id="coachIn" rows="2" maxlength="500" placeholder="${esc(L('Type your question…', 'अपना सवाल लिखिए…'))}" aria-label="${esc(L('Your question', 'आपका सवाल'))}"></textarea><button type="button" class="btn primary" id="coachGo" data-act="coachSend">${ic('msg')} ${esc(L('Ask', 'पूछें'))}</button></div>
+    <div class="cform"><textarea class="in" id="coachIn" rows="2" maxlength="500" placeholder="${esc(L('Type your question…', 'अपना सवाल लिखिए…'))}" aria-label="${esc(L('Your question', 'आपका सवाल'))}"></textarea>${voiceSupported() ? `<button type="button" class="btn" id="coachMic" data-act="coachVoice" aria-pressed="false" aria-label="${esc(L('Speak your question', 'बोलकर सवाल लिखें'))}" title="${esc(L('Speak your question', 'बोलकर सवाल लिखें'))}">${ic('mic')}</button>` : ''}<button type="button" class="btn primary" id="coachGo" data-act="coachSend">${ic('msg')} ${esc(L('Ask', 'पूछें'))}</button></div>
     <div class="cmeta"><span id="coachLeft" class="muted">${esc(coachLeftLabel(st))}</span><button type="button" class="btn sm" id="coachClr" data-act="coachClear"${rows.length ? '' : ' hidden'}>${esc(L('Clear chat', 'चैट मिटाएँ'))}</button></div></section>
     <div class="note" style="margin-top:12px">${esc(L('Your questions are private: your gym owner sees only how many questions were asked, not what you wrote. The coach uses your profile, plan and visits to answer.', 'आपके सवाल निजी हैं: जिम मालिक को सिर्फ़ सवालों की गिनती दिखती है, आपने क्या लिखा यह नहीं। कोच आपके प्रोफ़ाइल, प्लान और विज़िट के आधार पर जवाब देता है।'))}</div>`;
 }
@@ -3270,6 +3417,31 @@ async function coachClear() {
   if (!confirm(L('Delete this whole chat?', 'पूरी चैट मिटा दें?'))) return;
   const ok = await act(() => DB.rpc('coach_clear', {}), L('Chat deleted', 'चैट मिट गई'));
   if (ok !== null) render();
+}
+
+/* speech to text: fills the box with what was heard, then the member reads it and presses Ask */
+let COACH_REC = null;
+function coachVoice() {
+  const Rec = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const btn = $('#coachMic');
+  if (!Rec || !btn) { toast(voiceErrText(''), 'bad'); return; }
+  if (COACH_REC) { try { COACH_REC.stop(); } catch (e) { /* already stopped */ } return; }
+  let rec;
+  try { rec = new Rec(); } catch (e) { toast(voiceErrText(''), 'bad'); return; }
+  let heard = '', failed = '';
+  rec.lang = voiceLang(LANG); rec.interimResults = false; rec.continuous = false; rec.maxAlternatives = 1;
+  rec.onresult = (ev) => { for (let i = ev.resultIndex; i < ev.results.length; i++) if (ev.results[i].isFinal) heard += ' ' + ev.results[i][0].transcript; };
+  rec.onerror = (ev) => { failed = (ev && ev.error) || 'error'; };
+  rec.onend = () => {
+    COACH_REC = null;
+    const b = $('#coachMic'); if (b) { b.setAttribute('aria-pressed', 'false'); b.classList.remove('listening'); }
+    if (failed) { toast(voiceErrText(failed), 'bad'); return; }
+    const box = $('#coachIn');
+    if (heard.trim() && box) { box.value = voiceAppend(box.value, heard); box.focus(); }
+  };
+  COACH_REC = rec;
+  btn.setAttribute('aria-pressed', 'true'); btn.classList.add('listening');
+  try { rec.start(); } catch (e) { COACH_REC = null; btn.setAttribute('aria-pressed', 'false'); btn.classList.remove('listening'); toast(voiceErrText(''), 'bad'); }
 }
 
 /* ---------- gym owner: usage and the off switch ---------- */
@@ -3543,6 +3715,51 @@ function delRejectForm(d) {
     if (r) { m.close(); render(); }
   };
 }
+/* ================= Luxury palettes: four accent colours, set as <html data-luxe>. The 3D finish itself is CSS (style.css) ================= */
+const LUXE = [['royal', 'Royal gold', 'रॉयल गोल्ड'], ['emerald', 'Emerald velvet', 'पन्ना मखमल'], ['sapphire', 'Sapphire night', 'नीलम रात'], ['ruby', 'Ruby & pearl', 'माणिक और मोती']];
+
+/* pure */
+const luxeValid = (id) => LUXE.some((x) => x[0] === id);
+const luxeNext = (id) => { const i = LUXE.findIndex((x) => x[0] === id); return LUXE[(i + 1) % LUXE.length][0]; };
+const luxeLabel = (id) => { const x = LUXE.find((y) => y[0] === id) || LUXE[0]; return L(x[1], x[2]); };
+function luxeRead(store) {
+  try { const v = store.getItem('gymos-luxe'); return luxeValid(v) ? v : 'royal'; } catch (e) { return 'royal'; }
+}
+
+/* runtime */
+function luxeApply(id) {
+  const v = luxeValid(id) ? id : 'royal';
+  document.documentElement.dataset.luxe = v;
+  return v;
+}
+function luxeChange() {
+  const nx = luxeNext(document.documentElement.dataset.luxe || 'royal');
+  luxeApply(nx);
+  try { localStorage.setItem('gymos-luxe', nx); } catch (e) { /* private window: the palette still changes for this visit */ }
+  chrome();
+  toast(luxeLabel(nx));
+}
+/* stat tiles lean toward the pointer. Only with a mouse or pen, and never when the user asks for less motion */
+function luxeTilt() {
+  if (!window.matchMedia || !matchMedia('(hover: hover) and (pointer: fine)').matches || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  document.addEventListener('pointermove', (e) => {
+    const t = e.target && e.target.closest ? e.target.closest('.tile') : null;
+    if (!t) return;
+    const r = t.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5;
+    t.style.setProperty('--rx', (-y * 8).toFixed(2) + 'deg');
+    t.style.setProperty('--ry', (x * 10).toFixed(2) + 'deg');
+  }, { passive: true });
+  document.addEventListener('pointerout', (e) => {
+    const t = e.target && e.target.closest ? e.target.closest('.tile') : null;
+    if (t && (!e.relatedTarget || !t.contains(e.relatedTarget))) { t.style.removeProperty('--rx'); t.style.removeProperty('--ry'); }
+  }, { passive: true });
+}
+function luxeInit() {
+  try { luxeApply(luxeRead(localStorage)); } catch (e) { luxeApply('royal'); }
+  luxeTilt();
+}
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV_GROUPS = { overview: ['Overview', 'अवलोकन'], people: ['People', 'लोग'], money: ['Money', 'पैसा'], business: ['Business', 'व्यापार'], insights: ['Insights', 'जानकारी'], setup: ['Setup', 'सेटअप'], platform: ['Platform', 'प्लेटफ़ॉर्म'], me: ['My gym', 'मेरा जिम'] };
 /* entry: [route, icon, English, Hindi, view, group, shownInPhoneBar] */
@@ -3610,6 +3827,7 @@ function chrome() {
   $('#langBtn').setAttribute('aria-label', L('Switch language', 'भाषा बदलें'));
   $('#themeBtn').innerHTML = ic(document.documentElement.dataset.theme === 'light' ? 'moon' : 'sun');
   $('#themeBtn').setAttribute('aria-label', L('Switch theme', 'थीम बदलें'));
+  const lx = $('#luxeBtn'); if (lx) { lx.innerHTML = '<i class="luxe-dot" aria-hidden="true"></i>'; lx.setAttribute('aria-label', L('Change colour palette', 'रंग पैलेट बदलें')); lx.title = luxeLabel(document.documentElement.dataset.luxe || 'royal'); }
   $('#pwBtn').innerHTML = ic('lock'); $('#pwBtn').setAttribute('aria-label', L('Change password', 'पासवर्ड बदलें')); $('#pwBtn').title = L('Change password', 'पासवर्ड बदलें');
   $('#outBtn').innerHTML = `${ic('out')}`; $('#outBtn').setAttribute('aria-label', L('Sign out', 'लॉग आउट'));
   document.documentElement.lang = LANG === 'hi' ? 'hi' : 'en';
@@ -3647,7 +3865,7 @@ async function enter() {
   if (!navFor().length) { waitingScreen(); return; }
   $('#view').dataset.ready = ''; render(); pwaAfterLogin();
 }
-function onSignedOut() { bust(); CTX.profile = null; CTX.gym = null; CTX.locked = false; RENDER_TOKEN++; loginScreen(L('Please sign in again.', 'कृपया दोबारा लॉगिन करें।')); }
+function onSignedOut() { bust(); rosterClear(); CTX.profile = null; CTX.gym = null; CTX.locked = false; RENDER_TOKEN++; loginScreen(L('Please sign in again.', 'कृपया दोबारा लॉगिन करें।')); }
 
 /* ---------- actions ---------- */
 const CHIP = { eqF: (v) => { U.eq.f = v; }, tkF: (v) => { U.tk.f = v; }, clsF: (v) => { U.cls.f = v; }, memT: (v) => { U.members.t = v; U.members.page = 1; }, memF: (v) => { U.members.f = v; U.members.page = 1; }, invF: (v) => { U.invoices.f = v; U.invoices.page = 1; }, peakD: (v) => { U.peak.days = v; }, fcRate: (v) => { U.fc.rate = v; }, actF: (v) => { U.act.f = v; }, expM: (v) => { U.exp.m = v; }, payM: (v) => { U.pay.m = v; }, sgF: (v) => { U.sg.f = v; }, suF: (v) => { U.su.f = v; }, leadF: (v) => { U.lead.f = v; } };
@@ -3666,7 +3884,7 @@ const ACTIONS = {
   lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
   theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
   importMembers: () => importForm(), membersCsv: () => exportMembers(), newOffer: () => offerForm(), editOffer: (d) => offerForm(d.id), shareOffer: (d) => shareOffer(d.id),
-  payOnline: (d) => payOnline(d.id), payEmi: (d) => payOnline(d.id, true), emiNew: () => emiForm(), emiCancel: (d) => emiCancelPlan(d.id), pushOn: () => pushToggle(true), pushOff: () => pushToggle(false), pushTest: () => pushTest(), announceNew: () => announceForm(), onlinePayGym: (d) => onlinePayForm(d.id), coachAsk: (d) => coachSend(d.q), coachSend: () => coachSend(), coachClear: () => coachClear(), coachOff: () => coachOff(), coachGym: (d) => coachGymForm(d.id), actMore: () => { U.act.n = Math.min(U.act.n + 200, 1000); render(); }, actCsv: () => activityCsv(),
+  payOnline: (d) => payOnline(d.id), payEmi: (d) => payOnline(d.id, true), emiNew: () => emiForm(), emiCancel: (d) => emiCancelPlan(d.id), pushOn: () => pushToggle(true), pushOff: () => pushToggle(false), pushTest: () => pushTest(), announceNew: () => announceForm(), onlinePayGym: (d) => onlinePayForm(d.id), coachAsk: (d) => coachSend(d.q), coachSend: () => coachSend(), coachVoice: () => coachVoice(), luxe: () => luxeChange(), coachClear: () => coachClear(), coachOff: () => coachOff(), coachGym: (d) => coachGymForm(d.id), actMore: () => { U.act.n = Math.min(U.act.n + 200, 1000); render(); }, actCsv: () => activityCsv(),
   attDay: (d) => { U.att.day = addDays(U.att.day || todayISO(), Number(d.d)); if (U.att.day > todayISO()) U.att.day = todayISO(); render(); }, attToday: () => { U.att.day = todayISO(); render(); }, attMark: (d) => attMark(d.id, d.s),
   newEq: () => equipmentForm(), editEq: (d) => equipmentForm(d.id), eqServiced: (d) => eqServiced(d.id), delEq: (d) => deleteEquipment(d.id),
   newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, moreNav: () => openMoreSheet(), installApp: () => installApp(), installLater: () => installLater(), applyUpdate: () => applyUpdate(), booksCsv: () => exportBooks(), newTask: () => taskForm(), editTask: (d) => taskForm(d.id), toggleTask: (d) => toggleTask(d.id), delTask: (d) => deleteTask(d.id), openScan: () => openScanner(), newClass: () => classForm(), editClass: (d) => classForm(d.id), cancelClass: (d) => cancelClass(d.id), clsBookings: (d) => classBookings(d.id), clsBook: (d) => bookClass(d.id), clsCancel: (d) => cancelMyBooking(d.id), setCommission: (d) => commissionForm(d.id), addProgress: (d) => progressForm(d.id, d.by === '1', d.by === '1' ? null : () => progressModal(d.id)), delProgress: (d) => deleteProgress(d.id, d.m), giveReward: (d) => giveReward(d.id), lbJoin: () => setLeaderboard(true), lbLeave: () => setLeaderboard(false), waterAdd: (d) => addWater(d.id, Number(d.ml)).then((ok) => ok && render()), delHabit: (d) => deleteHabit(d.t, d.id), quickFood: (d) => mealForm(d.id, FOODS[Number(d.i)], () => render()), customFood: (d) => mealForm(d.id, null, () => render()), logSleep: (d) => sleepForm(d.id, () => render()), addWorkout: (d) => Q.members().then(() => wkOf(d.id)).then((rows) => workoutForm(d.id, rows)), delWorkout: (d) => deleteWorkout(d.id), newStaff: () => staffForm(), editStaff: (d) => staffForm(d.id), payStaff: (d) => salaryForm(d.id), staffHist: (d) => staffHistory(d.id), delStaff: (d) => deleteStaff(d.id), delSalPay: (d) => deleteSalaryPay(d.id), newExpense: () => expenseForm(), newProduct: () => productForm(), editProduct: (d) => productForm(d.id), sellProduct: (d) => sellForm(d.id), voidSale: (d) => voidSale(d.id), delProduct: (d) => deleteProduct(d.id), delExpense: (d) => deleteExpense(d.id), newLead: () => leadForm(), editLead: (d) => leadForm(d.id), leadNext: (d) => Q.leads().then((ls) => { const l = ls.find((x) => x.id === d.id); const n = l && nextStage(l.stage); if (n) leadSetStage(l.id, n, L('Moved to ' + stageLabel(n), stageLabel(n) + ' में किया')); }), leadLost: (d) => leadSetStage(d.id, 'Lost', L('Marked lost', 'छूटा हुआ चिह्नित')), leadConvert: (d) => leadConvert(d.id), delLead: (d) => deleteLead(d.id), waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
@@ -3678,7 +3896,7 @@ const ACTIONS = {
     ],
     onSubmit: async (v) => { const ok = await act(() => Auth.changePassword(v.pw), L('Password changed', 'पासवर्ड बदल गया')); return !!ok; },
   }),
-  signOut: async () => { await Auth.signOut(); bust(); CTX.profile = null; RENDER_TOKEN++; loginScreen(); },
+  signOut: async () => { await Auth.signOut(); bust(); rosterClear(); CTX.profile = null; RENDER_TOKEN++; loginScreen(); },
 };
 document.addEventListener('click', (e) => {
   const link = e.target.closest('a[href]');
@@ -3710,5 +3928,5 @@ window.addEventListener('hashchange', () => { closeAllModals(); if (CTX.profile)
   try { const t = localStorage.getItem('gymos-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
   $('#langBtn').onclick = () => ACTIONS.lang(); $('#themeBtn').onclick = () => ACTIONS.theme(); $('#outBtn').onclick = () => ACTIONS.signOut(); $('#pwBtn').onclick = () => ACTIONS.changePw();
   if (SESSION && SESSION.refresh_token) enter(); else loginScreen();
-  pwaInit(); nativeInit();
+  pwaInit(); nativeInit(); luxeInit(); checkinInit();
 })();

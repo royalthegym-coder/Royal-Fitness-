@@ -65,6 +65,7 @@ function chrome() {
   $('#langBtn').setAttribute('aria-label', L('Switch language', 'भाषा बदलें'));
   $('#themeBtn').innerHTML = ic(document.documentElement.dataset.theme === 'light' ? 'moon' : 'sun');
   $('#themeBtn').setAttribute('aria-label', L('Switch theme', 'थीम बदलें'));
+  const lx = $('#luxeBtn'); if (lx) { lx.innerHTML = '<i class="luxe-dot" aria-hidden="true"></i>'; lx.setAttribute('aria-label', L('Change colour palette', 'रंग पैलेट बदलें')); lx.title = luxeLabel(document.documentElement.dataset.luxe || 'royal'); }
   $('#pwBtn').innerHTML = ic('lock'); $('#pwBtn').setAttribute('aria-label', L('Change password', 'पासवर्ड बदलें')); $('#pwBtn').title = L('Change password', 'पासवर्ड बदलें');
   $('#outBtn').innerHTML = `${ic('out')}`; $('#outBtn').setAttribute('aria-label', L('Sign out', 'लॉग आउट'));
   document.documentElement.lang = LANG === 'hi' ? 'hi' : 'en';
@@ -102,7 +103,7 @@ async function enter() {
   if (!navFor().length) { waitingScreen(); return; }
   $('#view').dataset.ready = ''; render(); pwaAfterLogin();
 }
-function onSignedOut() { bust(); CTX.profile = null; CTX.gym = null; CTX.locked = false; RENDER_TOKEN++; loginScreen(L('Please sign in again.', 'कृपया दोबारा लॉगिन करें।')); }
+function onSignedOut() { bust(); rosterClear(); CTX.profile = null; CTX.gym = null; CTX.locked = false; RENDER_TOKEN++; loginScreen(L('Please sign in again.', 'कृपया दोबारा लॉगिन करें।')); }
 
 /* ---------- actions ---------- */
 const CHIP = { eqF: (v) => { U.eq.f = v; }, tkF: (v) => { U.tk.f = v; }, clsF: (v) => { U.cls.f = v; }, memT: (v) => { U.members.t = v; U.members.page = 1; }, memF: (v) => { U.members.f = v; U.members.page = 1; }, invF: (v) => { U.invoices.f = v; U.invoices.page = 1; }, peakD: (v) => { U.peak.days = v; }, fcRate: (v) => { U.fc.rate = v; }, actF: (v) => { U.act.f = v; }, expM: (v) => { U.exp.m = v; }, payM: (v) => { U.pay.m = v; }, sgF: (v) => { U.sg.f = v; }, suF: (v) => { U.su.f = v; }, leadF: (v) => { U.lead.f = v; } };
@@ -121,7 +122,7 @@ const ACTIONS = {
   lang: () => { LANG = LANG === 'hi' ? 'en' : 'hi'; try { localStorage.setItem('gymos-lang', LANG); } catch (e) {} if (CTX.profile) render(); else if (SESSION) enter(); else loginScreen(); },
   theme: () => { const r = document.documentElement, nx = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nx; try { localStorage.setItem('gymos-theme', nx); } catch (e) {} chrome(); },
   importMembers: () => importForm(), membersCsv: () => exportMembers(), newOffer: () => offerForm(), editOffer: (d) => offerForm(d.id), shareOffer: (d) => shareOffer(d.id),
-  payOnline: (d) => payOnline(d.id), payEmi: (d) => payOnline(d.id, true), emiNew: () => emiForm(), emiCancel: (d) => emiCancelPlan(d.id), pushOn: () => pushToggle(true), pushOff: () => pushToggle(false), pushTest: () => pushTest(), announceNew: () => announceForm(), onlinePayGym: (d) => onlinePayForm(d.id), coachAsk: (d) => coachSend(d.q), coachSend: () => coachSend(), coachClear: () => coachClear(), coachOff: () => coachOff(), coachGym: (d) => coachGymForm(d.id), actMore: () => { U.act.n = Math.min(U.act.n + 200, 1000); render(); }, actCsv: () => activityCsv(),
+  payOnline: (d) => payOnline(d.id), payEmi: (d) => payOnline(d.id, true), emiNew: () => emiForm(), emiCancel: (d) => emiCancelPlan(d.id), pushOn: () => pushToggle(true), pushOff: () => pushToggle(false), pushTest: () => pushTest(), announceNew: () => announceForm(), onlinePayGym: (d) => onlinePayForm(d.id), coachAsk: (d) => coachSend(d.q), coachSend: () => coachSend(), coachVoice: () => coachVoice(), luxe: () => luxeChange(), coachClear: () => coachClear(), coachOff: () => coachOff(), coachGym: (d) => coachGymForm(d.id), actMore: () => { U.act.n = Math.min(U.act.n + 200, 1000); render(); }, actCsv: () => activityCsv(),
   attDay: (d) => { U.att.day = addDays(U.att.day || todayISO(), Number(d.d)); if (U.att.day > todayISO()) U.att.day = todayISO(); render(); }, attToday: () => { U.att.day = todayISO(); render(); }, attMark: (d) => attMark(d.id, d.s),
   newEq: () => equipmentForm(), editEq: (d) => equipmentForm(d.id), eqServiced: (d) => eqServiced(d.id), delEq: (d) => deleteEquipment(d.id),
   newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, moreNav: () => openMoreSheet(), installApp: () => installApp(), installLater: () => installLater(), applyUpdate: () => applyUpdate(), booksCsv: () => exportBooks(), newTask: () => taskForm(), editTask: (d) => taskForm(d.id), toggleTask: (d) => toggleTask(d.id), delTask: (d) => deleteTask(d.id), openScan: () => openScanner(), newClass: () => classForm(), editClass: (d) => classForm(d.id), cancelClass: (d) => cancelClass(d.id), clsBookings: (d) => classBookings(d.id), clsBook: (d) => bookClass(d.id), clsCancel: (d) => cancelMyBooking(d.id), setCommission: (d) => commissionForm(d.id), addProgress: (d) => progressForm(d.id, d.by === '1', d.by === '1' ? null : () => progressModal(d.id)), delProgress: (d) => deleteProgress(d.id, d.m), giveReward: (d) => giveReward(d.id), lbJoin: () => setLeaderboard(true), lbLeave: () => setLeaderboard(false), waterAdd: (d) => addWater(d.id, Number(d.ml)).then((ok) => ok && render()), delHabit: (d) => deleteHabit(d.t, d.id), quickFood: (d) => mealForm(d.id, FOODS[Number(d.i)], () => render()), customFood: (d) => mealForm(d.id, null, () => render()), logSleep: (d) => sleepForm(d.id, () => render()), addWorkout: (d) => Q.members().then(() => wkOf(d.id)).then((rows) => workoutForm(d.id, rows)), delWorkout: (d) => deleteWorkout(d.id), newStaff: () => staffForm(), editStaff: (d) => staffForm(d.id), payStaff: (d) => salaryForm(d.id), staffHist: (d) => staffHistory(d.id), delStaff: (d) => deleteStaff(d.id), delSalPay: (d) => deleteSalaryPay(d.id), newExpense: () => expenseForm(), newProduct: () => productForm(), editProduct: (d) => productForm(d.id), sellProduct: (d) => sellForm(d.id), voidSale: (d) => voidSale(d.id), delProduct: (d) => deleteProduct(d.id), delExpense: (d) => deleteExpense(d.id), newLead: () => leadForm(), editLead: (d) => leadForm(d.id), leadNext: (d) => Q.leads().then((ls) => { const l = ls.find((x) => x.id === d.id); const n = l && nextStage(l.stage); if (n) leadSetStage(l.id, n, L('Moved to ' + stageLabel(n), stageLabel(n) + ' में किया')); }), leadLost: (d) => leadSetStage(d.id, 'Lost', L('Marked lost', 'छूटा हुआ चिह्नित')), leadConvert: (d) => leadConvert(d.id), delLead: (d) => deleteLead(d.id), waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
@@ -133,7 +134,7 @@ const ACTIONS = {
     ],
     onSubmit: async (v) => { const ok = await act(() => Auth.changePassword(v.pw), L('Password changed', 'पासवर्ड बदल गया')); return !!ok; },
   }),
-  signOut: async () => { await Auth.signOut(); bust(); CTX.profile = null; RENDER_TOKEN++; loginScreen(); },
+  signOut: async () => { await Auth.signOut(); bust(); rosterClear(); CTX.profile = null; RENDER_TOKEN++; loginScreen(); },
 };
 document.addEventListener('click', (e) => {
   const link = e.target.closest('a[href]');
@@ -165,5 +166,5 @@ window.addEventListener('hashchange', () => { closeAllModals(); if (CTX.profile)
   try { const t = localStorage.getItem('gymos-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
   $('#langBtn').onclick = () => ACTIONS.lang(); $('#themeBtn').onclick = () => ACTIONS.theme(); $('#outBtn').onclick = () => ACTIONS.signOut(); $('#pwBtn').onclick = () => ACTIONS.changePw();
   if (SESSION && SESSION.refresh_token) enter(); else loginScreen();
-  pwaInit(); nativeInit();
+  pwaInit(); nativeInit(); luxeInit(); checkinInit();
 })();

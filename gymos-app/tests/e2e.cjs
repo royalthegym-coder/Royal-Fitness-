@@ -38,6 +38,7 @@ function handler(db, role) {
     const json = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(body) });
     if (m === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
     db.calls.push(`${m} ${p}${u.search ? '?' + u.search.slice(1, 40) : ''}`);
+    if (db.offline) return route.abort('internetdisconnected'); /* a dropped connection: the app sees a network error (status 0) */
     if (p === '/auth/v1/token') { const b = JSON.parse(req.postData() || '{}'); if (b.password === 'bad') return json({ msg: 'Invalid login credentials' }, 400); return json({ access_token: jwt(db.me), refresh_token: 'r', expires_in: 3600, user: { email: 't@x.in' } }); }
     if (p === '/functions/v1/create-account') { const b = JSON.parse(req.postData()); db.created = b; if (b.email === 'taken@x.in') return json({ error: 'email_taken' }, 409); return json({ email: b.email, password: 'GenPass1234abcd', role: b.role }); }
     if (p === '/functions/v1/razorpay') { const b = JSON.parse(req.postData() || '{}'); (db.rzCalls = db.rzCalls || []).push(b); if (b.action === 'status') return json({ configured: db.rzConf !== false, enabled: !!db.rzEnabled }); if (b.action === 'route_retry') { db.routeRetry = b; return json({ ok: true, result: 'processed' }); } if (db.rzFail) return json({ error: 'gateway' }, 502); return json({ url: db.rzUrl || 'https://rzp.io/i/test1', amount: 1180 }); }
@@ -415,9 +416,22 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('a[href="#checkin"]'); await page.waitForSelector('#scanIn');
     { const pr = db.members.find((x) => x.name === 'Absent Ajay'), old = db.members.find((x) => x.name === 'Old Timer'), n0 = db.visits.length, scan = async (code) => { await page.fill('#scanIn', code); await page.press('#scanIn', 'Enter'); await page.waitForTimeout(500); };
       await scan('gymos:' + pr.id); ok(db.visits.length === n0 + 1 && db.visits[0].member_id === pr.id && !db.visits[0].out_at, 'scanning a pass checks the member in');
-      await page.waitForSelector('#scanIn'); await scan('gymos:' + pr.id); ok(db.visits.length === n0 + 1 && !!db.visits.find((v) => v.member_id === pr.id).out_at, 'scanning again checks the member out');
+      await page.waitForSelector('#scanIn'); await scan('gymos:' + pr.id); ok(db.visits.length === n0 + 1 && !db.visits.find((v) => v.member_id === pr.id).out_at, 'a second scan within 2 minutes is a repeat, not a check-out');
+      db.visits.find((v) => v.member_id === pr.id).in_at = new Date(Date.now() - 180000).toISOString();
+      await page.waitForSelector('#scanIn'); await scan('gymos:' + pr.id); ok(db.visits.length === n0 + 1 && !!db.visits.find((v) => v.member_id === pr.id).out_at, 'after 2 minutes, a scan checks the member out');
       await page.waitForSelector('#scanIn'); await scan('gymos:' + old.id); ok(db.visits.length === n0 + 1, 'an expired member is not checked in by a scan');
       await page.waitForSelector('#scanIn'); await scan('hello'); await scan('gymos:' + uid()); ok(db.visits.length === n0 + 1, 'unknown and foreign codes are refused'); }
+    // offline check-in: the scan waits on this device (the roster was saved by the scans above), then syncs when the line returns
+    { const m0 = db.members.find((x) => x.status === 'Active' && x.end_date && x.end_date >= today() && !db.visits.some((v) => v.member_id === x.id)), nB = db.visits.length;
+      await page.waitForSelector('#scanIn'); db.offline = true;
+      await page.fill('#scanIn', 'gymos:' + m0.id); await page.press('#scanIn', 'Enter'); await page.waitForTimeout(700);
+      const queued = await page.evaluate(() => localStorage.getItem('gymos-checkin-outbox'));
+      ok(db.visits.length === nB && !!queued && /इस डिवाइस पर सेव|saved on this device/.test(await page.textContent('body')), 'offline: the scan waits on this device and nothing is lost');
+      db.offline = false;
+      await page.evaluate(() => window.dispatchEvent(new Event('online')));
+      for (let i = 0; i < 40 && db.visits.length === nB; i++) await page.waitForTimeout(100);
+      ok(db.visits.length === nB + 1 && db.visits[0].member_id === m0.id, 'back online: the queued check-in is written to the server, once');
+      ok((await page.evaluate(() => localStorage.getItem('gymos-checkin-outbox'))) === null, 'and the device queue is empty afterwards'); }
     // trainer commission
     const got = db.payments.filter((x) => x.member_id === db.members[0].id && String(x.paid_on).slice(0, 7) === today().slice(0, 7)).reduce((a, x) => a + Number(x.amount), 0);
     await page.evaluate(() => bust('payments', 'members')); await page.click('a[href="#staff"]'); await page.waitForSelector('[data-act=setCommission]');
