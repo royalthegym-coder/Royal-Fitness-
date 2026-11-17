@@ -102,3 +102,31 @@
 - Safety: before any model call, `screen()` in `lib.js` catches self-harm, medical red flags and conditions, pregnancy, eating disorders, drugs/hormones/weight-loss medicines and pain/injury (English, Hindi, Hinglish). Those get a fixed answer (doctor, trainer, helplines 14416 and 112) and the model is not called. The prompt is built on the server; the member's text and profile are data inside tags and the model is told to ignore instructions inside them. The model's answer is checked and replaced by a fixed "ask your trainer" text if it contains a medicine dose, a diagnosis, or a prompt leak. If the gateway fails, the question is removed so it does not count against the member.
 - Privacy: the facts listed above, including injuries, conditions and allergies, are sent to the AI gateway provider with each question. Members should be told this in the app before the switch is turned on for their gym.
 - Tests: `tests/coach.test.mjs` (screening, prompt, facts, answer checks), `tests/coachui.test.mjs` (page helpers), e2e block "AI coach". The gateway itself cannot be exercised from the build sandbox: after saving the secrets, switch the coach on for one gym and ask one real question as a member.
+
+## EMI plans (installments)
+
+An owner can split a fee a member already owes into 2 to 12 installments with fixed due dates. The money stays where it always was: the invoice and its payments. A plan only says how much should be covered by which date. Any payment (cash, UPI or online) counts toward the earliest installment that is not covered yet.
+
+Files:
+- `migrations/20261116_emi_plans.sql`: tables `emi_plans` and `emi_installments` (RLS: the gym's owner, or the member who owns the invoice); `private.emi_calc` (the one place states are worked out); `emi_schedule`, `emi_create_plan`, `emi_cancel_plan`, `rz_begin_part`; `private.emi_daily_job` and the cron job `push-emi-daily` (03:50 UTC, 09:20 IST).
+- `migrations/20261117_emi_skip_cancelled.sql`: reminders skip cancelled invoices.
+- `functions/razorpay/index.ts`: `create` accepts `part: true` and then calls `rz_begin_part`, so only the next installment is charged. The Razorpay page says "EMI" for those links.
+- `src/c37-emi.js`: owner page and form, member card. The pure functions (split, due dates, limits, next amount) are tested in `tests/emi.test.mjs`.
+
+Rules:
+- Split: equal parts in paise; the last installment takes the rounding difference.
+- Due date: start + n months. A day the month does not have becomes its last day (31 Jan + 1 month = 28 Feb).
+- Start date: from today up to 62 days ahead. 2 to 12 installments.
+- One active plan per invoice (unique index). Cancelling a plan leaves the invoice and its payments unchanged.
+- States: `paid` (payments cover the installment's cumulative amount), `overdue` (past its date, not paid), `due_today`, `upcoming`.
+- Online: the member pays only the next unpaid installment (the rest of it if part was paid). The full-balance button stays. The webhook records the payment exactly as before, because `rz_apply_payment` checks the order amount.
+- Reminders: 2 days before, on the due day, and the day after, once each per installment (dedupe key `emi:<plan>:<seq>:<offset>`). Only for members with a push subscription, only for open gyms, never for cancelled invoices.
+
+Testing:
+- Unit: `node tests/emi.test.mjs`.
+- Database: rollback test on the live project (raise REPORT, then roll back). It covered: the split, duplicate refused, count and start limits, cash and online states, the online amount for the next installment, order reuse, another member refused, cancel and re-create, a member sees only own rows, direct insert refused, overdue state, reminders with dedupe and without a push subscription, and cancelled invoices skipped.
+- E2E: the "EMI plans" block in `tests/e2e.cjs`.
+
+Not verifiable in the sandbox: a real Razorpay payment of an installment, push delivery to phones, and the cron run at 03:50 UTC.
+
+Deploy: migrations are applied in order. Redeploy the `razorpay` function after this change (verify_jwt false, as before).

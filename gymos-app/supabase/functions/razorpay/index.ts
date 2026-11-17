@@ -3,7 +3,8 @@ import { verifyWebhook, parseEvent, linkPayload } from './lib.js';
 
 // Online fee payment through Razorpay Payment Links. Card/UPI details never touch this app: the member pays on Razorpay's own page.
 //  - POST {action:'status'}                 -> { configured, enabled }   (signed-in user)
-//  - POST {action:'create', invoice_id}     -> { url }                   (signed-in member of that invoice, or the gym owner)
+//  - POST {action:'create', invoice_id, part?} -> { url }               (signed-in member of that invoice, or the gym owner)
+//      part: true pays only the next EMI installment (rz_begin_part); otherwise the full balance (rz_begin)
 //  - POST with X-Razorpay-Signature         -> Razorpay webhook: verified by HMAC, then recorded ONCE by rz_apply_payment.
 // The amount is taken from the database (what is due right now), never from the browser.
 // Environment values (set in the Supabase dashboard, never in chat): RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET.
@@ -63,13 +64,13 @@ Deno.serve(async (req: Request) => {
   const invoiceId = String(body.invoice_id || '');
   if (!UUID.test(invoiceId)) return json({ error: 'bad_invoice' }, 400);
 
-  const { data: b, error: be } = await sb.rpc('rz_begin', { p_invoice: invoiceId });
+  const { data: b, error: be } = await sb.rpc(body.part === true ? 'rz_begin_part' : 'rz_begin', { p_invoice: invoiceId });
   if (be) return json({ error: 'failed' }, 500);
   if (b?.error) return json({ error: b.error }, b.error === 'not_found' ? 404 : 409);
   if (b?.reuse && b.url) return json({ url: b.url, amount: b.amount, reused: true });
 
   const { data: g } = await sb.from('gyms').select('name').eq('id', b.gym_id).maybeSingle();
-  const payload = linkPayload({ orderId: b.order_id, amount: b.amount, invoiceNo: b.invoice_no, memberName: b.member_name, gymName: g?.name, nowSec: Date.now() / 1000 });
+  const payload = linkPayload({ orderId: b.order_id, amount: b.amount, invoiceNo: b.part ? `${b.invoice_no} EMI` : b.invoice_no, memberName: b.member_name, gymName: g?.name, nowSec: Date.now() / 1000 });
   const db = admin();
   let link: any = null;
   try {

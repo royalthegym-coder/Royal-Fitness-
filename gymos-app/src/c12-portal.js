@@ -88,10 +88,12 @@ async function vMyPlan() {
 }
 async function vMyPay() {
   const m = (await Q.members())[0]; if (!m) return noMember();
-  const [invoices, payments, rz] = await Promise.all([Q.invoices(), Q.payments(), Q.rzStatus()]);
+  const [invoices, payments, rz, emi] = await Promise.all([Q.invoices(), Q.payments(), Q.rzStatus(), emiMine().catch(() => [])]);
   const paid = paidByInvoice(payments), due = sum(invoices, (i) => balanceOf(i, paid)), total = sum(payments, (p) => p.amount), canPay = rz.enabled && rz.configured;
+  const emiHtml = emiMemberCard(emi, invoices, canPay);
   return pageHead(gymName(), L('My payments', 'मेरे भुगतान'), L('Every invoice and receipt for your membership.', 'आपकी सदस्यता के सभी इनवॉइस और रसीदें।'))
     + `<div class="tiles">${tile(L('Paid so far', 'अब तक चुकाया'), esc(inr(total)), '', 'var(--ok)')}${tile(L('Balance due', 'बकाया'), esc(inr(due)), '', due ? 'var(--crimson)' : '')}${tile(L('Receipts', 'रसीदें'), payments.length, '')}</div>`
+    + (emiHtml ? emiHtml + '<div style="height:14px"></div>' : '')
     + `<div class="grid2">${card(L('Invoices', 'इनवॉइस'), 'receipt', '', invoices.length ? `<ul class="list">${invoices.map((i) => `<li><div class="grow"><b class="num">${esc(i.no || '—')}</b><small>${esc(fmtDate(i.date))}${i.due ? ' · ' + esc(L('due ', 'देय ')) + esc(fmtDate(i.due)) : ''}</small></div><span class="num">${esc(inr(i.total))}</span>${badge(invStatus(i, paid))}${canPay && balanceOf(i, paid) >= 1 ? `<button class="btn sm primary" data-act="payOnline" data-id="${esc(i.id)}">${esc(L('Pay ' + inr(balanceOf(i, paid)) + ' online', inr(balanceOf(i, paid)) + ' ऑनलाइन भरें'))}</button>` : ''}</li>`).join('')}</ul>` : empty(L('No invoices', 'कोई इनवॉइस नहीं'), ''))}`
     + `${card(L('Receipts', 'रसीदें'), 'wallet', '', payments.length ? `<ul class="list">${payments.map((p) => `<li class="click" data-act="openReceipt" data-id="${esc(p.id)}"><div class="grow"><b class="num">${esc(p.no || '—')}</b><small>${esc(fmtDate(p.paid_on))} · ${esc(p.method || '')}</small></div><span class="num">${esc(inr(p.amount))}</span></li>`).join('')}</ul>` : empty(L('No payments yet', 'अभी कोई भुगतान नहीं'), ''))}</div>`;
 }
@@ -116,7 +118,7 @@ async function vMyProfile() {
 
 /* ================= Super admin overview ================= */
 const subState = (g, t) => (g.locked ? 'locked' : !g.subscription_ends_on ? 'open' : g.subscription_ends_on < t ? 'expired' : diffDays(t, g.subscription_ends_on) <= 14 ? 'soon' : 'open');
-const AUDIT_TXT = () => ({ create_gym: L('Gym created', 'जिम बना'), set_lock: L('Lock changed', 'लॉक बदला'), set_subscription: L('Subscription changed', 'सब्सक्रिप्शन बदला'), assign_user: L('User assigned', 'यूज़र तय हुआ'), update_gym: L('Gym edited', 'जिम बदला'), void_sale: L('Sale cancelled', 'बिक्री रद्द'), set_online_pay: L('Online pay changed', 'ऑनलाइन पेमेंट बदला'), set_coach: L('AI coach changed', 'AI कोच बदला') });
+const AUDIT_TXT = () => ({ create_gym: L('Gym created', 'जिम बना'), set_lock: L('Lock changed', 'लॉक बदला'), set_subscription: L('Subscription changed', 'सब्सक्रिप्शन बदला'), assign_user: L('User assigned', 'यूज़र तय हुआ'), update_gym: L('Gym edited', 'जिम बदला'), void_sale: L('Sale cancelled', 'बिक्री रद्द'), set_online_pay: L('Online pay changed', 'ऑनलाइन पेमेंट बदला'), set_coach: L('AI coach changed', 'AI कोच बदला'), emi_create: L('EMI plan made', 'किस्त योजना बनी'), emi_cancel: L('EMI plan cancelled', 'किस्त योजना रद्द') });
 async function vSuperHome() {
   const [rows, audit] = await Promise.all([Q.overview(), Q.audit().catch(() => [])]), t = todayISO();
   const st = (g) => subState(g, t), locked = rows.filter((g) => g.locked), soon = rows.filter((g) => st(g) === 'soon'), expired = rows.filter((g) => st(g) === 'expired' && !g.locked);

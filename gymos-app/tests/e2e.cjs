@@ -19,7 +19,7 @@ function draftRows(eng, db, mem, fit, status) {
 const FIT = { age: 30, height_cm: 175, weight_kg: 80, goal: 'fat_loss', diet_pref: 'veg', activity: 'moderate', experience: 'intermediate', days_per_week: 4, session_min: 60, equipment: 'gym', injuries: null, conditions: null, allergies: null };
 function makeDb(role) {
   const G = '11111111-1111-4111-8111-111111111111', P1 = uid(), P2 = uid();
-  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none', review_url: role === 'member' ? 'https://g.page/r/CabcDEF123/review' : null }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [], member_progress: [], member_workouts: [], member_water: [], member_meals: [], member_sleep: [], referral_rewards: [], member_freezes: [], gym_equipment: [], trainer_commission: [], gym_classes: [], class_bookings: [], gym_tasks: [], staff_attendance: [], online_orders: [], online_pay: [], coach_messages: [], coach_settings: [], push_outbox: [] };
+  const db = { calls: [], gyms: [{ id: G, name: 'Royal The Gym', owner_name: 'Mahesh', phone: '9785300123', city: 'Jhunjhunu', upi_id: '9785300123@okbizaxis', plan: 'pro', status: 'active', subscription_ends_on: addD(today(), 40), lock_override: 'none', review_url: role === 'member' ? 'https://g.page/r/CabcDEF123/review' : null }], plans: [{ id: P1, gym_id: G, name: 'Monthly', months: 1, price: 1000, gst_pct: 18, status: 'Active' }, { id: P2, gym_id: G, name: 'Quarterly', months: 3, price: 2700, gst_pct: 18, status: 'Active' }], members: [], invoices: [], payments: [], visits: [], payment_ledger: [], audit_log: [], profiles: [], offers: [], wa_settings: [], wa_log: [], member_fit: [], member_plans: [], daily_summaries: [], expenses: [], leads: [], products: [], sales: [], product_costs: [], sale_costs: [], staff_members: [], salary_payments: [], member_progress: [], member_workouts: [], member_water: [], member_meals: [], member_sleep: [], referral_rewards: [], member_freezes: [], gym_equipment: [], trainer_commission: [], gym_classes: [], class_bookings: [], gym_tasks: [], staff_attendance: [], online_orders: [], online_pay: [], coach_messages: [], coach_settings: [], push_outbox: [], emi_plans: [], emi_installments: [] };
   const me = '22222222-2222-4222-8222-222222222222';
   db.me = me; db.G = G;
   db.profiles = [{ id: me, gym_id: role === 'super_admin' ? null : G, role, full_name: 'Test', email: 't@x.in', created_at: new Date().toISOString() }, { id: uid(), gym_id: null, role: 'member', full_name: 'New User', email: 'n@x.in', created_at: new Date().toISOString() }];
@@ -76,6 +76,9 @@ function handler(db, role) {
       if (fn === 'coach_stats') return json({ enabled: db.coachOn !== false, limit: 10, members_with_login: 3, questions_today: db.coach_messages.filter((r) => r.role === 'user').length, questions_7d: 4, members_7d: 2 });
       if (fn === 'set_coach') { db.coachArgs = a; db.coachOn = a.p_enabled; db.coach_settings = [{ gym_id: a.p_gym, enabled: a.p_enabled, daily_limit: a.p_limit || 10 }]; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'coach_clear') { const n = db.coach_messages.length; db.coach_messages.length = 0; return json(n); }
+      if (fn === 'emi_create_plan') { const inv = db.invoices.find((x) => x.id === a.p_invoice), pid = uid(), n = a.p_count, base = Math.floor(Math.round(inv.total * 100) / n) / 100; db.emiCreateArgs = a; db.emi_plans.push({ id: pid, gym_id: db.G, invoice_id: inv.id, member_id: inv.member_id, status: 'active', created_at: new Date().toISOString() }); for (let i = 1; i <= n; i++) db.emi_installments.push({ id: uid(), plan_id: pid, seq: i, due_on: addD(a.p_start, 30 * (i - 1)), amount: i < n ? base : +(inv.total - base * (n - 1)).toFixed(2) }); return json(pid); }
+      if (fn === 'emi_cancel_plan') { const pl = db.emi_plans.find((x) => x.id === a.p_plan); if (pl) pl.status = 'cancelled'; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
+      if (fn === 'emi_schedule') { const pl = db.emi_plans.find((x) => x.invoice_id === a.p_invoice && x.status === 'active'); if (!pl) return json([]); const paid = db.payments.filter((x) => x.invoice_id === a.p_invoice).reduce((s, x) => s + x.amount, 0), t = today(); let cum = 0; return json(db.emi_installments.filter((x) => x.plan_id === pl.id).sort((x, y) => x.seq - y.seq).map((r) => { cum = +(cum + r.amount).toFixed(2); const st = cum <= paid + 0.005 ? 'paid' : r.due_on < t ? 'overdue' : r.due_on === t ? 'due_today' : 'upcoming'; return { plan_id: pl.id, seq: r.seq, due_on: r.due_on, amount: r.amount, cum_amount: cum, paid_since: +paid.toFixed(2), state: st }; })); }
       if (fn === 'set_online_pay') { db.onlinePayArgs = a; db.online_pay = [{ gym_id: a.p_gym, enabled: a.p_enabled }]; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'mark_staff_attendance') { const st = db.staff_members.find((x) => x.id === a.p_staff); if (!st || a.p_day > today() || (st.joined_on && a.p_day < st.joined_on)) return json({ message: 'refused' }, 400); const i = db.staff_attendance.findIndex((x) => x.staff_id === a.p_staff && x.day === a.p_day); if (a.p_status === null) { if (i >= 0) db.staff_attendance.splice(i, 1); } else if (i >= 0) db.staff_attendance[i].status = a.p_status; else db.staff_attendance.push({ id: uid(), gym_id: db.G, staff_id: a.p_staff, day: a.p_day, status: a.p_status }); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'set_my_leaderboard') { db.members[0].leaderboard_opt_in = !!a.opt; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
@@ -137,7 +140,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(/ग़लत|Wrong/.test(await page.textContent('.banner.bad')), 'wrong password shows a friendly error');
     await login(page); await page.waitForSelector('.tiles');
     ok(/Royal The Gym/.test(await page.textContent('#gymName')), 'dashboard loads with gym name');
-    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 26, 'gym admin sees 26 menu items');
+    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 27, 'gym admin sees 27 menu items');
     await page.click('a[href="#members"]'); await page.waitForSelector('table.t');
     ok((await page.$$('table.t tbody tr')).length === 4, 'members list shows 4');
     await page.fill('#mq', 'priya'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 1);
@@ -482,7 +485,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await session(browser, 'gym_admin', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
     ok(!!(await page.$('.nav .more')) && (await page.$$eval('#nav a', (a) => a.filter((x) => x.offsetParent !== null).length)) <= 5, 'phone bar shows only the main pages plus More');
-    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 26, 'More sheet lists all 26 pages in groups');
+    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 27, 'More sheet lists all 27 pages in groups');
     await page.click('.sheet-links a[href="#expenses"]'); await page.waitForFunction(() => location.hash === '#expenses' && !document.querySelector('.ov')); ok(true, 'More sheet opens a page and closes');
     ok((await page.$$('#nav .grp')).length === 6, 'admin menu is split into 6 groups');
     await page.waitForSelector('[data-act=newExpense]'); await page.waitForTimeout(500);
@@ -620,6 +623,45 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.waitForFunction(() => !document.querySelector('#modals [data-o]')); ok(db.onlinePayArgs && db.onlinePayArgs.p_enabled === true && db.onlinePayArgs.p_gym === db.gyms[0].id, 'super admin: switch on sends the gym and true');
   });
 
+  console.log('EMI plans');
+  const addEmi = (db, inv) => {
+    db.rzEnabled = true;
+    db.emi_plans.push({ id: 'emi_plan_1', gym_id: db.G, invoice_id: inv.id, member_id: inv.member_id, status: 'active', created_at: new Date().toISOString() });
+    [[-20, 393.33], [0, 393.33], [30, 393.34]].forEach(([off, amount], i) => db.emi_installments.push({ id: uid(), plan_id: 'emi_plan_1', seq: i + 1, due_on: addD(today(), off), amount }));
+    db.payments.push({ id: uid(), gym_id: db.G, invoice_id: inv.id, member_id: inv.member_id, amount: 393.33, no: 'R-EMI-1', paid_on: addD(today(), -20), method: 'Cash', ref: null });
+  };
+  await session(browser, 'gym_admin', async (page, db) => {
+    await login(page); await page.waitForSelector('.tiles'); await page.evaluate(() => (location.hash = 'emi')); await page.waitForSelector('#view h1', { timeout: 15000 });
+    ok(/EMI plans|किस्त योजना/.test(await page.textContent('#view h1')) && /No EMI plans yet|अभी कोई किस्त योजना नहीं/.test(await page.textContent('#view')), 'owner: EMI page opens with an empty state');
+    await page.click('[data-act=emiNew]'); await page.waitForSelector('#f_inv');
+    await page.selectOption('#f_count', '3'); await page.fill('#f_start', addD(today(), 30));
+    const chosen = await page.inputValue('#f_inv'), previewRows = await page.$$eval('#emiPrev li', (x) => x.length);
+    ok(previewRows === 3, 'owner: the form previews three installments: ' + previewRows);
+    await page.click('[data-ok]'); await page.waitForSelector('[data-act=emiCancel]', { timeout: 10000 });
+    ok(db.emiCreateArgs && db.emiCreateArgs.p_invoice === chosen && db.emiCreateArgs.p_count === 3 && db.emiCreateArgs.p_start === addD(today(), 30), 'owner: the plan is saved with the chosen invoice, count and first due date');
+    ok(/0 of 3 paid|3 में 0 जमा/.test(await page.textContent('#view')), 'owner: the new plan shows 0 of 3 paid');
+    await page.click('[data-act=emiCancel]'); await page.waitForSelector('[data-yes]'); await page.click('[data-yes]');
+    await page.waitForFunction(() => /No EMI plans yet|अभी कोई किस्त योजना नहीं/.test(document.querySelector('#view').innerText), null, { timeout: 10000 });
+    ok(db.emi_plans[0].status === 'cancelled', 'owner: cancelling marks the plan cancelled');
+  });
+  await session(browser, 'member', async (page, db) => {
+    const inv = db.invoices[0]; addEmi(db, inv);
+    await login(page); await page.waitForSelector('.tiles'); await page.click('a[href="#pay"]'); await page.waitForSelector('[data-act=payEmi]');
+    const label = await page.textContent('[data-act=payEmi]');
+    ok(/393\.33/.test(label), 'member: the next installment is offered with its own amount: ' + label.trim());
+    const view = await page.textContent('#view');
+    ok(/Installment 1|किस्त 1/.test(view) && /Installment 3|किस्त 3/.test(view) && /1 of 3 paid|3 में 1 जमा/.test(view), 'member: all installments are listed with the count paid');
+    await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return {}; }; });
+    await page.click('[data-act=payEmi]'); await page.waitForFunction(() => window.__opened.length === 1);
+    const call = db.rzCalls.filter((c) => c.action === 'create').pop();
+    ok(call && call.part === true && call.invoice_id === inv.id && !('amount' in call), 'member: the installment is paid through the server with part = true and no amount sent');
+    ok((await page.$$('[data-act=payOnline]')).length >= 1, 'member: the full-balance button stays for paying everything at once');
+  });
+  await session(browser, 'member', async (page, db) => {
+    addEmi(db, db.invoices[0]);
+    await login(page); await page.waitForSelector('.tiles'); await page.click('a[href="#pay"]'); await page.waitForSelector('[data-act=payEmi]');
+    ok(!(await overflow(page)), 'member: installments card on a phone has no horizontal overflow');
+  }, { width: 390, height: 844 });
   console.log('push notifications');
   await session(browser, 'member', async (page) => {
     await login(page); await page.waitForSelector('.tiles'); await page.click('a[href="#me"]'); await page.waitForFunction(() => /Notifications|सूचनाएँ/.test(document.querySelector('#view').innerText), null, { timeout: 15000 });

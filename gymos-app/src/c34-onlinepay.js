@@ -41,13 +41,14 @@ const PAY_ERR = (c) => ({
   gateway: L('The payment page could not be created. Try again in a minute.', 'पेमेंट पेज नहीं बन सका। एक मिनट बाद फिर कोशिश करें।'),
 }[c] || L('Could not start the payment. Try again.', 'पेमेंट शुरू नहीं हो सका। फिर कोशिश करें।'));
 
-async function payOnline(invoiceId) {
+/* part = true pays only the next EMI installment (the database works out the amount); otherwise the full balance */
+async function payOnline(invoiceId, part) {
   if (U.rzBusy) return; U.rzBusy = true;
   try {
-    let r; try { r = await payFn({ action: 'create', invoice_id: invoiceId }); } catch (e) { toast(friendlyError(e), 'bad'); return; }
+    let r; try { r = await payFn({ action: 'create', invoice_id: invoiceId, part: part === true }); } catch (e) { toast(friendlyError(e), 'bad'); return; }
     const url = safeRzUrl(r.url);
     if (!url) { toast(PAY_ERR(r.error), 'bad'); return; }
-    bust('online_orders');
+    bust('online_orders', 'emi_mine');
     toast(L('Complete the payment on the Razorpay page. It appears here within a minute after you pay.', 'Razorpay के पेज पर भुगतान पूरा करें। भुगतान के बाद यहाँ एक मिनट में दिख जाएगा।'), 'ok');
     const w = window.open(url, '_blank', 'noopener'); if (!w) location.assign(url);
   } finally { U.rzBusy = false; }
