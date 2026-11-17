@@ -746,7 +746,7 @@ async function vSettings() {
   try { staff = (await Q.profiles()).filter((p) => p.gym_id === gymId()); } catch (e) {}
   return pageHead(L('Setup', 'सेटअप'), L('Gym settings', 'जिम सेटिंग'), '', `<button class="btn primary" data-act="editGym" ${CTX.locked ? 'disabled' : ''}>${ic('pencil')} ${esc(L('Edit', 'बदलें'))}</button>`)
     + `<div class="grid2">${card(L('Gym', 'जिम'), 'building', '', `<ul class="list"><li><div class="grow"><small>${esc(L('Name', 'नाम'))}</small><b>${esc(g.name || '')}</b></div></li><li><div class="grow"><small>${esc(L('Owner', 'मालिक'))}</small><b>${esc(g.owner_name || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Phone', 'फ़ोन'))}</small><b>${esc(g.phone || '—')}</b></div></li><li><div class="grow"><small>${esc(L('City', 'शहर'))}</small><b>${esc(g.city || '—')}</b></div></li><li><div class="grow"><small>UPI</small><b>${esc(g.upi_id || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Gym timings', 'जिम का समय'))}</small><b>${esc(g.timings || '—')}</b></div></li><li><div class="grow"><small>${esc(L('Subscription valid till', 'सब्सक्रिप्शन की तारीख़'))}</small><b>${esc(fmtDate(g.subscription_ends_on))}</b></div>${CTX.locked ? badge(L('Locked', 'लॉक'), 'bad') : badge(L('Open', 'खुला'), 'ok')}</li></ul>`)}
-    ${card(L('Team', 'टीम'), 'users', `<button class="btn sm" data-act="newTrainer" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('Trainer login', 'ट्रेनर लॉगिन'))}</button>`, staff.length ? `<ul class="list">${staff.map((p) => `<li>${avatar(p.full_name || p.email)}<div class="grow"><b>${esc(p.full_name || p.email || '—')}</b><small>${esc(p.email || '')}</small></div>${badge(roleName(p.role), 'mute')}</li>`).join('')}</ul><div class="muted" style="margin-top:8px">${esc(L('Roles are assigned by the platform admin.', 'भूमिकाएँ प्लेटफ़ॉर्म एडमिन तय करता है।'))}</div>` : empty(L('No team listed', 'टीम सूची में नहीं'), ''))}</div>` + reviewQrCard();
+    ${card(L('Team', 'टीम'), 'users', `<button class="btn sm" data-act="newTrainer" ${CTX.locked ? 'disabled' : ''}>${ic('plus')} ${esc(L('Trainer login', 'ट्रेनर लॉगिन'))}</button>`, staff.length ? `<ul class="list">${staff.map((p) => `<li>${avatar(p.full_name || p.email)}<div class="grow"><b>${esc(p.full_name || p.email || '—')}</b><small>${esc(p.email || '')}</small></div>${badge(roleName(p.role), 'mute')}</li>`).join('')}</ul><div class="muted" style="margin-top:8px">${esc(L('Roles are assigned by the platform admin.', 'भूमिकाएँ प्लेटफ़ॉर्म एडमिन तय करता है।'))}</div>` : empty(L('No team listed', 'टीम सूची में नहीं'), ''))}</div>` + reviewQrCard() + (await privacyRequestsCard());
 }
 function editGymForm() {
   const g = CTX.gym || {};
@@ -1714,12 +1714,13 @@ async function vMyProfile() {
     + `<div class="grid2">${card(L('My membership', 'मेरी सदस्यता'), 'users', '', `<dl class="kv" style="padding:6px 18px 16px">${row(L('Name', 'नाम'), esc(m.name))}${row(L('Phone', 'फ़ोन'), esc(m.phone || '—'))}${row(L('Plan', 'प्लान'), esc(plan ? plan.name : '—'))}${row(L('Started', 'शुरू'), esc(fmtDate(m.start_date)))}${row(L('Valid till', 'तारीख़ तक'), esc(fmtDate(m.end_date)))}${row(L('Goal', 'लक्ष्य'), esc(m.goal || '—'))}${m.trainer_id ? row(L('My trainer', 'मेरा ट्रेनर'), esc(m.trainer_name || '—')) : ''}${row(L('Status', 'स्थिति'), badge(memberState(m)))}</dl>`)}`
     + `${card(L('My gym', 'मेरा जिम'), 'building', '', `<dl class="kv" style="padding:6px 18px 16px">${row(L('Gym', 'जिम'), esc(g.name || '—'))}${row(L('City', 'शहर'), esc(g.city || '—'))}${row(L('Phone', 'फ़ोन'), g.phone ? `<a href="tel:${esc(String(g.phone).replace(/[^\d+]/g, ''))}">${esc(g.phone)}</a>` : '—')}${row(L('Timings', 'समय'), esc(g.timings || '—'))}${row('UPI', g.upi_id ? `${esc(g.upi_id)} <button class="btn sm" data-act="copyUpi">${esc(L('Copy', 'कॉपी'))}</button>` : '—')}</dl>`)}</div><div style="height:14px"></div>`
     + (await pushCard()) + '<div style="height:14px"></div>'
+    + (await deletionCard())
     + card(L('My account', 'मेरा अकाउंट'), 'lock', '', `<div style="padding:6px 18px 18px"><p class="muted" style="margin:0 0 12px">${esc(SESSION.email || '')}</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="changePw">${ic('lock')} ${esc(L('Change password', 'पासवर्ड बदलें'))}</button><button class="btn" data-act="lang">${ic('globe')} ${LANG === 'hi' ? 'English' : 'हिन्दी'}</button><button class="btn" data-act="signOut">${ic('out')} ${esc(L('Sign out', 'लॉग आउट'))}</button></div></div>`);
 }
 
 /* ================= Super admin overview ================= */
 const subState = (g, t) => (g.locked ? 'locked' : !g.subscription_ends_on ? 'open' : g.subscription_ends_on < t ? 'expired' : diffDays(t, g.subscription_ends_on) <= 14 ? 'soon' : 'open');
-const AUDIT_TXT = () => ({ create_gym: L('Gym created', 'जिम बना'), set_lock: L('Lock changed', 'लॉक बदला'), set_subscription: L('Subscription changed', 'सब्सक्रिप्शन बदला'), assign_user: L('User assigned', 'यूज़र तय हुआ'), update_gym: L('Gym edited', 'जिम बदला'), void_sale: L('Sale cancelled', 'बिक्री रद्द'), set_online_pay: L('Online pay changed', 'ऑनलाइन पेमेंट बदला'), set_coach: L('AI coach changed', 'AI कोच बदला'), emi_create: L('EMI plan made', 'किस्त योजना बनी'), emi_cancel: L('EMI plan cancelled', 'किस्त योजना रद्द'), set_route_account: L('Gym’s Razorpay account changed', 'जिम का Razorpay खाता बदला'), route_retry: L('Payment sent to gym again', 'भुगतान जिम को फिर भेजा') });
+const AUDIT_TXT = () => ({ create_gym: L('Gym created', 'जिम बना'), set_lock: L('Lock changed', 'लॉक बदला'), set_subscription: L('Subscription changed', 'सब्सक्रिप्शन बदला'), assign_user: L('User assigned', 'यूज़र तय हुआ'), update_gym: L('Gym edited', 'जिम बदला'), void_sale: L('Sale cancelled', 'बिक्री रद्द'), set_online_pay: L('Online pay changed', 'ऑनलाइन पेमेंट बदला'), set_coach: L('AI coach changed', 'AI कोच बदला'), emi_create: L('EMI plan made', 'किस्त योजना बनी'), emi_cancel: L('EMI plan cancelled', 'किस्त योजना रद्द'), set_route_account: L('Gym’s Razorpay account changed', 'जिम का Razorpay खाता बदला'), route_retry: L('Payment sent to gym again', 'भुगतान जिम को फिर भेजा'), deletion_request: L('Data erasure requested', 'डेटा हटाने का अनुरोध'), deletion_complete: L('Member data erased', 'सदस्य का डेटा मिटाया'), deletion_reject: L('Erasure request rejected', 'डेटा हटाने का अनुरोध अस्वीकार') });
 async function vSuperHome() {
   const [rows, audit] = await Promise.all([Q.overview(), Q.audit().catch(() => [])]), t = todayISO();
   const st = (g) => subState(g, t), locked = rows.filter((g) => g.locked), soon = rows.filter((g) => st(g) === 'soon'), expired = rows.filter((g) => st(g) === 'expired' && !g.locked);
@@ -3457,6 +3458,91 @@ function emiMemberCard(list, invoices, canPay) {
   if (!blocks.length) return '';
   return card(L('Installments', 'किस्तें'), 'clock', '', blocks.join(''));
 }
+/* ================= Data deletion: the member asks, the gym owner erases or rejects ================= */
+
+/* ---- pure helpers (tested in tests/deletion.test.mjs) ---- */
+const DEL_STATUS = { pending: ['Requested', 'अनुरोध भेजा गया', 'warn'], done: ['Erased', 'डेटा मिटाया गया', 'ok'], rejected: ['Not done', 'पूरा नहीं हुआ', 'bad'] };
+/** [label, tone] for a request status. No request (null) is neutral. */
+const delStatusLabel = (status) => { const s = DEL_STATUS[status]; return s ? [L(s[0], s[1]), s[2]] : [L('No request', 'कोई अनुरोध नहीं'), 'mute']; };
+/** A member can file when there is no request, or the last one was rejected (a pending or erased one cannot be filed again). */
+const delCanRequest = (status) => status == null || status === 'rejected';
+/** The owner can erase only a pending request, and only while the gym is open (erasure writes to the data and to storage). */
+const delCanErase = (status, gymOpen) => status === 'pending' && gymOpen === true;
+/** A rejection reason: 3 to 300 characters after trimming, counted as characters (the database rule). */
+const delNoteOk = (s) => { const n = [...String(s == null ? '' : s).trim()].length; return n >= 3 && n <= 300; };
+
+/* ---- member: the profile page card ---- */
+async function deletionCard() {
+  let st;
+  try { st = await DB.rpc('member_deletion_status'); } catch (e) { return ''; }
+  if (!st || st.no_member) return '';
+  const status = st.status || null, [lab, tone] = delStatusLabel(status), on = (k) => (st[k] ? fmtDate(st[k]) : '—');
+  let line = '';
+  if (status === 'pending') line = L(`Your request reached the gym on ${on('requested_at')}. The owner will erase your data soon.`, `आपका अनुरोध ${on('requested_at')} को जिम तक पहुँचा। मालिक जल्द आपका डेटा मिटाएगा।`);
+  else if (status === 'done') line = L(`Your personal and fitness data was erased on ${on('handled_at')}.`, `आपका व्यक्तिगत और फ़िटनेस डेटा ${on('handled_at')} को मिटा दिया गया।`);
+  else if (status === 'rejected') line = L(`The gym did not erase your data. Reason: ${st.note || '—'}`, `जिम ने डेटा नहीं मिटाया। कारण: ${st.note || '—'}`);
+  const action = delCanRequest(status)
+    ? `<button class="btn danger" data-act="delRequest">${ic('lock')} ${esc(status ? L('Request again', 'फिर से अनुरोध करें') : L('Request account deletion', 'खाता हटाने का अनुरोध करें'))}</button>` : '';
+  return card(L('Delete my data', 'मेरा डेटा हटाएँ'), 'lock', '', `<div style="padding:6px 18px 18px"><p class="muted" style="margin:0 0 10px">${esc(L('Ask the gym to erase your name, phone, photo, workouts, meals, sleep, water, check-ins and coach chats. Invoices and payment records stay, as tax law requires, but your name is removed from them.', 'जिम से अपना नाम, फ़ोन, फ़ोटो, वर्कआउट, भोजन, नींद, पानी, चेक-इन और कोच की बातचीत मिटाने को कहें। इनवॉइस और भुगतान के रिकॉर्ड कानून के तहत रहेंगे, पर उन पर से आपका नाम हट जाएगा।'))}</p>${status ? `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">${badge(lab, tone)}<span class="muted">${esc(line)}</span></div>` : ''}${action}</div>`)
+    + '<div style="height:14px"></div>';
+}
+async function delRequest() {
+  if (!(await askConfirm(L('Send the request to the gym? The owner will erase your data. Invoices and payment records stay, as the law requires.', 'जिम को अनुरोध भेजें? मालिक आपका डेटा मिटाएगा। इनवॉइस और भुगतान के रिकॉर्ड कानून के तहत रहेंगे।'), L('Send request', 'अनुरोध भेजें'), 'bad'))) return;
+  const r = await act(() => DB.rpc('member_request_deletion'), L('Request sent', 'अनुरोध भेजा गया'));
+  if (r) render();
+}
+
+/* ---- owner: a card on Settings listing the gym's requests ---- */
+async function privacyRequestsCard() {
+  const head = L('Data deletion requests', 'डेटा हटाने के अनुरोध');
+  let rows;
+  try { rows = await DB.rpc('deletion_list', { p_gym: gymId() }); } catch (e) {
+    return card(head, 'lock', '', `<div style="padding:6px 18px 18px" class="muted">${esc(L('Could not load the requests. Try again later.', 'अनुरोध लोड नहीं हुए। बाद में फिर कोशिश करें।'))}</div>`) + '<div style="height:14px"></div>';
+  }
+  rows = Array.isArray(rows) ? rows : [];
+  const pending = rows.filter((r) => r.status === 'pending').length;
+  const rowHtml = (r) => {
+    const [lab, tone] = delStatusLabel(r.status);
+    const data = `data-req="${esc(r.id)}" data-name="${esc(r.member_name || '')}" data-photo="${esc(r.photo_path || '')}"`;
+    const btns = r.status === 'pending'
+      ? `<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm danger" data-act="delErase" ${data} ${delCanErase(r.status, !CTX.locked) ? '' : 'disabled'}>${esc(L('Erase data', 'डेटा मिटाएँ'))}</button><button class="btn sm" data-act="delReject" data-req="${esc(r.id)}">${esc(L('Reject', 'अस्वीकार'))}</button></div>`
+      : '';
+    return `<li><div class="grow"><b>${esc(r.member_name || '—')}</b><small>${esc(L('Requested', 'अनुरोध'))}: ${esc(fmtDate(r.requested_at))}${r.note ? ' · ' + esc(r.note) : ''}</small></div>${badge(lab, tone)}${btns}</li>`;
+  };
+  const body = rows.length
+    ? `<ul class="list">${rows.map(rowHtml).join('')}</ul>`
+    : `<div class="muted" style="padding:6px 18px 18px">${esc(L('No requests yet.', 'अभी कोई अनुरोध नहीं।'))}</div>`;
+  const note = `<p class="muted" style="margin:0;padding:10px 18px 0;font-size:.9rem">${esc(L('Erasing removes the member’s name, phone, photo, fitness, health, attendance and coach data. Invoices, payments and GST records stay, as the law requires.', 'मिटाने पर सदस्य का नाम, फ़ोन, फ़ोटो, फ़िटनेस, स्वास्थ्य, उपस्थिति और कोच का डेटा हटेगा। इनवॉइस, भुगतान और GST के रिकॉर्ड कानून के तहत रहेंगे।'))}</p>`;
+  return card(head, 'lock', pending ? badge(L(`${pending} waiting`, `${pending} इंतज़ार में`), 'warn') : '', note + body) + '<div style="height:14px"></div>';
+}
+/** Removes the member's photo from storage before the record is erased. A failure stops the erase, so nothing is lost half-way. */
+async function deletePhotoObject(path) {
+  const res = await rawFetch('/storage/v1/object/member-photos/' + storagePath(path), { method: 'DELETE', headers: await storageAuth() });
+  if (res.ok || res.status === 404) { PHOTO_CACHE.delete(path); return true; }
+  toast(L('Could not remove the photo, so nothing was erased. Try again.', 'फ़ोटो नहीं हटी, इसलिए कुछ नहीं मिटा। फिर से कोशिश करें।'), 'bad');
+  return false;
+}
+async function delErase(d) {
+  const name = d.name || L('this member', 'यह सदस्य');
+  if (!(await askConfirm(L(`Erase ${name}’s personal, fitness and health data? This cannot be undone. Invoices and payment records stay, as the law requires.`, `${name} का व्यक्तिगत, फ़िटनेस और स्वास्थ्य डेटा मिटाएँ? यह वापस नहीं होगा। इनवॉइस और भुगतान के रिकॉर्ड कानून के तहत रहेंगे।`), L('Erase data', 'डेटा मिटाएँ'), 'bad'))) return;
+  if (d.photo && !(await deletePhotoObject(d.photo))) return;
+  const r = await act(() => DB.rpc('deletion_complete', { p_request: d.req, p_note: null }), L('Data erased', 'डेटा मिटाया गया'));
+  if (r) render();
+}
+function delRejectForm(d) {
+  const m = openModal({
+    title: L('Reject the request', 'अनुरोध अस्वीकार करें'),
+    body: `<p class="muted" style="margin:0 0 10px">${esc(L('Say why, in a few words. The member sees this reason.', 'कारण कुछ शब्दों में लिखें। सदस्य को यही कारण दिखेगा।'))}</p><div class="fg"><label for="delNote">${esc(L('Reason', 'कारण'))}</label><textarea class="in" id="delNote" rows="3" maxlength="300"></textarea></div>`,
+    footer: `<button type="button" class="btn" data-no>${esc(L('Cancel', 'रद्द करें'))}</button><button type="button" class="btn danger" data-go>${esc(L('Reject', 'अस्वीकार'))}</button>`,
+  });
+  m.el.querySelector('[data-no]').onclick = () => m.close();
+  m.el.querySelector('[data-go]').onclick = async () => {
+    const note = m.el.querySelector('#delNote').value;
+    if (!delNoteOk(note)) { toast(L('Write at least 3 characters.', 'कम से कम 3 अक्षर लिखें।'), 'bad'); return; }
+    const r = await act(() => DB.rpc('deletion_reject', { p_request: d.req, p_note: note.trim() }), L('Rejected. The member can see the reason.', 'अस्वीकार किया। सदस्य कारण देख सकता है।'));
+    if (r) { m.close(); render(); }
+  };
+}
 /* ================= Boot: auth gate, role routing, events ================= */
 const NAV_GROUPS = { overview: ['Overview', 'अवलोकन'], people: ['People', 'लोग'], money: ['Money', 'पैसा'], business: ['Business', 'व्यापार'], insights: ['Insights', 'जानकारी'], setup: ['Setup', 'सेटअप'], platform: ['Platform', 'प्लेटफ़ॉर्म'], me: ['My gym', 'मेरा जिम'] };
 /* entry: [route, icon, English, Hindi, view, group, shownInPhoneBar] */
@@ -3567,6 +3653,7 @@ function onSignedOut() { bust(); CTX.profile = null; CTX.gym = null; CTX.locked 
 const CHIP = { eqF: (v) => { U.eq.f = v; }, tkF: (v) => { U.tk.f = v; }, clsF: (v) => { U.cls.f = v; }, memT: (v) => { U.members.t = v; U.members.page = 1; }, memF: (v) => { U.members.f = v; U.members.page = 1; }, invF: (v) => { U.invoices.f = v; U.invoices.page = 1; }, peakD: (v) => { U.peak.days = v; }, fcRate: (v) => { U.fc.rate = v; }, actF: (v) => { U.act.f = v; }, expM: (v) => { U.exp.m = v; }, payM: (v) => { U.pay.m = v; }, sgF: (v) => { U.sg.f = v; }, suF: (v) => { U.su.f = v; }, leadF: (v) => { U.lead.f = v; } };
 const BIND = { mq: (v) => { U.members.q = v; U.members.page = 1; }, sgq: (v) => { U.sg.q = v; }, suq: (v) => { U.su.q = v; }, cq: (v) => { U.checkin.q = v; }, iq: (v) => { U.invoices.q = v; U.invoices.page = 1; }, pq: (v) => { U.payments.q = v; U.payments.page = 1; }, rdays: (v) => { const n = Math.min(14, Math.max(1, parseInt(v, 10) || 2)); U_REMIND.days = n; try { localStorage.setItem('gymos-remind-days', String(n)); } catch (e) {} }, thr: (v) => { const n = Math.min(30, Math.max(1, parseInt(v, 10) || 4)); U.retention.thr = n; try { localStorage.setItem('gymos-thr', String(n)); } catch (e) {} } };
 const ACTIONS = {
+  delRequest: () => delRequest(), delErase: (d) => delErase(d), delReject: (d) => delRejectForm(d),
   newGym: () => gymForm(), extendGym: (d) => extendForm(d.id), lockGym: (d) => lockForm(d.id), assignUser: (d) => assignForm(d.id),
   newMember: () => memberForm(), openMember: (d) => memberModal(d.id), checkIn: (d) => doCheckIn(d.id), checkOut: (d) => doCheckOut(d.id),
   newPlan: () => planForm(), editPlan: (d) => planForm(d.id), newInvoice: () => invoiceForm(), openInvoice: (d) => invoiceModal(d.id),

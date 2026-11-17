@@ -49,10 +49,13 @@ self.addEventListener('fetch', (e) => {
       try {
         const pre = e.preloadResponse ? await e.preloadResponse : null;
         const res = pre || (await withTimeout(fetch(r), 6000));
-        if (res && res.ok) { const c = await caches.open(CACHE); c.put('index.html', res.clone()); }
+        /* only the app entry is saved as the offline shell; the privacy page and other pages are never stored in its place */
+        if (res && res.ok && /(\/|\/index\.html)$/.test(u.pathname)) { const c = await caches.open(CACHE); c.put('index.html', res.clone()); }
         return res;
       } catch (err) {
         const c = await caches.open(CACHE);
+        /* only the app entry falls back to the saved shell; any other page (e.g. privacy.html) gets the offline page, never the app */
+        if (!/(\/|\/index\.html)$/.test(u.pathname)) return (await c.match('offline.html')) || Response.error();
         return (await c.match('index.html')) || (await c.match('offline.html')) || Response.error();
       }
     })());

@@ -86,6 +86,11 @@ function handler(db, role) {
       if (fn === 'mark_staff_attendance') { const st = db.staff_members.find((x) => x.id === a.p_staff); if (!st || a.p_day > today() || (st.joined_on && a.p_day < st.joined_on)) return json({ message: 'refused' }, 400); const i = db.staff_attendance.findIndex((x) => x.staff_id === a.p_staff && x.day === a.p_day); if (a.p_status === null) { if (i >= 0) db.staff_attendance.splice(i, 1); } else if (i >= 0) db.staff_attendance[i].status = a.p_status; else db.staff_attendance.push({ id: uid(), gym_id: db.G, staff_id: a.p_staff, day: a.p_day, status: a.p_status }); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'set_my_leaderboard') { db.members[0].leaderboard_opt_in = !!a.opt; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'gym_leaderboard') return json(db.members[0].leaderboard_opt_in ? [{ rank: 1, display_name: 'Rohit S.', days: 12, is_me: false }, { rank: 2, display_name: 'Rahul S.', days: 9, is_me: true }] : []);
+      if (fn === 'member_deletion_status') return json(db.deletion ? { status: db.deletion.status, requested_at: db.deletion.requested_at, handled_at: db.deletion.handled_at || null, note: db.deletion.note || null } : { status: null });
+      if (fn === 'member_request_deletion') { if (!db.deletion) db.deletion = { id: uid(), status: 'pending', requested_at: new Date().toISOString(), member_id: db.members[0].id }; return json({ status: 'pending', requested_at: db.deletion.requested_at, already: false }); }
+      if (fn === 'deletion_list') return json(db.deletion ? [{ id: db.deletion.id, status: db.deletion.status, requested_at: db.deletion.requested_at, handled_at: db.deletion.handled_at || null, note: db.deletion.note || null, member_id: db.members[0].id, member_name: db.members[0].name, member_phone: db.members[0].phone, photo_path: db.members[0].photo_path || null }] : []);
+      if (fn === 'deletion_reject') { db.deletionArgs = a; db.deletion.status = 'rejected'; db.deletion.note = a.p_note; db.deletion.handled_at = new Date().toISOString(); return json({ ok: true }); }
+      if (fn === 'deletion_complete') { db.deletionArgs = a; db.deletion.status = 'done'; db.deletion.handled_at = new Date().toISOString(); Object.assign(db.members[0], { name: 'Deleted member', phone: null, photo_path: null }); return json({ ok: true, member_id: db.members[0].id }); }
       if (fn === 'admin_set_gym_review_url') { db.gyms[0].review_url = a.link; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'admin_set_gym_timings') { db.gyms[0].timings = a.timing_text; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'publish_member_plan') { const r = db.member_plans.find((x) => x.id === a.p); db.member_plans.forEach((x) => { if (x.member_id === r.member_id && x.kind === r.kind && x.status === 'published' && x.id !== r.id) x.status = 'archived'; }); r.status = 'published'; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
@@ -94,6 +99,7 @@ function handler(db, role) {
       return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
     }
     if (p.startsWith('/storage/v1/object/authenticated/')) return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: PNG });
+    if (p.startsWith('/storage/v1/object/member-photos/') && m === 'DELETE') { db.photoDeleted = p; return route.fulfill({ status: db.photoFail ? 500 : 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{}' }); }
     if (p.startsWith('/storage/v1/object/member-photos/') && m === 'POST') { db.uploaded = p; return json({ Key: 'x' }); }
     const t = p.replace('/rest/v1/', ''), rows = db[t];
     if (!rows) return json({ message: 'nope' }, 404);
@@ -885,6 +891,59 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(/मंज़ूरी|approval/.test(await page.textContent('#gate')), 'unassigned user sees the waiting screen'); await ctx.close();
   }
 
+
+  console.log('data deletion: the member asks; the owner erases or rejects');
+  await session(browser, 'member', async (page, db) => {
+    await login(page); await page.waitForSelector('.tiles');
+    await page.evaluate(() => (location.hash = 'me'));
+    await page.waitForSelector('[data-act=delRequest]', { timeout: 15000 });
+    ok(/Delete my data|मेरा डेटा हटाएँ/.test(await page.textContent('#view')), 'member: the delete-my-data card is on the profile page');
+    await page.click('[data-act=delRequest]'); await page.click('[data-yes]');
+    await page.waitForFunction(() => /reached the gym|जिम तक पहुँचा/.test(document.querySelector('#view').innerText), null, { timeout: 10000 });
+    ok(db.deletion && db.deletion.status === 'pending', 'member: the request is filed with the gym');
+    ok((await page.$$('[data-act=delRequest]')).length === 0, 'member: no second request while one is waiting');
+  });
+  await session(browser, 'gym_admin', async (page, db) => {
+    const id = uid(); db.members[0].photo_path = 'G/photo-1.jpg';
+    db.deletion = { id, status: 'pending', requested_at: new Date().toISOString(), member_id: db.members[0].id };
+    await login(page); await page.waitForSelector('.tiles');
+    await page.click('a[href="#settings"]'); await page.waitForSelector('[data-act=delErase]', { timeout: 10000 });
+    ok(/Data deletion requests|डेटा हटाने के अनुरोध/.test(await page.textContent('#view')), 'owner: the deletion queue is on Settings');
+    ok(!(await page.isDisabled('[data-act=delErase]')), 'owner: erase is enabled while the gym is open');
+    await page.click('[data-act=delErase]'); await page.click('[data-yes]');
+    for (let i = 0; i < 20 && !(db.deletion && db.deletion.status === 'done'); i++) await page.waitForTimeout(150);
+    ok(db.photoDeleted && /photo-1\.jpg/.test(db.photoDeleted), 'owner: the photo is removed from storage before the record');
+    ok(db.deletion.status === 'done' && db.deletionArgs && db.deletionArgs.p_request === id, 'owner: the request is erased');
+    ok(db.members[0].name === 'Deleted member' && db.members[0].phone === null, 'owner: the member row is anonymised');
+  });
+  await session(browser, 'gym_admin', async (page, db) => {
+    db.photoFail = true; db.members[0].photo_path = 'G/photo-2.jpg';
+    db.deletion = { id: uid(), status: 'pending', requested_at: new Date().toISOString(), member_id: db.members[0].id };
+    await login(page); await page.waitForSelector('.tiles');
+    await page.click('a[href="#settings"]'); await page.waitForSelector('[data-act=delErase]', { timeout: 10000 });
+    await page.click('[data-act=delErase]'); await page.click('[data-yes]');
+    for (let i = 0; i < 20 && !db.photoDeleted; i++) await page.waitForTimeout(150);
+    await page.waitForTimeout(300);
+    ok(db.photoDeleted && db.deletion.status === 'pending' && !db.deletionArgs, 'owner: if the photo cannot be removed, nothing is erased and the request stays open');
+  });
+  await session(browser, 'gym_admin', async (page, db) => {
+    db.deletion = { id: uid(), status: 'pending', requested_at: new Date().toISOString(), member_id: db.members[0].id };
+    await login(page); await page.waitForSelector('.tiles');
+    await page.click('a[href="#settings"]'); await page.waitForSelector('[data-act=delReject]', { timeout: 10000 });
+    await page.click('[data-act=delReject]'); await page.waitForSelector('#delNote');
+    await page.fill('#delNote', 'ab'); await page.click('[data-go]'); await page.waitForTimeout(300);
+    ok(db.deletion.status === 'pending' && !db.deletionArgs, 'owner: a reason under 3 characters is refused before it is sent');
+    await page.fill('#delNote', 'Member asked after the refund was processed'); await page.click('[data-go]');
+    for (let i = 0; i < 20 && db.deletion.status !== 'rejected'; i++) await page.waitForTimeout(150);
+    ok(db.deletion.status === 'rejected' && db.deletionArgs && db.deletionArgs.p_note === 'Member asked after the refund was processed', 'owner: the rejection is saved with its reason');
+  });
+  await session(browser, 'gym_admin', async (page, db) => {
+    db.gyms[0].lock_override = 'force_lock';
+    db.deletion = { id: uid(), status: 'pending', requested_at: new Date().toISOString(), member_id: db.members[0].id };
+    await login(page); await page.waitForSelector('.tiles', { timeout: 15000 });
+    await page.click('a[href="#settings"]'); await page.waitForSelector('[data-act=delErase]', { timeout: 10000 });
+    ok(await page.isDisabled('[data-act=delErase]'), 'owner: a locked gym cannot erase, the button is disabled');
+  });
   await browser.close(); server.close();
   console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED'); process.exit(fails ? 1 : 0);
 })();

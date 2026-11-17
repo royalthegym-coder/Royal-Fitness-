@@ -142,3 +142,16 @@ Deploy: migrations are applied in order. Redeploy the `razorpay` function after 
 - Only creation of a transfer is recorded. Later changes (processed, failed after creation, reversed) are not synced. Check the dashboard, or add a transfer webhook once its event names are confirmed.
 - Not verified against live Razorpay: the transfer response shape and status values, the fee arithmetic (`captured − fee − tax`, deliberately conservative), and Route's own transfer charge. Test in Test mode with a linked test account before going live.
 - Files: `supabase/migrations/20261117_route_accounts.sql`, `20261117_route_transfers.sql`, `supabase/functions/razorpay/` (`routePayment`, `route_retry`), `src/c34-onlinepay.js` (`routeBox`, `routeBind`), `tests/route.test.mjs`, `tests/onlinepay.test.mjs`, the Route block in `tests/e2e.cjs`.
+
+## Data deletion requests (erasure)
+
+- A member asks from Profile → Delete my data (`member_request_deletion`). One request can be open at a time; a rejected request can be filed again. The status is read with `member_deletion_status`.
+- The gym owner (or super admin) sees the queue in Settings → Data deletion requests (`deletion_list`).
+- **Erase** (`deletion_complete`): deletes fitness, health, progress, meals, sleep, water, workouts, class bookings, check-ins, WhatsApp message log, coach chats and push subscriptions for that member, clears profile details and detaches the sign-in from the gym, and anonymises the member row (`Deleted member`, no phone, DOB or photo, `wa_opt_out` set, status `Cancelled`). Invoices, payments, online orders, the ledger, plan history, referral and EMI records are kept because tax law requires it; they keep the member id, not the name.
+- The app removes the member's photo from storage **before** calling erase. If the photo cannot be removed, nothing is erased and the request stays open.
+- Erase needs the gym to be open (`gym_is_open`). A locked gym shows the button disabled.
+- **Reject** (`deletion_reject`) needs a reason of 3–300 characters, shown to the member.
+- Every step writes an audit row (`deletion_request`, `deletion_complete`, `deletion_reject`) with ids only.
+- Not done by this flow: removing the sign-in account itself from Supabase Auth. The login is detached from the gym and keeps no gym data. Removing the auth user needs a service-role step (Auth admin API), which is not built yet.
+- Table `deletion_requests`: RLS on, no direct grants. All access goes through the five RPCs above.
+- Migration: `supabase/migrations/20261117_deletion_requests.sql` (applied; rollback-tested on live data inside a transaction).
