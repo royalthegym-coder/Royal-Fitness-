@@ -33,11 +33,16 @@ Checked on 2026-11-18 against the repo (`gymos-app`, branch `gymos-app`) and the
 ## 4. Phases
 
 **P0: make the base safe to build on (now)**
-- Export `wa-dispatch` source into the repo and record its SHA-256.
-- Deploy `ai-coach` (owner runs `supabase functions deploy ai-coach`).
-- Capture a schema baseline (`supabase db dump`) and commit it.
-- Mobile QA at 375px for check-in, leads and coach (Playwright).
+- [done] `wa-dispatch` source is in the repo (`supabase/functions/wa-dispatch/index.ts`), copied verbatim from the live v1. Not checked byte-for-byte: the platform's hash is a bundle hash, so there is nothing to compare against.
+- [done] Mobile QA at 375px: members, check-in, leads, reminders and coach have zero sideways page scroll (e2e, 5 checks).
+- [open, owner] Deploy `ai-coach` (`supabase functions deploy ai-coach`).
+- [open, owner] Capture a schema baseline (`supabase db dump`) and commit it.
+- [open] `create-account` shows a folder with no `index.ts`. Find its source or record that the live copy has none.
 - Acceptance: every live function has source in the repo; `supabase db reset` rebuilds the database.
+
+**Review items found while capturing `wa-dispatch` (not changed yet)**
+- The cron path (`x-cron-secret`) and the admin `flush` path send queued messages without checking the gym's subscription status. A locked or suspended gym can still send templates. Decide whether that is intended.
+- The admin `test` action sends a real WhatsApp message to any number the admin types. Rate limiting is not in the function. Consider a daily cap per gym.
 
 **P1: approval and audit gate (the prerequisite for every AI write)**
 - Table `ai_actions`: `id, gym_id, kind, payload jsonb, status (proposed | approved | rejected | executed | failed), proposed_by, decided_by, decided_at, executed_at, error, idempotency_key`.

@@ -756,6 +756,15 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(await page.evaluate(() => fetch('offline.html').then((r) => r.ok)), 'offline page is available offline');
     await ctx.setOffline(false); await page.waitForFunction(() => !document.querySelector('#offBar')); ok(true, 'offline bar disappears when the internet is back');
     await ctx.close();
+    // phone width (375px): the main screens never scroll sideways as a page (a wide table scrolls inside its own box)
+    { const ctx = await browser.newContext({ viewport: { width: 375, height: 667 }, serviceWorkers: 'block' }), page = await ctx.newPage(); await ctx.route(SB + '/**', handler(makeDb('gym_admin'), 'gym_admin'));
+      await page.goto(base + '/'); await login(page); await page.waitForSelector('.tiles');
+      for (const r of ['members', 'checkin', 'leads', 'reminders', 'coach']) {
+        await page.evaluate((h) => (location.hash = h), r); await page.waitForTimeout(400);
+        const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        ok(over <= 0, `375px: ${r} has no sideways page scroll (overflow ${over}px)`);
+      }
+      await ctx.close(); }
     // install prompt: Android/Chrome button and iPhone instructions
     const andr = await browser.newContext({ viewport: { width: 390, height: 800 }, serviceWorkers: 'block' }), ap = await andr.newPage(); await andr.route(SB + '/**', handler(makeDb('gym_admin'), 'gym_admin'));
     await ap.goto(base + '/'); await ap.evaluate(() => { const e = new Event('beforeinstallprompt'); e.prompt = () => { window.__prompted = true; }; e.userChoice = Promise.resolve({ outcome: 'accepted' }); window.dispatchEvent(e); });
