@@ -1,8 +1,10 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { TEST_DAILY_CAP, istToday, gymOpen } from './lib.js';
 
 // Sends queued WhatsApp template messages (receipt / expiry / dues) through the Meta WhatsApp Cloud API.
 // Auth: either the shared cron secret (pg_cron / database trigger) or a signed-in gym admin / super admin.
 // verify_jwt is off because the pg_cron caller has no user JWT; every path authenticates itself below.
+// Gate: a message is sent only while its gym is open (lib.js gymOpen, which mirrors private.gym_is_open).
 
 const URL_ = Deno.env.get('SUPABASE_URL')!;
 const SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -44,9 +46,20 @@ async function sendOne(row: Row, tpl: Record<string, string>) {
   return { ok: r.ok, status: r.status, id: j?.messages?.[0]?.id as string | undefined, err: j?.error ? `${j.error.code ?? ''} ${j.error.message ?? ''}`.trim().slice(0, 300) : '' };
 }
 
+// Reads a gym's lock state once per run. Returns null when the read fails: the caller releases the row, it does not skip it.
+async function gymIsOpen(gymId: string, cache: Map<string, boolean>): Promise<boolean | null> {
+  if (cache.has(gymId)) return cache.get(gymId)!;
+  const { data, error } = await sb.from('gyms').select('status,lock_override,subscription_ends_on').eq('id', gymId).maybeSingle();
+  if (error) return null;
+  const open = gymOpen(data);
+  cache.set(gymId, open);
+  return open;
+}
+
 async function flush(onlyGym?: string) {
   if (!TOKEN || !PHONE_ID) return { configured: false, sent: 0, failed: 0, left: 'queued until WhatsApp is configured' };
   let sent = 0, failed = 0;
+  const openCache = new Map<string, boolean>();
   for (let round = 0; round < 5; round++) {
     const { data, error } = await sb.rpc('wa_claim_batch', { max_rows: 20 });
     if (error) return { configured: true, sent, failed, error: error.message };
@@ -58,6 +71,9 @@ async function flush(onlyGym?: string) {
       if (Date.now() - new Date(row.created_at).getTime() > MAX_AGE_MS) {
         await sb.from('wa_log').update({ status: 'skipped', error: 'too old to send' }).eq('id', row.id); continue;
       }
+      const open = await gymIsOpen(row.gym_id, openCache);
+      if (open === null) { await sb.from('wa_log').update({ claimed_at: null, attempts: Math.max(0, row.attempts - 1) }).eq('id', row.id); continue; }
+      if (!open) { await sb.from('wa_log').update({ status: 'skipped', error: 'gym is closed: not sent' }).eq('id', row.id); continue; }
       if (!tplCache.has(row.gym_id)) {
         const { data: s } = await sb.from('wa_settings').select('tpl_receipt,tpl_expiry,tpl_dues,tpl_lang').eq('gym_id', row.gym_id).maybeSingle();
         tplCache.set(row.gym_id, (s || { tpl_receipt: 'fee_receipt', tpl_expiry: 'membership_expiry', tpl_dues: 'fee_due', tpl_lang: 'hi' }) as Record<string, string>);
@@ -108,6 +124,11 @@ Deno.serve(async (req: Request) => {
     const to = ph.length === 10 && /^[6-9]/.test(ph) ? '91' + ph : ph.length === 12 && ph.startsWith('91') ? ph : '';
     if (!to) return json({ error: 'Enter a valid 10-digit Indian mobile number' }, 400);
     if (!TOKEN || !PHONE_ID) return json({ configured: false, error: 'WhatsApp is not configured yet' }, 200);
+    if ((await gymIsOpen(gymId, new Map())) !== true) return json({ error: 'Gym is closed for WhatsApp sending' }, 403);
+    const dayStart = new Date(istToday() + 'T00:00:00+05:30').toISOString();
+    const { count: testsToday, error: capErr } = await sb.from('wa_log').select('id', { count: 'exact', head: true }).eq('gym_id', gymId).eq('kind', 'test').gte('created_at', dayStart);
+    if (capErr) return json({ error: 'could not check the daily test limit' }, 500);
+    if ((testsToday ?? 0) >= TEST_DAILY_CAP) return json({ error: `Daily test limit reached (${TEST_DAILY_CAP} per gym per day)` }, 429);
     const stamp = Date.now();
     const { data: row, error } = await sb.from('wa_log').insert({
       gym_id: gymId, kind: 'test', dedupe_key: 'test:' + stamp, to_phone: to, status: 'queued', attempts: 1, claimed_at: new Date().toISOString(),
