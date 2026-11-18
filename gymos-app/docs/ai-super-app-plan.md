@@ -35,14 +35,14 @@ Checked on 2026-11-18 against the repo (`gymos-app`, branch `gymos-app`) and the
 **P0: make the base safe to build on (now)**
 - [done] `wa-dispatch` source is in the repo (`supabase/functions/wa-dispatch/index.ts`), copied verbatim from the live v1. Not checked byte-for-byte: the platform's hash is a bundle hash, so there is nothing to compare against.
 - [done] Mobile QA at 375px: members, check-in, leads, reminders and coach have zero sideways page scroll (e2e, 5 checks).
-- [open, owner] Deploy `ai-coach` (`supabase functions deploy ai-coach`).
-- [open, owner] Capture a schema baseline (`supabase db dump`) and commit it.
-- [open] `create-account` shows a folder with no `index.ts`. Find its source or record that the live copy has none.
+- [done 2026-11-18] `ai-coach` v2 is live. The live `lib.js` matches the repo. See `docs/ops-status-2026-11-18.md`.
+- [open, owner] Capture a schema baseline (`supabase db dump`) and commit it. Measured 18 Nov: 46 live tables; the repo creates 5 of them.
+- [done 2026-11-18] `create-account` source is in the repo, copied from live v1. Its lock rule differs from the database rule (see the ops status doc).
 - Acceptance: every live function has source in the repo; `supabase db reset` rebuilds the database.
 
-**Review items found while capturing `wa-dispatch` (not changed yet)**
-- The cron path (`x-cron-secret`) and the admin `flush` path send queued messages without checking the gym's subscription status. A locked or suspended gym can still send templates. Decide whether that is intended.
-- The admin `test` action sends a real WhatsApp message to any number the admin types. Rate limiting is not in the function. Consider a daily cap per gym.
+**Review items (done 2026-11-18, `wa-dispatch` v2)**
+- Done: every send path checks the gym's open state (mirrors `private.gym_is_open`). A closed gym's rows are marked `skipped`. Decision: skip, not hold (see the ops status doc).
+- Done: the admin `test` action is capped at 20 per gym per IST day.
 
 **P1: approval and audit gate (the prerequisite for every AI write)**
 - Table `ai_actions`: `id, gym_id, kind, payload jsonb, status (proposed | approved | rejected | executed | failed), proposed_by, decided_by, decided_at, executed_at, error, idempotency_key`.

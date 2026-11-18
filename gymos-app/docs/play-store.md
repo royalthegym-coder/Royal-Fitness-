@@ -66,7 +66,7 @@ Answer from what the app actually does. Map each row to the real data in the sch
 | App activity / Device IDs | push subscription | yes | no | yes | browser push endpoint |
 
 Decisions to take before submitting (they change the answers above):
-- **AI coach and health fields (decided in code, option B).** `supabase/functions/ai-coach/lib.js` (`factsOf`) no longer passes injuries, conditions or allergies to the model. The model only receives `on_record_health: true` and a general-safety rule (rule 7). The coach still sends the chat question, goal, activity and other fitness facts through the Vercel AI Gateway, so the Data safety answer for "Messages" stays "shared". The flag itself is health-related, so declare it under health info. Deploy note: the deployed `ai-coach` function is updated only after `supabase functions deploy ai-coach` (verify_jwt on). Until that runs, production still sends the old text. Read Play's Data safety guidance before submitting.
+- **AI coach and health fields (decided in code, option B).** `supabase/functions/ai-coach/lib.js` (`factsOf`) no longer passes injuries, conditions or allergies to the model. The model only receives `on_record_health: true` and a general-safety rule (rule 7). The coach still sends the chat question, goal, activity and other fitness facts through the Vercel AI Gateway, so the Data safety answer for "Messages" stays "shared". The flag itself is health-related, so declare it under health info. Deploy note: `ai-coach` v2 was deployed on 2026-11-18 (verify_jwt on). Production no longer receives the health text. Read Play's Data safety guidance before submitting.
 - **Data deletion.** Play requires a way to request account and data deletion. In-app: Profile → Delete my data. Web: `privacy.html`, section 7. Confirm the current Play wording and add a web request channel if Play asks for one.
 - **Encryption in transit:** yes (HTTPS only).
 
@@ -94,7 +94,8 @@ Decisions to take before submitting (they change the answers above):
 - [ ] Put the app-signing SHA-256 into `public/.well-known/assetlinks.json`, deploy, verify the file
 - [ ] Fill every `[bracket]` item in `privacy.html`; have a lawyer review it
 - [x] Health fields to the AI gateway: decided (option B, see above). Data safety answers match it
-- [ ] Deploy `ai-coach` (`supabase functions deploy ai-coach`), then check one coach answer for a member with an injury note
+- [x] Deploy `ai-coach` (v2 live, 2026-11-18, verify_jwt on)
+- [ ] Check one coach answer for a member with an injury note (owner test)
 - [ ] Complete the Data safety form, content rating, target audience and store listing
 - [ ] Run the closed test; then release in stages
 
