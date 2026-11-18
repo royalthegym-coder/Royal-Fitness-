@@ -551,11 +551,22 @@ async function memberModal(id) {
 
 /* ---------- Check-in ---------- */
 async function vCheckin() {
-  const [members, visits] = await Promise.all([Q.members(), Q.visits()]);
+  let members, visits, offline = false;
+  try {
+    [members, visits] = await Promise.all([Q.members(), Q.visits()]);
+    rosterSave(safeStore(), members, visits); /* keeps this device's offline snapshot current */
+  } catch (e) {
+    if (!(e && e.status === 0)) throw e;
+    /* no connection: the page is built from the last snapshot on this device, so the waiting scans stay visible */
+    const snap = rosterLoad(safeStore(), gymId());
+    members = snap ? snap.members : []; visits = snap ? snap.visits : []; offline = true;
+  }
   const today = todayISO(), todays = visits.filter((v) => istDate(v.in_at) === today), open = new Map(todays.filter((v) => !v.out_at).map((v) => [v.member_id, v]));
   const q = U.checkin.q.trim().toLowerCase(), mm = memberMap(members);
   const found = q ? members.filter((m) => m.name.toLowerCase().includes(q) || String(m.phone || '').includes(q)).slice(0, 8) : [];
   return pageHead(L('Floor', 'फ़्लोर'), L('Check-in', 'चेक-इन'), L(`${todays.length} today · ${open.size} inside`, `आज ${todays.length} · अंदर ${open.size}`), `<button class="btn pri" data-act="openScan">${ic('door')} ${esc(L('Scan QR', 'QR स्कैन'))}</button>`)
+    + (offline ? `<div class="card" style="margin-bottom:14px"><p class="muted" style="margin:0;padding:14px 18px">${esc(L('No connection. Members are shown from the last time this device was online.', 'इंटरनेट नहीं है। सदस्य इस डिवाइस की आख़िरी ऑनलाइन सूची से दिख रहे हैं।'))}</p></div>` : '')
+    + queuedBanner()
     + `<div class="bar"><input class="in" id="scanIn" autocomplete="off" placeholder="${esc(L('Scanner code box', 'स्कैनर कोड बॉक्स'))}" aria-label="${esc(L('Scanner code box', 'स्कैनर कोड बॉक्स'))}" style="max-width:220px"></div>`
     + `<div class="bar">${searchBox('cq', U.checkin.q, L('Type a name or phone', 'नाम या फ़ोन लिखें'))}</div>`
     + (q ? `<div class="card" style="margin-bottom:14px">${found.length ? `<ul class="list">${found.map((m) => { const s = memberState(m), inV = open.get(m.id), blocked = ['Expired', 'Frozen', 'Cancelled'].includes(s); return `<li>${avatarM(m)}<div class="grow"><b>${esc(m.name)}</b><small>${esc(m.phone || '')} · ${esc(LANG === 'hi' ? STATE_HI[s] : s)}${m.end_date ? ' · ' + esc(fmtShort(m.end_date)) : ''}</small></div>${inV ? `<button class="btn sm" data-act="checkOut" data-id="${esc(inV.id)}">${esc(L('Check out', 'चेक-आउट'))}</button>` : `<button class="btn primary sm" data-act="checkIn" data-id="${esc(m.id)}" ${blocked || CTX.locked ? 'disabled' : ''}>${esc(blocked ? L('Renew first', 'पहले रिन्यू') : L('Check in', 'चेक-इन'))}</button>`}</li>`; }).join('')}</ul>` : empty(L('No match', 'कोई मेल नहीं'), '')}</div>` : '')
@@ -2334,6 +2345,24 @@ function reportFlush(results) {
   if (cur && cur[0] === 'checkin') render();
 }
 
+/* staff side: the scans saved on this device that the gym has not received yet (this gym's only, never another gym's) */
+function pendingCheckIns() { try { return outboxRead(safeStore()).filter((e) => e.gym_id === gymId()); } catch (e) { return []; } }
+/* the "Sync now" button: send what is waiting. If nothing could be sent, say so, so a stuck queue is never silent. */
+async function syncCheckIns() {
+  const before = pendingCheckIns().length;
+  if (!before) return;
+  const results = await flushCheckIns();
+  reportFlush(results);
+  const left = pendingCheckIns().length;
+  if (left && left === before && !results.length) toast(L(`${left} check-in(s) still waiting. Check the internet connection, and that you still have access.`, `${left} चेक-इन अभी इंतज़ार में हैं। इंटरनेट और अपनी पहुँच जाँचें।`), 'bad');
+}
+/* the banner on the check-in page while scans wait on this device; empty when nothing waits */
+function queuedBanner() {
+  const n = pendingCheckIns().length;
+  if (!n) return '';
+  return card(L('Waiting to sync', 'सिंक का इंतज़ार'), 'clock', '', `<div style="padding:4px 18px 16px"><p style="margin:0 0 10px">${esc(L(`${n} check-in(s) are saved on this device and not yet with the gym. They are sent when the connection and your access are back.`, `${n} चेक-इन इस डिवाइस पर सेव हैं, जिम तक अभी नहीं पहुँचे। इंटरनेट और पहुँच वापस आने पर ये भेजे जाएँगे।`))}</p><button class="btn primary sm" data-act="syncCheckIns">${ic('check')} ${esc(L('Sync now', 'अभी सिंक करें'))}</button></div>`);
+}
+
 /* member side: the pass shown on the home page (made in the browser, works offline) */
 function memberPassCard(m) {
   return card(L('My check-in pass', 'मेरा चेक-इन पास'), 'door', '', `<div style="padding:4px 18px 18px;text-align:center"><div class="qrbox">${qrSvg(passCode(m), 240)}</div><p class="muted" style="margin:10px 0 0">${esc(L('Show this QR at the front desk to check in. Turn the screen brightness up.', 'चेक-इन के लिए रिसेप्शन पर यह QR दिखाएँ। स्क्रीन की रोशनी बढ़ा लें।'))}</p></div>`);
@@ -3887,7 +3916,7 @@ const ACTIONS = {
   payOnline: (d) => payOnline(d.id), payEmi: (d) => payOnline(d.id, true), emiNew: () => emiForm(), emiCancel: (d) => emiCancelPlan(d.id), pushOn: () => pushToggle(true), pushOff: () => pushToggle(false), pushTest: () => pushTest(), announceNew: () => announceForm(), onlinePayGym: (d) => onlinePayForm(d.id), coachAsk: (d) => coachSend(d.q), coachSend: () => coachSend(), coachVoice: () => coachVoice(), luxe: () => luxeChange(), coachClear: () => coachClear(), coachOff: () => coachOff(), coachGym: (d) => coachGymForm(d.id), actMore: () => { U.act.n = Math.min(U.act.n + 200, 1000); render(); }, actCsv: () => activityCsv(),
   attDay: (d) => { U.att.day = addDays(U.att.day || todayISO(), Number(d.d)); if (U.att.day > todayISO()) U.att.day = todayISO(); render(); }, attToday: () => { U.att.day = todayISO(); render(); }, attMark: (d) => attMark(d.id, d.s),
   newEq: () => equipmentForm(), editEq: (d) => equipmentForm(d.id), eqServiced: (d) => eqServiced(d.id), delEq: (d) => deleteEquipment(d.id),
-  newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, moreNav: () => openMoreSheet(), installApp: () => installApp(), installLater: () => installLater(), applyUpdate: () => applyUpdate(), booksCsv: () => exportBooks(), newTask: () => taskForm(), editTask: (d) => taskForm(d.id), toggleTask: (d) => toggleTask(d.id), delTask: (d) => deleteTask(d.id), openScan: () => openScanner(), newClass: () => classForm(), editClass: (d) => classForm(d.id), cancelClass: (d) => cancelClass(d.id), clsBookings: (d) => classBookings(d.id), clsBook: (d) => bookClass(d.id), clsCancel: (d) => cancelMyBooking(d.id), setCommission: (d) => commissionForm(d.id), addProgress: (d) => progressForm(d.id, d.by === '1', d.by === '1' ? null : () => progressModal(d.id)), delProgress: (d) => deleteProgress(d.id, d.m), giveReward: (d) => giveReward(d.id), lbJoin: () => setLeaderboard(true), lbLeave: () => setLeaderboard(false), waterAdd: (d) => addWater(d.id, Number(d.ml)).then((ok) => ok && render()), delHabit: (d) => deleteHabit(d.t, d.id), quickFood: (d) => mealForm(d.id, FOODS[Number(d.i)], () => render()), customFood: (d) => mealForm(d.id, null, () => render()), logSleep: (d) => sleepForm(d.id, () => render()), addWorkout: (d) => Q.members().then(() => wkOf(d.id)).then((rows) => workoutForm(d.id, rows)), delWorkout: (d) => deleteWorkout(d.id), newStaff: () => staffForm(), editStaff: (d) => staffForm(d.id), payStaff: (d) => salaryForm(d.id), staffHist: (d) => staffHistory(d.id), delStaff: (d) => deleteStaff(d.id), delSalPay: (d) => deleteSalaryPay(d.id), newExpense: () => expenseForm(), newProduct: () => productForm(), editProduct: (d) => productForm(d.id), sellProduct: (d) => sellForm(d.id), voidSale: (d) => voidSale(d.id), delProduct: (d) => deleteProduct(d.id), delExpense: (d) => deleteExpense(d.id), newLead: () => leadForm(), editLead: (d) => leadForm(d.id), leadNext: (d) => Q.leads().then((ls) => { const l = ls.find((x) => x.id === d.id); const n = l && nextStage(l.stage); if (n) leadSetStage(l.id, n, L('Moved to ' + stageLabel(n), stageLabel(n) + ' में किया')); }), leadLost: (d) => leadSetStage(d.id, 'Lost', L('Marked lost', 'छूटा हुआ चिह्नित')), leadConvert: (d) => leadConvert(d.id), delLead: (d) => deleteLead(d.id), waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
+  newTrainer: () => accountForm('trainer'), openMyPlan: (d) => { const r = (window.__minePlans || [])[Number(d.i)]; if (r) planViewModal(r, null, false); }, moreNav: () => openMoreSheet(), installApp: () => installApp(), installLater: () => installLater(), applyUpdate: () => applyUpdate(), booksCsv: () => exportBooks(), newTask: () => taskForm(), editTask: (d) => taskForm(d.id), toggleTask: (d) => toggleTask(d.id), delTask: (d) => deleteTask(d.id), openScan: () => openScanner(), syncCheckIns: () => syncCheckIns(),newClass: () => classForm(), editClass: (d) => classForm(d.id), cancelClass: (d) => cancelClass(d.id), clsBookings: (d) => classBookings(d.id), clsBook: (d) => bookClass(d.id), clsCancel: (d) => cancelMyBooking(d.id), setCommission: (d) => commissionForm(d.id), addProgress: (d) => progressForm(d.id, d.by === '1', d.by === '1' ? null : () => progressModal(d.id)), delProgress: (d) => deleteProgress(d.id, d.m), giveReward: (d) => giveReward(d.id), lbJoin: () => setLeaderboard(true), lbLeave: () => setLeaderboard(false), waterAdd: (d) => addWater(d.id, Number(d.ml)).then((ok) => ok && render()), delHabit: (d) => deleteHabit(d.t, d.id), quickFood: (d) => mealForm(d.id, FOODS[Number(d.i)], () => render()), customFood: (d) => mealForm(d.id, null, () => render()), logSleep: (d) => sleepForm(d.id, () => render()), addWorkout: (d) => Q.members().then(() => wkOf(d.id)).then((rows) => workoutForm(d.id, rows)), delWorkout: (d) => deleteWorkout(d.id), newStaff: () => staffForm(), editStaff: (d) => staffForm(d.id), payStaff: (d) => salaryForm(d.id), staffHist: (d) => staffHistory(d.id), delStaff: (d) => deleteStaff(d.id), delSalPay: (d) => deleteSalaryPay(d.id), newExpense: () => expenseForm(), newProduct: () => productForm(), editProduct: (d) => productForm(d.id), sellProduct: (d) => sellForm(d.id), voidSale: (d) => voidSale(d.id), delProduct: (d) => deleteProduct(d.id), delExpense: (d) => deleteExpense(d.id), newLead: () => leadForm(), editLead: (d) => leadForm(d.id), leadNext: (d) => Q.leads().then((ls) => { const l = ls.find((x) => x.id === d.id); const n = l && nextStage(l.stage); if (n) leadSetStage(l.id, n, L('Moved to ' + stageLabel(n), stageLabel(n) + ' में किया')); }), leadLost: (d) => leadSetStage(d.id, 'Lost', L('Marked lost', 'छूटा हुआ चिह्नित')), leadConvert: (d) => leadConvert(d.id), delLead: (d) => deleteLead(d.id), waSettings: () => waSettingsForm(), waTest: () => waTestForm(), copyTpl: (d) => copyWaTemplate(d.k),
   changePw: () => openForm({
     title: L('Change password', 'पासवर्ड बदलें'),
     fields: [

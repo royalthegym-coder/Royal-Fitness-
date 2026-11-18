@@ -105,6 +105,24 @@ function reportFlush(results) {
   if (cur && cur[0] === 'checkin') render();
 }
 
+/* staff side: the scans saved on this device that the gym has not received yet (this gym's only, never another gym's) */
+function pendingCheckIns() { try { return outboxRead(safeStore()).filter((e) => e.gym_id === gymId()); } catch (e) { return []; } }
+/* the "Sync now" button: send what is waiting. If nothing could be sent, say so, so a stuck queue is never silent. */
+async function syncCheckIns() {
+  const before = pendingCheckIns().length;
+  if (!before) return;
+  const results = await flushCheckIns();
+  reportFlush(results);
+  const left = pendingCheckIns().length;
+  if (left && left === before && !results.length) toast(L(`${left} check-in(s) still waiting. Check the internet connection, and that you still have access.`, `${left} चेक-इन अभी इंतज़ार में हैं। इंटरनेट और अपनी पहुँच जाँचें।`), 'bad');
+}
+/* the banner on the check-in page while scans wait on this device; empty when nothing waits */
+function queuedBanner() {
+  const n = pendingCheckIns().length;
+  if (!n) return '';
+  return card(L('Waiting to sync', 'सिंक का इंतज़ार'), 'clock', '', `<div style="padding:4px 18px 16px"><p style="margin:0 0 10px">${esc(L(`${n} check-in(s) are saved on this device and not yet with the gym. They are sent when the connection and your access are back.`, `${n} चेक-इन इस डिवाइस पर सेव हैं, जिम तक अभी नहीं पहुँचे। इंटरनेट और पहुँच वापस आने पर ये भेजे जाएँगे।`))}</p><button class="btn primary sm" data-act="syncCheckIns">${ic('check')} ${esc(L('Sync now', 'अभी सिंक करें'))}</button></div>`);
+}
+
 /* member side: the pass shown on the home page (made in the browser, works offline) */
 function memberPassCard(m) {
   return card(L('My check-in pass', 'मेरा चेक-इन पास'), 'door', '', `<div style="padding:4px 18px 18px;text-align:center"><div class="qrbox">${qrSvg(passCode(m), 240)}</div><p class="muted" style="margin:10px 0 0">${esc(L('Show this QR at the front desk to check in. Turn the screen brightness up.', 'चेक-इन के लिए रिसेप्शन पर यह QR दिखाएँ। स्क्रीन की रोशनी बढ़ा लें।'))}</p></div>`);

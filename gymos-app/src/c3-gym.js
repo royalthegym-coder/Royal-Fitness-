@@ -145,11 +145,22 @@ async function memberModal(id) {
 
 /* ---------- Check-in ---------- */
 async function vCheckin() {
-  const [members, visits] = await Promise.all([Q.members(), Q.visits()]);
+  let members, visits, offline = false;
+  try {
+    [members, visits] = await Promise.all([Q.members(), Q.visits()]);
+    rosterSave(safeStore(), members, visits); /* keeps this device's offline snapshot current */
+  } catch (e) {
+    if (!(e && e.status === 0)) throw e;
+    /* no connection: the page is built from the last snapshot on this device, so the waiting scans stay visible */
+    const snap = rosterLoad(safeStore(), gymId());
+    members = snap ? snap.members : []; visits = snap ? snap.visits : []; offline = true;
+  }
   const today = todayISO(), todays = visits.filter((v) => istDate(v.in_at) === today), open = new Map(todays.filter((v) => !v.out_at).map((v) => [v.member_id, v]));
   const q = U.checkin.q.trim().toLowerCase(), mm = memberMap(members);
   const found = q ? members.filter((m) => m.name.toLowerCase().includes(q) || String(m.phone || '').includes(q)).slice(0, 8) : [];
   return pageHead(L('Floor', 'फ़्लोर'), L('Check-in', 'चेक-इन'), L(`${todays.length} today · ${open.size} inside`, `आज ${todays.length} · अंदर ${open.size}`), `<button class="btn pri" data-act="openScan">${ic('door')} ${esc(L('Scan QR', 'QR स्कैन'))}</button>`)
+    + (offline ? `<div class="card" style="margin-bottom:14px"><p class="muted" style="margin:0;padding:14px 18px">${esc(L('No connection. Members are shown from the last time this device was online.', 'इंटरनेट नहीं है। सदस्य इस डिवाइस की आख़िरी ऑनलाइन सूची से दिख रहे हैं।'))}</p></div>` : '')
+    + queuedBanner()
     + `<div class="bar"><input class="in" id="scanIn" autocomplete="off" placeholder="${esc(L('Scanner code box', 'स्कैनर कोड बॉक्स'))}" aria-label="${esc(L('Scanner code box', 'स्कैनर कोड बॉक्स'))}" style="max-width:220px"></div>`
     + `<div class="bar">${searchBox('cq', U.checkin.q, L('Type a name or phone', 'नाम या फ़ोन लिखें'))}</div>`
     + (q ? `<div class="card" style="margin-bottom:14px">${found.length ? `<ul class="list">${found.map((m) => { const s = memberState(m), inV = open.get(m.id), blocked = ['Expired', 'Frozen', 'Cancelled'].includes(s); return `<li>${avatarM(m)}<div class="grow"><b>${esc(m.name)}</b><small>${esc(m.phone || '')} · ${esc(LANG === 'hi' ? STATE_HI[s] : s)}${m.end_date ? ' · ' + esc(fmtShort(m.end_date)) : ''}</small></div>${inV ? `<button class="btn sm" data-act="checkOut" data-id="${esc(inV.id)}">${esc(L('Check out', 'चेक-आउट'))}</button>` : `<button class="btn primary sm" data-act="checkIn" data-id="${esc(m.id)}" ${blocked || CTX.locked ? 'disabled' : ''}>${esc(blocked ? L('Renew first', 'पहले रिन्यू') : L('Check in', 'चेक-इन'))}</button>`}</li>`; }).join('')}</ul>` : empty(L('No match', 'कोई मेल नहीं'), '')}</div>` : '')

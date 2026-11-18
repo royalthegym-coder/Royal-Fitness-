@@ -427,6 +427,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
       await page.fill('#scanIn', 'gymos:' + m0.id); await page.press('#scanIn', 'Enter'); await page.waitForTimeout(700);
       const queued = await page.evaluate(() => localStorage.getItem('gymos-checkin-outbox'));
       ok(db.visits.length === nB && !!queued && /इस डिवाइस पर सेव|saved on this device/.test(await page.textContent('body')), 'offline: the scan waits on this device and nothing is lost');
+      ok(/\bSync now\b|अभी सिंक करें/.test(await page.textContent('body')), 'offline: the check-in page shows the waiting scan and a sync button');
       db.offline = false;
       await page.evaluate(() => window.dispatchEvent(new Event('online')));
       for (let i = 0; i < 40 && db.visits.length === nB; i++) await page.waitForTimeout(100);

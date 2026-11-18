@@ -13,6 +13,7 @@ const Q = {
 const gymId = () => CTX.profile.gym_id;
 const toast = (m, t) => { globalThis.__toasts.push([String(m), t || '']); };
 const bust = () => {}; const render = () => {}; const currentRoute = () => null; const STATE_HI = {};
+const ic = () => ''; const card = (title, icon, link, body) => '[card:' + title + ']' + body;
 const memberState = (m) => (m.status === 'Frozen' ? 'Frozen' : m.status === 'Cancelled' ? 'Cancelled' : m.end_date && m.end_date < todayISO() ? 'Expired' : 'Active');
 `;
 
@@ -29,9 +30,9 @@ const docStub = { addEventListener() {}, querySelector() { return null; }, query
 let api;
 try {
   api = new Function('document', 'window', 'localStorage', lib + '\n' + shim + '\n' + src +
-    '\n; return { PASS_RE, newVisitId, planScan, outboxRead, outboxWrite, rosterSave, rosterLoad, rosterClear, flushCheckIns, scanCheckIn, safeStore, MEM_STORE, OUTBOX_KEY, ROSTER_KEY, SCAN_REPEAT_MS, DB, CTX, saveSession, istDate, todayISO, Q };')(docStub, win, store);
+    '\n; return { PASS_RE, newVisitId, pendingCheckIns, syncCheckIns, queuedBanner, planScan, outboxRead, outboxWrite, rosterSave, rosterLoad, rosterClear, flushCheckIns, scanCheckIn, safeStore, MEM_STORE, OUTBOX_KEY, ROSTER_KEY, SCAN_REPEAT_MS, DB, CTX, saveSession, istDate, todayISO, Q };')(docStub, win, store);
 } catch (e) { console.error('load', e.stack || e.message); process.exit(1); }
-const { planScan, outboxRead, outboxWrite, rosterSave, rosterLoad, flushCheckIns, scanCheckIn, newVisitId, SCAN_REPEAT_MS, OUTBOX_KEY, ROSTER_KEY, DB, CTX, saveSession, istDate, PASS_RE } = api;
+const { pendingCheckIns, syncCheckIns, queuedBanner, planScan, outboxRead, outboxWrite, rosterSave, rosterLoad, flushCheckIns, scanCheckIn, newVisitId, SCAN_REPEAT_MS, OUTBOX_KEY, ROSTER_KEY, DB, CTX, saveSession, istDate, PASS_RE } = api;
 
 let n = 0;
 const ok = (c, m) => { if (!c) { console.error('FAIL', m); process.exit(1); } n++; };
@@ -170,6 +171,26 @@ store.fail = false;
 reset();
 CTX.gym = { status: 'suspended' };
 ok(await scanCheckIn(pass(M1)) === false && writes() === 0 && /Subscription|सब्सक्रिप्शन/.test(lastToast()[0]), 'a locked gym refuses check-in');
+reset();
+
+/* the queue on the check-in page: this gym's waiting scans only, the banner, and a sync button that says why nothing went */
+reset();
+outboxWrite(store, [
+  { key: 'k1', type: 'in', id: '55555555-5555-4555-8555-555555555555', gym_id: G, member_id: M1, in_at: iso(NOW) },
+  { key: 'k2', type: 'in', id: '66666666-6666-4666-8666-666666666666', gym_id: OTHER, member_id: M1, in_at: iso(NOW) },
+]);
+ok(pendingCheckIns().length === 1 && pendingCheckIns()[0].key === 'k1', 'the queue count is this gym only');
+ok(/^.*\b1\b/.test(queuedBanner()) && queuedBanner().includes('syncCheckIns') && queuedBanner().includes('[card:'), 'the banner shows the count and the sync button');
+reset();
+ok(pendingCheckIns().length === 0 && queuedBanner() === '', 'no banner when nothing waits');
+reset();
+outboxWrite(store, [{ key: 'k3', type: 'in', id: '77777777-7777-4777-8777-777777777777', gym_id: G, member_id: M2, in_at: iso(NOW) }]);
+globalThis.__insertErr = Object.assign(new Error('net'), { status: 0 });
+await syncCheckIns();
+ok(pendingCheckIns().length === 1 && lastToast()[1] === 'bad' && /^1 /.test(lastToast()[0]), 'offline: the scan stays queued and the button says why');
+globalThis.__insertErr = null;
+await syncCheckIns();
+ok(pendingCheckIns().length === 0 && globalThis.__calls.some((c) => c[0] === 'insert' && c[2].id === '77777777-7777-4777-8777-777777777777'), 'back online: the button sends the queued scan');
 reset();
 
 console.log(`checkin: ${n} checks passed`);
