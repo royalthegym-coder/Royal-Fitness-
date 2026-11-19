@@ -42,7 +42,8 @@ async function equipmentForm(id) {
   });
 }
 async function eqServiced(id) {
-  const ok = await act(() => DB.update('gym_equipment', id, { last_service_on: todayISO(), status: 'Working' }), L('Service recorded', 'सर्विस दर्ज हुई'));
+  /* a service date is not a repair: the condition changes only through the edit form, so "Out of order" stays visible */
+  const ok = await act(() => DB.update('gym_equipment', id, { last_service_on: todayISO() }), L('Service recorded', 'सर्विस दर्ज हुई'));
   if (ok) { bust('gym_equipment'); render(); }
 }
 async function deleteEquipment(id) {

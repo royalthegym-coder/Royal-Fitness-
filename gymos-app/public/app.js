@@ -28,7 +28,9 @@ const fmtShort = (s) => { if (!s) return '—'; const [, m, d] = ymd(String(s).l
 const fmtTime = (iso) => { if (!iso) return '—'; const { hour, min } = istParts(iso); return `${hour % 12 || 12}:${pad(min)} ${hour < 12 ? 'am' : 'pm'}`; };
 const inr = (v) => { const n = Number(v || 0); return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2, minimumFractionDigits: Number.isInteger(n) ? 0 : 2 }).format(n); };
 const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
-const waLink = (phone, text) => { const dg = String(phone || '').replace(/\D/g, ''); return `https://wa.me/${dg.length === 10 ? '91' + dg : dg}?text=${encodeURIComponent(text)}`; };
+/* Indian mobile: 10 digits starting 6-9. Accepts +91, 91 and a leading 0; returns the 10 digits or '' */
+const indMobile = (s) => { let d = String(s || '').replace(/\D/g, ''); if (d.length === 12 && d.startsWith('91')) d = d.slice(2); else if (d.length === 11 && d.startsWith('0')) d = d.slice(1); return /^[6-9]\d{9}$/.test(d) ? d : ''; };
+const waLink = (phone, text) => { const m = indMobile(phone); const dg = String(phone || '').replace(/\D/g, ''); return `https://wa.me/${m ? '91' + m : dg}?text=${encodeURIComponent(text)}`; };
 const isUUID = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ''));
 const csvCell = (v) => { let s = String(v ?? ''); if (/^[=+\-@]/.test(s) && isNaN(Number(s))) s = "'" + s; return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
 
@@ -211,11 +213,12 @@ function readForm(root, fields) {
     let msg = '';
     if (f.req && (v === '' || v === null || Number.isNaN(v))) msg = L('Required', 'ज़रूरी है');
     else if (f.type === 'number' && v !== '' && (Number.isNaN(v) || v < (f.min ?? 0))) msg = L('Enter a valid number', 'सही संख्या लिखें');
-    else if (f.type === 'tel' && v && String(v).replace(/\D/g, '').length < 10) msg = L('Enter a 10-digit number', '10 अंकों का नंबर लिखें');
+    else if (f.type === 'tel' && v && !indMobile(v)) msg = L('Enter a valid 10-digit mobile (starts with 6 to 9)', '10 अंकों का सही मोबाइल नंबर लिखें (6 से 9 से शुरू)');
     else if (f.type === 'email' && v && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) msg = L('Enter a valid email', 'सही ईमेल लिखें');
     else if (f.check) msg = f.check(v, out) || '';
     if (er) er.textContent = msg;
     if (msg) ok = false;
+    if (f.type === 'tel' && v) v = indMobile(v) || v; /* store the clean 10-digit number */
     out[f.k] = v;
   });
   return ok ? out : null;
@@ -414,7 +417,8 @@ const upiOf = () => (CTX.gym && CTX.gym.upi_id) || '';
 
 /* ---------- Dashboard ---------- */
 async function vDashboard() {
-  const [members, invoices, payments, visits] = await Promise.all([Q.members(), Q.invoices(), Q.payments(), Q.visits()]);
+  /* money tables are owner-only: trainers get empty lists instead of a failing read */
+  const [members, invoices, payments, visits] = await Promise.all([Q.members(), isAdmin() ? Q.invoices() : [], isAdmin() ? Q.payments() : [], Q.visits()]);
   const paid = paidByInvoice(payments), today = todayISO(), mk = monthKey(today);
   const states = members.map(memberState);
   const active = states.filter((s) => s === 'Active' || s === 'Expiring').length, expiring = states.filter((s) => s === 'Expiring').length, expired = states.filter((s) => s === 'Expired').length;
@@ -453,15 +457,23 @@ async function memberForm(id, prefill, onSaved) {
   const liveOffers = offers.filter((o) => offerLive(o, todayISO()));
   const x = id ? members.find((m) => m.id === id) : null;
   const act2 = plans.filter((p) => p.status === 'Active');
+  /* an archived plan the member is still on must stay selectable, or saving would silently clear it */
+  const curPlan = x && x.plan_id ? plans.find((p) => p.id === x.plan_id) : null;
+  const planOpts = curPlan && !act2.some((p) => p.id === curPlan.id) ? [...act2, curPlan] : act2;
+  const admin = isAdmin();
+  const dupOf = (phone) => { const d = indMobile(phone); return d ? members.find((m) => m.id !== (x && x.id) && indMobile(m.phone) === d) || null : null; };
   const fields = [
-    { k: 'name', label: L('Name', 'नाम'), req: true, full: true }, { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel', req: true },
+    { k: 'name', label: L('Name', 'नाम'), req: true, full: true, check: (v) => (v.length < 2 ? L('Enter at least 2 letters', 'कम से कम 2 अक्षर लिखें') : v.length > 60 ? L('Up to 60 characters', 'अधिकतम 60 अक्षर') : '') },
+    { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel', req: true, ph: '98765 43210', check: (v) => { const dup = dupOf(v); return dup ? L(`Already registered to ${dup.name}. Open that member instead.`, `यह नंबर ${dup.name} के नाम पर पहले से है। उसी सदस्य को खोलें।`) : ''; } },
     { k: 'gender', label: L('Gender', 'लिंग'), type: 'select', options: [{ v: '', l: '—' }, { v: 'Male', l: L('Male', 'पुरुष') }, { v: 'Female', l: L('Female', 'महिला') }, { v: 'Other', l: L('Other', 'अन्य') }] },
     { k: 'dob', label: L('Date of birth', 'जन्म की तारीख़'), type: 'date', check: (v) => (v && v > todayISO() ? L('Cannot be in the future', 'आगे की तारीख़ नहीं') : v && v < '1900-01-01' ? L('Check the year', 'साल जाँचें') : '') },
     { k: 'goal', label: L('Goal', 'लक्ष्य'), type: 'select', options: [{ v: '', l: '—' }, ...GOALS.map((g) => ({ v: g, l: g }))] },
-    { k: 'plan_id', label: L('Plan', 'प्लान'), type: 'select', options: [{ v: '', l: L('No plan yet', 'अभी प्लान नहीं') }, ...act2.map((p) => ({ v: p.id, l: `${p.name} · ${inr(p.price)}` }))], def: x ? x.plan_id || '' : '' },
-    { k: 'start_date', label: L('Start date', 'शुरू की तारीख़'), type: 'date', def: x ? x.start_date : todayISO() },
     { k: 'notes', label: L('Notes', 'नोट'), type: 'textarea', full: true },
   ];
+  /* only the owner sets the plan and dates: trainers can't, and the database refuses it too */
+  if (admin) fields.splice(fields.length - 1, 0,
+    { k: 'plan_id', label: L('Plan', 'प्लान'), type: 'select', options: [{ v: '', l: L('No plan yet', 'अभी प्लान नहीं') }, ...planOpts.map((p) => ({ v: p.id, l: `${p.name} · ${inr(p.price)}${p.status !== 'Active' ? ' · ' + L('archived', 'बंद') : ''}` }))], def: x ? x.plan_id || '' : '' },
+    { k: 'start_date', label: L('Start date', 'शुरू की तारीख़'), type: 'date', def: x ? x.start_date : todayISO() });
   if (isAdmin()) fields.splice(fields.length - 1, 0, { k: 'referred_by', label: L('Referred by (member)', 'किसने जुड़वाया (सदस्य)'), type: 'select', full: true, options: [{ v: '', l: '—' }, ...members.filter((m) => !x || m.id !== x.id).sort((p, q) => p.name.localeCompare(q.name)).map((m) => ({ v: m.id, l: `${m.name} · ${m.phone || ''}` }))], def: x ? x.referred_by || '' : '' });
   if (isAdmin() && trainers.length) fields.push({ k: 'trainer_id', label: L('Trainer', 'ट्रेनर'), type: 'select', full: true, options: [{ v: '', l: L('Not assigned', 'सौंपा नहीं') }, ...trainers.map((p) => ({ v: p.id, l: (p.full_name || p.email || 'Trainer') + (p.role === 'gym_admin' ? ` (${L('owner', 'मालिक')})` : '') }))], def: x ? x.trainer_id || '' : '' });
   if (isAdmin()) fields.push({ k: 'wa_opt_out', label: L('Do not send automatic WhatsApp messages (member asked to stop)', 'ऑटोमैटिक WhatsApp मैसेज न भेजें (सदस्य ने मना किया)'), type: 'check', full: true });
@@ -469,19 +481,24 @@ async function memberForm(id, prefill, onSaved) {
   openForm({
     title: x ? x.name : L('New member', 'नया सदस्य'), fields, values: x || prefill || {},
     onSubmit: async (v) => {
-      const plan = plans.find((p) => p.id === v.plan_id);
+      if (CTX.locked) { toast(L('The gym is locked. Members cannot be changed.', 'जिम लॉक है। सदस्य नहीं बदले जा सकते।'), 'bad'); return false; }
+      const plan = admin ? planOpts.find((p) => p.id === v.plan_id) || null : null;
       const start = v.start_date || todayISO();
-      const row = { name: v.name, phone: v.phone, gender: v.gender || null, dob: v.dob || null, goal: v.goal || null, notes: v.notes || null, plan_id: plan ? plan.id : null };
-      if (isAdmin()) row.wa_opt_out = !!v.wa_opt_out;
-      if (isAdmin()) row.referred_by = v.referred_by || null;
-      if (isAdmin() && trainers.length) row.trainer_id = v.trainer_id || null;
-      if (plan && (!x || x.plan_id !== plan.id || x.start_date !== start)) { row.start_date = start; row.end_date = addDays(addMonths(start, plan.months), -1); }
+      const row = { name: v.name, phone: indMobile(v.phone) || v.phone, gender: v.gender || null, dob: v.dob || null, goal: v.goal || null, notes: v.notes || null };
+      if (admin) { row.wa_opt_out = !!v.wa_opt_out; row.referred_by = v.referred_by || null; if (trainers.length) row.trainer_id = v.trainer_id || null; }
+      /* plan and dates are written only when they are new or changed, so an edit never clears a membership */
+      if (admin && (!x || (plan ? plan.id : '') !== (x.plan_id || '') || (plan && x.start_date !== start))) {
+        row.plan_id = plan ? plan.id : null;
+        row.start_date = plan ? start : null;
+        row.end_date = plan ? addDays(addMonths(start, plan.months), -1) : null;
+      }
       const saved = await act(() => (x ? DB.update('members', x.id, row) : DB.insert('members', { ...row, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
       if (!saved) return false;
-      if (!x && plan && v.bill && isAdmin()) {
+      if (!x && plan && v.bill && admin) {
         const off = liveOffers.find((o) => o.id === v.offer && (!o.plan_id || o.plan_id === plan.id)), disc = off ? offerDiscount(off, plan.price) : 0;
         const items = [{ label: `${plan.name} membership`, amount: Number(plan.price) }]; if (off && disc > 0) items.push({ label: `Offer: ${off.name}`, amount: 0 });
-        await act(() => DB.insert('invoices', { gym_id: gymId(), member_id: saved.id, items, ...computeInvoice([{ amount: plan.price }], disc, plan.gst_pct), due: addDays(todayISO(), 7) }), L('Invoice created', 'इनवॉइस बना'));
+        const inv = await act(() => DB.insert('invoices', { gym_id: gymId(), member_id: saved.id, items, ...computeInvoice([{ amount: plan.price }], disc, plan.gst_pct), due: addDays(todayISO(), 7) }), L('Invoice created', 'इनवॉइस बना'));
+        if (!inv) toast(L('Member saved, but the first invoice failed. Open the member and renew to bill.', 'सदस्य सेव हुआ, पर पहला इनवॉइस नहीं बना। सदस्य खोलकर रिन्यू से बिल बनाएँ।'), 'bad');
       }
       bust('members', 'invoices'); if (onSaved) { try { await onSaved(saved); } catch (e) {} } render(); return true;
     },
@@ -492,6 +509,8 @@ async function renewForm(id) {
   const liveOffers = offers.filter((o) => offerLive(o, todayISO()));
   const m = members.find((x) => x.id === id); if (!m) return;
   const act2 = plans.filter((p) => p.status === 'Active'); if (!act2.length) { toast(L('Add a plan first.', 'पहले प्लान जोड़ें।'), 'bad'); return; }
+  if (CTX.locked) { toast(L('The gym is locked. Renewals are not possible.', 'जिम लॉक है। रिन्यू नहीं हो सकता।'), 'bad'); return; }
+  if (m.status === 'Frozen') { toast(L('Unfreeze the member first, then renew.', 'पहले फ़्रीज़ हटाएँ, फिर रिन्यू करें।'), 'bad'); return; }
   const startDef = m.end_date && m.end_date >= todayISO() ? addDays(m.end_date, 1) : todayISO();
   const cur = act2.find((p) => p.id === m.plan_id) || act2[0];
   const preview = (root, src) => { const p = act2.find((x) => x.id === $('#f_plan', root).value); if (src === 'offer' || src === 'plan') { const o = liveOffers.find((x) => x.id === $('#f_offer', root).value); $('#f_discount', root).value = o && (!o.plan_id || o.plan_id === p.id) ? offerDiscount(o, p.price) : 0; } const disc = parseFloat($('#f_discount', root).value) || 0; const c = computeInvoice([{ amount: p.price }], disc, p.gst_pct); const out = $('#rn_sum', root); if (out) out.textContent = `${L('Total', 'कुल')} ${inr(c.total)} (GST ${inr(c.gst_amt)})`; const pay = $('#f_pay', root); if (pay && !pay.dataset.touched) pay.value = c.total; };
@@ -546,7 +565,7 @@ async function memberModal(id) {
   const wl = $('[data-wl]', mod.el); if (wl) wl.onclick = () => habitsModal(id);
   const lg = $('[data-l]', mod.el); if (lg) lg.onclick = () => { mod.close(); accountForm('member', m); };
   const r = $('[data-r]', mod.el); if (r) r.onclick = () => { mod.close(); renewForm(id); };
-  if (CTX.locked) { $$('[data-e],[data-r],[data-l],[data-ph],[data-fz],[data-uf]', mod.el).forEach((b) => (b.disabled = true)); }
+  if (CTX.locked) { $$('[data-e],[data-r],[data-l],[data-ph],[data-fz],[data-uf],[data-pg],[data-wk],[data-wl],[data-fp]', mod.el).forEach((b) => (b.disabled = true)); }
 }
 
 /* ---------- Check-in ---------- */
@@ -625,7 +644,7 @@ async function invoiceForm(memberId) {
       { k: 'member', label: L('Member', 'सदस्य'), type: 'select', options: members.map((m) => ({ v: m.id, l: `${m.name} · ${m.phone || ''}` })), def: memberId || members[0].id, full: true },
       { k: 'label', label: L('Item', 'विवरण'), req: true, def: plans[0] ? plans[0].name : '', full: true },
       { k: 'amount', label: `${L('Amount', 'राशि')} (₹)`, type: 'number', req: true, def: plans[0] ? plans[0].price : '' }, { k: 'discount', label: `${L('Discount', 'छूट')} (₹)`, type: 'number', def: 0 },
-      { k: 'gst', label: 'GST %', type: 'number', def: 18 }, { k: 'due', label: L('Due date', 'आख़िरी तारीख़'), type: 'date', def: addDays(todayISO(), 7) },
+      { k: 'gst', label: 'GST %', type: 'number', def: 18, check: (v) => (v !== '' && Number(v) > 40 ? L('GST cannot be more than 40%', 'GST 40% से ज़्यादा नहीं हो सकता') : '') }, { k: 'due', label: L('Due date', 'आख़िरी तारीख़'), type: 'date', def: addDays(todayISO(), 7) },
     ],
     extra: `<div class="note" id="iv_sum" style="margin-top:10px"></div>`,
     onSubmit: async (v) => {
@@ -936,12 +955,13 @@ async function vOffers() {
 async function offerForm(id) {
   const [offers, plans] = await Promise.all([Q.offers(), Q.plans()]), x = id ? offers.find((o) => o.id === id) : null;
   openForm({
-    title: x ? x.name : L('New offer', 'नया ऑफ़र'), values: x || {},
+    /* the status select takes "1"/"0": convert the stored boolean, or an edit silently switches the offer on */
+    title: x ? x.name : L('New offer', 'नया ऑफ़र'), values: x ? { ...x, active: x.active ? '1' : '0' } : {},
     fields: [
       { k: 'name', label: L('Offer name', 'ऑफ़र का नाम'), req: true, full: true, ph: 'Diwali 10% off', check: (v) => (v.length < 2 ? L('Too short', 'बहुत छोटा') : '') },
       { k: 'kind', label: L('Type', 'प्रकार'), type: 'select', options: [{ v: 'percent', l: L('Percent (%)', 'प्रतिशत (%)') }, { v: 'flat', l: L('Flat amount (₹)', 'सीधी रकम (₹)') }], def: x ? x.kind : 'percent' },
       { k: 'value', label: L('Value', 'मान'), type: 'number', req: true, min: 0.01, check: (v, o) => (o.kind === 'percent' && v > 100 ? L('Up to 100%', 'अधिकतम 100%') : '') },
-      { k: 'plan_id', label: L('Applies to', 'किस पर लागू'), type: 'select', options: [{ v: '', l: L('All plans', 'सभी प्लान') }, ...plans.filter((p) => p.status === 'Active').map((p) => ({ v: p.id, l: p.name }))], def: x ? x.plan_id || '' : '', full: true },
+      { k: 'plan_id', label: L('Applies to', 'किस पर लागू'), type: 'select', options: [{ v: '', l: L('All plans', 'सभी प्लान') }, ...plans.filter((p) => p.status === 'Active' || (x && p.id === x.plan_id)).map((p) => ({ v: p.id, l: p.status === 'Active' ? p.name : `${p.name} · ${L('archived', 'बंद')}` }))], def: x ? x.plan_id || '' : '', full: true },
       { k: 'starts_on', label: L('Starts', 'शुरू'), type: 'date' }, { k: 'ends_on', label: L('Ends', 'खत्म'), type: 'date', check: (v, o) => (v && o.starts_on && v < o.starts_on ? L('Before the start date', 'शुरू की तारीख़ से पहले') : '') },
       { k: 'active', label: L('Status', 'स्थिति'), type: 'select', options: [{ v: '1', l: L('On', 'चालू') }, { v: '0', l: L('Off', 'बंद') }], def: x ? (x.active ? '1' : '0') : '1' },
       { k: 'note', label: L('Note', 'नोट'), type: 'textarea', full: true },
@@ -994,7 +1014,7 @@ async function vReminders() {
     + (isAdmin() ? `<div style="height:14px"></div>` + card(L(`Pending dues · ${inr(sum(owing, (x) => x.amt))}`, `बकाया · ${inr(sum(owing, (x) => x.amt))}`), 'wallet', '', owing.length ? `<ul class="list">${owing.map(dueRow).join('')}</ul>` : empty(L('No pending dues', 'कोई बकाया नहीं'), '')) : '');
 }
 function markReminded(id) {
-  DB.update('members', id, { reminded_on: todayISO() }).then(() => { bust('members'); setTimeout(() => { if (currentRoute() && currentRoute()[0] === 'reminders') render(); }, 700); }).catch(() => {});
+  DB.update('members', id, { reminded_on: todayISO() }).then(() => { bust('members'); setTimeout(() => { if (currentRoute() && currentRoute()[0] === 'reminders') render(); }, 700); }).catch(() => toast(L('Could not record the reminder. Try again.', 'रिमाइंडर दर्ज नहीं हुआ। फिर कोशिश करें।'), 'bad'));
 }
 async function refreshBadge() {
   const a = $('#nav a[href="#reminders"]'); if (!a) return;
@@ -1421,7 +1441,8 @@ function expenseForm() {
     title: L('Add expense', 'खर्च जोड़ें'),
     fields: [
       { k: 'item', label: L('What was it for?', 'किस काम का खर्च?'), req: true, full: true, ph: L('Electricity bill', 'बिजली का बिल'), check: (v) => (v.trim().length > 120 ? L('Up to 120 characters', 'अधिकतम 120 अक्षर') : '') },
-      { k: 'category', label: L('Category', 'श्रेणी'), type: 'select', options: EXP_CATS.map((c) => ({ v: c, l: catLabel(c) })), def: 'Other' },
+      /* Salary is not an expense: payroll already adds it to the profit page, so logging it here would count it twice */
+      { k: 'category', label: L('Category', 'श्रेणी'), type: 'select', options: EXP_CATS.filter((c) => c !== 'Salary').map((c) => ({ v: c, l: catLabel(c) })), def: 'Other' },
       { k: 'amount', label: L('Amount (₹)', 'रकम (₹)'), type: 'number', req: true, min: 1, check: (v) => (v >= 100000000 ? L('Too large', 'बहुत बड़ी रकम') : '') },
       { k: 'spent_on', label: L('Date', 'तारीख़'), type: 'date', def: todayISO(), check: (v) => (v && v > todayISO() ? L('Cannot be in the future', 'आगे की तारीख़ नहीं') : '') },
       { k: 'note', label: L('Note', 'नोट'), type: 'textarea', full: true, check: (v) => (v.length > 300 ? L('Up to 300 characters', 'अधिकतम 300 अक्षर') : '') },
@@ -1480,7 +1501,7 @@ function leadForm(id) {
       title: x ? x.name : L('Add lead', 'लीड जोड़ें'), values: x || {},
       fields: [
         { k: 'name', label: L('Name', 'नाम'), req: true, full: true, check: (v) => (v.trim().length > 120 ? L('Up to 120 characters', 'अधिकतम 120 अक्षर') : '') },
-        { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel', check: (v) => (v && String(v).replace(/\D/g, '').length < 10 ? L('Enter a 10-digit number', '10 अंकों का नंबर डालें') : '') },
+        { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel', ph: '98765 43210', check: (v) => { const d = indMobile(v); const dup = d ? leads.find((l) => l.id !== (x && x.id) && indMobile(l.phone) === d && !['Converted', 'Lost'].includes(l.stage)) : null; return dup ? L(`Already a lead: ${dup.name}`, `यह नंबर पहले से लीड है: ${dup.name}`) : ''; } },
         { k: 'source', label: L('Where from', 'कहाँ से'), type: 'select', options: LEAD_SOURCES.map((s) => ({ v: s, l: sourceLabel(s) })), def: x ? x.source : 'Walk-in' },
         { k: 'stage', label: L('Stage', 'चरण'), type: 'select', options: LEAD_STAGES.filter((s) => s !== 'Converted' || (x && x.stage === 'Converted')).map((s) => ({ v: s, l: stageLabel(s) })), def: x ? x.stage : 'New' },
         { k: 'follow_up_on', label: L('Follow up on', 'फ़ॉलो-अप तारीख़'), type: 'date' },
@@ -1488,8 +1509,13 @@ function leadForm(id) {
         { k: 'note', label: L('Note', 'नोट'), type: 'textarea', full: true, check: (v) => (v.length > 500 ? L('Up to 500 characters', 'अधिकतम 500 अक्षर') : '') },
       ],
       onSubmit: async (v) => {
-        const row = { name: v.name.trim(), phone: v.phone ? String(v.phone).trim() : null, source: v.source, stage: v.stage, follow_up_on: v.follow_up_on || null, interest: v.interest ? v.interest.trim() : null, note: v.note ? v.note.trim() : null, updated_at: new Date().toISOString() };
-        const ok = await act(() => (x ? DB.update('leads', x.id, row) : DB.insert('leads', { ...row, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
+        if (CTX.locked) { toast(L('The gym is locked. Leads cannot be changed.', 'जिम लॉक है। लीड नहीं बदली जा सकती।'), 'bad'); return false; }
+        const row = { name: v.name.trim(), phone: indMobile(v.phone) || null, source: v.source, stage: v.stage, follow_up_on: v.follow_up_on || null, interest: v.interest ? v.interest.trim() : null, note: v.note ? v.note.trim() : null };
+        /* on edit, send only the fields that changed: a stale screen can't move a lead back to an older stage */
+        const data = x ? Object.fromEntries(Object.entries(row).filter(([k, val]) => (val ?? null) !== (x[k] ?? null))) : { ...row };
+        if (x && !Object.keys(data).length) { toast(L('Nothing changed', 'कुछ नहीं बदला')); return true; }
+        data.updated_at = new Date().toISOString();
+        const ok = await act(() => (x ? DB.update('leads', x.id, data) : DB.insert('leads', { ...data, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
         if (ok) { bust('leads'); render(); } return !!ok;
       },
     });
@@ -1514,7 +1540,7 @@ async function deleteLead(id) {
   if (ok) { bust('leads'); render(); }
 }
 document.addEventListener('input', (e) => {
-  if (e.target && e.target.id === 'leadQ') { U.lead.q = e.target.value; clearTimeout(window.__leadT); window.__leadT = setTimeout(async () => { const v = $('#view'); if (!v || !$('#leadQ')) return; v.innerHTML = await vLeads(); const i = $('#leadQ'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 200); }
+  if (e.target && e.target.id === 'leadQ') { U.lead.q = e.target.value; clearTimeout(window.__leadT); window.__leadT = setTimeout(async () => { const v = $('#view'); if (!v || !$('#leadQ')) return; v.innerHTML = lockBanner() + await vLeads(); const i = $('#leadQ'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 200); }
 });
 /* ================= Store / POS: products, stock, sales (owner + trainers sell, owner manages) ================= */
 const PROD_CATS = ['Supplements', 'Drinks', 'Snacks', 'Apparel', 'Accessories', 'Other'];
@@ -1559,7 +1585,8 @@ function productForm(id) {
   Promise.all([Q.products(), Q.productCosts()]).then(([prods, pcs]) => {
     const x = id ? prods.find((p) => p.id === id) : null, own = costMap(pcs, 'product_id', 'cost');
     openForm({
-      title: x ? x.name : L('Add product', 'प्रोडक्ट जोड़ें'), values: x ? { ...x, cost: own.get(x.id) || 0 } : {},
+      /* the status select takes "1"/"0": convert the stored boolean, or an edit silently puts the product back on sale */
+      title: x ? x.name : L('Add product', 'प्रोडक्ट जोड़ें'), values: x ? { ...x, cost: own.get(x.id) || 0, active: x.active ? '1' : '0' } : {},
       fields: [
         { k: 'name', label: L('Name', 'नाम'), req: true, full: true, ph: 'Whey Protein 1kg', check: (v) => (v.trim().length > 120 ? L('Up to 120 characters', 'अधिकतम 120 अक्षर') : '') },
         { k: 'category', label: L('Category', 'श्रेणी'), type: 'select', options: PROD_CATS.map((c) => ({ v: c, l: prodCatLabel(c) })), def: x ? x.category : 'Supplements' },
@@ -1573,7 +1600,10 @@ function productForm(id) {
       onSubmit: async (v) => {
         const dup = prods.find((p) => p.name.trim().toLowerCase() === v.name.trim().toLowerCase() && (!x || p.id !== x.id));
         if (dup) { toast(L('A product with this name already exists.', 'इस नाम का प्रोडक्ट पहले से है।'), 'bad'); return false; }
-        const args = { p_id: x ? x.id : null, p_name: v.name.trim(), p_category: v.category, p_price: v.price, p_cost: v.cost === '' ? 0 : v.cost, p_stock: v.stock === '' ? 0 : Math.round(Number(v.stock)), p_low_at: v.low_at === '' ? 3 : Math.round(Number(v.low_at)), p_active: v.active === '1' };
+        /* stock not touched in this form: save the live count, so a sale made after the form opened is not undone */
+        let stock = v.stock === '' ? 0 : Math.round(Number(v.stock));
+        if (x && Number(v.stock) === Number(x.stock)) { const fresh = await DB.select('products', { eq: { id: x.id } }).catch(() => []); if (fresh[0]) stock = Number(fresh[0].stock); }
+        const args = { p_id: x ? x.id : null, p_name: v.name.trim(), p_category: v.category, p_price: v.price, p_cost: v.cost === '' ? 0 : v.cost, p_stock: stock, p_low_at: v.low_at === '' ? 3 : Math.round(Number(v.low_at)), p_active: v.active === '1' };
         const ok = await act(() => DB.rpc('save_product', args), L('Saved', 'सेव हुआ'));
         if (ok) { bust('products', 'product_costs'); render(); } return !!ok;
       },
@@ -2661,7 +2691,8 @@ async function equipmentForm(id) {
   });
 }
 async function eqServiced(id) {
-  const ok = await act(() => DB.update('gym_equipment', id, { last_service_on: todayISO(), status: 'Working' }), L('Service recorded', 'सर्विस दर्ज हुई'));
+  /* a service date is not a repair: the condition changes only through the edit form, so "Out of order" stays visible */
+  const ok = await act(() => DB.update('gym_equipment', id, { last_service_on: todayISO() }), L('Service recorded', 'सर्विस दर्ज हुई'));
   if (ok) { bust('gym_equipment'); render(); }
 }
 async function deleteEquipment(id) {
@@ -3069,7 +3100,8 @@ async function activityCsv() {
    (the database works that out, never the browser), and the member pays on Razorpay's own page. When Razorpay confirms through a signed webhook,
    the database records the payment once, so the usual receipt, ledger, activity log and WhatsApp receipt all happen by themselves.
    Card or UPI details never enter this app. Nothing works until the platform admin switches it on for a gym and the Razorpay keys are set. */
-Q.onlineOrders = () => cached('online_orders', () => DB.select('online_orders', { order: 'created_at.desc', limit: 60 }));
+/* totals must count every order, so the summary reads all of them; the list below shows all "needs attention" orders plus the latest 60 others */
+Q.onlineOrders = () => cached('online_orders', () => DB.select('online_orders', { order: 'created_at.desc', limit: 5000 }));
 Q.rzStatus = () => cached('rz_status', async () => {
   try { const r = await Promise.race([payFn({ action: 'status' }), new Promise((_, rej) => setTimeout(() => rej(new Error('t')), 6000))]); return { known: true, configured: r.configured === true, enabled: r.enabled === true }; } catch (e) { return { known: false, configured: false, enabled: false }; }
 });
@@ -3124,7 +3156,8 @@ async function payOnline(invoiceId, part) {
     if (!url) { toast(PAY_ERR(r.error), 'bad'); return; }
     bust('online_orders', 'emi_mine');
     toast(L('Complete the payment on the Razorpay page. It appears here within a minute after you pay.', 'Razorpay के पेज पर भुगतान पूरा करें। भुगतान के बाद यहाँ एक मिनट में दिख जाएगा।'), 'ok');
-    const w = window.open(url, '_blank', 'noopener'); if (!w) location.assign(url);
+    /* 'noopener' makes window.open return null, which sent the owner to Razorpay in the same tab too: open the URL, then drop the opener link */
+    const w = window.open(url, '_blank'); if (w) w.opener = null; else location.assign(url);
   } finally { U.rzBusy = false; }
 }
 
@@ -3133,6 +3166,7 @@ const ONLINE_STATUS = () => ({ created: [L('Link open', 'लिंक खुल�
 async function vOnlinePay() {
   const [st, orders, members] = await Promise.all([Q.rzStatus(), Q.onlineOrders().catch(() => []), Q.members()]);
   const mm = memberMap(members), S = onlineSummary(orders, monthKey(todayISO())), lab = ONLINE_STATUS();
+  const shown = [...orders.filter((o) => o.status === 'review'), ...orders.filter((o) => o.status !== 'review').slice(0, 60)];
   const hook = `${CFG.url}/functions/v1/razorpay`;
   const on = (b, yes, no) => badge(b ? yes : no, b ? 'ok' : 'mute');
   const head = pageHead(L('Money', 'पैसा'), L('Online payments', 'ऑनलाइन भुगतान'), L('Members pay their fee on their phone from the Payments page. The money is recorded here by itself and the usual receipt goes out.', 'सदस्य अपने फ़ोन में भुगतान पेज से फ़ीस भर सकते हैं। रकम अपने-आप यहाँ दर्ज होती है और रसीद चली जाती है।'));
@@ -3149,7 +3183,7 @@ async function vOnlinePay() {
       <li>${esc(L('Switch the gym on from Super admin → Gyms → “Online pay”, paste the gym’s linked account id (acc_…) in the same dialog, then pay a small test invoice with a Razorpay test card or UPI.', 'Super admin → Gyms → “Online pay” से जिम चालू कीजिए और उसी डायलॉग में जिम का linked account id (acc_…) डालिए, फिर Razorpay के test कार्ड या UPI से छोटा टेस्ट इनवॉइस चुकाकर देखिए।'))}</li>
     </ol>
     <p class="muted" style="margin:10px 0 0">${esc(L('Razorpay charges its own fee per payment (check current rates). The fee is not added to the member’s bill here; it is taken out of the gym’s share. Switch it on only for a gym whose linked account is set up.', 'Razorpay हर भुगतान पर अपना शुल्क लेता है (ताज़ा दरें देखें)। यह शुल्क यहाँ सदस्य के बिल में नहीं जुड़ता, जिम के हिस्से से कटता है। सिर्फ़ उन्हीं जिम के लिए चालू करें जिनका linked account तैयार है।'))}</p>`);
-  const list = card(L('Online payments', 'ऑनलाइन भुगतान'), 'receipt', '', orders.length ? `<ul class="list">${orders.map((o) => { const m = mm.get(o.member_id), [l, tone] = lab[o.status] || [o.status, 'mute']; return `<li><div class="grow"><b>${esc(m ? m.name : '—')}</b><small>${esc(fmtDate(istDate(o.created_at)))} ${esc(fmtTime(o.created_at))}${o.status === 'review' && o.note ? ' · ' + esc(o.note) : ''}</small></div><span class="num">${esc(inr(o.amount))}</span>${badge(l, tone)}</li>`; }).join('')}</ul>${S.review ? `<p class="muted" style="margin:10px 0 0">${esc(L('“Needs your attention” means the member paid on Razorpay but the system could not add it to the invoice (for example it was already paid in cash). Refund it from the Razorpay dashboard, or add the payment by hand.', '“आपका ध्यान चाहिए” का मतलब है कि सदस्य ने Razorpay पर चुकाया पर सिस्टम इसे इनवॉइस में जोड़ नहीं सका (जैसे इनवॉइस पहले ही नकद में चुक गया था)। Razorpay डैशबोर्ड से रिफ़ंड कीजिए या भुगतान हाथ से जोड़िए।'))}</p>` : ''}` : empty(L('No online payments yet', 'अभी कोई ऑनलाइन भुगतान नहीं'), ''));
+  const list = card(L('Online payments', 'ऑनलाइन भुगतान'), 'receipt', '', shown.length ? `<ul class="list">${shown.map((o) => { const m = mm.get(o.member_id), [l, tone] = lab[o.status] || [o.status, 'mute']; return `<li><div class="grow"><b>${esc(m ? m.name : '—')}</b><small>${esc(fmtDate(istDate(o.created_at)))} ${esc(fmtTime(o.created_at))}${o.status === 'review' && o.note ? ' · ' + esc(o.note) : ''}</small></div><span class="num">${esc(inr(o.amount))}</span>${badge(l, tone)}</li>`; }).join('')}</ul>${S.review ? `<p class="muted" style="margin:10px 0 0">${esc(L('“Needs your attention” means the member paid on Razorpay but the system could not add it to the invoice (for example it was already paid in cash). Refund it from the Razorpay dashboard, or add the payment by hand.', '“आपका ध्यान चाहिए” का मतलब है कि सदस्य ने Razorpay पर चुकाया पर सिस्टम इसे इनवॉइस में जोड़ नहीं सका (जैसे इनवॉइस पहले ही नकद में चुक गया था)। Razorpay डैशबोर्ड से रिफ़ंड कीजिए या भुगतान हाथ से जोड़िए।'))}</p>` : ''}` : empty(L('No online payments yet', 'अभी कोई ऑनलाइन भुगतान नहीं'), ''));
   return head + status + tiles + list + '<div style="height:14px"></div>' + steps;
 }
 

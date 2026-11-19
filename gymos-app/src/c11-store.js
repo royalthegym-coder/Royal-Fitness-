@@ -41,7 +41,8 @@ function productForm(id) {
   Promise.all([Q.products(), Q.productCosts()]).then(([prods, pcs]) => {
     const x = id ? prods.find((p) => p.id === id) : null, own = costMap(pcs, 'product_id', 'cost');
     openForm({
-      title: x ? x.name : L('Add product', 'प्रोडक्ट जोड़ें'), values: x ? { ...x, cost: own.get(x.id) || 0 } : {},
+      /* the status select takes "1"/"0": convert the stored boolean, or an edit silently puts the product back on sale */
+      title: x ? x.name : L('Add product', 'प्रोडक्ट जोड़ें'), values: x ? { ...x, cost: own.get(x.id) || 0, active: x.active ? '1' : '0' } : {},
       fields: [
         { k: 'name', label: L('Name', 'नाम'), req: true, full: true, ph: 'Whey Protein 1kg', check: (v) => (v.trim().length > 120 ? L('Up to 120 characters', 'अधिकतम 120 अक्षर') : '') },
         { k: 'category', label: L('Category', 'श्रेणी'), type: 'select', options: PROD_CATS.map((c) => ({ v: c, l: prodCatLabel(c) })), def: x ? x.category : 'Supplements' },
@@ -55,7 +56,10 @@ function productForm(id) {
       onSubmit: async (v) => {
         const dup = prods.find((p) => p.name.trim().toLowerCase() === v.name.trim().toLowerCase() && (!x || p.id !== x.id));
         if (dup) { toast(L('A product with this name already exists.', 'इस नाम का प्रोडक्ट पहले से है।'), 'bad'); return false; }
-        const args = { p_id: x ? x.id : null, p_name: v.name.trim(), p_category: v.category, p_price: v.price, p_cost: v.cost === '' ? 0 : v.cost, p_stock: v.stock === '' ? 0 : Math.round(Number(v.stock)), p_low_at: v.low_at === '' ? 3 : Math.round(Number(v.low_at)), p_active: v.active === '1' };
+        /* stock not touched in this form: save the live count, so a sale made after the form opened is not undone */
+        let stock = v.stock === '' ? 0 : Math.round(Number(v.stock));
+        if (x && Number(v.stock) === Number(x.stock)) { const fresh = await DB.select('products', { eq: { id: x.id } }).catch(() => []); if (fresh[0]) stock = Number(fresh[0].stock); }
+        const args = { p_id: x ? x.id : null, p_name: v.name.trim(), p_category: v.category, p_price: v.price, p_cost: v.cost === '' ? 0 : v.cost, p_stock: stock, p_low_at: v.low_at === '' ? 3 : Math.round(Number(v.low_at)), p_active: v.active === '1' };
         const ok = await act(() => DB.rpc('save_product', args), L('Saved', 'सेव हुआ'));
         if (ok) { bust('products', 'product_costs'); render(); } return !!ok;
       },

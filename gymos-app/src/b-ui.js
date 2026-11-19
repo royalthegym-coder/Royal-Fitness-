@@ -78,11 +78,12 @@ function readForm(root, fields) {
     let msg = '';
     if (f.req && (v === '' || v === null || Number.isNaN(v))) msg = L('Required', 'ज़रूरी है');
     else if (f.type === 'number' && v !== '' && (Number.isNaN(v) || v < (f.min ?? 0))) msg = L('Enter a valid number', 'सही संख्या लिखें');
-    else if (f.type === 'tel' && v && String(v).replace(/\D/g, '').length < 10) msg = L('Enter a 10-digit number', '10 अंकों का नंबर लिखें');
+    else if (f.type === 'tel' && v && !indMobile(v)) msg = L('Enter a valid 10-digit mobile (starts with 6 to 9)', '10 अंकों का सही मोबाइल नंबर लिखें (6 से 9 से शुरू)');
     else if (f.type === 'email' && v && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) msg = L('Enter a valid email', 'सही ईमेल लिखें');
     else if (f.check) msg = f.check(v, out) || '';
     if (er) er.textContent = msg;
     if (msg) ok = false;
+    if (f.type === 'tel' && v) v = indMobile(v) || v; /* store the clean 10-digit number */
     out[f.k] = v;
   });
   return ok ? out : null;

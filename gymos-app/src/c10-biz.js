@@ -62,7 +62,8 @@ function expenseForm() {
     title: L('Add expense', 'खर्च जोड़ें'),
     fields: [
       { k: 'item', label: L('What was it for?', 'किस काम का खर्च?'), req: true, full: true, ph: L('Electricity bill', 'बिजली का बिल'), check: (v) => (v.trim().length > 120 ? L('Up to 120 characters', 'अधिकतम 120 अक्षर') : '') },
-      { k: 'category', label: L('Category', 'श्रेणी'), type: 'select', options: EXP_CATS.map((c) => ({ v: c, l: catLabel(c) })), def: 'Other' },
+      /* Salary is not an expense: payroll already adds it to the profit page, so logging it here would count it twice */
+      { k: 'category', label: L('Category', 'श्रेणी'), type: 'select', options: EXP_CATS.filter((c) => c !== 'Salary').map((c) => ({ v: c, l: catLabel(c) })), def: 'Other' },
       { k: 'amount', label: L('Amount (₹)', 'रकम (₹)'), type: 'number', req: true, min: 1, check: (v) => (v >= 100000000 ? L('Too large', 'बहुत बड़ी रकम') : '') },
       { k: 'spent_on', label: L('Date', 'तारीख़'), type: 'date', def: todayISO(), check: (v) => (v && v > todayISO() ? L('Cannot be in the future', 'आगे की तारीख़ नहीं') : '') },
       { k: 'note', label: L('Note', 'नोट'), type: 'textarea', full: true, check: (v) => (v.length > 300 ? L('Up to 300 characters', 'अधिकतम 300 अक्षर') : '') },
@@ -121,7 +122,7 @@ function leadForm(id) {
       title: x ? x.name : L('Add lead', 'लीड जोड़ें'), values: x || {},
       fields: [
         { k: 'name', label: L('Name', 'नाम'), req: true, full: true, check: (v) => (v.trim().length > 120 ? L('Up to 120 characters', 'अधिकतम 120 अक्षर') : '') },
-        { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel', check: (v) => (v && String(v).replace(/\D/g, '').length < 10 ? L('Enter a 10-digit number', '10 अंकों का नंबर डालें') : '') },
+        { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel', ph: '98765 43210', check: (v) => { const d = indMobile(v); const dup = d ? leads.find((l) => l.id !== (x && x.id) && indMobile(l.phone) === d && !['Converted', 'Lost'].includes(l.stage)) : null; return dup ? L(`Already a lead: ${dup.name}`, `यह नंबर पहले से लीड है: ${dup.name}`) : ''; } },
         { k: 'source', label: L('Where from', 'कहाँ से'), type: 'select', options: LEAD_SOURCES.map((s) => ({ v: s, l: sourceLabel(s) })), def: x ? x.source : 'Walk-in' },
         { k: 'stage', label: L('Stage', 'चरण'), type: 'select', options: LEAD_STAGES.filter((s) => s !== 'Converted' || (x && x.stage === 'Converted')).map((s) => ({ v: s, l: stageLabel(s) })), def: x ? x.stage : 'New' },
         { k: 'follow_up_on', label: L('Follow up on', 'फ़ॉलो-अप तारीख़'), type: 'date' },
@@ -129,8 +130,13 @@ function leadForm(id) {
         { k: 'note', label: L('Note', 'नोट'), type: 'textarea', full: true, check: (v) => (v.length > 500 ? L('Up to 500 characters', 'अधिकतम 500 अक्षर') : '') },
       ],
       onSubmit: async (v) => {
-        const row = { name: v.name.trim(), phone: v.phone ? String(v.phone).trim() : null, source: v.source, stage: v.stage, follow_up_on: v.follow_up_on || null, interest: v.interest ? v.interest.trim() : null, note: v.note ? v.note.trim() : null, updated_at: new Date().toISOString() };
-        const ok = await act(() => (x ? DB.update('leads', x.id, row) : DB.insert('leads', { ...row, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
+        if (CTX.locked) { toast(L('The gym is locked. Leads cannot be changed.', 'जिम लॉक है। लीड नहीं बदली जा सकती।'), 'bad'); return false; }
+        const row = { name: v.name.trim(), phone: indMobile(v.phone) || null, source: v.source, stage: v.stage, follow_up_on: v.follow_up_on || null, interest: v.interest ? v.interest.trim() : null, note: v.note ? v.note.trim() : null };
+        /* on edit, send only the fields that changed: a stale screen can't move a lead back to an older stage */
+        const data = x ? Object.fromEntries(Object.entries(row).filter(([k, val]) => (val ?? null) !== (x[k] ?? null))) : { ...row };
+        if (x && !Object.keys(data).length) { toast(L('Nothing changed', 'कुछ नहीं बदला')); return true; }
+        data.updated_at = new Date().toISOString();
+        const ok = await act(() => (x ? DB.update('leads', x.id, data) : DB.insert('leads', { ...data, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
         if (ok) { bust('leads'); render(); } return !!ok;
       },
     });
@@ -155,5 +161,5 @@ async function deleteLead(id) {
   if (ok) { bust('leads'); render(); }
 }
 document.addEventListener('input', (e) => {
-  if (e.target && e.target.id === 'leadQ') { U.lead.q = e.target.value; clearTimeout(window.__leadT); window.__leadT = setTimeout(async () => { const v = $('#view'); if (!v || !$('#leadQ')) return; v.innerHTML = await vLeads(); const i = $('#leadQ'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 200); }
+  if (e.target && e.target.id === 'leadQ') { U.lead.q = e.target.value; clearTimeout(window.__leadT); window.__leadT = setTimeout(async () => { const v = $('#view'); if (!v || !$('#leadQ')) return; v.innerHTML = lockBanner() + await vLeads(); const i = $('#leadQ'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 200); }
 });

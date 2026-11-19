@@ -71,12 +71,13 @@ async function vOffers() {
 async function offerForm(id) {
   const [offers, plans] = await Promise.all([Q.offers(), Q.plans()]), x = id ? offers.find((o) => o.id === id) : null;
   openForm({
-    title: x ? x.name : L('New offer', 'नया ऑफ़र'), values: x || {},
+    /* the status select takes "1"/"0": convert the stored boolean, or an edit silently switches the offer on */
+    title: x ? x.name : L('New offer', 'नया ऑफ़र'), values: x ? { ...x, active: x.active ? '1' : '0' } : {},
     fields: [
       { k: 'name', label: L('Offer name', 'ऑफ़र का नाम'), req: true, full: true, ph: 'Diwali 10% off', check: (v) => (v.length < 2 ? L('Too short', 'बहुत छोटा') : '') },
       { k: 'kind', label: L('Type', 'प्रकार'), type: 'select', options: [{ v: 'percent', l: L('Percent (%)', 'प्रतिशत (%)') }, { v: 'flat', l: L('Flat amount (₹)', 'सीधी रकम (₹)') }], def: x ? x.kind : 'percent' },
       { k: 'value', label: L('Value', 'मान'), type: 'number', req: true, min: 0.01, check: (v, o) => (o.kind === 'percent' && v > 100 ? L('Up to 100%', 'अधिकतम 100%') : '') },
-      { k: 'plan_id', label: L('Applies to', 'किस पर लागू'), type: 'select', options: [{ v: '', l: L('All plans', 'सभी प्लान') }, ...plans.filter((p) => p.status === 'Active').map((p) => ({ v: p.id, l: p.name }))], def: x ? x.plan_id || '' : '', full: true },
+      { k: 'plan_id', label: L('Applies to', 'किस पर लागू'), type: 'select', options: [{ v: '', l: L('All plans', 'सभी प्लान') }, ...plans.filter((p) => p.status === 'Active' || (x && p.id === x.plan_id)).map((p) => ({ v: p.id, l: p.status === 'Active' ? p.name : `${p.name} · ${L('archived', 'बंद')}` }))], def: x ? x.plan_id || '' : '', full: true },
       { k: 'starts_on', label: L('Starts', 'शुरू'), type: 'date' }, { k: 'ends_on', label: L('Ends', 'खत्म'), type: 'date', check: (v, o) => (v && o.starts_on && v < o.starts_on ? L('Before the start date', 'शुरू की तारीख़ से पहले') : '') },
       { k: 'active', label: L('Status', 'स्थिति'), type: 'select', options: [{ v: '1', l: L('On', 'चालू') }, { v: '0', l: L('Off', 'बंद') }], def: x ? (x.active ? '1' : '0') : '1' },
       { k: 'note', label: L('Note', 'नोट'), type: 'textarea', full: true },
@@ -129,7 +130,7 @@ async function vReminders() {
     + (isAdmin() ? `<div style="height:14px"></div>` + card(L(`Pending dues · ${inr(sum(owing, (x) => x.amt))}`, `बकाया · ${inr(sum(owing, (x) => x.amt))}`), 'wallet', '', owing.length ? `<ul class="list">${owing.map(dueRow).join('')}</ul>` : empty(L('No pending dues', 'कोई बकाया नहीं'), '')) : '');
 }
 function markReminded(id) {
-  DB.update('members', id, { reminded_on: todayISO() }).then(() => { bust('members'); setTimeout(() => { if (currentRoute() && currentRoute()[0] === 'reminders') render(); }, 700); }).catch(() => {});
+  DB.update('members', id, { reminded_on: todayISO() }).then(() => { bust('members'); setTimeout(() => { if (currentRoute() && currentRoute()[0] === 'reminders') render(); }, 700); }).catch(() => toast(L('Could not record the reminder. Try again.', 'रिमाइंडर दर्ज नहीं हुआ। फिर कोशिश करें।'), 'bad'));
 }
 async function refreshBadge() {
   const a = $('#nav a[href="#reminders"]'); if (!a) return;

@@ -193,8 +193,9 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     // payment (partial) -> receipt -> ledger
     await page.click('a[href="#invoices"]'); await page.waitForSelector('tr.click'); await page.click('tr.click:has-text("INV-0001")');
     await page.waitForSelector('[data-p]'); await page.click('[data-p]'); await page.fill('#f_amount', '2000'); await page.click('[data-ok]');
-    ok((await page.textContent('#e_amount')).length > 0, 'overpayment rejected'); await page.fill('#f_amount', '500'); await page.focus('#f_amount'); await page.keyboard.press('Enter'); await page.keyboard.press('Enter');
-    await page.waitForTimeout(1500);
+    ok((await page.textContent('#e_amount')).length > 0, 'overpayment rejected'); await page.fill('#f_amount', '500'); await page.focus('#f_amount');
+    // two submits in the same tick: the second is ignored while the first save runs, so exactly one payment is stored
+    await page.evaluate(() => { const f = document.querySelector('#mf'); const press = () => f.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); press(); press(); });
     await page.waitForSelector('a.btn.wa'); ok(/wa\.me\/919876543210/.test(await page.getAttribute('a.btn.wa', 'href')), 'receipt has WhatsApp link to member');
     ok(db.payments.length === 1 && db.payments[0].amount === 500, 'partial payment stored');
     await page.waitForSelector('#rcBox img', { timeout: 8000 }); ok(await page.$eval('#rcBox img', (i) => i.naturalWidth === 800 && i.naturalHeight === 1220), 'receipt image is generated with the logo layout');
@@ -445,15 +446,15 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     // leads: add, follow up, convert to member
     await page.click('a[href="#leads"]'); await page.waitForSelector('[data-act=newLead]'); await page.click('[data-act=newLead] >> nth=0');
     await page.fill('#f_name', 'Vikram Lead'); await page.fill('#f_phone', '98123'); await page.click('[data-ok]');
-    ok((await page.textContent('#e_phone')).length > 0, 'short lead phone rejected'); await page.fill('#f_phone', '9812345678'); await page.fill('#f_follow_up_on', today()); await page.click('[data-ok]');
+    ok((await page.textContent('#e_phone')).length > 0, 'short lead phone rejected'); await page.fill('#f_phone', '9811122233'); await page.fill('#f_follow_up_on', today()); await page.click('[data-ok]');
     await page.waitForFunction(() => /Vikram Lead/.test(document.body.innerText));
     ok(db.leads.length === 1 && db.leads[0].stage === 'New' && db.leads[0].source === 'Walk-in', 'lead saved as New');
     ok(/1/.test(await page.textContent('.tiles .card:nth-child(2) .v')), 'lead due today is counted');
-    ok(/wa\.me\/919812345678/.test(await page.$eval('a[href*="wa.me"]', (a) => a.href)), 'WhatsApp button opens the lead chat');
+    ok(/wa\.me\/919811122233/.test(await page.$eval('a[href*="wa.me"]', (a) => a.href)), 'WhatsApp button opens the lead chat');
     await page.click('[data-act=leadNext]'); await page.waitForFunction(() => /Contacted|संपर्क हुआ/.test(document.querySelector('table.t tbody').innerText));
     ok(db.leads[0].stage === 'Contacted', 'lead moved to Contacted');
     await page.click('[data-act=leadConvert]'); await page.waitForSelector('#f_name');
-    ok((await page.inputValue('#f_name')) === 'Vikram Lead' && (await page.inputValue('#f_phone')) === '9812345678', 'member form is prefilled from the lead');
+    ok((await page.inputValue('#f_name')) === 'Vikram Lead' && (await page.inputValue('#f_phone')) === '9811122233', 'member form is prefilled from the lead');
     await page.click('[data-ok]'); for (let i = 0; i < 25 && db.leads[0].stage !== 'Converted'; i++) await page.waitForTimeout(150);
     const nm = db.members.find((x) => x.name === 'Vikram Lead');
     ok(!!nm && db.leads[0].stage === 'Converted' && db.leads[0].converted_member_id === nm.id, 'lead marked Converted only after the member exists');

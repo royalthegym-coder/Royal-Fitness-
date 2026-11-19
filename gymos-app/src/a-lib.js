@@ -28,7 +28,9 @@ const fmtShort = (s) => { if (!s) return '—'; const [, m, d] = ymd(String(s).l
 const fmtTime = (iso) => { if (!iso) return '—'; const { hour, min } = istParts(iso); return `${hour % 12 || 12}:${pad(min)} ${hour < 12 ? 'am' : 'pm'}`; };
 const inr = (v) => { const n = Number(v || 0); return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2, minimumFractionDigits: Number.isInteger(n) ? 0 : 2 }).format(n); };
 const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
-const waLink = (phone, text) => { const dg = String(phone || '').replace(/\D/g, ''); return `https://wa.me/${dg.length === 10 ? '91' + dg : dg}?text=${encodeURIComponent(text)}`; };
+/* Indian mobile: 10 digits starting 6-9. Accepts +91, 91 and a leading 0; returns the 10 digits or '' */
+const indMobile = (s) => { let d = String(s || '').replace(/\D/g, ''); if (d.length === 12 && d.startsWith('91')) d = d.slice(2); else if (d.length === 11 && d.startsWith('0')) d = d.slice(1); return /^[6-9]\d{9}$/.test(d) ? d : ''; };
+const waLink = (phone, text) => { const m = indMobile(phone); const dg = String(phone || '').replace(/\D/g, ''); return `https://wa.me/${m ? '91' + m : dg}?text=${encodeURIComponent(text)}`; };
 const isUUID = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ''));
 const csvCell = (v) => { let s = String(v ?? ''); if (/^[=+\-@]/.test(s) && isNaN(Number(s))) s = "'" + s; return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
 

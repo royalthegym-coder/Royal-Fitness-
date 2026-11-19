@@ -8,7 +8,8 @@ const upiOf = () => (CTX.gym && CTX.gym.upi_id) || '';
 
 /* ---------- Dashboard ---------- */
 async function vDashboard() {
-  const [members, invoices, payments, visits] = await Promise.all([Q.members(), Q.invoices(), Q.payments(), Q.visits()]);
+  /* money tables are owner-only: trainers get empty lists instead of a failing read */
+  const [members, invoices, payments, visits] = await Promise.all([Q.members(), isAdmin() ? Q.invoices() : [], isAdmin() ? Q.payments() : [], Q.visits()]);
   const paid = paidByInvoice(payments), today = todayISO(), mk = monthKey(today);
   const states = members.map(memberState);
   const active = states.filter((s) => s === 'Active' || s === 'Expiring').length, expiring = states.filter((s) => s === 'Expiring').length, expired = states.filter((s) => s === 'Expired').length;
@@ -47,15 +48,23 @@ async function memberForm(id, prefill, onSaved) {
   const liveOffers = offers.filter((o) => offerLive(o, todayISO()));
   const x = id ? members.find((m) => m.id === id) : null;
   const act2 = plans.filter((p) => p.status === 'Active');
+  /* an archived plan the member is still on must stay selectable, or saving would silently clear it */
+  const curPlan = x && x.plan_id ? plans.find((p) => p.id === x.plan_id) : null;
+  const planOpts = curPlan && !act2.some((p) => p.id === curPlan.id) ? [...act2, curPlan] : act2;
+  const admin = isAdmin();
+  const dupOf = (phone) => { const d = indMobile(phone); return d ? members.find((m) => m.id !== (x && x.id) && indMobile(m.phone) === d) || null : null; };
   const fields = [
-    { k: 'name', label: L('Name', 'नाम'), req: true, full: true }, { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel', req: true },
+    { k: 'name', label: L('Name', 'नाम'), req: true, full: true, check: (v) => (v.length < 2 ? L('Enter at least 2 letters', 'कम से कम 2 अक्षर लिखें') : v.length > 60 ? L('Up to 60 characters', 'अधिकतम 60 अक्षर') : '') },
+    { k: 'phone', label: L('Phone', 'फ़ोन'), type: 'tel', req: true, ph: '98765 43210', check: (v) => { const dup = dupOf(v); return dup ? L(`Already registered to ${dup.name}. Open that member instead.`, `यह नंबर ${dup.name} के नाम पर पहले से है। उसी सदस्य को खोलें।`) : ''; } },
     { k: 'gender', label: L('Gender', 'लिंग'), type: 'select', options: [{ v: '', l: '—' }, { v: 'Male', l: L('Male', 'पुरुष') }, { v: 'Female', l: L('Female', 'महिला') }, { v: 'Other', l: L('Other', 'अन्य') }] },
     { k: 'dob', label: L('Date of birth', 'जन्म की तारीख़'), type: 'date', check: (v) => (v && v > todayISO() ? L('Cannot be in the future', 'आगे की तारीख़ नहीं') : v && v < '1900-01-01' ? L('Check the year', 'साल जाँचें') : '') },
     { k: 'goal', label: L('Goal', 'लक्ष्य'), type: 'select', options: [{ v: '', l: '—' }, ...GOALS.map((g) => ({ v: g, l: g }))] },
-    { k: 'plan_id', label: L('Plan', 'प्लान'), type: 'select', options: [{ v: '', l: L('No plan yet', 'अभी प्लान नहीं') }, ...act2.map((p) => ({ v: p.id, l: `${p.name} · ${inr(p.price)}` }))], def: x ? x.plan_id || '' : '' },
-    { k: 'start_date', label: L('Start date', 'शुरू की तारीख़'), type: 'date', def: x ? x.start_date : todayISO() },
     { k: 'notes', label: L('Notes', 'नोट'), type: 'textarea', full: true },
   ];
+  /* only the owner sets the plan and dates: trainers can't, and the database refuses it too */
+  if (admin) fields.splice(fields.length - 1, 0,
+    { k: 'plan_id', label: L('Plan', 'प्लान'), type: 'select', options: [{ v: '', l: L('No plan yet', 'अभी प्लान नहीं') }, ...planOpts.map((p) => ({ v: p.id, l: `${p.name} · ${inr(p.price)}${p.status !== 'Active' ? ' · ' + L('archived', 'बंद') : ''}` }))], def: x ? x.plan_id || '' : '' },
+    { k: 'start_date', label: L('Start date', 'शुरू की तारीख़'), type: 'date', def: x ? x.start_date : todayISO() });
   if (isAdmin()) fields.splice(fields.length - 1, 0, { k: 'referred_by', label: L('Referred by (member)', 'किसने जुड़वाया (सदस्य)'), type: 'select', full: true, options: [{ v: '', l: '—' }, ...members.filter((m) => !x || m.id !== x.id).sort((p, q) => p.name.localeCompare(q.name)).map((m) => ({ v: m.id, l: `${m.name} · ${m.phone || ''}` }))], def: x ? x.referred_by || '' : '' });
   if (isAdmin() && trainers.length) fields.push({ k: 'trainer_id', label: L('Trainer', 'ट्रेनर'), type: 'select', full: true, options: [{ v: '', l: L('Not assigned', 'सौंपा नहीं') }, ...trainers.map((p) => ({ v: p.id, l: (p.full_name || p.email || 'Trainer') + (p.role === 'gym_admin' ? ` (${L('owner', 'मालिक')})` : '') }))], def: x ? x.trainer_id || '' : '' });
   if (isAdmin()) fields.push({ k: 'wa_opt_out', label: L('Do not send automatic WhatsApp messages (member asked to stop)', 'ऑटोमैटिक WhatsApp मैसेज न भेजें (सदस्य ने मना किया)'), type: 'check', full: true });
@@ -63,19 +72,24 @@ async function memberForm(id, prefill, onSaved) {
   openForm({
     title: x ? x.name : L('New member', 'नया सदस्य'), fields, values: x || prefill || {},
     onSubmit: async (v) => {
-      const plan = plans.find((p) => p.id === v.plan_id);
+      if (CTX.locked) { toast(L('The gym is locked. Members cannot be changed.', 'जिम लॉक है। सदस्य नहीं बदले जा सकते।'), 'bad'); return false; }
+      const plan = admin ? planOpts.find((p) => p.id === v.plan_id) || null : null;
       const start = v.start_date || todayISO();
-      const row = { name: v.name, phone: v.phone, gender: v.gender || null, dob: v.dob || null, goal: v.goal || null, notes: v.notes || null, plan_id: plan ? plan.id : null };
-      if (isAdmin()) row.wa_opt_out = !!v.wa_opt_out;
-      if (isAdmin()) row.referred_by = v.referred_by || null;
-      if (isAdmin() && trainers.length) row.trainer_id = v.trainer_id || null;
-      if (plan && (!x || x.plan_id !== plan.id || x.start_date !== start)) { row.start_date = start; row.end_date = addDays(addMonths(start, plan.months), -1); }
+      const row = { name: v.name, phone: indMobile(v.phone) || v.phone, gender: v.gender || null, dob: v.dob || null, goal: v.goal || null, notes: v.notes || null };
+      if (admin) { row.wa_opt_out = !!v.wa_opt_out; row.referred_by = v.referred_by || null; if (trainers.length) row.trainer_id = v.trainer_id || null; }
+      /* plan and dates are written only when they are new or changed, so an edit never clears a membership */
+      if (admin && (!x || (plan ? plan.id : '') !== (x.plan_id || '') || (plan && x.start_date !== start))) {
+        row.plan_id = plan ? plan.id : null;
+        row.start_date = plan ? start : null;
+        row.end_date = plan ? addDays(addMonths(start, plan.months), -1) : null;
+      }
       const saved = await act(() => (x ? DB.update('members', x.id, row) : DB.insert('members', { ...row, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
       if (!saved) return false;
-      if (!x && plan && v.bill && isAdmin()) {
+      if (!x && plan && v.bill && admin) {
         const off = liveOffers.find((o) => o.id === v.offer && (!o.plan_id || o.plan_id === plan.id)), disc = off ? offerDiscount(off, plan.price) : 0;
         const items = [{ label: `${plan.name} membership`, amount: Number(plan.price) }]; if (off && disc > 0) items.push({ label: `Offer: ${off.name}`, amount: 0 });
-        await act(() => DB.insert('invoices', { gym_id: gymId(), member_id: saved.id, items, ...computeInvoice([{ amount: plan.price }], disc, plan.gst_pct), due: addDays(todayISO(), 7) }), L('Invoice created', 'इनवॉइस बना'));
+        const inv = await act(() => DB.insert('invoices', { gym_id: gymId(), member_id: saved.id, items, ...computeInvoice([{ amount: plan.price }], disc, plan.gst_pct), due: addDays(todayISO(), 7) }), L('Invoice created', 'इनवॉइस बना'));
+        if (!inv) toast(L('Member saved, but the first invoice failed. Open the member and renew to bill.', 'सदस्य सेव हुआ, पर पहला इनवॉइस नहीं बना। सदस्य खोलकर रिन्यू से बिल बनाएँ।'), 'bad');
       }
       bust('members', 'invoices'); if (onSaved) { try { await onSaved(saved); } catch (e) {} } render(); return true;
     },
@@ -86,6 +100,8 @@ async function renewForm(id) {
   const liveOffers = offers.filter((o) => offerLive(o, todayISO()));
   const m = members.find((x) => x.id === id); if (!m) return;
   const act2 = plans.filter((p) => p.status === 'Active'); if (!act2.length) { toast(L('Add a plan first.', 'पहले प्लान जोड़ें।'), 'bad'); return; }
+  if (CTX.locked) { toast(L('The gym is locked. Renewals are not possible.', 'जिम लॉक है। रिन्यू नहीं हो सकता।'), 'bad'); return; }
+  if (m.status === 'Frozen') { toast(L('Unfreeze the member first, then renew.', 'पहले फ़्रीज़ हटाएँ, फिर रिन्यू करें।'), 'bad'); return; }
   const startDef = m.end_date && m.end_date >= todayISO() ? addDays(m.end_date, 1) : todayISO();
   const cur = act2.find((p) => p.id === m.plan_id) || act2[0];
   const preview = (root, src) => { const p = act2.find((x) => x.id === $('#f_plan', root).value); if (src === 'offer' || src === 'plan') { const o = liveOffers.find((x) => x.id === $('#f_offer', root).value); $('#f_discount', root).value = o && (!o.plan_id || o.plan_id === p.id) ? offerDiscount(o, p.price) : 0; } const disc = parseFloat($('#f_discount', root).value) || 0; const c = computeInvoice([{ amount: p.price }], disc, p.gst_pct); const out = $('#rn_sum', root); if (out) out.textContent = `${L('Total', 'कुल')} ${inr(c.total)} (GST ${inr(c.gst_amt)})`; const pay = $('#f_pay', root); if (pay && !pay.dataset.touched) pay.value = c.total; };
@@ -140,7 +156,7 @@ async function memberModal(id) {
   const wl = $('[data-wl]', mod.el); if (wl) wl.onclick = () => habitsModal(id);
   const lg = $('[data-l]', mod.el); if (lg) lg.onclick = () => { mod.close(); accountForm('member', m); };
   const r = $('[data-r]', mod.el); if (r) r.onclick = () => { mod.close(); renewForm(id); };
-  if (CTX.locked) { $$('[data-e],[data-r],[data-l],[data-ph],[data-fz],[data-uf]', mod.el).forEach((b) => (b.disabled = true)); }
+  if (CTX.locked) { $$('[data-e],[data-r],[data-l],[data-ph],[data-fz],[data-uf],[data-pg],[data-wk],[data-wl],[data-fp]', mod.el).forEach((b) => (b.disabled = true)); }
 }
 
 /* ---------- Check-in ---------- */

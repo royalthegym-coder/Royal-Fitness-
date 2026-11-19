@@ -30,7 +30,7 @@ async function invoiceForm(memberId) {
       { k: 'member', label: L('Member', 'सदस्य'), type: 'select', options: members.map((m) => ({ v: m.id, l: `${m.name} · ${m.phone || ''}` })), def: memberId || members[0].id, full: true },
       { k: 'label', label: L('Item', 'विवरण'), req: true, def: plans[0] ? plans[0].name : '', full: true },
       { k: 'amount', label: `${L('Amount', 'राशि')} (₹)`, type: 'number', req: true, def: plans[0] ? plans[0].price : '' }, { k: 'discount', label: `${L('Discount', 'छूट')} (₹)`, type: 'number', def: 0 },
-      { k: 'gst', label: 'GST %', type: 'number', def: 18 }, { k: 'due', label: L('Due date', 'आख़िरी तारीख़'), type: 'date', def: addDays(todayISO(), 7) },
+      { k: 'gst', label: 'GST %', type: 'number', def: 18, check: (v) => (v !== '' && Number(v) > 40 ? L('GST cannot be more than 40%', 'GST 40% से ज़्यादा नहीं हो सकता') : '') }, { k: 'due', label: L('Due date', 'आख़िरी तारीख़'), type: 'date', def: addDays(todayISO(), 7) },
     ],
     extra: `<div class="note" id="iv_sum" style="margin-top:10px"></div>`,
     onSubmit: async (v) => {

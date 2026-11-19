@@ -3,7 +3,8 @@
    (the database works that out, never the browser), and the member pays on Razorpay's own page. When Razorpay confirms through a signed webhook,
    the database records the payment once, so the usual receipt, ledger, activity log and WhatsApp receipt all happen by themselves.
    Card or UPI details never enter this app. Nothing works until the platform admin switches it on for a gym and the Razorpay keys are set. */
-Q.onlineOrders = () => cached('online_orders', () => DB.select('online_orders', { order: 'created_at.desc', limit: 60 }));
+/* totals must count every order, so the summary reads all of them; the list below shows all "needs attention" orders plus the latest 60 others */
+Q.onlineOrders = () => cached('online_orders', () => DB.select('online_orders', { order: 'created_at.desc', limit: 5000 }));
 Q.rzStatus = () => cached('rz_status', async () => {
   try { const r = await Promise.race([payFn({ action: 'status' }), new Promise((_, rej) => setTimeout(() => rej(new Error('t')), 6000))]); return { known: true, configured: r.configured === true, enabled: r.enabled === true }; } catch (e) { return { known: false, configured: false, enabled: false }; }
 });
@@ -58,7 +59,8 @@ async function payOnline(invoiceId, part) {
     if (!url) { toast(PAY_ERR(r.error), 'bad'); return; }
     bust('online_orders', 'emi_mine');
     toast(L('Complete the payment on the Razorpay page. It appears here within a minute after you pay.', 'Razorpay के पेज पर भुगतान पूरा करें। भुगतान के बाद यहाँ एक मिनट में दिख जाएगा।'), 'ok');
-    const w = window.open(url, '_blank', 'noopener'); if (!w) location.assign(url);
+    /* 'noopener' makes window.open return null, which sent the owner to Razorpay in the same tab too: open the URL, then drop the opener link */
+    const w = window.open(url, '_blank'); if (w) w.opener = null; else location.assign(url);
   } finally { U.rzBusy = false; }
 }
 
@@ -67,6 +69,7 @@ const ONLINE_STATUS = () => ({ created: [L('Link open', 'लिंक खुल�
 async function vOnlinePay() {
   const [st, orders, members] = await Promise.all([Q.rzStatus(), Q.onlineOrders().catch(() => []), Q.members()]);
   const mm = memberMap(members), S = onlineSummary(orders, monthKey(todayISO())), lab = ONLINE_STATUS();
+  const shown = [...orders.filter((o) => o.status === 'review'), ...orders.filter((o) => o.status !== 'review').slice(0, 60)];
   const hook = `${CFG.url}/functions/v1/razorpay`;
   const on = (b, yes, no) => badge(b ? yes : no, b ? 'ok' : 'mute');
   const head = pageHead(L('Money', 'पैसा'), L('Online payments', 'ऑनलाइन भुगतान'), L('Members pay their fee on their phone from the Payments page. The money is recorded here by itself and the usual receipt goes out.', 'सदस्य अपने फ़ोन में भुगतान पेज से फ़ीस भर सकते हैं। रकम अपने-आप यहाँ दर्ज होती है और रसीद चली जाती है।'));
@@ -83,7 +86,7 @@ async function vOnlinePay() {
       <li>${esc(L('Switch the gym on from Super admin → Gyms → “Online pay”, paste the gym’s linked account id (acc_…) in the same dialog, then pay a small test invoice with a Razorpay test card or UPI.', 'Super admin → Gyms → “Online pay” से जिम चालू कीजिए और उसी डायलॉग में जिम का linked account id (acc_…) डालिए, फिर Razorpay के test कार्ड या UPI से छोटा टेस्ट इनवॉइस चुकाकर देखिए।'))}</li>
     </ol>
     <p class="muted" style="margin:10px 0 0">${esc(L('Razorpay charges its own fee per payment (check current rates). The fee is not added to the member’s bill here; it is taken out of the gym’s share. Switch it on only for a gym whose linked account is set up.', 'Razorpay हर भुगतान पर अपना शुल्क लेता है (ताज़ा दरें देखें)। यह शुल्क यहाँ सदस्य के बिल में नहीं जुड़ता, जिम के हिस्से से कटता है। सिर्फ़ उन्हीं जिम के लिए चालू करें जिनका linked account तैयार है।'))}</p>`);
-  const list = card(L('Online payments', 'ऑनलाइन भुगतान'), 'receipt', '', orders.length ? `<ul class="list">${orders.map((o) => { const m = mm.get(o.member_id), [l, tone] = lab[o.status] || [o.status, 'mute']; return `<li><div class="grow"><b>${esc(m ? m.name : '—')}</b><small>${esc(fmtDate(istDate(o.created_at)))} ${esc(fmtTime(o.created_at))}${o.status === 'review' && o.note ? ' · ' + esc(o.note) : ''}</small></div><span class="num">${esc(inr(o.amount))}</span>${badge(l, tone)}</li>`; }).join('')}</ul>${S.review ? `<p class="muted" style="margin:10px 0 0">${esc(L('“Needs your attention” means the member paid on Razorpay but the system could not add it to the invoice (for example it was already paid in cash). Refund it from the Razorpay dashboard, or add the payment by hand.', '“आपका ध्यान चाहिए” का मतलब है कि सदस्य ने Razorpay पर चुकाया पर सिस्टम इसे इनवॉइस में जोड़ नहीं सका (जैसे इनवॉइस पहले ही नकद में चुक गया था)। Razorpay डैशबोर्ड से रिफ़ंड कीजिए या भुगतान हाथ से जोड़िए।'))}</p>` : ''}` : empty(L('No online payments yet', 'अभी कोई ऑनलाइन भुगतान नहीं'), ''));
+  const list = card(L('Online payments', 'ऑनलाइन भुगतान'), 'receipt', '', shown.length ? `<ul class="list">${shown.map((o) => { const m = mm.get(o.member_id), [l, tone] = lab[o.status] || [o.status, 'mute']; return `<li><div class="grow"><b>${esc(m ? m.name : '—')}</b><small>${esc(fmtDate(istDate(o.created_at)))} ${esc(fmtTime(o.created_at))}${o.status === 'review' && o.note ? ' · ' + esc(o.note) : ''}</small></div><span class="num">${esc(inr(o.amount))}</span>${badge(l, tone)}</li>`; }).join('')}</ul>${S.review ? `<p class="muted" style="margin:10px 0 0">${esc(L('“Needs your attention” means the member paid on Razorpay but the system could not add it to the invoice (for example it was already paid in cash). Refund it from the Razorpay dashboard, or add the payment by hand.', '“आपका ध्यान चाहिए” का मतलब है कि सदस्य ने Razorpay पर चुकाया पर सिस्टम इसे इनवॉइस में जोड़ नहीं सका (जैसे इनवॉइस पहले ही नकद में चुक गया था)। Razorpay डैशबोर्ड से रिफ़ंड कीजिए या भुगतान हाथ से जोड़िए।'))}</p>` : ''}` : empty(L('No online payments yet', 'अभी कोई ऑनलाइन भुगतान नहीं'), ''));
   return head + status + tiles + list + '<div style="height:14px"></div>' + steps;
 }
 
