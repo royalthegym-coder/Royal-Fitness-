@@ -510,7 +510,7 @@ async function memberForm(id, prefill, onSaved) {
       if (!x && admin) {
         /* the member, the first invoice and every check run as one transaction on the server: all of it is saved, or none of it */
         const off = plan ? liveOffers.find((o) => o.id === v.offer && (!o.plan_id || o.plan_id === plan.id)) : null, disc = off && plan ? offerDiscount(off, plan.price) : 0;
-        const r = await act(() => DB.rpc('admit_member', { name: row.name, phone: row.phone, gender: row.gender, dob: row.dob, goal: row.goal, notes: row.notes, plan_id: plan ? plan.id : null, start_date: plan ? start : null, referred_by: row.referred_by, trainer_id: row.trainer_id || null, wa_opt_out: row.wa_opt_out, bill: !!(plan && v.bill), discount: disc, offer_name: off && disc > 0 ? off.name : null }), L('Saved', 'सेव हुआ'));
+        const r = await act(() => DB.rpc('admit_member', { p: { name: row.name, phone: row.phone, gender: row.gender, dob: row.dob, goal: row.goal, notes: row.notes, plan_id: plan ? plan.id : null, start_date: plan ? start : null, referred_by: row.referred_by, trainer_id: row.trainer_id || null, wa_opt_out: row.wa_opt_out, bill: !!(plan && v.bill), discount: disc, offer_name: off && disc > 0 ? off.name : null } }), L('Saved', 'सेव हुआ'));
         if (!r) return false;
         saved = { id: r.member_id };
         if (r.invoice_id) toast(L('Invoice created', 'इनवॉइस बना'));
@@ -546,8 +546,9 @@ async function renewForm(id) {
       const p = act2.find((x) => x.id === v.plan), c = computeInvoice([{ amount: p.price }], v.discount, p.gst_pct);
       if (Number(v.pay) > c.total + 0.005) { $('#e_pay', mod.el).textContent = L(`More than the total ${inr(c.total)}`, `कुल ${inr(c.total)} से ज़्यादा`); return false; }
       const off = liveOffers.find((x) => x.id === v.offer && (!x.plan_id || x.plan_id === p.id));
-      /* invoice, membership dates and payment are saved together on the server, so a failure can never leave a half-renewed member */
-      const r = await act(() => DB.rpc('renew_member', { member_id: m.id, plan_id: p.id, start: v.start, discount: c.discount, offer_name: off && c.discount > 0 ? off.name : null, pay: Math.min(Number(v.pay) || 0, c.total), method: v.method }));
+      /* invoice, membership dates and payment are saved together on the server, so a failure can never leave a half-renewed member.
+         The server function takes one jsonb argument named p, so PostgREST needs the body as { p: {...} }. */
+      const r = await act(() => DB.rpc('renew_member', { p: { member_id: m.id, plan_id: p.id, start: v.start, discount: c.discount, offer_name: off && c.discount > 0 ? off.name : null, pay: Math.min(Number(v.pay) || 0, c.total), method: v.method } }));
       if (!r) return false;
       bust(); render();
       if (r.payment) { receiptModal(r.payment, m); return true; }

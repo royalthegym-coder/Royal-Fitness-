@@ -59,7 +59,7 @@ function handler(db, role) {
     if (p === '/auth/v1/user' && m === 'PUT') { db.pwChanged = JSON.parse(req.postData()).password; return json({ id: db.me }); }
     if (p === '/auth/v1/logout') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
     if (p.startsWith('/rest/v1/rpc/')) {
-      const fn = p.split('/').pop(), a = JSON.parse(req.postData() || '{}');
+      const fn = p.split('/').pop(); let a = JSON.parse(req.postData() || '{}');
       if (fn === 'admin_gym_overview') return json(OV);
       if (fn === 'verify_gym_ledger') return json([]);
       if (fn === 'class_booked_counts') { const o = {}; db.class_bookings.forEach((b) => (o[b.class_id] = (o[b.class_id] || 0) + 1)); return json(Object.entries(o).map(([class_id, booked]) => ({ class_id, booked }))); }
@@ -98,6 +98,13 @@ function handler(db, role) {
       if (fn === 'unpublish_member_plan') { const r = db.member_plans.find((x) => x.id === a.p); if (r && r.status === 'published') r.status = 'archived'; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       /* ---- admissions, renewals and public enquiries: mirror of the server functions in 20261118_admissions_enquiries.sql ---- */
       if (fn === 'admit_member' || fn === 'renew_member' || fn === 'enquiry_gym' || fn === 'submit_enquiry') {
+        /* admit_member(p jsonb) and renew_member(p jsonb) take ONE argument named p. PostgREST matches the body keys to argument names,
+           so a flat body is answered "function not found" (404 PGRST202), exactly as production did. */
+        if ((fn === 'admit_member' || fn === 'renew_member') && !(Object.keys(a).length === 1 && a.p && typeof a.p === 'object')) {
+          (db.rpcShapeErrors = db.rpcShapeErrors || []).push(fn);
+          return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 'PGRST202', message: `Could not find the function public.${fn}(${Object.keys(a).sort().join(', ')}) in the schema cache`, details: null, hint: null }) });
+        }
+        if (fn === 'admit_member' || fn === 'renew_member') a = a.p;
         const bad = (message) => json({ message, code: 'P0001', details: null, hint: null }, 400);
         const mobile = (v) => { let d = String(v || '').replace(/\D/g, ''); if (d.length === 12 && d.startsWith('91')) d = d.slice(2); if (d.length === 11 && d[0] === '0') d = d.slice(1); return /^[6-9]\d{9}$/.test(d) ? d : null; };
         const addM = (d, n) => { const [y, mo, dd] = d.split('-').map(Number), t = new Date(Date.UTC(y, mo - 1 + n, 1)), last = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate(); t.setUTCDate(Math.min(dd, last)); return t.toISOString().slice(0, 10); };
@@ -212,6 +219,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('[data-ok]'); await page.waitForFunction(() => /Naya Sadasya/.test(document.body.innerText));
     ok(db.members.some((m) => m.name === 'Naya Sadasya' && m.end_date), 'member saved with end date from plan');
     ok(db.invoices.length === 2 && !('no' in db.invoices[0] && db.invoices[0].no === undefined), 'first invoice created');
+    ok(!db.rpcShapeErrors, 'admit_member is called with the { p: {...} } body PostgREST needs');
     ok(db.admitCalls.length === 1 && db.admitCalls[0].bill === true && db.admitCalls[0].phone === '9999911111' && !!db.admitCalls[0].plan_id, 'admission goes through one admit_member call with the plan and the bill flag');
     ok(!db.calls.some((c) => /^POST \/rest\/v1\/(members|invoices)\b/.test(c)), 'member and first invoice are not written as separate requests');
     // a number added elsewhere after this form opened: the server refuses it and the message names the member
@@ -228,6 +236,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('[data-ok]'); await page.waitForSelector('a.btn.wa');
     const rahul = db.members.find((m) => m.name === 'Rahul Sharma');
     ok(rahul.end_date > endBefore && db.payments.length === 1 && db.payments[0].amount === 1180, 'renewal extends membership and records full payment');
+    ok(!db.rpcShapeErrors, 'renew_member is called with the { p: {...} } body PostgREST needs');
     ok(db.renewCalls.length === 1 && db.renewCalls[0].pay === 1180 && db.invoices.filter((i) => i.member_id === rahul.id).length === 2, 'renewal is one renew_member call: new invoice, new dates and payment together');
     await page.keyboard.press('Escape'); db.payments.length = 0; db.payment_ledger.length = 0;
     // the server fails: nothing is half-saved (no invoice, dates unchanged)
