@@ -16,8 +16,10 @@ async function vDashboard() {
   const todayIn = visits.filter((v) => istDate(v.in_at) === today), onFloor = todayIn.filter((v) => !v.out_at).length;
   const collected = sum(payments.filter((p) => monthKey(p.paid_on) === mk), (p) => p.amount);
   const dues = sum(invoices, (i) => balanceOf(i, paid)), overdueN = invoices.filter((i) => isOverdue(i, paid)).length;
+  const newWeb = await freshLeads().then(newWebLeads).catch(() => []);
   const soon = members.filter((m) => memberState(m) === 'Expiring').sort((a, b) => a.end_date.localeCompare(b.end_date)).slice(0, 6);
   return pageHead(gymName(), L('Dashboard', 'डैशबोर्ड'), fmtDate(today))
+    + (newWeb.length ? `<a class="banner ok" href="#leads" style="display:block;margin:0 0 14px;text-decoration:none"><b>${esc(L(`${newWeb.length} new website ${newWeb.length === 1 ? 'enquiry' : 'enquiries'}`, `${newWeb.length} नई वेबसाइट पूछताछ`))}</b> · ${esc(L('Call them today', 'आज ही कॉल करें'))} →</a>` : '')
     + (isAdmin() ? '<div id="daySum"></div>' : '')
     + (isAdmin() ? await weeklyCard().catch(() => '') + '<div style="height:14px"></div>' : '')
     + `<div class="tiles">${tile(L('Active members', 'सक्रिय सदस्य'), active, `${expired} ${esc(L('expired', 'खत्म'))}`)}${tile(L('Expiring in 7 days', '7 दिन में खत्म'), expiring, '', expiring ? 'var(--warn)' : '')}${tile(L('Check-ins today', 'आज चेक-इन'), todayIn.length, `${onFloor} ${esc(L('on the floor now', 'अभी फ़्लोर पर'))}`)}${isAdmin() ? tile(L('Collected this month', 'इस महीने जमा'), esc(inr(collected))) + tile(L('Dues pending', 'बकाया'), esc(inr(dues)), overdueN ? `${overdueN} ${esc(L('overdue', 'देर'))}` : '', dues ? 'var(--crimson)' : '') : ''}</div>`
@@ -83,13 +85,17 @@ async function memberForm(id, prefill, onSaved) {
         row.start_date = plan ? start : null;
         row.end_date = plan ? addDays(addMonths(start, plan.months), -1) : null;
       }
-      const saved = await act(() => (x ? DB.update('members', x.id, row) : DB.insert('members', { ...row, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
-      if (!saved) return false;
-      if (!x && plan && v.bill && admin) {
-        const off = liveOffers.find((o) => o.id === v.offer && (!o.plan_id || o.plan_id === plan.id)), disc = off ? offerDiscount(off, plan.price) : 0;
-        const items = [{ label: `${plan.name} membership`, amount: Number(plan.price) }]; if (off && disc > 0) items.push({ label: `Offer: ${off.name}`, amount: 0 });
-        const inv = await act(() => DB.insert('invoices', { gym_id: gymId(), member_id: saved.id, items, ...computeInvoice([{ amount: plan.price }], disc, plan.gst_pct), due: addDays(todayISO(), 7) }), L('Invoice created', 'इनवॉइस बना'));
-        if (!inv) toast(L('Member saved, but the first invoice failed. Open the member and renew to bill.', 'सदस्य सेव हुआ, पर पहला इनवॉइस नहीं बना। सदस्य खोलकर रिन्यू से बिल बनाएँ।'), 'bad');
+      let saved;
+      if (!x && admin) {
+        /* the member, the first invoice and every check run as one transaction on the server: all of it is saved, or none of it */
+        const off = plan ? liveOffers.find((o) => o.id === v.offer && (!o.plan_id || o.plan_id === plan.id)) : null, disc = off && plan ? offerDiscount(off, plan.price) : 0;
+        const r = await act(() => DB.rpc('admit_member', { name: row.name, phone: row.phone, gender: row.gender, dob: row.dob, goal: row.goal, notes: row.notes, plan_id: plan ? plan.id : null, start_date: plan ? start : null, referred_by: row.referred_by, trainer_id: row.trainer_id || null, wa_opt_out: row.wa_opt_out, bill: !!(plan && v.bill), discount: disc, offer_name: off && disc > 0 ? off.name : null }), L('Saved', 'सेव हुआ'));
+        if (!r) return false;
+        saved = { id: r.member_id };
+        if (r.invoice_id) toast(L('Invoice created', 'इनवॉइस बना'));
+      } else {
+        saved = await act(() => (x ? DB.update('members', x.id, row) : DB.insert('members', { ...row, gym_id: gymId() })), L('Saved', 'सेव हुआ'));
+        if (!saved) return false;
       }
       bust('members', 'invoices'); if (onSaved) { try { await onSaved(saved); } catch (e) {} } render(); return true;
     },
@@ -118,12 +124,13 @@ async function renewForm(id) {
     onSubmit: async (v) => {
       const p = act2.find((x) => x.id === v.plan), c = computeInvoice([{ amount: p.price }], v.discount, p.gst_pct);
       if (Number(v.pay) > c.total + 0.005) { $('#e_pay', mod.el).textContent = L(`More than the total ${inr(c.total)}`, `कुल ${inr(c.total)} से ज़्यादा`); return false; }
-      const off = liveOffers.find((x) => x.id === v.offer && (!x.plan_id || x.plan_id === p.id)), items = [{ label: `${p.name} membership`, amount: Number(p.price) }];
-      if (off && c.discount > 0) items.push({ label: `Offer: ${off.name}`, amount: 0 });
-      const inv = await act(() => DB.insert('invoices', { gym_id: gymId(), member_id: m.id, items, ...c, due: addDays(todayISO(), 7) })); if (!inv) return false;
-      const upd = await act(() => DB.update('members', m.id, { plan_id: p.id, start_date: v.start, end_date: addDays(addMonths(v.start, p.months), -1), status: 'Active' })); if (!upd) { toast(L('Invoice created but the membership was not updated. Edit the member.', 'इनवॉइस बना पर सदस्यता अपडेट नहीं हुई। सदस्य को बदलें।'), 'bad'); bust(); render(); return true; }
-      if (Number(v.pay) > 0) { const pay = await act(() => DB.insert('payments', { gym_id: gymId(), invoice_id: inv.id, member_id: m.id, amount: Number(v.pay), method: v.method })); if (pay) { bust(); render(); receiptModal(pay, m); return true; } }
-      toast(L('Membership renewed', 'सदस्यता रिन्यू हुई')); bust(); render(); return true;
+      const off = liveOffers.find((x) => x.id === v.offer && (!x.plan_id || x.plan_id === p.id));
+      /* invoice, membership dates and payment are saved together on the server, so a failure can never leave a half-renewed member */
+      const r = await act(() => DB.rpc('renew_member', { member_id: m.id, plan_id: p.id, start: v.start, discount: c.discount, offer_name: off && c.discount > 0 ? off.name : null, pay: Math.min(Number(v.pay) || 0, c.total), method: v.method }));
+      if (!r) return false;
+      bust(); render();
+      if (r.payment) { receiptModal(r.payment, m); return true; }
+      toast(L('Membership renewed', 'सदस्यता रिन्यू हुई')); return true;
     },
   });
   mod.el.addEventListener('input', (e) => { if (e.target.id === 'f_pay') e.target.dataset.touched = '1'; preview(mod.el); }); mod.el.addEventListener('change', (e) => preview(mod.el, e.target.id === 'f_offer' ? 'offer' : e.target.id === 'f_plan' ? 'plan' : '')); preview(mod.el);

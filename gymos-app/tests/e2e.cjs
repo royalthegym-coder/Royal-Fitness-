@@ -96,6 +96,56 @@ function handler(db, role) {
       if (fn === 'admin_set_gym_timings') { db.gyms[0].timings = a.timing_text; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'publish_member_plan') { const r = db.member_plans.find((x) => x.id === a.p); db.member_plans.forEach((x) => { if (x.member_id === r.member_id && x.kind === r.kind && x.status === 'published' && x.id !== r.id) x.status = 'archived'; }); r.status = 'published'; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       if (fn === 'unpublish_member_plan') { const r = db.member_plans.find((x) => x.id === a.p); if (r && r.status === 'published') r.status = 'archived'; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
+      /* ---- admissions, renewals and public enquiries: mirror of the server functions in 20261118_admissions_enquiries.sql ---- */
+      if (fn === 'admit_member' || fn === 'renew_member' || fn === 'enquiry_gym' || fn === 'submit_enquiry') {
+        const bad = (message) => json({ message, code: 'P0001', details: null, hint: null }, 400);
+        const mobile = (v) => { let d = String(v || '').replace(/\D/g, ''); if (d.length === 12 && d.startsWith('91')) d = d.slice(2); if (d.length === 11 && d[0] === '0') d = d.slice(1); return /^[6-9]\d{9}$/.test(d) ? d : null; };
+        const addM = (d, n) => { const [y, mo, dd] = d.split('-').map(Number), t = new Date(Date.UTC(y, mo - 1 + n, 1)), last = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate(); t.setUTCDate(Math.min(dd, last)); return t.toISOString().slice(0, 10); };
+        const money = (x) => Math.round(x * 100) / 100;
+        const bill = (pl, discount, offerName, memberId) => { const sub = Number(pl.price), disc = Math.min(Math.max(Number(discount) || 0, 0), sub), base = sub - disc, gst = money(base * Number(pl.gst_pct || 0) / 100), items = [{ label: pl.name + ' membership', amount: sub }]; if (disc > 0) items.push({ label: 'Offer: ' + (offerName || 'discount'), amount: 0 }); const inv = { id: uid(), gym_id: db.G, no: 'INV-' + String(db.invoices.length + 1).padStart(4, '0'), member_id: memberId, date: today(), due: addD(today(), 7), items, subtotal: sub, discount: disc, gst_pct: Number(pl.gst_pct || 0), gst_amt: gst, total: money(base + gst), cancelled: false }; db.invoices.unshift(inv); return inv; };
+        if (fn === 'admit_member') {
+          (db.admitCalls = db.admitCalls || []).push(a);
+          if (db.rpcDown) return bad('boom');
+          const name = String(a.name || '').trim(); if (name.length < 2 || name.length > 60) return bad('name must be 2 to 60 characters');
+          const ph = mobile(a.phone); if (!ph) return bad('enter a valid 10-digit mobile number (starts with 6 to 9)');
+          const dup = db.members.find((x) => mobile(x.phone) === ph); if (dup) return bad('phone already registered to ' + dup.name);
+          if (a.dob && (a.dob > today() || a.dob < '1900-01-01')) return bad('date of birth is not valid');
+          let pl = null, start = null, end = null;
+          if (a.plan_id) { pl = db.plans.find((x) => x.id === a.plan_id && x.status === 'Active'); if (!pl) return bad('that plan is not active for this gym'); start = a.start_date || today(); end = addD(addM(start, pl.months), -1); }
+          const mem = { id: uid(), gym_id: db.G, name, phone: ph, gender: a.gender || null, dob: a.dob || null, goal: a.goal || null, notes: a.notes || null, plan_id: pl ? pl.id : null, start_date: start, end_date: end, referred_by: a.referred_by || null, trainer_id: a.trainer_id || null, wa_opt_out: !!a.wa_opt_out, status: 'Active', joined_on: today(), profile_id: null };
+          db.members.unshift(mem);
+          const inv = a.bill && pl ? bill(pl, a.discount, a.offer_name, mem.id) : null;
+          return json({ member_id: mem.id, invoice_id: inv ? inv.id : null });
+        }
+        if (fn === 'renew_member') {
+          (db.renewCalls = db.renewCalls || []).push(a);
+          if (db.rpcDown) return bad('boom');
+          const mem = db.members.find((x) => x.id === a.member_id); if (!mem) return bad('member not found in this gym');
+          if (mem.status === 'Frozen') return bad('unfreeze the member before renewing');
+          if (!a.start) return bad('start date is required');
+          const pl = db.plans.find((x) => x.id === a.plan_id && x.status === 'Active'); if (!pl) return bad('that plan is not active for this gym');
+          const sub = Number(pl.price), disc = Math.min(Math.max(Number(a.discount) || 0, 0), sub), total = money(sub - disc + money((sub - disc) * Number(pl.gst_pct || 0) / 100)), pay = Number(a.pay) || 0;
+          if (pay < 0) return bad('paid amount cannot be negative');
+          if (pay > total) return bad('paid amount is more than the total ' + total.toFixed(2));
+          const inv = bill(pl, a.discount, a.offer_name, mem.id);
+          Object.assign(mem, { plan_id: pl.id, start_date: a.start, end_date: addD(addM(a.start, pl.months), -1), status: 'Active' });
+          let payment = null;
+          if (pay > 0) { const n = db.payments.length + 1; payment = { id: uid(), gym_id: db.G, no: 'RCT-' + String(n).padStart(4, '0'), invoice_id: inv.id, member_id: mem.id, amount: pay, method: a.method || 'Cash', paid_on: today() }; db.payments.unshift(payment); db.payment_ledger.push({ id: n, gym_id: db.G, seq: n, payment_id: payment.id, no: payment.no, member_id: mem.id, amount: pay, method: payment.method, paid_on: payment.paid_on, prev_mac: 'x', mac: 'abcdef0123456789abcdef' }); }
+          return json({ invoice: inv, payment });
+        }
+        if (fn === 'enquiry_gym') return json(db.enquiryClosed || a.p_gym !== db.G ? null : db.gyms[0].name);
+        (db.enqCalls = db.enqCalls || []).push(a);
+        if (a.p_hp) return json({ ok: true });
+        if (db.enquiryClosed || a.p_gym !== db.G) return bad('enquiries_closed');
+        if (a.p_consent !== true) return bad('consent_required');
+        const nm = String(a.p_name || '').trim(); if (nm.length < 2 || nm.length > 80) return bad('name_invalid');
+        const ph = mobile(a.p_phone); if (!ph) return bad('phone_invalid');
+        if (String(a.p_interest || '').length > 200 || String(a.p_note || '').length > 500) return bad('text_too_long');
+        if (db.enquiryBusy) return bad('too_many_enquiries');
+        if (db.leads.some((l) => mobile(l.phone) === ph)) return json({ ok: true, duplicate: true });
+        db.leads.unshift({ id: uid(), gym_id: db.G, name: nm, phone: ph, source: 'Website', stage: 'New', interest: (a.p_interest || '').trim() || null, note: (a.p_note || '').trim() || null, follow_up_on: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+        return json({ ok: true });
+      }
       if (fn === 'admin_update_gym') { Object.assign(db.gyms[0], { name: a.gym_name, owner_name: a.owner, phone: a.phone_no, city: a.city_name, upi_id: a.upi }); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
     }
@@ -125,7 +175,7 @@ function handler(db, role) {
   };
 }
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
-const server = http.createServer((q, s) => { const f = path.join(PUB, q.url === '/' ? 'index.html' : q.url.split('?')[0]); if (!f.startsWith(PUB) || !fs.existsSync(f)) { s.writeHead(404); return s.end(); } s.writeHead(200, { 'content-type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : f.endsWith('.webp') ? 'image/webp' : f.endsWith('.png') ? 'image/png' : f.endsWith('.webmanifest') ? 'application/manifest+json' : 'text/html' }); s.end(fs.readFileSync(f)); });
+const server = http.createServer((q, s) => { const u = q.url.split('?')[0], f = path.join(PUB, u === '/' ? 'index.html' : u); if (!f.startsWith(PUB) || !fs.existsSync(f)) { s.writeHead(404); return s.end(); } s.writeHead(200, { 'content-type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.css') ? 'text/css' : f.endsWith('.webp') ? 'image/webp' : f.endsWith('.png') ? 'image/png' : f.endsWith('.webmanifest') ? 'application/manifest+json' : 'text/html' }); s.end(fs.readFileSync(f)); });
 
 async function session(browser, role, fn, vp = { width: 1280, height: 800 }) {
   const db = makeDb(role), ctx = await browser.newContext({ viewport: vp, serviceWorkers: 'block' }), page = await ctx.newPage(), errs = [];
@@ -162,6 +212,15 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('[data-ok]'); await page.waitForFunction(() => /Naya Sadasya/.test(document.body.innerText));
     ok(db.members.some((m) => m.name === 'Naya Sadasya' && m.end_date), 'member saved with end date from plan');
     ok(db.invoices.length === 2 && !('no' in db.invoices[0] && db.invoices[0].no === undefined), 'first invoice created');
+    ok(db.admitCalls.length === 1 && db.admitCalls[0].bill === true && db.admitCalls[0].phone === '9999911111' && !!db.admitCalls[0].plan_id, 'admission goes through one admit_member call with the plan and the bill flag');
+    ok(!db.calls.some((c) => /^POST \/rest\/v1\/(members|invoices)\b/.test(c)), 'member and first invoice are not written as separate requests');
+    // a number added elsewhere after this form opened: the server refuses it and the message names the member
+    await page.click('[data-act=newMember]'); await page.waitForSelector('#f_name');
+    db.members.unshift({ id: uid(), gym_id: db.G, name: 'Late Joiner', phone: '9777700001', plan_id: null, start_date: null, end_date: null, status: 'Active', joined_on: today(), profile_id: null });
+    await page.fill('#f_name', 'Dusra Sadasya'); await page.fill('#f_phone', '9777700001'); await page.click('[data-ok]');
+    await page.waitForFunction(() => /Late Joiner/.test((document.querySelector('#toasts') || {}).innerText || ''));
+    ok(!db.members.some((m) => m.name === 'Dusra Sadasya') && !!(await page.$('#f_name')), 'server duplicate-phone refusal names the existing member and keeps the form open');
+    await page.keyboard.press('Escape'); db.members.shift();
     // renew with payment
     await page.click('tr.click:has-text("Rahul")'); await page.waitForSelector('[data-r]'); await page.click('[data-r]');
     await page.waitForSelector('#rn_sum'); ok(/1,?180/.test(await page.textContent('#rn_sum')), 'renew preview shows total with GST');
@@ -169,7 +228,14 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('[data-ok]'); await page.waitForSelector('a.btn.wa');
     const rahul = db.members.find((m) => m.name === 'Rahul Sharma');
     ok(rahul.end_date > endBefore && db.payments.length === 1 && db.payments[0].amount === 1180, 'renewal extends membership and records full payment');
+    ok(db.renewCalls.length === 1 && db.renewCalls[0].pay === 1180 && db.invoices.filter((i) => i.member_id === rahul.id).length === 2, 'renewal is one renew_member call: new invoice, new dates and payment together');
     await page.keyboard.press('Escape'); db.payments.length = 0; db.payment_ledger.length = 0;
+    // the server fails: nothing is half-saved (no invoice, dates unchanged)
+    { const invN = db.invoices.length, endNow = rahul.end_date; db.rpcDown = true;
+      await page.click('tr.click:has-text("Rahul")'); await page.waitForSelector('[data-r]'); await page.click('[data-r]'); await page.waitForSelector('#rn_sum'); await page.click('[data-ok]');
+      await page.waitForFunction(() => /Could not complete|नहीं हो सका/.test((document.querySelector('#toasts') || {}).innerText || ''));
+      ok(db.invoices.length === invN && rahul.end_date === endNow && db.payments.length === 0, 'a failed renewal leaves no invoice, no payment and the same end date');
+      db.rpcDown = false; await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); }
     // invalid phone
     await page.click('[data-act=newMember]'); await page.fill('#f_name', 'X'); await page.fill('#f_phone', '123'); await page.click('[data-ok]');
     ok((await page.textContent('#e_phone')).length > 0, 'short phone rejected'); await page.keyboard.press('Escape');
@@ -449,8 +515,8 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok((await page.textContent('#e_phone')).length > 0, 'short lead phone rejected'); await page.fill('#f_phone', '9811122233'); await page.fill('#f_follow_up_on', today()); await page.click('[data-ok]');
     await page.waitForFunction(() => /Vikram Lead/.test(document.body.innerText));
     ok(db.leads.length === 1 && db.leads[0].stage === 'New' && db.leads[0].source === 'Walk-in', 'lead saved as New');
-    ok(/1/.test(await page.textContent('.tiles .card:nth-child(2) .v')), 'lead due today is counted');
-    ok(/wa\.me\/919811122233/.test(await page.$eval('a[href*="wa.me"]', (a) => a.href)), 'WhatsApp button opens the lead chat');
+    ok(/1/.test(await page.textContent('.tiles .card:nth-child(3) .v')), 'lead due today is counted');
+    ok(/wa\.me\/919811122233/.test(await page.$eval('table.t a[href*="wa.me"]', (a) => a.href)), 'WhatsApp button opens the lead chat');
     await page.click('[data-act=leadNext]'); await page.waitForFunction(() => /Contacted|संपर्क हुआ/.test(document.querySelector('table.t tbody').innerText));
     ok(db.leads[0].stage === 'Contacted', 'lead moved to Contacted');
     await page.click('[data-act=leadConvert]'); await page.waitForSelector('#f_name');
@@ -458,6 +524,16 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('[data-ok]'); for (let i = 0; i < 25 && db.leads[0].stage !== 'Converted'; i++) await page.waitForTimeout(150);
     const nm = db.members.find((x) => x.name === 'Vikram Lead');
     ok(!!nm && db.leads[0].stage === 'Converted' && db.leads[0].converted_member_id === nm.id, 'lead marked Converted only after the member exists');
+    // enquiries from the website: dashboard nudge, a tile, the share link with QR, WhatsApp share
+    db.leads.unshift({ id: uid(), gym_id: db.G, name: 'Web Walkin', phone: '9555500001', source: 'Website', stage: 'New', interest: 'Weight loss', note: null, follow_up_on: null, created_at: new Date().toISOString() });
+    await page.evaluate(() => { LEADS_AT = 0; location.hash = 'dashboard'; }); await page.waitForSelector('a.banner[href="#leads"]');
+    ok(/1/.test(await page.textContent('a.banner[href="#leads"]')), 'dashboard shows a banner for the new website enquiry');
+    await page.evaluate(() => { LEADS_AT = 0; location.hash = 'leads'; });
+    await page.waitForFunction(() => /Web Walkin/.test(document.body.innerText));
+    ok((await page.textContent('.tiles .card:nth-child(1) .v')).trim() === '1', 'Leads tile counts new website enquiries');
+    const enqUrl = `http://127.0.0.1:${server.address().port}/?enquire=${db.G}`;
+    ok((await page.inputValue('#enqUrl')) === enqUrl && !!(await page.$('.qrbox svg')), 'Leads page shows the gym enquiry link with a QR');
+    ok((await page.$eval('a.btn.wa[href*="wa.me/?text="]', (a) => decodeURIComponent(a.href))).includes(enqUrl), 'WhatsApp share carries the enquiry link');
     // store / POS: add product, sell, stock goes down, oversell refused, cancel restores stock, profit page counts store profit
     await page.click('a[href="#store"]'); await page.waitForSelector('[data-act=newProduct]'); await page.click('[data-act=newProduct] >> nth=0');
     await page.fill('#f_name', 'Whey 1kg'); await page.fill('#f_price', '3000'); await page.fill('#f_cost', '2200'); await page.fill('#f_stock', '5'); await page.click('[data-ok]');
@@ -523,6 +599,47 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
       }
       ok(true, `phone: no overflow in any gym screen (${lang})`); await page.click('#langBtn');
     }
+  }, { width: 375, height: 760 });
+
+  console.log('public enquiry form');
+  await session(browser, 'gym_admin', async (page, db) => {
+    const base = `http://127.0.0.1:${server.address().port}/?enquire=`, open = async (g = db.G) => { await page.goto(base + g); await page.waitForSelector('#enqForm, #enqCard h1'); };
+    await open();
+    ok(!(await page.$('#loginForm')) && /Royal The Gym/.test(await page.textContent('#enqCard')) && !!(await page.$('#en_name')), 'enquiry link opens the form without signing in, with the gym name');
+    await page.fill('#en_name', 'Sonu Prospect'); await page.fill('#en_phone', '98765 11111'); await page.click('#en_go');
+    ok((await page.textContent('#e_en_ok')).length > 0 && !db.enqCalls, 'consent is required before anything is sent');
+    await page.fill('#en_phone', '12345'); await page.check('#en_ok'); await page.click('#en_go');
+    ok((await page.textContent('#e_en_phone')).length > 0 && !db.enqCalls, 'a short phone number is refused before sending');
+    await page.fill('#en_phone', '98765 11111'); await page.fill('#en_interest', 'Weight loss'); await page.fill('#en_note', 'Evening batch');
+    await page.evaluate(() => { const f = document.querySelector('#enqForm'); const go = () => f.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); go(); go(); });
+    await page.waitForSelector('.banner.ok');
+    ok(db.leads.length === 1 && db.enqCalls.length === 1, 'a double submit stores one enquiry');
+    const lead = db.leads[0];
+    ok(lead.source === 'Website' && lead.stage === 'New' && lead.phone === '9876511111' && lead.name === 'Sonu Prospect' && lead.interest === 'Weight loss' && db.enqCalls[0].p_consent === true && db.enqCalls[0].p_hp === '', 'enquiry lands as Website / New with a clean number and consent');
+    ok(/Thank you|धन्यवाद/.test(await page.textContent('.banner.ok')), 'visitor sees a thank-you');
+    // a bot fills the hidden field: it is told "thanks" but nothing is stored
+    await open(); await page.fill('#en_name', 'Bot Bhai'); await page.fill('#en_phone', '9123456789'); await page.check('#en_ok'); await page.evaluate(() => { document.querySelector('#en_hp').value = 'http://spam.example'; }); await page.click('#en_go'); await page.waitForSelector('.banner.ok');
+    ok(db.leads.length === 1, 'honeypot filled: success shown, nothing stored');
+    // the same number again within 30 days: success shown, no second lead
+    await open(); await page.fill('#en_name', 'Sonu Again'); await page.fill('#en_phone', '9876511111'); await page.check('#en_ok'); await page.click('#en_go'); await page.waitForSelector('.banner.ok');
+    ok(db.leads.length === 1, 'same number again: one lead only');
+    // busy gym: a friendly message and the form stays
+    db.enquiryBusy = true; await open(); await page.fill('#en_name', 'Late Comer'); await page.fill('#en_phone', '9000011111'); await page.check('#en_ok'); await page.click('#en_go'); await page.waitForSelector('#enqErr:not([hidden])');
+    ok(/Too many|बहुत/.test(await page.textContent('#enqErr')) && !!(await page.$('#enqForm')) && db.leads.length === 1, 'rate-limit error is shown in plain words and the form stays');
+    db.enquiryBusy = false;
+    // language switch keeps what was typed
+    await open(); await page.fill('#en_name', 'Rakesh'); await page.fill('#en_phone', '9000022222'); await page.check('#en_ok'); await page.click('#enqLang');
+    ok((await page.inputValue('#en_name')) === 'Rakesh' && (await page.inputValue('#en_phone')) === '9000022222' && (await page.isChecked('#en_ok')), 'switching language keeps the typed values');
+    // closed gym / unknown gym
+    db.enquiryClosed = true; await open(); ok(!(await page.$('#enqForm')) && /not taking enquiries|पूछताछ नहीं/.test(await page.textContent('#enqCard')), 'locked or unknown gym shows "not taking enquiries" and no form');
+    db.enquiryClosed = false;
+    await page.goto(base + 'not-a-uuid'); await page.waitForSelector('#loginForm'); ok(true, 'a malformed enquiry id falls back to the normal sign-in screen');
+  });
+  console.log('public enquiry form on a phone');
+  await session(browser, 'gym_admin', async (page, db) => {
+    await page.goto(`http://127.0.0.1:${server.address().port}/?enquire=${db.G}`); await page.waitForSelector('#enqForm');
+    ok(!(await overflow(page)), 'enquiry form has no horizontal overflow on a phone');
+    ok(await page.$eval('#en_hp', (e) => e.getBoundingClientRect().right < 0 && e.tabIndex === -1), 'honeypot field is off-screen and not reachable by Tab');
   }, { width: 375, height: 760 });
 
   console.log('locked gym');

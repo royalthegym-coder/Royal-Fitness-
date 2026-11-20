@@ -116,6 +116,7 @@ const ACTIONS = {
   openReceipt: async (d) => { const [pays, ms] = await Promise.all([Q.payments(), Q.members()]); const p = pays.find((x) => x.id === d.id); if (p) { closeAllModals(); receiptModal(p, ms.find((m) => m.id === p.member_id)); } },
   payCsv: () => exportPayments(), verifyLedger: () => runVerify(), ledgerCsv: () => exportLedger(), editGym: () => editGymForm(),
   copyUpi: () => copyText(upiOf(), L('UPI ID copied', 'UPI आईडी कॉपी हुई')),
+  copyEnquiry: () => copyText(enquiryUrl(), L('Link copied', 'लिंक कॉपी हुआ')),
   chip: (d) => { CHIP[d.key] && CHIP[d.key](d.v); render(); },
   page: (d) => { const s = U[d.key]; if (s) { s.page = Math.max(1, s.page + Number(d.d)); render(); } },
   retry: () => { bust(); CTX.profile ? render() : enter(); },
@@ -165,6 +166,8 @@ window.addEventListener('hashchange', () => { closeAllModals(); if (CTX.profile)
 (function start() {
   try { const t = localStorage.getItem('gymos-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
   $('#langBtn').onclick = () => ACTIONS.lang(); $('#themeBtn').onclick = () => ACTIONS.theme(); $('#outBtn').onclick = () => ACTIONS.signOut(); $('#pwBtn').onclick = () => ACTIONS.changePw();
+  /* a public enquiry link opens the enquiry form for anyone, signed in or not */
+  const enqGym = enquiryGymParam(); if (enqGym) { enquiryScreen(enqGym); return; }
   if (SESSION && SESSION.refresh_token) enter(); else loginScreen();
   pwaInit(); nativeInit(); luxeInit(); checkinInit();
 })();

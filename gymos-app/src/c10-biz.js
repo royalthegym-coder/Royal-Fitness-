@@ -84,10 +84,15 @@ async function deleteExpense(id) {
 
 /* ---------- Leads ---------- */
 const nextStage = (s) => ({ New: 'Contacted', Contacted: 'Trial', Trial: null, Converted: null, Lost: null })[s] || null;
+/* enquiries from the website arrive while the page is open: re-read at most every 15 seconds, so typing in the search box does not hit the server */
+let LEADS_AT = 0;
+const freshLeads = () => { if (Date.now() - LEADS_AT > 15000) { bust('leads'); LEADS_AT = Date.now(); } return Q.leads(); };
+const newWebLeads = (leads) => leads.filter((l) => l.source === 'Website' && l.stage === 'New');
 async function vLeads() {
-  const leads = await Q.leads(), t = todayISO(), q = U.lead.q.trim().toLowerCase();
+  const leads = await freshLeads(), t = todayISO(), q = U.lead.q.trim().toLowerCase();
   const cnt = (s) => leads.filter((l) => l.stage === s).length, open = leads.filter((l) => !['Converted', 'Lost'].includes(l.stage));
   const due = open.filter((l) => l.follow_up_on && l.follow_up_on <= t);
+  const newWeb = newWebLeads(leads), showShareFirst = !leads.some((l) => l.source === 'Website');
   const rate = leads.length ? Math.round((cnt('Converted') / leads.length) * 100) : 0;
   let rows = U.lead.f === 'all' ? leads : U.lead.f === 'due' ? due : leads.filter((l) => l.stage === U.lead.f);
   if (q) rows = rows.filter((l) => `${l.name} ${l.phone || ''}`.toLowerCase().includes(q));
@@ -110,10 +115,12 @@ async function vLeads() {
     ? `<div class="tw"><table class="t"><thead><tr><th>${esc(L('Lead', 'संभावित सदस्य'))}</th><th>${esc(L('Phone', 'फ़ोन'))}</th><th>${esc(L('Stage', 'चरण'))}</th><th>${esc(L('Follow-up', 'फ़ॉलो-अप'))}</th><th></th></tr></thead><tbody>${rows.map(rowHtml).join('')}</tbody></table></div>`
     : empty(leads.length ? L('Nothing here', 'यहाँ कुछ नहीं') : L('No leads yet', 'अभी कोई लीड नहीं'), leads.length ? '' : L('Write down every enquiry, set a follow-up date, and turn it into a member with one tap.', 'हर पूछताछ लिखें, फ़ॉलो-अप तारीख़ रखें, और एक टैप में सदस्य बनाएँ।'), leads.length ? '' : `<button class="btn pri" data-act="newLead">${esc(L('Add lead', 'लीड जोड़ें'))}</button>`);
   return pageHead(L('Growth', 'विकास'), L('Leads', 'लीड्स'), L('People who asked about joining. Follow up, then convert them to members.', 'जिन्होंने जॉइन करने के बारे में पूछा। फ़ॉलो-अप करें, फिर सदस्य बनाएँ।'), `<button class="btn pri" data-act="newLead">${ic('plus')}${esc(L('Add lead', 'लीड जोड़ें'))}</button>`)
-    + `<div class="tiles">${tile(L('Open leads', 'खुली लीड्स'), open.length, '')}${tile(L('Follow up today', 'आज फ़ॉलो-अप'), due.length, due.length ? L('Call them today', 'आज कॉल करें') : '', due.length ? 'var(--crimson)' : '')}${tile(L('Joined', 'सदस्य बने'), cnt('Converted'), L(`${rate}% of all leads`, `सभी लीड्स का ${rate}%`), 'var(--ok)')}</div>`
+    + `<div class="tiles">${tile(L('New website enquiries', 'नई वेबसाइट पूछताछ'), newWeb.length, newWeb.length ? L('Call them first', 'पहले इन्हें कॉल करें') : L('From your enquiry link', 'आपके पूछताछ लिंक से'), newWeb.length ? 'var(--warn)' : '')}${tile(L('Open leads', 'खुली लीड्स'), open.length, '')}${tile(L('Follow up today', 'आज फ़ॉलो-अप'), due.length, due.length ? L('Call them today', 'आज कॉल करें') : '', due.length ? 'var(--crimson)' : '')}${tile(L('Joined', 'सदस्य बने'), cnt('Converted'), L(`${rate}% of all leads`, `सभी लीड्स का ${rate}%`), 'var(--ok)')}</div>`
+    + (showShareFirst ? enquiryCard() + '<div style="height:14px"></div>' : '')
     + chips
     + `<div class="card" style="margin-bottom:12px"><input class="in" id="leadQ" type="search" placeholder="${esc(L('Search name or phone', 'नाम या फ़ोन खोजें'))}" value="${esc(U.lead.q)}" aria-label="${esc(L('Search leads', 'लीड खोजें'))}"></div>`
-    + `<div class="card">${tbl}</div>`;
+    + `<div class="card">${tbl}</div>`
+    + (showShareFirst ? '' : '<div style="height:14px"></div>' + enquiryCard());
 }
 function leadForm(id) {
   Q.leads().then((leads) => {

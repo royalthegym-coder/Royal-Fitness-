@@ -56,12 +56,24 @@ const saveSession = (s) => { SESSION = s; try { s ? localStorage.setItem(SESSION
 const jwtPayload = (t) => { try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); } catch (e) { return {}; } };
 
 class ApiError extends Error { constructor(message, status, code, detail) { super(message); this.status = status; this.code = code; this.detail = detail; } }
+/* messages raised on purpose by the admit_member / renew_member functions, shown in plain words */
+const RPC_ERR = [
+  [/phone already registered to (.+)$/i, (m) => L(`Already registered to ${m[1]}. Open that member instead.`, `यह नंबर ${m[1]} के नाम पर पहले से है। उसी सदस्य को खोलें।`)],
+  [/gym is locked/i, () => L('Subscription expired. Please renew to make changes.', 'सब्सक्रिप्शन खत्म हो गया है। बदलाव के लिए रिन्यू करें।')],
+  [/enter a valid 10-digit mobile/i, () => L('Enter a valid 10-digit mobile (starts with 6 to 9)', '10 अंकों का सही मोबाइल नंबर लिखें (6 से 9 से शुरू)')],
+  [/name must be 2 to 60/i, () => L('Name must be 2 to 60 characters', 'नाम 2 से 60 अक्षर का होना चाहिए')],
+  [/date of birth is not valid/i, () => L('Check the date of birth', 'जन्म की तारीख़ जाँचें')],
+  [/that plan is not active/i, () => L('That plan is no longer active. Pick another plan.', 'यह प्लान अब चालू नहीं है। दूसरा प्लान चुनें।')],
+  [/unfreeze the member before renewing/i, () => L('Unfreeze the member first, then renew.', 'पहले फ़्रीज़ हटाएँ, फिर रिन्यू करें।')],
+  [/paid amount is more than the total ([\d.]+)/i, (m) => L(`Paid amount is more than the total ${inr(Number(m[1]))}`, `जमा राशि कुल ${inr(Number(m[1]))} से ज़्यादा है`)],
+];
 /* PostgREST / Postgres error → a message a gym owner can act on */
 function friendlyError(e) {
   if (!e) return L('Something went wrong.', 'कुछ गड़बड़ हुई।');
   if (e.friendly) return e.friendly;
   const msg = String(e.message || ''), code = e.code || '';
   if (e.status === 0) return L('No connection. Check the internet and try again.', 'कनेक्शन नहीं है। इंटरनेट जाँचकर फिर कोशिश करें।');
+  for (const [re, say] of RPC_ERR) { const hit = re.exec(msg); if (hit) return say(hit); }
   if (code === '42501' || /row-level security|permission denied|not allowed|super admin only/i.test(msg)) return CTX.locked
     ? L('Subscription expired. Please renew to make changes.', 'सब्सक्रिप्शन खत्म हो गया है। बदलाव के लिए रिन्यू करें।')
     : L('You do not have permission for this.', 'आपको इसकी अनुमति नहीं है।');
