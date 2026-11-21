@@ -65,6 +65,9 @@ const RPC_ERR = [
   [/date of birth is not valid/i, () => L('Check the date of birth', 'जन्म की तारीख़ जाँचें')],
   [/that plan is not active/i, () => L('That plan is no longer active. Pick another plan.', 'यह प्लान अब चालू नहीं है। दूसरा प्लान चुनें।')],
   [/unfreeze the member before renewing/i, () => L('Unfreeze the member first, then renew.', 'पहले फ़्रीज़ हटाएँ, फिर रिन्यू करें।')],
+  [/operator is off/i, () => L('Turn the AI operator on first.', 'पहले AI ऑपरेटर चालू करें।')],
+  [/action not found or already decided/i, () => L('That item was already handled. The list is refreshed.', 'यह काम पहले ही हो चुका है। सूची ताज़ा कर दी है।')],
+  [/stale days must be 1 to 14/i, () => L('Enter a whole number from 1 to 14.', '1 से 14 तक पूरी संख्या लिखें।')],
   [/paid amount is more than the total ([\d.]+)/i, (m) => L(`Paid amount is more than the total ${inr(Number(m[1]))}`, `जमा राशि कुल ${inr(Number(m[1]))} से ज़्यादा है`)],
 ];
 /* PostgREST / Postgres error → a message a gym owner can act on */

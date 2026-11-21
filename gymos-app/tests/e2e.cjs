@@ -153,6 +153,17 @@ function handler(db, role) {
         db.leads.unshift({ id: uid(), gym_id: db.G, name: nm, phone: ph, source: 'Website', stage: 'New', interest: (a.p_interest || '').trim() || null, note: (a.p_note || '').trim() || null, follow_up_on: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
         return json({ ok: true });
       }
+      /* AI operator: named scalar arguments, so a body with other keys is "function not found", as PostgREST answers */
+      if (fn === 'operator_set_settings' || fn === 'operator_scan' || fn === 'operator_decide') {
+        const want = { operator_set_settings: ['p_dues', 'p_enabled', 'p_expiry', 'p_leads', 'p_stale'], operator_scan: [], operator_decide: ['p_id', 'p_status'] }[fn];
+        if (Object.keys(a).sort().join() !== want.join()) { (db.rpcShapeErrors = db.rpcShapeErrors || []).push(fn); return route.fulfill({ status: 404, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ code: 'PGRST202', message: `Could not find the function public.${fn}(${Object.keys(a).sort().join(', ')}) in the schema cache` }) }); }
+        if (fn === 'operator_set_settings') { db.opSetArgs = a; db.operator_settings = [{ gym_id: db.G, enabled: a.p_enabled, lead_followups: a.p_leads, expiry_nudges: a.p_expiry, dues_nudges: a.p_dues, lead_stale_days: a.p_stale }]; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
+        if (fn === 'operator_scan') { db.opScanCalls = (db.opScanCalls || 0) + 1; if (!(db.operator_settings && db.operator_settings[0] && db.operator_settings[0].enabled)) return json({ message: 'operator is off' }, 400); const add = db.opScanAdds || []; add.forEach((x) => db.operator_actions.push(x)); db.opScanAdds = []; return json(add.length); }
+        (db.opDecideCalls = db.opDecideCalls || []).push(a);
+        const row = db.operator_actions.find((x) => x.id === a.p_id && x.status === 'proposed');
+        if (db.opRefuse || !row) return json({ message: 'action not found or already decided' }, 400);
+        row.status = a.p_status; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
+      }
       if (fn === 'admin_update_gym') { Object.assign(db.gyms[0], { name: a.gym_name, owner_name: a.owner, phone: a.phone_no, city: a.city_name, upi_id: a.upi }); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
     }
@@ -207,7 +218,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(/ग़लत|Wrong/.test(await page.textContent('.banner.bad')), 'wrong password shows a friendly error');
     await login(page); await page.waitForSelector('.tiles');
     ok(/Royal The Gym/.test(await page.textContent('#gymName')), 'dashboard loads with gym name');
-    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 27, 'gym admin sees 27 menu items');
+    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 28, 'gym admin sees 28 menu items');
     await page.click('a[href="#members"]'); await page.waitForSelector('table.t');
     ok((await page.$$('table.t tbody tr')).length === 4, 'members list shows 4');
     await page.fill('#mq', 'priya'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 1);
@@ -595,7 +606,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await session(browser, 'gym_admin', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
     ok(!!(await page.$('.nav .more')) && (await page.$$eval('#nav a', (a) => a.filter((x) => x.offsetParent !== null).length)) <= 5, 'phone bar shows only the main pages plus More');
-    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 27, 'More sheet lists all 27 pages in groups');
+    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 28, 'More sheet lists all 28 pages in groups');
     await page.click('.sheet-links a[href="#expenses"]'); await page.waitForFunction(() => location.hash === '#expenses' && !document.querySelector('.ov')); ok(true, 'More sheet opens a page and closes');
     ok((await page.$$('#nav .grp')).length === 6, 'admin menu is split into 6 groups');
     await page.waitForSelector('[data-act=newExpense]'); await page.waitForTimeout(500);
@@ -1095,6 +1106,96 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('a[href="#settings"]'); await page.waitForSelector('[data-act=delErase]', { timeout: 10000 });
     ok(await page.isDisabled('[data-act=delErase]'), 'owner: a locked gym cannot erase, the button is disabled');
   });
+
+  console.log('AI operator');
+  /* leads, members and invoices for the operator page, and the proposals the database would have written for them */
+  const opSeed = (db) => {
+    const G = db.G, t = today(), now = new Date().toISOString();
+    const mk = (name, phone, end) => ({ id: uid(), gym_id: G, name, phone, status: 'Active', start_date: addD(t, -30), end_date: end, joined_on: addD(t, -60), wa_opt_out: false });
+    const lead = (name, phone, stage, fu) => ({ id: uid(), gym_id: G, name, phone, source: 'Walk-in', stage, interest: null, note: null, follow_up_on: fu, created_at: now, updated_at: now });
+    const asha = lead('Asha Lead', '9811100001', 'New', addD(t, -1)), closed = lead('Closed Lead', '9811100002', 'Converted', addD(t, -1)), later = lead('Later Lead', '9811100003', 'Contacted', addD(t, 5));
+    const ravi = mk('Ravi Ending', '9822200002', addD(t, 2)), renewed = mk('Renewed Rita', '9822200003', addD(t, 30)), dues = mk('Dues Dev', '9822200004', addD(t, 40)), paid = mk('Paid Pooja', '9822200005', addD(t, 40));
+    db.leads.push(asha, closed, later); db.members.push(ravi, renewed, dues, paid);
+    const inv = (m, no, total) => ({ id: uid(), gym_id: G, member_id: m.id, no, date: addD(t, -20), due: addD(t, -5), subtotal: total, discount: 0, gst_pct: 0, gst_amt: 0, total, cancelled: false, items: [], created_at: now });
+    const invDue = inv(dues, 'INV-OP-1', 600), invPaid = inv(paid, 'INV-OP-2', 500);
+    db.invoices.push(invDue, invPaid);
+    db.payments.push({ id: uid(), gym_id: G, invoice_id: invPaid.id, member_id: paid.id, amount: 500, no: 'R-OP-1', paid_on: addD(t, -3), method: 'Cash', ref: null });
+    const act = (kind, subject, member, detail) => ({ id: uid(), gym_id: G, kind, subject_id: subject, member_id: member, detail, status: 'proposed', created_at: now });
+    /* four of these seven are no longer true today: a converted lead, a lead moved to later, a member who renewed, an invoice that was paid */
+    const proposals = [act('lead_followup', asha.id, null, { stage: 'New' }), act('lead_followup', closed.id, null, {}), act('lead_followup', later.id, null, {}), act('expiry_nudge', ravi.id, ravi.id, { end_date: ravi.end_date }), act('expiry_nudge', renewed.id, renewed.id, { end_date: addD(t, 1) }), act('dues_nudge', invDue.id, dues.id, {}), act('dues_nudge', invPaid.id, paid.id, {})];
+    return { asha, ravi, dues, invDue, proposals, act, lead, now };
+  };
+  const opOn = (db) => { db.operator_settings = [{ gym_id: db.G, enabled: true, lead_followups: true, expiry_nudges: true, dues_nudges: true, lead_stale_days: 3 }]; };
+  await session(browser, 'gym_admin', async (page, db) => {
+    let opReq = 0; page.on('request', (r) => { if (/operator_(actions|settings)/.test(r.url())) opReq++; });
+    const S = opSeed(db);
+    await login(page); await page.waitForSelector('.tiles', { timeout: 15000 });
+    ok(!(await page.$('a.banner[href="#operator"]')), 'operator: no banner while the tables are not installed');
+    const before = opReq;
+    await page.evaluate(() => (location.hash = 'operator'));
+    await page.waitForFunction(() => /Being set up|सेटअप हो रहा है/.test(document.querySelector('#view').innerText), null, { timeout: 10000 });
+    await page.evaluate(() => (location.hash = 'dashboard')); await page.waitForSelector('.tiles');
+    ok(opReq === before, 'operator: a missing table is not requested again on every visit');
+    /* the migration is applied: the tables exist, the operator is still off */
+    db.operator_settings = []; db.operator_actions = S.proposals; await page.evaluate(() => { OP_GONE_AT = 0; });
+    await page.evaluate(() => (location.hash = 'operator')); await page.waitForSelector('[data-act=opSettings]', { timeout: 10000 });
+    ok(/Turn on|चालू करें/.test(await page.textContent('#view')) && !(await page.$('[data-op]')), 'operator: off by default, explains itself and lists nothing');
+    await page.click('[data-act=opSettings]'); await page.waitForSelector('#f_enabled');
+    ok((await page.isChecked('#f_enabled')) && (await page.inputValue('#f_stale')) === '3', 'operator: the form starts with the rules on and 3 days');
+    await page.fill('#f_stale', '20'); await page.click('[data-ok]');
+    ok(/1 से 14|1 to 14/.test(await page.textContent('#e_stale')) && !db.opSetArgs, 'operator: 20 days is refused before anything is sent');
+    await page.fill('#f_stale', '3'); await page.click('[data-ok]'); await page.waitForSelector('[data-op]', { timeout: 10000 });
+    ok(db.opSetArgs && Object.keys(db.opSetArgs).sort().join() === 'p_dues,p_enabled,p_expiry,p_leads,p_stale' && db.opSetArgs.p_enabled === true && db.opSetArgs.p_stale === 3, 'operator: settings are sent with the named arguments');
+    ok(db.opScanCalls === 1, 'operator: turning it on scans straight away');
+    const names = await page.$$eval('[data-op] b', (b) => b.map((x) => x.textContent));
+    ok(names.length === 3 && names.includes('Asha Lead') && names.includes('Ravi Ending') && names.includes('Dues Dev'), 'operator: only proposals that are still true are listed: ' + names.join(','));
+    ok(/(All|सभी)\s*3/.test(await page.textContent('.chip[aria-selected=true]')), 'operator: the All chip counts 3');
+    const wa = async (who) => decodeURIComponent(await page.locator('[data-op]', { hasText: who }).locator('a.wa').getAttribute('href'));
+    const aw = await wa('Asha Lead'), dw = await wa('Dues Dev');
+    ok(/wa\.me\/919811100001\?/.test(aw) && /Asha Lead/.test(aw), 'operator: the lead message opens WhatsApp for that number');
+    ok(/600/.test(dw) && /INV-OP-1/.test(dw) && /9785300123@okbizaxis/.test(dw), 'operator: the dues message has the amount, the invoice and the UPI id');
+    ok(/tel:9811100001/.test(await page.locator('[data-op]', { hasText: 'Asha Lead' }).locator('a[href^="tel:"]').getAttribute('href')), 'operator: a Call link is offered');
+    await page.evaluate(() => (location.hash = 'dashboard')); await page.waitForSelector('.tiles');
+    const banner = await page.$('a.banner[href="#operator"]');
+    ok(banner && /3/.test(await banner.textContent()), 'operator: the dashboard says how many people to follow up');
+    await page.evaluate(() => (location.hash = 'operator')); await page.waitForSelector('[data-op]');
+    await page.locator('[data-op]', { hasText: 'Asha Lead' }).locator('[data-act=opDone]').click();
+    await page.waitForFunction(() => document.querySelectorAll('[data-op]').length === 2, null, { timeout: 10000 });
+    const d1 = (db.opDecideCalls || [])[0];
+    ok(d1 && d1.p_status === 'done' && db.operator_actions.find((x) => x.id === d1.p_id).subject_id === S.asha.id, 'operator: Done is sent for that lead and the row leaves the list');
+    await page.locator('[data-op]', { hasText: 'Ravi Ending' }).locator('[data-act=opSkip]').click();
+    await page.waitForFunction(() => document.querySelectorAll('[data-op]').length === 1, null, { timeout: 10000 });
+    ok(db.opDecideCalls.length === 2 && db.opDecideCalls[1].p_status === 'skipped', 'operator: Skip is sent as skipped');
+    /* another device decided it first: a clear message, and the list is refreshed */
+    db.opRefuse = true;
+    await page.locator('[data-op]', { hasText: 'Dues Dev' }).locator('[data-act=opDone]').click();
+    await page.waitForFunction(() => /already handled|पहले ही हो चुका/.test(document.body.innerText), null, { timeout: 10000 });
+    db.opRefuse = false;
+    ok(db.opDecideCalls.length === 3 && !!(await page.$('[data-op]')), 'operator: a refused decision explains itself');
+    /* scan now picks up a new follow-up */
+    const fresh = S.lead('Fresh Lead', '9811100009', 'New', addD(today(), 0)); db.leads.push(fresh);
+    db.opScanAdds = [S.act('lead_followup', fresh.id, null, {})];
+    await page.evaluate(() => { LEADS_AT = 0; });
+    await page.click('[data-act=opScan]');
+    await page.waitForFunction(() => /Fresh Lead/.test(document.querySelector('#view').innerText), null, { timeout: 10000 });
+    ok(db.opScanCalls === 2 && /Fresh Lead/.test(await page.textContent('#view')), 'operator: Scan now adds the new follow-up');
+    await page.click('.chip[data-v=dues_nudge]');
+    ok((await page.$$('[data-op]')).length === 1 && /Dues Dev/.test(await page.textContent('#view')), 'operator: the Dues chip shows only dues');
+    ok(!db.rpcShapeErrors, 'operator: every call uses the argument names PostgREST needs');
+  });
+  await session(browser, 'gym_admin', async (page, db) => {
+    db.gyms[0].lock_override = 'force_lock';
+    const S = opSeed(db); db.operator_actions = S.proposals; opOn(db);
+    await login(page); await page.waitForSelector('.tiles', { timeout: 15000 });
+    await page.evaluate(() => (location.hash = 'operator')); await page.waitForSelector('[data-op]', { timeout: 10000 });
+    ok((await page.isDisabled('[data-act=opDone]')) && (await page.isDisabled('[data-act=opSkip]')) && (await page.isDisabled('[data-act=opScan]')), 'operator: a locked gym cannot decide or scan, the buttons are disabled');
+  });
+  await session(browser, 'gym_admin', async (page, db) => {
+    const S = opSeed(db); db.operator_actions = S.proposals; opOn(db);
+    await login(page); await page.waitForSelector('#view', { timeout: 15000 });
+    await page.evaluate(() => (location.hash = 'operator')); await page.waitForSelector('[data-op]', { timeout: 10000 });
+    ok(!(await overflow(page)), 'operator: the page has no horizontal overflow on a phone');
+  }, { width: 390, height: 800 });
   await browser.close(); server.close();
   console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED'); process.exit(fails ? 1 : 0);
 })();

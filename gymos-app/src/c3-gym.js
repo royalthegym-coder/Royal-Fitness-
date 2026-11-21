@@ -17,9 +17,11 @@ async function vDashboard() {
   const collected = sum(payments.filter((p) => monthKey(p.paid_on) === mk), (p) => p.amount);
   const dues = sum(invoices, (i) => balanceOf(i, paid)), overdueN = invoices.filter((i) => isOverdue(i, paid)).length;
   const newWeb = await freshLeads().then(newWebLeads).catch(() => []);
+  const opN = isAdmin() ? await opVisible().then((r) => r.length).catch(() => 0) : 0;   // 0 when the operator is off or not set up yet
   const soon = members.filter((m) => memberState(m) === 'Expiring').sort((a, b) => a.end_date.localeCompare(b.end_date)).slice(0, 6);
   return pageHead(gymName(), L('Dashboard', 'डैशबोर्ड'), fmtDate(today))
     + (newWeb.length ? `<a class="banner ok" href="#leads" style="display:block;margin:0 0 14px;text-decoration:none"><b>${esc(L(`${newWeb.length} new website ${newWeb.length === 1 ? 'enquiry' : 'enquiries'}`, `${newWeb.length} नई वेबसाइट पूछताछ`))}</b> · ${esc(L('Call them today', 'आज ही कॉल करें'))} →</a>` : '')
+    + (opN ? `<a class="banner ok" href="#operator" style="display:block;margin:0 0 14px;text-decoration:none"><b>${esc(L(`${opN} to follow up today`, `आज ${opN} लोगों से बात करनी है`))}</b> · ${esc(L('Open the AI operator', 'AI ऑपरेटर खोलें'))} →</a>` : '')
     + (isAdmin() ? '<div id="daySum"></div>' : '')
     + (isAdmin() ? await weeklyCard().catch(() => '') + '<div style="height:14px"></div>' : '')
     + `<div class="tiles">${tile(L('Active members', 'सक्रिय सदस्य'), active, `${expired} ${esc(L('expired', 'खत्म'))}`)}${tile(L('Expiring in 7 days', '7 दिन में खत्म'), expiring, '', expiring ? 'var(--warn)' : '')}${tile(L('Check-ins today', 'आज चेक-इन'), todayIn.length, `${onFloor} ${esc(L('on the floor now', 'अभी फ़्लोर पर'))}`)}${isAdmin() ? tile(L('Collected this month', 'इस महीने जमा'), esc(inr(collected))) + tile(L('Dues pending', 'बकाया'), esc(inr(dues)), overdueN ? `${overdueN} ${esc(L('overdue', 'देर'))}` : '', dues ? 'var(--crimson)' : '') : ''}</div>`
