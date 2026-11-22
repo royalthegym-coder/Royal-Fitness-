@@ -96,7 +96,7 @@ const mapStyles = [
 ];
 
 const GymLocationMap: React.FC = () => {
-  const apiKey = process.env.API_KEY; // This should ideally be a MAPS key, but for demo we assume logic exists
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const [mapId] = useState("4504f8b37365c3d0"); 
 
   // Guard against missing key

@@ -2,6 +2,7 @@
 import { generateNeuralAutomationLogic } from './gemini';
 import { updateGoogleBusinessProfile } from './googleBusiness';
 import { getRuntimeSecret } from './runtimeSecrets';
+import { applyAutomationPolicy, type AutomationEvent } from './automationPolicy';
 
 /**
  * Neural OS Automation Service
@@ -9,16 +10,17 @@ import { getRuntimeSecret } from './runtimeSecrets';
  */
 
 export interface AutomationTrigger {
-    event: 'member_created' | 'payment_received' | 'review_posted' | 'attendance_alert' | 'system_sync' | 'medical_consultation';
+    event: AutomationEvent;
     payload: any;
 }
 
 export const triggerAutomation = async (trigger: AutomationTrigger) => {
-    console.log(`[Neural OS] Triggering Automation: ${trigger.event}`, trigger.payload);
+    console.log(`[Neural OS] Triggering Automation: ${trigger.event}`);
 
-    // 1. Get AI Logic for this trigger
-    const aiLogic = await generateNeuralAutomationLogic(trigger.event, trigger.payload);
-    console.log(`[Neural OS] AI Automation Logic:`, aiLogic);
+    // 1. Model output is untrusted data, never an authority for external actions.
+    const generatedLogic = await generateNeuralAutomationLogic(trigger.event, trigger.payload);
+    const aiLogic = applyAutomationPolicy(trigger.event, generatedLogic);
+    console.log(`[Neural OS] Automation policy selected: ${aiLogic.n8n_action}`);
 
     // 2. N8N Webhook Integration
     let n8nWebhookUrl = '';

@@ -62,7 +62,7 @@ const ScientificAdmissionForm: React.FC = () => {
         packageId: '',
         includeRegFee: false,
         cart: [] as { itemId: string; name: string; price: number; qty: number; type: string }[],
-        paymentMethod: 'UPI' as 'UPI' | 'Cash' | 'Card (NFC)',
+        paymentMethod: 'UPI' as 'UPI' | 'Google Pay' | 'Cash' | 'Card (NFC)',
         isPaid: false
     });
 
@@ -1092,7 +1092,7 @@ const ScientificAdmissionForm: React.FC = () => {
                                         </div>
 
                                         <p className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">
-                                            Merchant ID: <span className="text-white">{formData.paymentMethod === 'Google Pay' ? (localStorage.getItem('google_pay_upi') || GYM_INFO.upiIds.gpay1) : GYM_INFO.upiIds.gpay1}</span>
+                                            Merchant ID: <span className="text-white">{upiPayee}</span>
                                         </p>
                                     </div>
                                 )}

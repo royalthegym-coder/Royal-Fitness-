@@ -14,7 +14,7 @@ import { useToast } from '../hooks/useToast';
 import { useData } from '../context/DataProvider';
 import ConfirmationDialog from './common/ConfirmationDialog';
 import { testWhatsAppConnection } from '../../lib/whatsapp';
-import { clearLegacySensitiveStorage, setRuntimeSecret } from '../../lib/runtimeSecrets';
+import { clearLegacySensitiveStorage, getRuntimeSecret, setRuntimeSecret } from '../../lib/runtimeSecrets';
 
 interface SettingsProps {
     setCurrentView: (view: View) => void;
@@ -42,8 +42,8 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, currentUser }) => {
     const [gymLng, setGymLng] = useState('75.3995');
 
     // 3. Comms Uplink (WhatsApp)
-    const [waToken, setWaToken] = useState('');
-    const [waPhoneId, setWaPhoneId] = useState('');
+    const [waToken, setWaToken] = useState(() => getRuntimeSecret('whatsapp_access_token'));
+    const [waPhoneId, setWaPhoneId] = useState(() => getRuntimeSecret('whatsapp_phone_id'));
     const [testPhone, setTestPhone] = useState(localStorage.getItem('royal_test_phone') || '9785300123');
     const [isTestingWa, setIsTestingWa] = useState(false);
 
