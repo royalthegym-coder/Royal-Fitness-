@@ -6,13 +6,13 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import { MenuIcon } from './icons/MenuIcon';
 import { ChatIcon } from './icons/ChatIcon';
-import GeminiChat from './GeminiChat';
+const GeminiChat = React.lazy(() => import('./GeminiChat'));
 import { View, Theme } from '../../types';
 import { ToastProvider } from '../context/ToastProvider';
 import { DataProvider, useData } from '../context/DataProvider';
 import ErrorBoundary from './common/ErrorBoundary';
 import { Crown, Sparkles, WifiOff, Zap, ShieldCheck, RefreshCw, Cpu, Activity, Infinity, Orbit, ShieldAlert } from 'lucide-react';
-import MemberPortal from './member/MemberPortal';
+const MemberPortal = React.lazy(() => import('./member/MemberPortal'));
 import AppSecurityLayer from './common/SecurityLayer';
 import { APP_METADATA } from '../../constants';
 
@@ -154,6 +154,7 @@ const AppContent: React.FC = () => {
     const [currentView, setCurrentView] = useState<View>('quantumCore');
     const [isBooting, setIsBooting] = useState(true);
     const [isChatOpen, setChatOpen] = useState(false);
+    const [hasOpenedChat, setHasOpenedChat] = useState(false);
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [isOffline, setIsOffline] = useState(!navigator.onLine);
     
@@ -388,18 +389,22 @@ const AppContent: React.FC = () => {
             </div>
 
             <button 
-                onClick={() => setChatOpen(true)}
+                onClick={() => { setHasOpenedChat(true); setChatOpen(true); }}
                 className="fixed bottom-8 right-8 md:bottom-10 md:right-10 bg-indigo-600 p-5 rounded-full shadow-[0_0_60px_rgba(79,70,229,0.6)] z-50 hover:scale-110 transition-all border-4 border-white dark:border-black group active:scale-95"
             >
                 <ChatIcon className="w-6 h-6 text-white group-hover:rotate-12 transition-transform" />
             </button>
             
-            <GeminiChat isOpen={isChatOpen} onClose={() => setChatOpen(false)} context={{ role: currentUser.type, memberId: currentUser.id, memberName: currentUser.name }} />
+            {hasOpenedChat && (
+                <Suspense fallback={null}>
+                    <GeminiChat isOpen={isChatOpen} onClose={() => setChatOpen(false)} context={{ role: currentUser.type, memberId: currentUser.id, memberName: currentUser.name }} />
+                </Suspense>
+            )}
         </div>
     );
 };
 
-import NeuralArchitecture from './NeuralArchitecture';
+const NeuralArchitecture = React.lazy(() => import('./NeuralArchitecture'));
 
 const App: React.FC = () => {
     return (

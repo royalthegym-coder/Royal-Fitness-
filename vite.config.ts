@@ -52,6 +52,16 @@ export default defineConfig(({ mode }) => {
         target: 'esnext',
         sourcemap: false,
         minify: 'esbuild',
+        rollupOptions: {
+          output: {
+            manualChunks(id) {
+              const moduleId = id.replace(/\\/g, '/');
+              if (moduleId.includes('/node_modules/@supabase/')) return 'supabase';
+              if (moduleId.includes('/node_modules/@firebase/firestore/')) return 'firebase-firestore';
+              if (moduleId.includes('/node_modules/firebase/node_modules/@firebase/auth/') || moduleId.includes('/node_modules/@firebase/auth/')) return 'firebase-auth';
+            },
+          },
+        },
     }
   };
 });
