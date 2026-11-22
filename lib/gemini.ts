@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Member } from '../types';
+import { prepareFutureSelfImageRequest } from './futureSelfImageInput';
 
 // Initialize Gemini
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
@@ -313,11 +314,14 @@ export async function generateBodyTransformationAnalysis(member: any, ...args: a
 
 export async function generateFutureSelfImage(currentDescription: string, targetGoal: string): Promise<string> {
     try {
-        const prompt = `Create a respectful conceptual fitness-progress illustration, not a prediction or exact likeness. Current description: ${currentDescription}. Goal description: ${targetGoal}. Make the image an encouraging, realistic visualization without implying guaranteed results.`;
+        const request = prepareFutureSelfImageRequest(currentDescription, targetGoal);
         const response = await ai.models.generateContent({
             model: IMAGE_GEN_MODEL,
-            contents: prompt,
-            config: { responseModalities: [Modality.TEXT, Modality.IMAGE] },
+            contents: request.contents,
+            config: {
+                systemInstruction: request.systemInstruction,
+                responseModalities: [Modality.TEXT, Modality.IMAGE],
+            },
         });
         
         const parts = response.candidates?.[0]?.content?.parts || [];
