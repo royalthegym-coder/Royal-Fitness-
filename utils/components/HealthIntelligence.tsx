@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import Card from './common/Card';
+import SafeText from './common/SafeText';
 import { INITIAL_MEMBERS, INITIAL_HEALTH_DATA, INITIAL_MEMBER_FITNESS_DATA } from '../../constants';
 import { analyzeMedicalRecord, getHealthAssistantResponse, getComplexResponse, getGoogleSearchResponse } from '../../lib/gemini';
 import { SparkleIcon } from './icons/SparkleIcon';
@@ -202,7 +203,7 @@ const HealthIntelligence: React.FC = () => {
                                 {chatHistory.map((msg, idx) => (
                                     <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`max-w-[80%] p-4 rounded-xl ${msg.role === 'user' ? 'bg-teal-600 text-white rounded-br-none' : 'bg-gray-700 text-gray-100 rounded-bl-none'}`}>
-                                            <div className="prose prose-invert prose-sm" dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br/>') }} />
+                                            <div className="prose prose-invert prose-sm whitespace-pre-wrap"><SafeText text={msg.text} /></div>
                                         </div>
                                     </div>
                                 ))}
@@ -271,7 +272,7 @@ const HealthIntelligence: React.FC = () => {
                                         
                                         {/* Answer Section */}
                                         <div className="prose prose-invert max-w-none">
-                                            <div dangerouslySetInnerHTML={{ __html: searchResults.text.replace(/\n/g, '<br/>') }} />
+                                            <div className="whitespace-pre-wrap"><SafeText text={searchResults.text} /></div>
                                         </div>
                                     </div>
                                 ) : (
@@ -314,7 +315,7 @@ const HealthIntelligence: React.FC = () => {
                                 )}
                                 {logicResult && (
                                     <div className="prose prose-invert prose-sm max-w-none animate-fade-in">
-                                        <div dangerouslySetInnerHTML={{ __html: logicResult.replace(/\n/g, '<br/>') }} />
+                                        <div className="whitespace-pre-wrap"><SafeText text={logicResult} /></div>
                                     </div>
                                 )}
                             </div>
@@ -352,7 +353,7 @@ const HealthIntelligence: React.FC = () => {
                             {analysisResult && (
                                 <div className="animate-fade-in">
                                     <div className="bg-gray-900 rounded-lg border border-gray-700 p-6 mb-6">
-                                        <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: analysisResult.replace(/\n/g, '<br/>') }} />
+                                        <div className="prose prose-invert max-w-none whitespace-pre-wrap"><SafeText text={analysisResult} /></div>
                                     </div>
                                     <div className="flex gap-4">
                                         <button onClick={() => { setAnalysisResult(null); setIsAnalyzing(false); }} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white">Analyze Another</button>

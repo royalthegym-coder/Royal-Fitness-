@@ -4,6 +4,7 @@ import Modal from '../common/Modal';
 import { analyzeReadinessAndModify, ReadinessOutput } from '../../../lib/gemini';
 import { SparkleIcon } from '../icons/SparkleIcon';
 import { SleepIcon, HeartRateIcon } from '../icons/HealthIcons';
+import { secureRandomInt } from '../../security/random';
 
 interface SmartReadinessModalProps {
     isOpen: boolean;
@@ -24,7 +25,7 @@ const SmartReadinessModal: React.FC<SmartReadinessModalProps> = ({ isOpen, onClo
 
     const handleSyncVitals = () => {
         // Simulate fetching from wearable
-        const randomHR = Math.floor(Math.random() * (75 - 55 + 1) + 55); // 55-75 bpm
+        const randomHR = secureRandomInt(55, 75); // 55-75 bpm
         setSimulatedHR(randomHR);
     };
 

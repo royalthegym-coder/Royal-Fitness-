@@ -1,9 +1,11 @@
+import { getRuntimeSecret } from './runtimeSecrets';
+
 // Google Business Profile & Payment Automation
 
 const getGoogleCredentials = () => {
     return {
         merchantId: localStorage.getItem('google_merchant_id') || import.meta.env.VITE_GOOGLE_MERCHANT_ID || '',
-        apiKey: localStorage.getItem('google_api_key') || import.meta.env.VITE_GOOGLE_API_KEY || ''
+        apiKey: getRuntimeSecret('google_api_key')
     };
 };
 

@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { toDataURL } from 'qrcode';
 import { motion, AnimatePresence } from 'motion/react';
 import Card from './common/Card';
 import { 
@@ -14,6 +15,11 @@ import { sendPaymentRequest, sendWhatsAppWelcomeMessage, sendPaymentReceipt } fr
 import { Member, Invoice, Transaction } from '../../types';
 import { analyzeMemberPhoto, generatePersonalizedHealthVision } from '../../lib/gemini';
 import { triggerAutomation } from '../../lib/automation';
+
+const makeUpiUri = (payeeAddress: string, payeeName: string, amount: number): string => {
+    const params = new URLSearchParams({ pa: payeeAddress, pn: payeeName, am: amount.toFixed(2), cu: 'INR' });
+    return `upi://pay?${params.toString()}`;
+};
 
 const ScientificAdmissionForm: React.FC = () => {
     const { members, packages, inventory, addMember, addInvoice, addTransaction, updateInventory, addMedicalReport } = useData();
@@ -66,6 +72,22 @@ const ScientificAdmissionForm: React.FC = () => {
     const registrationFee = formData.includeRegFee ? 1000 : 0;
     const cartTotal = formData.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
     const totalAmount = pkgPrice + registrationFee + cartTotal;
+    const configuredPayee = formData.paymentMethod === 'Google Pay'
+        ? localStorage.getItem('google_pay_upi') || GYM_INFO.upiIds.gpay1
+        : GYM_INFO.upiIds.gpay1;
+    const upiPayee = /^[A-Za-z0-9._-]{2,256}@[A-Za-z0-9._-]{2,64}$/.test(configuredPayee)
+        ? configuredPayee
+        : GYM_INFO.upiIds.gpay1;
+    const upiPaymentUri = makeUpiUri(upiPayee, GYM_INFO.name, totalAmount);
+    const phonePePaymentUri = makeUpiUri(GYM_INFO.upiIds.gpay2, GYM_INFO.name, totalAmount);
+    const [upiQrDataUrl, setUpiQrDataUrl] = useState('');
+    useEffect(() => {
+        let cancelled = false;
+        toDataURL(upiPaymentUri, { width: 200, margin: 1 })
+            .then((dataUrl) => { if (!cancelled) setUpiQrDataUrl(dataUrl); })
+            .catch(() => { if (!cancelled) setUpiQrDataUrl(''); });
+        return () => { cancelled = true; };
+    }, [upiPaymentUri]);
 
     const addToCart = (item: any) => {
         setFormData(prev => {
@@ -1038,11 +1060,13 @@ const ScientificAdmissionForm: React.FC = () => {
                                         </div>
                                         
                                         <div className="bg-white p-4 rounded-[2.5rem] shadow-[0_0_50px_rgba(255,255,255,0.1)] border-[12px] border-gray-950 relative group">
-                                            <img 
-                                                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=${formData.paymentMethod === 'Google Pay' ? (localStorage.getItem('google_pay_upi') || GYM_INFO.upiIds.gpay1) : GYM_INFO.upiIds.gpay1}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${totalAmount}&cu=INR`}
-                                                alt="UPI QR" 
-                                                className="w-40 h-40 object-contain mix-blend-multiply transition-transform group-hover:scale-105" 
-                                            />
+                                            {upiQrDataUrl && (
+                                                <img
+                                                    src={upiQrDataUrl}
+                                                    alt="UPI QR"
+                                                    className="w-40 h-40 object-contain mix-blend-multiply transition-transform group-hover:scale-105"
+                                                />
+                                            )}
                                             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 backdrop-blur-sm rounded-3xl">
                                                 <p className="text-black font-black text-[10px] uppercase tracking-tighter">Scan to Pay</p>
                                             </div>
@@ -1050,7 +1074,7 @@ const ScientificAdmissionForm: React.FC = () => {
 
                                         <div className="grid grid-cols-2 gap-3 w-full">
                                             <a 
-                                                href={`upi://pay?pa=${formData.paymentMethod === 'Google Pay' ? (localStorage.getItem('google_pay_upi') || GYM_INFO.upiIds.gpay1) : GYM_INFO.upiIds.gpay1}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${totalAmount}&cu=INR`}
+                                                href={upiPaymentUri}
                                                 className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl transition-all active:scale-95"
                                             >
                                                 <Smartphone className="w-4 h-4" />
@@ -1058,7 +1082,7 @@ const ScientificAdmissionForm: React.FC = () => {
                                             </a>
                                             {formData.paymentMethod !== 'Google Pay' && (
                                                 <a 
-                                                    href={`upi://pay?pa=${GYM_INFO.upiIds.gpay2}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${totalAmount}&cu=INR`}
+                                                    href={phonePePaymentUri}
                                                     className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-500 text-white py-3 rounded-xl transition-all active:scale-95"
                                                 >
                                                     <Smartphone className="w-4 h-4" />

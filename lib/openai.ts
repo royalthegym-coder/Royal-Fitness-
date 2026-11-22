@@ -1,8 +1,9 @@
 
 import OpenAI from 'openai';
+import { getRuntimeSecret } from './runtimeSecrets';
 
 export const getOpenAIClient = () => {
-    const key = localStorage.getItem('OPENAI_API_KEY') || process.env.OPENAI_API_KEY;
+    const key = getRuntimeSecret('openai_api_key');
     if (!key) return null;
     return new OpenAI({
         apiKey: key,

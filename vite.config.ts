@@ -13,7 +13,6 @@ export default defineConfig(({ mode }) => {
 
   // Safety check for API Key
   const apiKey = env.API_KEY || "YOUR_GEMINI_API_KEY_HERE";
-  const openAiKey = env.OPENAI_API_KEY || "YOUR_OPENAI_API_KEY_HERE";
   
   return {
     plugins: [react()],
@@ -45,8 +44,6 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       'process.env.API_KEY': JSON.stringify(apiKey),
-      'process.env.OPENAI_API_KEY': JSON.stringify(openAiKey),
-      'process.env.HUGGINGFACE_API_KEY': JSON.stringify(env.HUGGINGFACE_API_KEY || ""),
     },
     build: {
         target: 'esnext',

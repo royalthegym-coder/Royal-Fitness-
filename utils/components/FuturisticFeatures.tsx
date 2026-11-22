@@ -488,7 +488,11 @@ const FutureSelfSim = () => {
         setLoading(true);
         try {
             const img = await generateFutureSelfImage(current, goal);
-            setImage(img);
+            if (/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(img)) {
+                setImage(img);
+            } else {
+                setImage(null);
+            }
         } catch(e) {
             console.error(e);
         }

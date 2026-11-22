@@ -1,6 +1,7 @@
 
 import { generateNeuralAutomationLogic } from './gemini';
 import { updateGoogleBusinessProfile } from './googleBusiness';
+import { getRuntimeSecret } from './runtimeSecrets';
 
 /**
  * Neural OS Automation Service
@@ -59,7 +60,7 @@ export const triggerAutomation = async (trigger: AutomationTrigger) => {
     }
 
     // 5. GitHub Integration (e.g., backup or sync)
-    const githubToken = import.meta.env.VITE_GITHUB_TOKEN || localStorage.getItem('github_token');
+    const githubToken = getRuntimeSecret('github_token');
     if (githubToken && trigger.event === 'system_sync') {
         try {
             // Example GitHub API call to dispatch a workflow
