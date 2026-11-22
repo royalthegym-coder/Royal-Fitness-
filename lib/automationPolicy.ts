@@ -20,6 +20,14 @@ export interface SafeAutomationLogic {
   google_update: '';
 }
 
+/**
+ * Automation model output cannot choose actions, so the model needs no caller payload.
+ * Return an empty context rather than attempting a fragile denylist over member records.
+ */
+export function sanitizeAutomationPayloadForModel(_payload: unknown): Record<string, never> {
+  return {};
+}
+
 const EVENT_ACTIONS: Record<AutomationEvent, AutomationEvent> = {
   member_created: 'member_created',
   payment_received: 'payment_received',

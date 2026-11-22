@@ -2,7 +2,7 @@
 import { generateNeuralAutomationLogic } from './gemini';
 import { updateGoogleBusinessProfile } from './googleBusiness';
 import { getRuntimeSecret } from './runtimeSecrets';
-import { applyAutomationPolicy, type AutomationEvent } from './automationPolicy';
+import { applyAutomationPolicy, sanitizeAutomationPayloadForModel, type AutomationEvent } from './automationPolicy';
 
 /**
  * Neural OS Automation Service
@@ -18,7 +18,8 @@ export const triggerAutomation = async (trigger: AutomationTrigger) => {
     console.log(`[Neural OS] Triggering Automation: ${trigger.event}`);
 
     // 1. Model output is untrusted data, never an authority for external actions.
-    const generatedLogic = await generateNeuralAutomationLogic(trigger.event, trigger.payload);
+    const modelContext = sanitizeAutomationPayloadForModel(trigger.payload);
+    const generatedLogic = await generateNeuralAutomationLogic(trigger.event, modelContext);
     const aiLogic = applyAutomationPolicy(trigger.event, generatedLogic);
     console.log(`[Neural OS] Automation policy selected: ${aiLogic.n8n_action}`);
 

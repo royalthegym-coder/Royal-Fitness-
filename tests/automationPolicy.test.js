@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyAutomationPolicy } from '../lib/automationPolicy.ts';
+import { applyAutomationPolicy, sanitizeAutomationPayloadForModel } from '../lib/automationPolicy.ts';
 import { clearLegacySensitiveStorage } from '../lib/runtimeSecrets.ts';
 
 const events = [
@@ -27,6 +27,16 @@ test('automation actions come only from the known application event', () => {
       google_update: '',
     });
   }
+});
+
+test('model context excludes all member, payment, and medical payload data', () => {
+  const sensitivePayload = {
+    member: { name: 'Example', phone: '0000000000', medicalHistory: ['private'], symptoms: 'private' },
+    paymentMethod: 'private',
+    totalAmount: 999,
+  };
+
+  assert.deepEqual(sanitizeAutomationPayloadForModel(sensitivePayload), {});
 });
 
 test('unknown events and malformed model outputs cannot enable actions', () => {
