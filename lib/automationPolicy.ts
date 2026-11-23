@@ -9,10 +9,14 @@ export const AUTOMATION_EVENTS = [
   'review_posted',
   'attendance_alert',
   'system_sync',
-  'medical_consultation',
 ] as const;
 
 export type AutomationEvent = (typeof AUTOMATION_EVENTS)[number];
+
+// Only the one currently wired, explicitly non-sensitive event may cross to n8n.
+// Payment, attendance, health, and unverified event categories are not outbound.
+export const WEBHOOK_EVENTS = ['member_created'] as const;
+export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 
 export interface SafeAutomationLogic {
   n8n_action: AutomationEvent | 'idle';
@@ -22,9 +26,10 @@ export interface SafeAutomationLogic {
 
 export interface AutomationWebhookEnvelope {
   schema_version: 1;
-  event: AutomationEvent;
+  event: WebhookEvent;
   source: 'royal-fitness';
   occurred_at: string;
+  status: 'occurred';
 }
 
 /** Build a privacy-safe webhook message: event metadata only, never caller data. */
@@ -33,14 +38,15 @@ export function createAutomationWebhookEnvelope(
   occurredAt: string,
   _payload?: unknown,
 ): AutomationWebhookEnvelope | null {
-  if (typeof event !== 'string' || !Object.hasOwn(EVENT_ACTIONS, event)) return null;
+  if (typeof event !== 'string' || !WEBHOOK_EVENTS.includes(event as WebhookEvent)) return null;
   if (!Number.isFinite(Date.parse(occurredAt))) return null;
 
   return {
     schema_version: 1,
-    event: event as AutomationEvent,
+    event: event as WebhookEvent,
     source: 'royal-fitness',
     occurred_at: occurredAt,
+    status: 'occurred',
   };
 }
 
@@ -58,7 +64,6 @@ const EVENT_ACTIONS: Record<AutomationEvent, AutomationEvent> = {
   review_posted: 'review_posted',
   attendance_alert: 'attendance_alert',
   system_sync: 'system_sync',
-  medical_consultation: 'medical_consultation',
 };
 
 /**
