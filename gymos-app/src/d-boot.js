@@ -114,7 +114,7 @@ const ACTIONS = {
   newMember: () => memberForm(), openMember: (d) => memberModal(d.id), checkIn: (d) => doCheckIn(d.id), checkOut: (d) => doCheckOut(d.id),
   newPlan: () => planForm(), editPlan: (d) => planForm(d.id), newInvoice: () => invoiceForm(), openInvoice: (d) => invoiceModal(d.id),
   openReceipt: async (d) => { const [pays, ms] = await Promise.all([Q.payments(), Q.members()]); const p = pays.find((x) => x.id === d.id); if (p) { closeAllModals(); receiptModal(p, ms.find((m) => m.id === p.member_id)); } },
-  payCsv: () => exportPayments(), verifyLedger: () => runVerify(), ledgerCsv: () => exportLedger(), editGym: () => editGymForm(),
+  payCsv: () => exportPayments(), verifyLedger: () => runVerify(), ledgerCsv: () => exportLedger(), editGym: () => editGymForm(), gymProfile: () => profileForm(),
   copyUpi: () => copyText(upiOf(), L('UPI ID copied', 'UPI आईडी कॉपी हुई')),
   copyEnquiry: () => copyText(enquiryUrl(), L('Link copied', 'लिंक कॉपी हुआ')),
   opDone: (d) => opDecide(d.id, 'done'), opSkip: (d) => opDecide(d.id, 'skipped'), opScan: () => opScan(), opSettings: () => opSettingsForm(),

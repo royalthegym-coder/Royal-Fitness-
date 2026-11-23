@@ -164,6 +164,32 @@ function handler(db, role) {
         if (db.opRefuse || !row) return json({ message: 'action not found or already decided' }, 400);
         row.status = a.p_status; return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
       }
+      /* gym registration profile. gym_set_profile(p jsonb) takes ONE argument named p; the other two take none, so any body key is "function not found". */
+      if (fn === 'gym_get_profile' || fn === 'gym_branding' || fn === 'gym_set_profile') {
+        const want = fn === 'gym_set_profile' ? 'p' : '';
+        if (Object.keys(a).sort().join() !== want || (want && (!a.p || typeof a.p !== 'object' || Array.isArray(a.p)))) {
+          (db.rpcShapeErrors = db.rpcShapeErrors || []).push(fn);
+          return route.fulfill({ status: 404, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ code: 'PGRST202', message: `Could not find the function public.${fn}(${Object.keys(a).sort().join(', ')}) in the schema cache`, details: null, hint: null }) });
+        }
+        const E = (message) => route.fulfill({ status: 400, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ message, code: '23514', details: null, hint: null }) });
+        const pr = (db.gym_profile = db.gym_profile || { email: null, logo: null, signature: null });
+        if (fn === 'gym_branding') return json({ logo: pr.logo, signature: pr.signature });
+        if (role !== 'gym_admin') return route.fulfill({ status: 403, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ message: 'not allowed', code: '42501', details: null, hint: null }) });
+        if (fn === 'gym_get_profile') return json({ email: pr.email, logo: pr.logo, signature: pr.signature, updated_at: null });
+        const q = a.p, IMG = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/, MAP = /^https:\/\/(www\.google\.com\/maps|google\.com\/maps|maps\.google\.com|maps\.app\.goo\.gl|goo\.gl\/maps|g\.page)([/?]\S*)?$/;
+        const ph = String(q.phone ?? '').replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '');
+        if ('owner' in q && !(String(q.owner ?? '').trim().length >= 2 && String(q.owner).trim().length <= 80)) return E('bad owner name');
+        if ('email' in q && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(q.email ?? '').trim())) return E('bad email');
+        if ('phone' in q && !/^[6-9]\d{9}$/.test(ph)) return E('bad phone');
+        if ('upi' in q && q.upi && !/^[A-Za-z0-9._-]{2,}@[A-Za-z]{2,}$/.test(q.upi)) return E('bad upi');
+        if ('maps_url' in q && q.maps_url && !MAP.test(q.maps_url)) return E('bad map link');
+        for (const k of ['logo', 'signature']) if (k in q && q[k] !== null && q[k] !== '') { if (typeof q[k] !== 'string' || !IMG.test(q[k])) return E('bad image'); if (q[k].length > (k === 'logo' ? 200000 : 150000)) return E('image too large'); }
+        db.profileSetArgs = q; (db.profileSets = db.profileSets || []).push(q);
+        const g = db.gyms[0];
+        if ('owner' in q) g.owner_name = String(q.owner).trim(); if ('phone' in q) g.phone = ph; if ('upi' in q) g.upi_id = q.upi || null; if ('maps_url' in q) g.maps_url = q.maps_url || null;
+        if ('email' in q) pr.email = String(q.email).trim().toLowerCase(); if ('logo' in q) pr.logo = q.logo || null; if ('signature' in q) pr.signature = q.signature || null;
+        return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
+      }
       if (fn === 'admin_update_gym') { Object.assign(db.gyms[0], { name: a.gym_name, owner_name: a.owner, phone: a.phone_no, city: a.city_name, upi_id: a.upi }); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
     }
@@ -302,6 +328,57 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.fill('#f_review', 'https://g.page/r/CabcDEF123/review'); await page.click('[data-ok]');
     await page.waitForSelector('.qrbox svg path'); ok(db.gyms[0].review_url === 'https://g.page/r/CabcDEF123/review', 'review link saved and a QR shows on the settings page');
     ok((await page.$$eval('#view a[href="https://g.page/r/CabcDEF123/review"]', (x) => x.length)) === 1, 'settings page links to the review page');
+    // gym registration profile: owner details, Google location, logo and signature, saved through gym_set_profile
+    await page.waitForSelector('[data-act=gymProfile]');
+    ok(/3\/7/.test(await page.textContent('#view')), 'settings shows the registration checklist: owner, mobile and UPI done, 3 of 7');
+    await page.click('[data-act=gymProfile]'); await page.waitForSelector('#fi_logo', { state: 'attached' });
+    ok((await page.inputValue('#f_owner')) === 'Mahesh' && (await page.inputValue('#f_phone')) === '9785300123' && (await page.inputValue('#f_upi')) === '9785300123@okbizaxis', 'registration form opens with the saved owner, mobile and UPI');
+    ok((await page.inputValue('#f_email')) === 't@x.in', 'owner email starts from the login email');
+    ok(await page.$eval('#pv_logo', (i) => i.hidden) && await page.$eval('#rm_logo', (b) => b.hidden), 'no logo yet: the preview is hidden and there is nothing to remove');
+    await page.fill('#f_email', 'nope'); await page.click('[data-ok]');
+    ok((await page.textContent('#e_email')).length > 0 && !db.profileSetArgs, 'a bad email is refused before anything is sent');
+    await page.fill('#f_email', 'Owner@Example.com'); await page.fill('#f_maps', 'http://evil.example.com/map'); await page.click('[data-ok]');
+    ok((await page.textContent('#e_maps')).length > 0 && !db.profileSetArgs, 'a map link that is not Google https is refused');
+    await page.fill('#f_maps', 'https://maps.app.goo.gl/AbC123'); await page.fill('#f_phone', '12345'); await page.click('[data-ok]');
+    ok((await page.textContent('#e_phone')).length > 0 && !db.profileSetArgs, 'a short mobile number is refused');
+    await page.fill('#f_phone', '+91 97853-00123'); await page.fill('#f_upi', 'abc'); await page.click('[data-ok]');
+    ok((await page.textContent('#e_upi')).length > 0 && !db.profileSetArgs, 'a UPI id without @bank is refused');
+    await page.fill('#f_upi', 'royal@okicici');
+    // photos: a 1200x600 logo is shrunk to fit 400x400; text and svg files are turned away
+    const bigPng = Buffer.from(await page.evaluate(async () => { const c = document.createElement('canvas'); c.width = 1200; c.height = 600; const x = c.getContext('2d'); x.fillStyle = '#c9a227'; x.fillRect(0, 0, 1200, 600); x.fillStyle = '#13264d'; x.fillRect(300, 150, 600, 300); const b = await new Promise((r) => c.toBlob(r, 'image/png')); const u = new Uint8Array(await b.arrayBuffer()); let s = ''; u.forEach((n) => { s += String.fromCharCode(n); }); return btoa(s); }), 'base64');
+    await page.setInputFiles('#fi_logo', { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') });
+    ok((await page.textContent('#e_logo')).length > 0 && await page.$eval('#pv_logo', (i) => i.hidden), 'a text file is refused as a logo');
+    await page.setInputFiles('#fi_logo', { name: 'x.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>') });
+    ok((await page.textContent('#e_logo')).length > 0 && await page.$eval('#pv_logo', (i) => i.hidden), 'an svg file is refused as a logo');
+    await page.setInputFiles('#fi_logo', { name: 'logo.png', mimeType: 'image/png', buffer: bigPng });
+    await page.waitForFunction(() => { const i = document.querySelector('#pv_logo'); return i && !i.hidden && i.naturalWidth > 0; });
+    const lsz = await page.$eval('#pv_logo', (i) => [i.naturalWidth, i.naturalHeight, i.src.slice(0, 15)]);
+    ok(lsz[0] === 400 && lsz[1] === 200 && /^data:image\/(webp|png)/.test(lsz[2]) && (await page.textContent('#e_logo')) === '', 'the 1200x600 logo is shrunk to 400x200 and previewed');
+    await page.setInputFiles('#fi_signature', { name: 'sign.png', mimeType: 'image/png', buffer: bigPng });
+    await page.waitForFunction(() => { const i = document.querySelector('#pv_signature'); return i && !i.hidden && i.naturalWidth > 0; });
+    ok(await page.$eval('#pv_signature', (i) => i.naturalWidth === 440 && i.naturalHeight === 220), 'the signature photo is shrunk to fit 600x220 and keeps its shape');
+    await page.click('[data-ok]'); for (let i = 0; i < 30 && !db.profileSetArgs; i++) await page.waitForTimeout(150);
+    const pa = db.profileSetArgs || {};
+    ok(pa.owner === 'Mahesh' && pa.email === 'Owner@Example.com' && pa.phone === '9785300123' && pa.upi === 'royal@okicici' && pa.maps_url === 'https://maps.app.goo.gl/AbC123', 'one save sends owner, email, mobile, UPI and map link together, inside { p }');
+    ok(/^data:image\/(webp|png);base64,/.test(pa.logo || '') && /^data:image\/(webp|png);base64,/.test(pa.signature || '') && !(db.rpcShapeErrors || []).some((x) => /gym_/.test(x)), 'the new logo and signature are sent as small image data and the call shape is right');
+    ok(db.gyms[0].phone === '9785300123' && db.gyms[0].upi_id === 'royal@okicici' && db.gyms[0].maps_url === 'https://maps.app.goo.gl/AbC123' && db.gym_profile.email === 'owner@example.com' && !!db.gym_profile.logo && !!db.gym_profile.signature, 'the database holds the profile: mobile normalised, email lower-cased, both images stored');
+    await page.waitForFunction(() => /7\/7/.test(document.body.innerText)); ok((await page.$$eval('#view a[href="https://maps.app.goo.gl/AbC123"]', (x) => x.length)) === 1 && (await page.$$('#view img.pthumb')).length === 2, 'settings now shows 7 of 7, the map link and both images');
+    // the saved values come back when the form is opened again; a second save sends only what changed
+    db.profileSetArgs = null; await page.click('[data-act=gymProfile]'); await page.waitForSelector('#fi_logo', { state: 'attached' });
+    ok((await page.inputValue('#f_email')) === 'owner@example.com' && (await page.inputValue('#f_maps')) === 'https://maps.app.goo.gl/AbC123' && !(await page.$eval('#pv_logo', (i) => i.hidden)) && !(await page.$eval('#pv_signature', (i) => i.hidden)), 'reopening the form shows the saved email, map link, logo and signature');
+    await page.fill('#f_upi', 'royal@okaxis'); await page.click('[data-ok]'); for (let i = 0; i < 30 && !db.profileSetArgs; i++) await page.waitForTimeout(150);
+    ok(db.profileSetArgs && !('logo' in db.profileSetArgs) && !('signature' in db.profileSetArgs) && db.gyms[0].upi_id === 'royal@okaxis' && !!db.gym_profile.logo, 'a second save does not resend or touch the images');
+    // the receipt carries the owner signature: a taller image
+    await page.click('a[href="#payments"]'); await page.waitForSelector('[data-act=openReceipt]'); await page.click('[data-act=openReceipt]'); await page.waitForSelector('#rcBox img', { timeout: 8000 });
+    ok(await page.$eval('#rcBox img', (i) => i.naturalWidth === 800 && i.naturalHeight === 1390), 'the receipt shows the owner signature block (taller image) when a signature is saved');
+    await page.keyboard.press('Escape');
+    // removing the signature takes it off the receipt again
+    await page.click('a[href="#settings"]'); await page.waitForSelector('[data-act=gymProfile]'); await page.click('[data-act=gymProfile]'); await page.waitForSelector('#rm_signature', { state: 'attached' });
+    db.profileSetArgs = null; await page.click('#rm_signature'); await page.click('[data-ok]'); for (let i = 0; i < 30 && !db.profileSetArgs; i++) await page.waitForTimeout(150);
+    ok(db.profileSetArgs && db.profileSetArgs.signature === null && !('logo' in db.profileSetArgs) && db.gym_profile.signature === null && !!db.gym_profile.logo, 'removing the signature clears only the signature');
+    await page.click('a[href="#payments"]'); await page.waitForSelector('[data-act=openReceipt]'); await page.click('[data-act=openReceipt]'); await page.waitForSelector('#rcBox img', { timeout: 8000 });
+    ok(await page.$eval('#rcBox img', (i) => i.naturalWidth === 800 && i.naturalHeight === 1220), 'without a signature the receipt is back to the standard size');
+    await page.keyboard.press('Escape'); await page.click('a[href="#settings"]'); await page.waitForSelector('[data-act=gymProfile]');
     // referral rewards: owner sets the reward, then gives it once after the referred member has paid
     await page.click('[data-act=editGym]'); await page.fill('#f_refdays', '400'); await page.click('[data-ok]'); await page.waitForTimeout(250);
     ok(!db.gyms[0].referral_reward_days, 'a referral reward of 400 days is refused');
@@ -339,7 +416,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.click('a[href="#reminders"]'); await page.waitForSelector('a[data-remind]');
     ok(/Priya/.test(await page.textContent('#view')) && !/Rahul/.test(await page.textContent('#view ul.list')), 'reminders list shows the member ending in 2 days only');
     const wl = decodeURIComponent(await page.getAttribute('a[data-remind]', 'href'));
-    ok(/wa\.me\/919812345678/.test(wl) && /सदस्यता/.test(wl) && /UPI: 9785300123@okbizaxis/.test(wl), 'reminder opens WhatsApp with a ready Hindi message');
+    ok(/wa\.me\/919812345678/.test(wl) && /सदस्यता/.test(wl) && wl.includes('UPI: ' + db.gyms[0].upi_id), 'reminder opens WhatsApp with a ready Hindi message');
     ok((await page.textContent('#nav a[href="#reminders"] .n')) === '1', 'menu badge counts reminders due');
     await page.click('a[data-remind]', { force: true }); for (let i = 0; i < 20 && !db.members.find((m) => m.name === 'Priya Verma').reminded_on; i++) await page.waitForTimeout(150);
     ok(db.members.find((m) => m.name === 'Priya Verma').reminded_on === today(), 'sending marks the member as reminded today');

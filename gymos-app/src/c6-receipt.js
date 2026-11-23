@@ -22,13 +22,20 @@ function loadLogo() {
   if (!LOGO_IMG) LOGO_IMG = new Promise((resolve) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = () => resolve(null); i.src = 'logo.webp'; });
   return LOGO_IMG;
 }
+/* the gym's own logo and the owner's signature (gym_branding); the bundled logo stays the fallback so a gym without one still gets a receipt */
+async function receiptBrand() {
+  let b = null; try { b = await Q.branding(); } catch (e) { /* receipts must never fail over branding */ }
+  const [logo, sig] = await Promise.all([b && imgOk(b.logo, 'logo') ? loadImg(b.logo) : null, b && imgOk(b.signature, 'signature') ? loadImg(b.signature) : null]);
+  return { logo: logo || (await loadLogo()), sig };
+}
 async function receiptBlob(d) {
-  const W = 800, H = 1220, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const brand = await receiptBrand();
+  const W = 800, H = brand.sig ? 1390 : 1220, c = document.createElement('canvas'); c.width = W; c.height = H;
   const x = c.getContext('2d'), F = '"Quicksand","Noto Sans Devanagari","Mukta",system-ui,-apple-system,"Segoe UI",sans-serif', GOLD = '#a67c1d', INK = '#1b1b1b', MUTE = '#666';
   const txt = (s, px, py, o = {}) => { x.font = `${o.w || 500} ${o.s || 26}px ${F}`; x.fillStyle = o.c || INK; x.textAlign = o.a || 'left'; x.fillText(String(s), px, py); };
   x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
   x.strokeStyle = GOLD; x.lineWidth = 6; x.strokeRect(22, 22, W - 44, H - 44); x.lineWidth = 1.5; x.strokeRect(34, 34, W - 68, H - 68);
-  const logo = await loadLogo(); if (logo) x.drawImage(logo, W / 2 - 80, 58, 160, 160);
+  const logo = brand.logo; if (logo) { const s = Math.min(160 / logo.naturalWidth, 160 / logo.naturalHeight), lw = logo.naturalWidth * s, lh = logo.naturalHeight * s; x.drawImage(logo, W / 2 - lw / 2, 58 + (160 - lh) / 2, lw, lh); }
   txt((d.gym.name || 'Royal The Gym').toUpperCase(), W / 2, 262, { a: 'center', w: 800, s: 38, c: '#13264d' });
   txt([d.gym.city, d.gym.phone ? '📞 ' + d.gym.phone : ''].filter(Boolean).join('  ·  '), W / 2, 300, { a: 'center', s: 22, c: MUTE });
   x.fillStyle = GOLD; x.fillRect(W / 2 - 120, 322, 240, 3);
@@ -50,9 +57,16 @@ async function receiptBlob(d) {
   y += 42;
   if (d.balance > 0.004) txt(`Balance due / बाक़ी: ${inr(d.balance)}`, W / 2, y, { a: 'center', w: 800, s: 28, c: '#b3261e' });
   else txt('✓ Fully paid / पूरा चुकाया', W / 2, y, { a: 'center', w: 800, s: 28, c: '#1e7a3c' });
+  if (brand.sig) { /* owner's signature, right under the balance line */
+    const sg = brand.sig, s = Math.min(240 / sg.naturalWidth, 80 / sg.naturalHeight, 1.5), sw = sg.naturalWidth * s, sh = sg.naturalHeight * s, cx = W - 78 - 120, y0 = y + 34;
+    x.drawImage(sg, cx - sw / 2, y0 + (80 - sh), sw, sh);
+    x.fillStyle = INK; x.fillRect(cx - 120, y0 + 88, 240, 1.5);
+    txt('Authorised signatory / अधिकृत हस्ताक्षर', cx, y0 + 114, { a: 'center', s: 15, c: MUTE });
+    if (d.gym.owner_name) txt(d.gym.owner_name, cx, y0 + 138, { a: 'center', s: 19, w: 700 });
+  }
   txt('Thank you! Train like royalty 💪  /  धन्यवाद!', W / 2, H - 96, { a: 'center', w: 700, s: 26, c: '#13264d' });
-  txt('Computer-generated receipt. Valid without signature.', W / 2, H - 66, { a: 'center', s: 16, c: MUTE });
-  txt('कंप्यूटर द्वारा बनी रसीद, हस्ताक्षर की ज़रूरत नहीं।', W / 2, H - 46, { a: 'center', s: 16, c: MUTE });
+  txt(brand.sig ? 'Computer-generated receipt, digitally signed by the owner.' : 'Computer-generated receipt. Valid without signature.', W / 2, H - 66, { a: 'center', s: 16, c: MUTE });
+  txt(brand.sig ? 'कंप्यूटर द्वारा बनी रसीद, मालिक के डिजिटल हस्ताक्षर सहित।' : 'कंप्यूटर द्वारा बनी रसीद, हस्ताक्षर की ज़रूरत नहीं।', W / 2, H - 46, { a: 'center', s: 16, c: MUTE });
   return new Promise((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error('png'))), 'image/png'));
 }
 function downloadBlob(name, blob) {

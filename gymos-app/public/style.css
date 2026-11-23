@@ -392,3 +392,15 @@ body { background: radial-gradient(1100px 520px at 0% -12%, var(--aurora-a), tra
   .tile { transform: none !important; }
   .btn.primary:active { transform: none; }
 }
+
+/* gym registration: logo and signature uploaders, and the small previews on the Settings card */
+.imgup .imgrow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.imgbox { width: 112px; height: 112px; border: 1px dashed var(--line); border-radius: 12px; display: grid; place-items: center; overflow: hidden; background: color-mix(in srgb, var(--gold, #a67c1d) 6%, transparent); flex: none; }
+.imgbox.signature { width: 190px; height: 76px; }
+.imgbox img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.imgbox em { font-size: 12px; color: var(--muted); font-style: normal; text-align: center; padding: 4px; }
+.imgbtns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.imgbtns .btn { cursor: pointer; }
+.imgbtns small { flex-basis: 100%; }
+.pthumb { max-height: 48px; max-width: 160px; object-fit: contain; border-radius: 6px; background: #fff; padding: 2px; border: 1px solid var(--line); display: block; margin-top: 4px; }
+.imgup [hidden] { display: none !important; }

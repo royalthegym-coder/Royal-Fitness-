@@ -68,6 +68,13 @@ const RPC_ERR = [
   [/operator is off/i, () => L('Turn the AI operator on first.', 'पहले AI ऑपरेटर चालू करें।')],
   [/action not found or already decided/i, () => L('That item was already handled. The list is refreshed.', 'यह काम पहले ही हो चुका है। सूची ताज़ा कर दी है।')],
   [/stale days must be 1 to 14/i, () => L('Enter a whole number from 1 to 14.', '1 से 14 तक पूरी संख्या लिखें।')],
+  [/bad owner name/i, () => L('Owner name must be 2 to 80 characters', 'मालिक का नाम 2 से 80 अक्षर का होना चाहिए')],
+  [/bad email/i, () => L('Enter a valid email', 'सही ईमेल लिखें')],
+  [/bad phone/i, () => L('Enter a valid 10-digit mobile (starts with 6 to 9)', '10 अंकों का सही मोबाइल नंबर लिखें (6 से 9 से शुरू)')],
+  [/bad upi/i, () => L('UPI ID looks wrong. Example: name@bank', 'UPI आईडी सही नहीं लग रही। उदाहरण: name@bank')],
+  [/bad map link/i, () => L('Use a Google Maps share link (maps.app.goo.gl or google.com/maps)', 'गूगल मैप्स का शेयर लिंक डालें (maps.app.goo.gl या google.com/maps)')],
+  [/image too large/i, () => L('The photo is too large. Choose a smaller one.', 'फ़ोटो बहुत बड़ी है। छोटी फ़ोटो चुनें।')],
+  [/bad image/i, () => L('Use a PNG, JPG or WebP photo', 'PNG, JPG या WebP फ़ोटो इस्तेमाल करें')],
   [/paid amount is more than the total ([\d.]+)/i, (m) => L(`Paid amount is more than the total ${inr(Number(m[1]))}`, `जमा राशि कुल ${inr(Number(m[1]))} से ज़्यादा है`)],
 ];
 /* PostgREST / Postgres error → a message a gym owner can act on */

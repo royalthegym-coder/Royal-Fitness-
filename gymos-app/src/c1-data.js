@@ -14,6 +14,8 @@ const Q = {
   profiles: () => cached('profiles', () => DB.select('profiles', { order: 'created_at.asc', limit: 2000 })),
   audit: () => cached('audit', () => DB.select('audit_log', { filters: { action: 'not.like.act_*' }, order: 'at.desc', limit: 100 })),
   overview: () => cached('overview', () => DB.rpc('admin_gym_overview')),
+  gymProfile: () => cached('gymProfile', () => DB.rpc('gym_get_profile')), /* owner only: email, logo, signature */
+  branding: () => cached('branding', () => DB.rpc('gym_branding')), /* anyone in the gym: logo and signature for receipts */
 };
 const memberMap = (list) => new Map(list.map((m) => [m.id, m]));
 const planMap = (list) => new Map(list.map((p) => [p.id, p]));
