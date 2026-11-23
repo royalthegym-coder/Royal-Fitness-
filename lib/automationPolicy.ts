@@ -13,10 +13,50 @@ export const AUTOMATION_EVENTS = [
 
 export type AutomationEvent = (typeof AUTOMATION_EVENTS)[number];
 
-// Only the one currently wired, explicitly non-sensitive event may cross to n8n.
-// Payment, attendance, health, and unverified event categories are not outbound.
-export const WEBHOOK_EVENTS = ['member_created'] as const;
+// Only event labels explicitly approved for the minimal n8n contract may cross.
+// No caller payload or model-generated content is part of the webhook envelope.
+export const WEBHOOK_EVENTS = ['member_created', 'payment_received'] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
+
+export const INVOICE_PAYMENT_STATUSES = [
+  'Paid',
+  'Pending',
+  'Overdue',
+  'Verification Pending',
+  'Rejected',
+] as const;
+export type InvoicePaymentStatus = (typeof INVOICE_PAYMENT_STATUSES)[number];
+
+export type PaymentConfirmationSource = 'admin_confirmation' | 'unverified';
+
+/**
+ * Emit only when an admin explicitly confirms a known invoice transition.
+ * This records the app's attestation, not independent payment-processor proof.
+ */
+export function getPaymentStatusTransitionEvent(
+  previousStatus: InvoicePaymentStatus | null | undefined,
+  nextStatus: InvoicePaymentStatus,
+  source: PaymentConfirmationSource = 'unverified',
+): 'payment_received' | null {
+  if (source !== 'admin_confirmation') return null;
+  if (previousStatus == null || !INVOICE_PAYMENT_STATUSES.includes(previousStatus)) return null;
+  if (!INVOICE_PAYMENT_STATUSES.includes(nextStatus) || previousStatus === 'Paid' || nextStatus !== 'Paid') return null;
+  return 'payment_received';
+}
+
+/** Claim one payment signal per invoice for this browser session. */
+export function claimPaymentStatusWebhookEvent(
+  invoiceId: number,
+  previousStatus: InvoicePaymentStatus | null | undefined,
+  nextStatus: InvoicePaymentStatus,
+  source: PaymentConfirmationSource,
+  emittedInvoiceIds: Set<number>,
+): 'payment_received' | null {
+  if (!Number.isSafeInteger(invoiceId) || invoiceId <= 0 || emittedInvoiceIds.has(invoiceId)) return null;
+  const event = getPaymentStatusTransitionEvent(previousStatus, nextStatus, source);
+  if (event) emittedInvoiceIds.add(invoiceId);
+  return event;
+}
 
 export interface SafeAutomationLogic {
   n8n_action: AutomationEvent | 'idle';
@@ -39,7 +79,9 @@ export function createAutomationWebhookEnvelope(
   _payload?: unknown,
 ): AutomationWebhookEnvelope | null {
   if (typeof event !== 'string' || !WEBHOOK_EVENTS.includes(event as WebhookEvent)) return null;
+  if (typeof occurredAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(occurredAt)) return null;
   if (!Number.isFinite(Date.parse(occurredAt))) return null;
+  if (new Date(occurredAt).toISOString() !== occurredAt) return null;
 
   return {
     schema_version: 1,

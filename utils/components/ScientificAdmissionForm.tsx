@@ -328,10 +328,7 @@ const ScientificAdmissionForm: React.FC = () => {
             addMember(newMember);
 
             // Trigger Neural Automation
-            triggerAutomation({
-                event: 'member_created',
-                payload: { member: newMember, paymentMethod: formData.paymentMethod, totalAmount }
-            });
+            triggerAutomation({ event: 'member_created' });
 
             // Payment Processing
             if (formData.packageId) {

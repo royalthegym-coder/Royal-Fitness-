@@ -172,7 +172,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
         await new Promise(r => setTimeout(r, 1500));
         setIsFraudScanning(false);
 
-        updateInvoiceStatus(activePaymentInvoice.id, 'Paid');
+        updateInvoiceStatus(activePaymentInvoice.id, 'Paid', 'admin_confirmation');
         
         const newTxn: Transaction = {
             id: `TXN-${Date.now()}`,
@@ -196,7 +196,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
         const method = invoice.paymentMethod || 'Online';
         
         // 1. Update Invoice Status
-        updateInvoiceStatus(invoice.id, 'Paid');
+        updateInvoiceStatus(invoice.id, 'Paid', 'admin_confirmation');
 
         // 2. Create Transaction
         const newTxn: Transaction = {

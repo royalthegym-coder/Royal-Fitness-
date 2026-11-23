@@ -1,88 +1,69 @@
+import { createAutomationWebhookEnvelope, type AutomationEvent, type AutomationWebhookEnvelope } from './automationPolicy.ts';
 
-import { generateNeuralAutomationLogic } from './gemini';
-import { updateGoogleBusinessProfile } from './googleBusiness';
-import { getRuntimeSecret } from './runtimeSecrets';
-import { applyAutomationPolicy, createAutomationWebhookEnvelope, sanitizeAutomationPayloadForModel, type AutomationEvent } from './automationPolicy';
-
-/**
- * Neural OS Automation Service
- * Handles outgoing triggers to n8n, GitHub, WhatsApp, and Google Business
- */
-
+/** The only outbound data accepted by this service is the fixed event envelope. */
 export interface AutomationTrigger {
     event: AutomationEvent;
-    payload: any;
+}
+
+function getWebhookUrl(event: AutomationEvent): string | null {
+    if (event === 'payment_received') {
+        return import.meta.env.VITE_N8N_PAYMENT_SYNC_URL
+            || localStorage.getItem('n8n_payment_sync_url')
+            || 'https://royalthegym.app.n8n.cloud/webhook/payment-sync';
+    }
+    if (event === 'member_created') {
+        return import.meta.env.VITE_N8N_ONBOARDING_URL
+            || localStorage.getItem('n8n_onboarding_url')
+            || 'https://royalthegym.app.n8n.cloud/webhook/onboarding';
+    }
+    return null;
+}
+
+export type WebhookDeliveryResult =
+    | { success: true; status: number }
+    | { success: false; reason: 'webhook_http_error'; status: number }
+    | { success: false; reason: 'delivery_outcome_unknown' };
+
+/** Post only the prebuilt envelope; this helper never retries or reads response bodies. */
+export async function postAutomationEnvelope(
+    webhookUrl: string,
+    envelope: AutomationWebhookEnvelope,
+    fetchImpl: typeof fetch = fetch,
+): Promise<WebhookDeliveryResult> {
+    try {
+        const response = await fetchImpl(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'omit',
+            redirect: 'error',
+            body: JSON.stringify(envelope),
+        });
+        if (!response.ok) return { success: false, reason: 'webhook_http_error', status: response.status };
+        return { success: true, status: response.status };
+    } catch {
+        // A network error can occur after the endpoint received the request.
+        return { success: false, reason: 'delivery_outcome_unknown' };
+    }
 }
 
 export const triggerAutomation = async (trigger: AutomationTrigger) => {
-    console.log(`[Neural OS] Triggering Automation: ${trigger.event}`);
-
-    // 1. Model output is untrusted data, never an authority for external actions.
-    const modelContext = sanitizeAutomationPayloadForModel(trigger.payload);
-    const generatedLogic = await generateNeuralAutomationLogic(trigger.event, modelContext);
-    const aiLogic = applyAutomationPolicy(trigger.event, generatedLogic);
-    console.log(`[Neural OS] Automation policy selected: ${aiLogic.n8n_action}`);
-
-    // 2. N8N Webhook Integration
-    let n8nWebhookUrl = '';
-    
-    if (trigger.event === 'payment_received') {
-        n8nWebhookUrl = import.meta.env.VITE_N8N_PAYMENT_SYNC_URL || localStorage.getItem('n8n_payment_sync_url') || 'https://royalthegym.app.n8n.cloud/webhook/payment-sync';
-    } else if (trigger.event === 'member_created') {
-        n8nWebhookUrl = import.meta.env.VITE_N8N_ONBOARDING_URL || localStorage.getItem('n8n_onboarding_url') || 'https://royalthegym.app.n8n.cloud/webhook/onboarding';
-    } else {
-        n8nWebhookUrl = import.meta.env.VITE_N8N_WORKFLOW_URL || localStorage.getItem('n8n_workflow_url') || 'https://royalthegym.app.n8n.cloud/workflow/aqLESKJDrp6xWaok';
+    const envelope = createAutomationWebhookEnvelope(trigger.event, new Date().toISOString());
+    const webhookUrl = getWebhookUrl(trigger.event);
+    if (!envelope || !webhookUrl) {
+        return { success: false, reason: 'event_not_allowlisted' as const };
     }
-    
-    const webhookEnvelope = createAutomationWebhookEnvelope(trigger.event, new Date().toISOString());
 
-    if (n8nWebhookUrl && webhookEnvelope) {
-        try {
-            await fetch(n8nWebhookUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                // The external contract is versioned event metadata only. Never send
-                // caller payload or model output to a third-party webhook.
-                body: JSON.stringify(webhookEnvelope)
-            });
-            console.log(`[Neural OS] n8n Action Executed successfully: ${aiLogic.n8n_action}`);
-        } catch (error) {
-            console.error(`[Neural OS] n8n Webhook failed:`, error);
+    const result = await postAutomationEnvelope(webhookUrl, envelope);
+    if (result.success === false) {
+        if (result.reason === 'webhook_http_error') {
+            console.error(`[Automation] n8n returned HTTP ${result.status} for ${trigger.event}.`);
+        } else {
+            // Do not log the URL or response body; either may contain sensitive data.
+            console.error(`[Automation] n8n delivery outcome is unknown for ${trigger.event}; no retry was attempted.`);
         }
-    } else {
-        await simulateNetworkDelay(500);
-        console.log(`[Neural OS] n8n Action Executed (Simulated): ${aiLogic.n8n_action}`);
+        return result;
     }
 
-    // 3. WhatsApp Business API (Simulated via AI logic payload, actual sending happens in whatsapp.ts)
-    if (aiLogic.whatsapp_payload) {
-        await simulateNetworkDelay(300);
-        console.log(`[Neural OS] WhatsApp Message Queued: ${aiLogic.whatsapp_payload}`);
-    }
-
-    // 4. Google Business Update
-    if (aiLogic.google_update) {
-        await updateGoogleBusinessProfile(aiLogic.google_update);
-        console.log(`[Neural OS] Google Business Profile Updated: ${aiLogic.google_update}`);
-    }
-
-    // 5. GitHub Integration (e.g., backup or sync)
-    const githubToken = getRuntimeSecret('github_token');
-    if (githubToken && trigger.event === 'system_sync') {
-        try {
-            // Example GitHub API call to dispatch a workflow
-            console.log(`[Neural OS] GitHub Sync Triggered...`);
-            // await fetch('https://api.github.com/repos/OWNER/REPO/dispatches', { ... })
-        } catch (error) {
-            console.error(`[Neural OS] GitHub Sync failed:`, error);
-        }
-    }
-
-    return {
-        success: true,
-        logic: aiLogic,
-        timestamp: new Date().toISOString()
-    };
+    console.info(`[Automation] n8n accepted ${trigger.event} envelope.`);
+    return result;
 };
-
-const simulateNetworkDelay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

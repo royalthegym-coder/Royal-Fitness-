@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useRef } from 'react';
 import { 
     Member, Package, Invoice, Staff, Expense, Lead, 
     Transaction, HealthData, WorkoutTemplate, 
@@ -17,6 +17,8 @@ import {
 import { sendWhatsAppWelcomeMessage, sendPaymentRequest, sendPaymentReceipt } from '../../lib/whatsapp';
 import { syncData } from '../../lib/supabase';
 import { syncToFirebase } from '../../lib/firebase';
+import { triggerAutomation } from '../../lib/automation';
+import { claimPaymentStatusWebhookEvent, type PaymentConfirmationSource } from '../../lib/automationPolicy';
 
 interface DeviceCapabilities {
     heartRate: boolean;
@@ -51,7 +53,7 @@ interface DataContextType {
     
     invoices: Invoice[];
     addInvoice: (i: Invoice) => void;
-    updateInvoiceStatus: (id: number, status: 'Paid' | 'Pending' | 'Overdue' | 'Verification Pending' | 'Rejected') => void;
+    updateInvoiceStatus: (id: number, status: 'Paid' | 'Pending' | 'Overdue' | 'Verification Pending' | 'Rejected', source?: PaymentConfirmationSource) => void;
     
     transactions: Transaction[];
     addTransaction: (t: Transaction) => void;
@@ -372,7 +374,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     };
 
-    const updateInvoiceStatus = (id: number, status: 'Paid' | 'Pending' | 'Overdue' | 'Verification Pending' | 'Rejected') => {
+    const emittedPaymentInvoiceIds = useRef<Set<number>>(new Set());
+
+    const updateInvoiceStatus = (
+        id: number,
+        status: 'Paid' | 'Pending' | 'Overdue' | 'Verification Pending' | 'Rejected',
+        source: PaymentConfirmationSource = 'unverified',
+    ) => {
+        const previousInvoice = invoices.find(invoice => invoice.id === id);
+        const paymentEvent = claimPaymentStatusWebhookEvent(
+            id,
+            previousInvoice?.status,
+            status,
+            source,
+            emittedPaymentInvoiceIds.current,
+        );
+
         setInvoices(prev => {
             const updatedInvoices = prev.map(inv => inv.id === id ? { ...inv, status } : inv);
             
@@ -387,6 +404,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
             return updatedInvoices;
         });
+        if (paymentEvent) {
+            // One event per invoice per app session; the webhook receives no invoice data.
+            void triggerAutomation({ event: paymentEvent });
+        }
         logEvent(`Invoice #${id} status updated to ${status}. Syncing Ledger.`);
     };
 
