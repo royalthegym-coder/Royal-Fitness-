@@ -7,9 +7,11 @@ import {
   getPaymentStatusTransitionEvent,
   claimPaymentStatusWebhookEvent,
   WEBHOOK_EVENTS,
+  isN8nLiveDeliveryEnabled,
+  normalizeN8nWebhookUrl,
 } from '../lib/automationPolicy.ts';
 import { clearLegacySensitiveStorage } from '../lib/runtimeSecrets.ts';
-import { postAutomationEnvelope } from '../lib/automation.ts';
+import { deliverAutomationEvent, postAutomationEnvelope } from '../lib/automation.ts';
 
 const events = [
   'member_created',
@@ -199,6 +201,39 @@ test('health and unsupported event names are rejected at the webhook boundary', 
   assert.equal(createAutomationWebhookEnvelope('payment_received', 'not-a-date'), null);
 });
 
+
+
+test('n8n live delivery is opt-in and disabled builds never call the network', async () => {
+  assert.equal(isN8nLiveDeliveryEnabled(undefined), false);
+  assert.equal(isN8nLiveDeliveryEnabled('false'), false);
+  assert.equal(isN8nLiveDeliveryEnabled('TRUE'), false);
+  assert.equal(isN8nLiveDeliveryEnabled('true'), true);
+
+  let called = false;
+  const result = await deliverAutomationEvent(
+    { event: 'member_created' },
+    {
+      enabled: false,
+      webhookUrl: 'https://n8n.example.test/webhook/onboarding',
+      occurredAt: '2026-11-23T03:00:00.000Z',
+      fetchImpl: async () => {
+        called = true;
+        throw new Error('must not run');
+      },
+    },
+  );
+  assert.deepEqual(result, { success: false, reason: 'live_delivery_disabled' });
+  assert.equal(called, false);
+});
+
+test('n8n endpoint validation allows clean HTTPS URLs only', () => {
+  assert.equal(normalizeN8nWebhookUrl(' https://n8n.example.test/webhook/events '), 'https://n8n.example.test/webhook/events');
+  assert.equal(normalizeN8nWebhookUrl('http://n8n.example.test/webhook/events'), null);
+  assert.equal(normalizeN8nWebhookUrl('https://user:secret@n8n.example.test/webhook/events'), null);
+  assert.equal(normalizeN8nWebhookUrl('https://n8n.example.test/webhook/events?token=secret'), null);
+  assert.equal(normalizeN8nWebhookUrl('https://n8n.example.test/webhook/events#secret'), null);
+  assert.equal(normalizeN8nWebhookUrl('not-a-url'), null);
+});
 
 test('webhook transport sends only the envelope and treats HTTP errors as failures', async () => {
   const envelope = createAutomationWebhookEnvelope('payment_received', '2026-11-23T03:00:00.000Z');

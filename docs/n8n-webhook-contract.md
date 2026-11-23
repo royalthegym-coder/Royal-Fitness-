@@ -32,17 +32,26 @@ data is sent. Only an explicit admin-confirmation action on a known non-Paid →
 | System sync | A type exists, but no active sync trigger is wired to this webhook service. | No credentials or repository data; event label is not currently allowed. | Defer until a real sync action and trigger exist; webhook builder rejects the label. |
 | Medical consultation | Was previously present as an event label, but no current `triggerAutomation` callsite was found. | Excluded entirely from n8n event allowlist; do not emit even the medical event label. | Negative test confirms the event is rejected. A separate Gemini consent decision does not authorize sending health-related metadata to n8n. |
 
+## Delivery gate and endpoint handling
+
+Live delivery is disabled unless the build explicitly sets
+`VITE_N8N_LIVE_DELIVERY_ENABLED=true`; missing, false, or differently cased values remain off.
+There are no built-in production webhook defaults. The dashboard only saves the two endpoint
+addresses locally and does not test, activate, or run workflows. Endpoint URLs must use HTTPS
+and cannot contain credentials, query strings, or fragments; Vite `VITE_*` values are public
+in the browser bundle and must never contain secrets.
+
+Even with the build gate enabled, delivery goes directly from the browser to n8n. This is not
+production-hardened: server-side authentication, rate limiting, durable delivery and
+cross-session idempotency remain unimplemented. A 2xx response means only that the HTTP endpoint
+responded successfully; it does not verify the downstream workflow. Keep live delivery disabled
+until the endpoint and workflow behavior are separately reviewed and explicitly approved.
+
 ## Test plan and operational boundary
 
 `tests/automationPolicy.test.js` exercises member-created and payment-received with sensitive
 fixtures, asserts the exact envelope keys, and checks that member/payment values cannot leak.
 Transition tests allow only admin-confirmed non-Paid → Paid and reject member/demo/automated changes, duplicate Paid, reversal, invalid invoice IDs, and missing invoices. One payment event is claimed per invoice per browser session. Attendance, health, review, system-sync, unknown events and invalid
-timestamps are rejected. Transport tests use a mocked fetch function; no real request or n8n endpoint is called.
+timestamps are rejected. Transport tests use a mocked fetch function; a disabled-gate test proves the network is not called, and URL validation rejects insecure or secret-bearing endpoint strings. No real request or n8n endpoint is called.
 
-The repo contains configurable onboarding and payment-sync URLs, but this code inspection
-cannot establish that the remote workflows exist, are authenticated, or behave safely. The
-browser client posts directly to the configured URL, so server-side authentication, rate
-limiting, a durable outbox, and cross-session idempotency are not implemented. HTTP non-2xx
-responses are treated as failures; ambiguous network failures are not retried. The in-memory
-per-invoice guard is session-local, not a durable or cross-device idempotency mechanism.
-No live webhook was called, edited, or enabled for this preparation.
+The remote workflows and authentication were not inspected. HTTP non-2xx responses are treated as failures; ambiguous network failures are not retried. The in-memory per-invoice guard is session-local, not a durable or cross-device idempotency mechanism. No live webhook was called, edited, or enabled for this preparation.

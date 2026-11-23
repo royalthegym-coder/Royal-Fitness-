@@ -18,6 +18,23 @@ export type AutomationEvent = (typeof AUTOMATION_EVENTS)[number];
 export const WEBHOOK_EVENTS = ['member_created', 'payment_received'] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 
+/** Live webhook delivery stays off unless the deployment explicitly opts in. */
+export function isN8nLiveDeliveryEnabled(value: unknown): boolean {
+  return value === 'true';
+}
+
+/** Accept only non-secret HTTPS endpoints; credentials and query strings must not live in browser storage. */
+export function normalizeN8nWebhookUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== 'https:' || !url.hostname || url.username || url.password || url.search || url.hash) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export const INVOICE_PAYMENT_STATUSES = [
   'Paid',
   'Pending',

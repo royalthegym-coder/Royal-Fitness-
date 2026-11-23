@@ -1,37 +1,37 @@
 
 import React, { useState, useEffect } from 'react';
 import Card from './common/Card';
-import { 
-    Zap, Globe, Cpu, Network, Database, Shield, 
-    MessageSquare, Share2, Github, Workflow, 
-    CreditCard, Star, MapPin, RefreshCw, 
+import {
+    Zap, Globe, Cpu, Network, Database, Shield,
+    MessageSquare, Share2, Github, Workflow,
+    CreditCard, Star, MapPin, RefreshCw,
     ExternalLink, CheckCircle2, AlertCircle,
     Terminal, Bot, Layers, Radio, Activity
 } from 'lucide-react';
-import { useData } from '../context/DataProvider';
 import { useToast } from '../hooks/useToast';
-import { getComplexResponse } from '../../lib/gemini';
 import { clearLegacySensitiveStorage, getRuntimeSecret, setRuntimeSecret } from '../../lib/runtimeSecrets';
+import { isN8nLiveDeliveryEnabled, normalizeN8nWebhookUrl } from '../../lib/automationPolicy';
+
+function readSavedValue(key: string): string | null {
+    try {
+        return typeof localStorage === 'undefined' ? null : localStorage.getItem(key);
+    } catch {
+        return null;
+    }
+}
 
 const AutomationHub: React.FC = () => {
     const { addToast } = useToast();
-    const { members, invoices } = useData();
     const [activeTab, setActiveTab] = useState<'n8n' | 'github' | 'google' | 'whatsapp'>('n8n');
-    const [isSyncing, setIsSyncing] = useState(false);
-    const [logs, setLogs] = useState<string[]>([]);
-    
-    // n8n State
-    const [n8nStatus, setN8nStatus] = useState<'connected' | 'error' | 'idle'>('connected');
-    const [n8nPaymentSyncUrl, setN8nPaymentSyncUrl] = useState(localStorage.getItem('n8n_payment_sync_url') || import.meta.env.VITE_N8N_PAYMENT_SYNC_URL || 'https://royalthegym.app.n8n.cloud/webhook/payment-sync');
-    const [n8nOnboardingUrl, setN8nOnboardingUrl] = useState(localStorage.getItem('n8n_onboarding_url') || import.meta.env.VITE_N8N_ONBOARDING_URL || 'https://royalthegym.app.n8n.cloud/webhook/onboarding');
-    const [n8nWorkflowUrl, setN8nWorkflowUrl] = useState(localStorage.getItem('n8n_workflow_url') || import.meta.env.VITE_N8N_WORKFLOW_URL || 'https://royalthegym.app.n8n.cloud/workflow/aqLESKJDrp6xWaok');
-    
-    const [workflows, setWorkflows] = useState([
-        { id: 'wf1', name: 'Member Onboarding Flow', status: 'active', lastRun: '2 mins ago' },
-        { id: 'wf2', name: 'Payment Reconciliation', status: 'active', lastRun: '1 hour ago' },
-        { id: 'wf3', name: 'Google Review Auto-Reply', status: 'active', lastRun: '10 mins ago' },
-        { id: 'wf4', name: 'WhatsApp Retention Bot', status: 'active', lastRun: '5 mins ago' }
-    ]);
+
+    // Webhook addresses are public routing details, not secrets. Delivery is separately disabled by default.
+    const [n8nPaymentSyncUrl, setN8nPaymentSyncUrl] = useState(
+        readSavedValue('n8n_payment_sync_url') ?? import.meta.env?.VITE_N8N_PAYMENT_SYNC_URL ?? '',
+    );
+    const [n8nOnboardingUrl, setN8nOnboardingUrl] = useState(
+        readSavedValue('n8n_onboarding_url') ?? import.meta.env?.VITE_N8N_ONBOARDING_URL ?? '',
+    );
+    const n8nLiveDeliveryEnabled = isN8nLiveDeliveryEnabled(import.meta.env?.VITE_N8N_LIVE_DELIVERY_ENABLED);
 
     // GitHub State
     const [githubToken, setGithubToken] = useState(getRuntimeSecret('github_token'));
@@ -61,60 +61,37 @@ const AutomationHub: React.FC = () => {
 
     useEffect(() => { clearLegacySensitiveStorage(); }, []);
 
-    const addLog = (msg: string) => {
-        const time = new Date().toLocaleTimeString();
-        setLogs(prev => [`[${time}] ${msg}`, ...prev].slice(0, 20));
-    };
-
     const handleSaveConfig = (type: 'n8n' | 'github' | 'whatsapp' | 'google') => {
         if (type === 'n8n') {
-            localStorage.setItem('n8n_payment_sync_url', n8nPaymentSyncUrl);
-            localStorage.setItem('n8n_onboarding_url', n8nOnboardingUrl);
-            localStorage.setItem('n8n_workflow_url', n8nWorkflowUrl);
-            addToast("n8n Webhook URLs updated successfully.", "success");
-            addLog("n8n Webhook configuration saved.");
+            const paymentUrl = n8nPaymentSyncUrl.trim();
+            const onboardingUrl = n8nOnboardingUrl.trim();
+            if ((paymentUrl && !normalizeN8nWebhookUrl(paymentUrl)) || (onboardingUrl && !normalizeN8nWebhookUrl(onboardingUrl))) {
+                addToast('Use HTTPS webhook URLs without credentials, query strings, or fragments.', 'error');
+                return;
+            }
+            try {
+                localStorage.setItem('n8n_payment_sync_url', paymentUrl);
+                localStorage.setItem('n8n_onboarding_url', onboardingUrl);
+                localStorage.removeItem('n8n_workflow_url');
+            } catch {
+                addToast('Could not save webhook addresses in this browser.', 'error');
+                return;
+            }
+            addToast('Webhook addresses saved locally. No live request was made.', 'success');
         } else if (type === 'github') {
             setRuntimeSecret('github_token', githubToken);
-            addToast("GitHub credential is kept in memory for this session only.", "success");
-            addLog("GitHub integration credential loaded for this session.");
+            addToast('GitHub credential is kept in memory for this session only.', 'success');
         } else if (type === 'whatsapp') {
             setRuntimeSecret('whatsapp_access_token', waToken);
             setRuntimeSecret('whatsapp_phone_id', waPhoneId);
-            addToast("WhatsApp credentials are kept in memory for this session only.", "success");
-            addLog(`WhatsApp Business API configured for number: ${waNumber}`);
+            addToast('WhatsApp credentials are kept in memory for this session only.', 'success');
         } else if (type === 'google') {
             localStorage.setItem('google_merchant_id', googleMerchantId);
             setRuntimeSecret('google_api_key', googleApiKey);
             localStorage.setItem('google_pay_upi', googlePayUpi);
-            addToast("Google Business settings saved; API key stays in memory for this session only.", "success");
-            addLog("Google Business configuration saved.");
+            addToast('Google Business settings saved; API key stays in memory for this session only.', 'success');
         }
     };
-
-    const handleSync = async () => {
-        setIsSyncing(true);
-        addLog("Initiating Neural Sync across all nodes...");
-        
-        // Simulate n8n trigger
-        addLog("Triggering n8n Webhook: member_sync_v2");
-        await new Promise(r => setTimeout(r, 1000));
-        
-        // Simulate GitHub push
-        addLog("Pushing local state to GitHub repository...");
-        await new Promise(r => setTimeout(r, 800));
-        
-        // Simulate Google Business Update
-        addLog("Syncing Google Business Profile with latest gym metrics...");
-        await new Promise(r => setTimeout(r, 1200));
-
-        setIsSyncing(false);
-        addToast("Neural OS fully synchronized with n8n, GitHub, and Google Business.", "success");
-        addLog("Sync Complete. All systems nominal.");
-    };
-
-    useEffect(() => {
-        addLog("Automation Hub Initialized. Monitoring n8n workflows...");
-    }, []);
 
     return (
         <div className="space-y-6 animate-fade-in pb-20">
@@ -131,32 +108,20 @@ const AutomationHub: React.FC = () => {
                         <div>
                             <div className="flex items-center gap-3 mb-2">
                                 <span className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-indigo-500/30">
-                                    Neural Automation Hub
+                                    Event-only automation
                                 </span>
-                                <span className="flex items-center gap-1 text-[10px] text-green-500 font-bold uppercase">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping"></div>
-                                    Live Sync Active
+                                <span className={`text-[10px] font-bold uppercase ${n8nLiveDeliveryEnabled ? 'text-amber-400' : 'text-gray-400'}`}>
+                                    {n8nLiveDeliveryEnabled ? 'Live delivery enabled by build setting' : 'Live delivery disabled'}
                                 </span>
                             </div>
                             <h1 className="text-5xl font-black text-white italic uppercase tracking-tighter mb-4">
-                                Automation <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-600">Singularity</span>
+                                n8n <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-600">Events</span>
                             </h1>
-                            <div className="space-y-1">
-                                <p className="text-[10px] font-black text-cyan-400 uppercase tracking-[0.3em] animate-pulse">
-                                    World's Fastest & Latest Open-Source AI-POWERED Quantum Computer OS
-                                </p>
-                            </div>
+                            <p className="text-sm text-gray-400 max-w-2xl">
+                                Only fixed event/status envelopes are supported. This screen does not inspect workflow runs or perform a global sync.
+                            </p>
                         </div>
                     </div>
-
-                    <button 
-                        onClick={handleSync}
-                        disabled={isSyncing}
-                        className="bg-white text-black px-10 py-5 rounded-2xl font-black uppercase tracking-widest text-xs shadow-2xl hover:bg-indigo-50 transition-all flex items-center gap-3 active:scale-95 disabled:opacity-50"
-                    >
-                        {isSyncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                        {isSyncing ? 'Syncing Matrix...' : 'Force Global Sync'}
-                    </button>
                 </div>
             </div>
 
@@ -185,65 +150,57 @@ const AutomationHub: React.FC = () => {
                 <div className="lg:col-span-2 space-y-6">
                     {activeTab === 'n8n' && (
                         <div className="space-y-6">
-                            <Card title="n8n Configuration" className="bg-black/40 border-white/5 p-8 rounded-[3rem]">
+                            <Card title="Webhook endpoints" className="bg-black/40 border-white/5 p-8 rounded-[3rem]">
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Payment Sync Webhook URL</label>
-                                        <input 
-                                            type="text" 
+                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Payment event endpoint</label>
+                                        <input
+                                            type="url"
                                             value={n8nPaymentSyncUrl}
                                             onChange={(e) => setN8nPaymentSyncUrl(e.target.value)}
-                                            placeholder="https://royalthegym.app.n8n.cloud/webhook/payment-sync"
+                                            placeholder="https://your-n8n-host/webhook/payment-event"
                                             className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-indigo-500 transition-all"
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Onboarding Webhook URL</label>
-                                        <input 
-                                            type="text" 
+                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Member-created event endpoint</label>
+                                        <input
+                                            type="url"
                                             value={n8nOnboardingUrl}
                                             onChange={(e) => setN8nOnboardingUrl(e.target.value)}
-                                            placeholder="https://royalthegym.app.n8n.cloud/webhook/onboarding"
+                                            placeholder="https://your-n8n-host/webhook/member-created"
                                             className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-indigo-500 transition-all"
                                         />
                                     </div>
-                                    <div>
-                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Workflow URL</label>
-                                        <input 
-                                            type="text" 
-                                            value={n8nWorkflowUrl}
-                                            onChange={(e) => setN8nWorkflowUrl(e.target.value)}
-                                            placeholder="https://royalthegym.app.n8n.cloud/workflow/aqLESKJDrp6xWaok"
-                                            className="w-full bg-black/60 border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-indigo-500 transition-all"
-                                        />
-                                    </div>
-                                    <button 
+                                    <p className="text-xs text-gray-400">
+                                        HTTPS only. Do not put credentials or tokens in these URLs. Saving stores addresses in this browser; it does not test or run a workflow.
+                                    </p>
+                                    <button
                                         onClick={() => handleSaveConfig('n8n')}
                                         className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl uppercase tracking-widest text-[10px] shadow-lg transition-all"
                                     >
-                                        Save Webhook Configuration
+                                        Save endpoint addresses
                                     </button>
                                 </div>
                             </Card>
-                            <Card title="n8n Workflow Engine" className="bg-black/40 border-white/5 p-8 rounded-[3rem]">
+                            <Card title="Supported event envelopes" className="bg-black/40 border-white/5 p-8 rounded-[3rem]">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {workflows.map(wf => (
-                                        <div key={wf.id} className="bg-gray-900/50 border border-white/5 p-6 rounded-3xl hover:border-indigo-500/30 transition-all group">
-                                            <div className="flex justify-between items-start mb-4">
-                                                <div className="p-3 bg-indigo-600/10 rounded-2xl text-indigo-400">
-                                                    <Zap className="w-5 h-5" />
-                                                </div>
-                                                <span className="text-[9px] font-black text-green-500 uppercase bg-green-500/10 px-2 py-1 rounded">Active</span>
-                                            </div>
-                                            <h4 className="text-lg font-bold text-white mb-1">{wf.name}</h4>
-                                            <p className="text-[10px] text-gray-500 uppercase tracking-widest">Last Run: {wf.lastRun}</p>
-                                            <div className="mt-4 flex gap-2">
-                                                <button className="flex-1 py-2 bg-black border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all">Edit in n8n</button>
-                                                <button className="px-4 py-2 bg-black border border-white/10 rounded-xl text-gray-400 hover:text-white"><ExternalLink className="w-3 h-3" /></button>
-                                            </div>
+                                    <div className="bg-gray-900/50 border border-white/5 p-6 rounded-3xl">
+                                        <div className="flex justify-between items-start gap-3">
+                                            <h4 className="text-lg font-bold text-white">Member created</h4>
+                                            <span className="text-[9px] font-black text-indigo-300 uppercase bg-indigo-500/10 px-2 py-1 rounded">Code wired</span>
                                         </div>
-                                    ))}
+                                        <p className="mt-3 text-xs text-gray-400">Sends only schema version, event name, source, timestamp and the fixed status. No member record or contact details.</p>
+                                    </div>
+                                    <div className="bg-gray-900/50 border border-white/5 p-6 rounded-3xl">
+                                        <div className="flex justify-between items-start gap-3">
+                                            <h4 className="text-lg font-bold text-white">Payment received</h4>
+                                            <span className="text-[9px] font-black text-indigo-300 uppercase bg-indigo-500/10 px-2 py-1 rounded">Admin attestation</span>
+                                        </div>
+                                        <p className="mt-3 text-xs text-gray-400">Only after explicit admin confirmation of a known non-Paid → Paid transition. It is not processor verification and includes no invoice or payment details.</p>
+                                    </div>
                                 </div>
+                                <p className="mt-5 text-xs text-gray-400">Attendance, review, medical and system-sync events are not sent. No downstream workflow has been verified from this screen.</p>
                             </Card>
                         </div>
                     )}
@@ -514,61 +471,19 @@ const AutomationHub: React.FC = () => {
                     )}
                 </div>
 
-                {/* Right Column: Console & Status */}
+                {/* Delivery limits and safeguards */}
                 <div className="lg:col-span-1 space-y-6">
-                    <Card title="Neural Terminal" className="bg-[#0c0c0c] border-white/5 h-[400px] flex flex-col p-6 rounded-[3rem]">
-                        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 font-mono text-[10px]">
-                            {logs.map((log, i) => (
-                                <div key={i} className="text-gray-500 border-b border-white/5 pb-1">
-                                    <span className="text-indigo-500 mr-2">{'>'}</span>
-                                    {log}
-                                </div>
-                            ))}
-                            {isSyncing && <div className="text-indigo-400 animate-pulse">{'>'} Syncing Neural Nodes...</div>}
+                    <Card title="Delivery safety" className="bg-[#0c0c0c] border-white/5 p-6 rounded-[3rem]">
+                        <div className="space-y-4 text-sm text-gray-300">
+                            <div className="flex items-center gap-3">
+                                <Shield className="w-5 h-5 text-indigo-400" />
+                                <span className="font-bold text-white">{n8nLiveDeliveryEnabled ? 'Deployment gate is enabled' : 'Live delivery is off by default'}</span>
+                            </div>
+                            <p>When enabled in deployment configuration, eligible events send only the fixed envelope. This UI does not run test or live workflows.</p>
+                            <p>Endpoints are not health-checked. HTTP success does not prove a downstream workflow completed.</p>
+                            <p className="text-amber-300">A server-side authenticated proxy, durable delivery and cross-session idempotency are not implemented.</p>
                         </div>
                     </Card>
-
-                    <Card className="bg-gradient-to-br from-indigo-900/20 to-black border-indigo-500/30 rounded-[3rem] p-6">
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="p-3 bg-indigo-600 rounded-2xl text-white">
-                                <Shield className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h3 className="font-black text-white uppercase italic">System Health</h3>
-                                <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-widest">All Nodes Nominal</p>
-                            </div>
-                        </div>
-                        <div className="space-y-4">
-                            <div>
-                                <div className="flex justify-between text-[10px] font-black text-gray-500 uppercase mb-1">
-                                    <span>Automation Load</span>
-                                    <span>24%</span>
-                                </div>
-                                <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
-                                    <div className="bg-indigo-500 h-full w-[24%]"></div>
-                                </div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between text-[10px] font-black text-gray-500 uppercase mb-1">
-                                    <span>Sync Latency</span>
-                                    <span>12ms</span>
-                                </div>
-                                <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
-                                    <div className="bg-green-500 h-full w-[10%]"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </Card>
-
-                    <div className="bg-black/60 border border-white/10 rounded-[3rem] p-8 text-center space-y-4">
-                        <div className="flex justify-center">
-                            <Bot className="w-12 h-12 text-indigo-500 animate-bounce" />
-                        </div>
-                        <h4 className="text-sm font-black text-white uppercase tracking-widest">Aether Prime Assistant</h4>
-                        <p className="text-xs text-gray-500 italic leading-relaxed">
-                            "I am monitoring all n8n workflows and GitHub commits. Your gym is currently operating at 98% automation efficiency."
-                        </p>
-                    </div>
                 </div>
             </div>
         </div>
