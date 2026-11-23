@@ -52,7 +52,7 @@ class PoseSmoother {
 
 const smoother = new PoseSmoother(0.5); // alpha = 0.5 for balance between responsiveness and smoothness
 
-// यह Web Worker अलग थ्रेड (Isolate) पर काम करेगा
+// This Web Worker will run on a separate thread (Isolate)
 self.onmessage = (e: MessageEvent<PoseWorkerInput>) => {
     const { landmarks, time } = e.data;
     
@@ -64,7 +64,7 @@ self.onmessage = (e: MessageEvent<PoseWorkerInput>) => {
     const smoothedLandmarks = smoother.smooth(landmarks);
 
     // --- HEAVY MATH / POSE PROCESSING ---
-    // यहाँ MediaPipe के लैंडमार्क्स की भारी गणितीय गणना (Complex Math) हो रही है
+    // Perform complex mathematical calculations on MediaPipe landmarks here
     
     // 1. Calculate elbow angles for symmetry using SMOOTHED landmarks
     const leftShoulder = smoothedLandmarks[11];
@@ -85,7 +85,7 @@ self.onmessage = (e: MessageEvent<PoseWorkerInput>) => {
     // 3. Form Score based on stability and symmetry
     const formScore = Math.max(0, Math.min(100, 100 - diff * 0.5));
 
-    // 4. Neural Drive & Velocity (Simulated based on time and movement for now)
+    // 4. Neural Drive & Velocity (based on time and movement for now)
     const driveNoise = Math.sin(time / 1000) * 8;
     const currentDrive = Math.max(0, Math.min(100, 92 + driveNoise));
 

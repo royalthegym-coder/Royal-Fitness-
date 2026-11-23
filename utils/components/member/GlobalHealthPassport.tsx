@@ -26,15 +26,15 @@ const GlobalHealthPassport: React.FC<{ memberId: number }> = ({ memberId }) => {
     const [isSOSMode, setIsSOSMode] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isBeaming, setIsBeaming] = useState(false);
-    const [neuralHash, setNeuralHash] = useState('');
+    const [neuralHash, setSmartHash] = useState('');
     
     // UI States
     const [activeTab, setActiveTab] = useState<'ID' | 'History' | 'Immunity'>('ID');
 
     const passportRef = useRef<HTMLDivElement>(null);
 
-    // --- INTEGRATED METADATA (v31.0 SYNC) ---
-    const bloodType = member?.medical_history.bloodGroup || "O+";
+    // --- INTEGRATED METADATA (Fitness Future SYNC) ---
+    const bloodType = member?.medical_history?.bloodGroup || "O+";
     
     // Get Medical Clearance Status based on last consultation
     const medicalStatus = useMemo(() => {
@@ -62,7 +62,7 @@ const GlobalHealthPassport: React.FC<{ memberId: number }> = ({ memberId }) => {
         const interval = setInterval(() => {
             const timestamp = Date.now();
             const randomHash = Math.random().toString(36).substring(2, 10).toUpperCase();
-            setNeuralHash(`${timestamp.toString().slice(-6)}-${randomHash}`);
+            setSmartHash(`${timestamp.toString().slice(-6)}-${randomHash}`);
         }, 2000); 
         return () => clearInterval(interval);
     }, []);
@@ -78,7 +78,7 @@ const GlobalHealthPassport: React.FC<{ memberId: number }> = ({ memberId }) => {
                 medical: {
                     blood: bloodType,
                     status: medicalStatus.label,
-                    conditions: member.medical_history.conditions,
+                    conditions: member.medical_history?.conditions || [],
                 },
                 timestamp: Date.now()
             };
@@ -123,7 +123,7 @@ const GlobalHealthPassport: React.FC<{ memberId: number }> = ({ memberId }) => {
             const height = (canvas.height * width) / canvas.width;
             
             pdf.addImage(imgData, 'PNG', 0, 0, width, height);
-            pdf.save(`Royal_Passport_${member?.name.replace(/\s+/g, '_')}.pdf`);
+            pdf.save(`Future_Passport_${member?.name.replace(/\s+/g, '_')}.pdf`);
             addToast("Health Passport Synchronized & Downloaded.", "success");
         } catch (e) {
             console.error(e);
@@ -137,7 +137,7 @@ const GlobalHealthPassport: React.FC<{ memberId: number }> = ({ memberId }) => {
 
     return (
         <div className="space-y-8 animate-fade-in pb-32">
-            {/* OMNI-HUD HEADER */}
+            {/* Fitness Future-HUD HEADER */}
             <div className={`p-10 rounded-[4rem] border transition-all duration-700 relative overflow-hidden shadow-2xl ${isSOSMode ? 'bg-red-950 border-red-500' : 'bg-[#020308] border-cyan-500/30'}`}>
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
                 <div className={`absolute -right-40 -top-40 w-[600px] h-[600px] rounded-full blur-[150px] animate-pulse ${isSOSMode ? 'bg-red-600/20' : 'bg-cyan-600/10'}`}></div>
@@ -147,7 +147,7 @@ const GlobalHealthPassport: React.FC<{ memberId: number }> = ({ memberId }) => {
                         <div className="flex items-center gap-4 mb-4">
                             <div className={`px-5 py-2 rounded-full flex items-center gap-3 shadow-lg border ${isSOSMode ? 'bg-red-600 text-white border-red-400' : 'bg-cyan-600 text-white border-cyan-400'}`}>
                                 {isSOSMode ? <AlertTriangle className="w-5 h-5 animate-bounce" /> : <Globe className="w-5 h-5" />}
-                                <span className="text-xs font-black uppercase tracking-[0.2em]">{isSOSMode ? 'SOS_ALERT_ACTIVE' : 'Global Passport v31.0'}</span>
+                                <span className="text-xs font-black uppercase tracking-[0.2em]">{isSOSMode ? 'SOS_ALERT_ACTIVE' : 'Global Passport Fitness Future'}</span>
                             </div>
                             {!isSOSMode && <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">Status: Worldwide_Authenticated</span>}
                         </div>
@@ -198,12 +198,7 @@ const GlobalHealthPassport: React.FC<{ memberId: number }> = ({ memberId }) => {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-10 relative z-10">
                             <div className="space-y-6">
                                 <div className={`w-full aspect-[3/4] bg-gray-900 rounded-3xl border-2 overflow-hidden relative group transition-colors ${isSOSMode ? 'border-red-500' : 'border-cyan-500/30'}`}>
-                                    <img 
-                                        src={member.avatar} 
-                                        className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700" 
-                                        alt="Identity"
-                                        crossOrigin="anonymous" // Important for PDF export
-                                    />
+<img src={member?.avatar || "https://ui-avatars.com/api/?name=" + encodeURIComponent(member?.name || "Member") + "&background=random&color=fff&size=256"} alt="Member" className="w-full h-full object-cover z-10 relative opacity-90" />
                                     
                                     {/* Scan Line Animation */}
                                     {!isSOSMode && (
@@ -215,8 +210,8 @@ const GlobalHealthPassport: React.FC<{ memberId: number }> = ({ memberId }) => {
                                     </div>
                                 </div>
                                 <div className="bg-white p-3 rounded-3xl shadow-2xl group transition-transform hover:scale-105">
-                                    <img src={qrUrl} className="w-full h-auto mix-blend-multiply" alt="Access QR" />
-                                </div>
+                                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${member?.id || "QR"}`} alt="QR Code" className="w-full h-auto aspect-square" />
+</div>
                             </div>
 
                             <div className="md:col-span-2 space-y-8">
@@ -224,7 +219,7 @@ const GlobalHealthPassport: React.FC<{ memberId: number }> = ({ memberId }) => {
                                     <div className="flex justify-between items-start">
                                         <div>
                                             <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.4em] mb-2">Subject Name</p>
-                                            <h2 className="text-5xl font-black text-white uppercase italic tracking-tighter leading-none">{member.name}</h2>
+                                            <h2 className="text-5xl font-black text-white uppercase italic tracking-tighter leading-none">{member?.name || 'UNKNOWN'}</h2>
                                         </div>
                                         <div className="text-right">
                                              <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.4em] mb-1">Live Hash</p>
@@ -273,8 +268,8 @@ const GlobalHealthPassport: React.FC<{ memberId: number }> = ({ memberId }) => {
                                         </div>
                                         <div>
                                             <p className={`text-[10px] font-black uppercase tracking-widest ${isSOSMode ? 'text-red-400' : 'text-gray-500'}`}>Emergency Uplink</p>
-                                            <p className="text-white font-bold uppercase text-lg italic">{member.emergency_contact?.name || 'NODE_NOT_SET'}</p>
-                                            <p className="text-white font-mono text-sm tracking-widest mt-1">{member.emergency_contact?.phone || '---'}</p>
+                                            <p className="text-white font-bold uppercase text-lg italic">{member?.emergency_contact?.name || 'NODE_NOT_SET'}</p>
+                                            <p className="text-white font-mono text-sm tracking-widest mt-1">{member?.emergency_contact?.phone || '---'}</p>
                                         </div>
                                     </div>
                                     {isSOSMode && <Activity className="w-8 h-8 text-red-500" />}
@@ -324,11 +319,11 @@ const GlobalHealthPassport: React.FC<{ memberId: number }> = ({ memberId }) => {
                     <Card title="Access Ledger" className="bg-gray-950 border-white/5 p-8 rounded-[3rem] h-[350px] flex flex-col shadow-2xl">
                          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3">
                              {[
-                                 { loc: 'Royal Gym Main Gate', time: 'Today, 06:45 AM', status: 'Approved' },
+                                 { loc: 'Fitness Future Main Gate', time: 'Today, 06:45 AM', status: 'Approved' },
                                  { loc: 'Recovery Pod B', time: 'Yesterday, 07:30 PM', status: 'Approved' },
                                  { loc: 'Dietary Kiosk', time: 'Yesterday, 07:15 PM', status: 'Approved' },
-                                 { loc: 'Royal Gym Main Gate', time: 'Yesterday, 06:00 PM', status: 'Approved' },
-                                 { loc: 'Bio-Aether Oracle Scan', time: '3 Days Ago', status: 'Verified' }
+                                 { loc: 'Fitness Future Main Gate', time: 'Yesterday, 06:00 PM', status: 'Approved' },
+                                 { loc: 'Bio-Cloud Oracle Scan', time: '3 Days Ago', status: 'Verified' }
                              ].map((log, i) => (
                                  <div key={i} className="flex justify-between items-center p-3 bg-black/40 rounded-xl border border-white/5">
                                      <div className="flex items-center gap-3">

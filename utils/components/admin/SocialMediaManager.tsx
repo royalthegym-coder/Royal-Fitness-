@@ -4,7 +4,7 @@ import Card from '../common/Card';
 import { Share2, Instagram, Facebook, Youtube, Sparkles, Send, Calendar } from 'lucide-react';
 import { useData } from '../../context/DataProvider';
 import { useToast } from '../../hooks/useToast';
-import { getComplexResponse } from '../../../lib/gemini';
+import { getComplexResponse } from '../../../lib/core_ai';
 
 const SocialMediaManager: React.FC = () => {
     const { addSocialPost, socialPosts } = useData();
@@ -45,12 +45,25 @@ const SocialMediaManager: React.FC = () => {
 
     return (
         <div className="space-y-8 animate-fade-in pb-20">
-            <div className="p-10 rounded-[3.5rem] bg-[#050505] border border-pink-500/20 shadow-2xl">
-                 <h1 className="text-3xl font-black text-white italic uppercase tracking-tighter flex items-center gap-4">
-                    <Share2 className="w-10 h-10 text-pink-500" />
-                    Brand <span className="text-pink-400">Command</span>
-                </h1>
-                <p className="text-gray-500 text-xs font-mono mt-2 tracking-widest uppercase">Multi-Channel Broadcast Node</p>
+            <div className="bg-[#020202] p-10 rounded-[3.5rem] border border-cyan-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(6,182,212,0.15)] group">
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[150px] animate-pulse"></div>
+                <div className="relative z-10 flex items-center gap-8">
+                    <div className="p-8 bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-[3rem] shadow-[0_0_60px_rgba(6,182,212,0.5)] border border-cyan-400 group-hover:rotate-12 transition-transform duration-700">
+                        <Share2 className="w-16 h-16" />
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="px-4 py-1.5 bg-cyan-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
+                                <Sparkles className="w-3 h-3" /> Fitness Future
+                            </div>
+                        </div>
+                        <h1 className="text-5xl md:text-7xl font-black text-white italic uppercase tracking-tighter leading-none">
+                            Brand <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-fuchsia-400">Command</span>
+                        </h1>
+                        <p className="text-gray-500 text-[10px] font-mono mt-3 tracking-[0.6em] uppercase font-bold">Multi-Channel Broadcast Node</p>
+                    </div>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

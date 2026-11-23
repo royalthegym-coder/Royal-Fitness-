@@ -1,40 +1,34 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --royal-gold: #f59e0b;
-  --royal-onyx: #050505;
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --neon-cyan: #06b6d4;
-  --neon-amber: #f59e0b;
+  --fitness-gold: #f59e0b;
+  --surface-canvas: #09090b;
+  --surface-card: #111318;
+  --border-subtle: rgba(255, 255, 255, 0.1);
 }
 
 @layer base {
+  html,
+  body,
+  #root {
+    height: 100dvh;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    background-color: #09090b;
+  }
+
   body {
-    @apply bg-[#020202] text-gray-100 antialiased overflow-hidden selection:bg-amber-500/30 selection:text-amber-100;
-    font-family: 'Inter', sans-serif;
+    @apply bg-[#09090B] text-zinc-100 antialiased overflow-hidden selection:bg-amber-500/30 selection:text-amber-100;
+    font-family: 'Plus Jakarta Sans', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-variant-numeric: tabular-nums;
+    -webkit-tap-highlight-color: transparent;
   }
 }
 
 @layer utilities {
-  .glass-panel {
-    @apply bg-black/40 backdrop-blur-2xl border border-white/10 shadow-2xl;
-  }
-  
-  .glass-button {
-    @apply bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md transition-all duration-300;
-  }
-
-  .text-glow {
-    text-shadow: 0 0 20px currentColor;
-  }
-  
-  .border-glow {
-    box-shadow: inset 0 0 20px rgba(255,255,255,0.05);
-  }
-
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -42,100 +36,26 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+  .pb-safe {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+  .pt-safe {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
 }
 
-/* Animations */
-@keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-.animate-shimmer {
-  animation: shimmer 2.5s infinite;
-}
-
-@keyframes scan {
-  0% { top: 0%; opacity: 0; }
-  50% { opacity: 1; }
-  100% { top: 100%; opacity: 0; }
-}
-.animate-scan {
-  animation: scan 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-.animate-float {
-  animation: float 6s ease-in-out infinite;
-}
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 10px var(--neon-amber); opacity: 1; }
-  50% { box-shadow: 0 0 25px var(--neon-amber); opacity: 0.8; }
-}
-.animate-pulse-glow {
-  animation: pulse-glow 3s infinite;
-}
-
-@keyframes spin-slow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-.animate-spin-slow {
-  animation: spin-slow 12s linear infinite;
-}
-
-@keyframes spin-reverse-slow {
-  from { transform: rotate(360deg); }
-  to { transform: rotate(0deg); }
-}
-.animate-spin-reverse-slow {
-  animation: spin-reverse-slow 15s linear infinite;
-}
-
-@keyframes fade-in-up {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.animate-fade-in-up {
-  animation: fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes pulse-slow {
-  0%, 100% { transform: scale(1.1); opacity: 0.4; }
-  50% { transform: scale(1.15); opacity: 0.5; }
-}
-.animate-pulse-slow {
-  animation: pulse-slow 10s ease-in-out infinite;
-}
-
-@keyframes blob {
-  0% { transform: translate(0px, 0px) scale(1); }
-  33% { transform: translate(30px, -50px) scale(1.1); }
-  66% { transform: translate(-20px, 20px) scale(0.9); }
-  100% { transform: translate(0px, 0px) scale(1); }
-}
-.animate-blob {
-  animation: blob 7s infinite;
-}
-
-.animation-delay-2000 {
-  animation-delay: 2s;
-}
-
-/* Custom Scrollbar for the Cyberpunk look */
+/* Clean, subtle scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #0a0a0a;
+  background: #09090b;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #333;
+  background: #27272a;
   border-radius: 99px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: #3f3f46;
 }

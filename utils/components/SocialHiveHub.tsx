@@ -16,29 +16,22 @@ import {
     Tooltip, AreaChart, Area, BarChart, Bar, Cell 
 } from 'recharts';
 import * as THREE from 'three';
-import { getComplexResponse } from '../../lib/gemini';
+import { getComplexResponse } from '../../lib/core_ai';
 import { useToast } from '../hooks/useToast';
 import ConfirmationDialog from './common/ConfirmationDialog';
 import { SocialPost } from '../../types';
 
 // --- CONSTANTS ---
 const squads = [
-    { id: 'iron', name: "Iron Titans", color: "text-red-500", bg: "bg-red-500", border: "border-red-500", focus: "Strength & Powerlifting", members: 12 },
-    { id: 'cardio', name: "Cardio Kings", color: "text-blue-500", bg: "bg-blue-500", border: "border-blue-500", focus: "Endurance & HIIT", members: 8 },
-    { id: 'zen', name: "Zen Masters", color: "text-green-500", bg: "bg-green-500", border: "border-green-500", focus: "Yoga & Flexibility", members: 15 },
-    { id: 'beast', name: "Beast Mode", color: "text-amber-500", bg: "bg-amber-500", border: "border-amber-500", focus: "Bodybuilding", members: 20 }
+    { id: 'iron', name: "Iron Titans", color: "text-red-500", bg: "bg-red-500", border: "border-red-500", focus: "Strength & Powerlifting", members: 0 },
+    { id: 'cardio', name: "Cardio Kings", color: "text-blue-500", bg: "bg-blue-500", border: "border-blue-500", focus: "Endurance & HIIT", members: 0 },
+    { id: 'zen', name: "Zen Masters", color: "text-green-500", bg: "bg-green-500", border: "border-green-500", focus: "Yoga & Flexibility", members: 0 },
+    { id: 'beast', name: "Beast Mode", color: "text-amber-500", bg: "bg-amber-500", border: "border-amber-500", focus: "Bodybuilding", members: 0 }
 ];
 
-const INITIAL_CHALLENGES = [
-    { id: 'c1', title: 'The Million KG Lift', type: 'Co-op', goal: '1,000,000 KG Total Volume', progress: 65, participants: 142, reward: 'Titan Badge', timeLeft: '12 Days' },
-    { id: 'c2', title: 'Titans vs Beasts', type: 'Versus', goal: 'Highest Attendance %', progress: 40, participants: 32, reward: '1 Week Free', timeLeft: '3 Days' }
-];
+const INITIAL_CHALLENGES: Array<{ id: string; title: string; type: string; goal: string; progress: number; participants: number; reward: string; timeLeft: string }> = [];
 
-const INITIAL_POSTS: any[] = [
-    { id: 'p1', author: 'Rahul Saini', avatar: 'https://i.pravatar.cc/150?u=rahul', type: 'PR', content: 'Destroyed my Deadlift PR! 220KG moved like butter today. 🚀 #IronTitans', voltage: 45, comments: 12, time: '2h ago' },
-    { id: 'p2', author: 'System Core', avatar: 'https://i.ibb.co/6800735/Royal-The-Gym.png', type: 'System', content: '⚡ ALERT: "Cardio Kings" squad has collectively burned 50,000 calories this week!', voltage: 120, comments: 5, time: '4h ago' },
-    { id: 'p3', author: 'Priya Sharma', avatar: 'https://i.pravatar.cc/150?u=priya', type: 'Workout', content: 'Early morning Yoga flow. The vibe is unreal today. 🧘‍♀️', image: 'https://images.unsplash.com/photo-1599058945522-28d584b6f0ff?q=80&w=600&auto=format&fit=crop', voltage: 89, comments: 8, time: '5h ago' }
-];
+const INITIAL_POSTS: any[] = [];
 
 
 // --- 3D NEXUS VISUALIZATION COMPONENT ---
@@ -186,13 +179,13 @@ const NexusVisualization: React.FC<{ members: any[] }> = ({ members }) => {
 };
 
 const SocialHiveHub: React.FC<{ memberId?: number }> = ({ memberId }) => {
-    const { members, auditLogs, socialPosts, socialReviews, addSocialPost, updateSocialReview } = useData();
+    const { members, auditLogs, communityPosts, addCommunityPost } = useData();
     const { addToast } = useToast();
     
     // --- STATE ---
     const [activeTab, setActiveTab] = useState<'feed' | 'leaderboard' | 'squads' | 'wars' | 'nexus'>('feed');
-    const [activeNodes, setActiveNodes] = useState(members.length + 15);
-    const [hiveEnergy, setHiveEnergy] = useState(88);
+    const [activeNodes, setActiveNodes] = useState(members.length);
+    const [hiveEnergy, setHiveEnergy] = useState(0);
     const [aiSquadSuggestion, setAiSquadSuggestion] = useState<{ squad: string, reason: string } | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [joiningSquad, setJoiningSquad] = useState<string | null>(null);
@@ -202,9 +195,9 @@ const SocialHiveHub: React.FC<{ memberId?: number }> = ({ memberId }) => {
     const [isGeneratingPost, setIsGeneratingPost] = useState(false);
     
     // Local Posts State (merged with context for demo)
-    const [posts, setPosts] = useState<any[]>([...INITIAL_POSTS, ...socialPosts]);
+    const [posts, setPosts] = useState<any[]>([...INITIAL_POSTS, ...communityPosts]);
 
-    const currentUser = memberId ? members.find(m => m.id === memberId) : { name: 'Admin Command', avatar: 'https://i.ibb.co/6800735/Royal-The-Gym.png', xp: 99999, level: 99, health_score: 100 };
+    const currentUser = memberId ? members.find(m => m.id === memberId) : { name: 'Admin Command', avatar: 'https://i.ibb.co/6800735/Future-Fitness.png', xp: 99999, level: 99, health_score: 100 };
 
     // --- 1. SOVEREIGN XP LEADERBOARD ---
     const leaderboard = useMemo(() => {
@@ -214,7 +207,7 @@ const SocialHiveHub: React.FC<{ memberId?: number }> = ({ memberId }) => {
             .map((m, idx) => ({
                 rank: idx + 1,
                 name: m.id === memberId ? "YOU (PRIME)" : m.name,
-                title: m.level > 50 ? "Apex Titan" : m.level > 20 ? "Elite Knight" : "Vanguard",
+                title: m.level > 50 ? "FitnessFutureTitan" : m.level > 20 ? "Elite Knight" : "Vanguard",
                 xp: m.xp || 0,
                 score: m.health_score || 90,
                 avatar: m.avatar
@@ -226,7 +219,7 @@ const SocialHiveHub: React.FC<{ memberId?: number }> = ({ memberId }) => {
         const userH = currentUser?.health_score || 85;
         return [
             { subject: 'Symmetry', A: userH - 5, B: 80, fullMark: 100 },
-            { subject: 'Neural Drive', A: userH + 2, B: 85, fullMark: 100 },
+            { subject: 'Smart Drive', A: userH + 2, B: 85, fullMark: 100 },
             { subject: 'Recovery', A: userH - 10, B: 75, fullMark: 100 },
             { subject: 'Volume', A: userH + 5, B: 90, fullMark: 100 },
             { subject: 'Consistency', A: userH, B: 82, fullMark: 100 },
@@ -273,26 +266,24 @@ const SocialHiveHub: React.FC<{ memberId?: number }> = ({ memberId }) => {
     // --- 4. HOLO-FEED LOGIC ---
     const handlePostSubmit = () => {
         if (!newPostContent.trim()) return;
-        const newPost: SocialPost = {
+        const newPost = {
             id: `p${Date.now()}`,
-            platform: ['Hive'],
-            status: 'Posted',
-            author: currentUser?.name || 'Admin',
-            avatar: (currentUser as any)?.avatar || 'https://i.pravatar.cc/150',
-            type: 'Status',
+            memberId: (currentUser as any)?.id || 0,
+            memberName: currentUser?.name || 'Admin',
+            memberAvatar: (currentUser as any)?.avatar || 'https://i.pravatar.cc/150',
             content: newPostContent,
             likes: 0,
-            comments: 0,
-            time: 'Just now'
+            comments: [],
+            timestamp: new Date().toISOString()
         };
-        addSocialPost(newPost);
+        addCommunityPost(newPost);
         setPosts([newPost, ...posts]);
         setNewPostContent('');
         addToast("Transmission Sent to Hive.", "success");
     };
 
     const handleLike = (id: string) => {
-         setPosts(prev => prev.map(p => p.id === id ? { ...p, voltage: (p.voltage || 0) + 1 } : p));
+         setPosts(prev => prev.map(p => p.id === id ? { ...p, likes: (p.likes || 0) + 1 } : p));
     };
 
     const enhancePostWithAI = async () => {
@@ -323,12 +314,12 @@ const SocialHiveHub: React.FC<{ memberId?: number }> = ({ memberId }) => {
                         <div>
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="px-4 py-1.5 bg-indigo-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg">
-                                    Sovereign Hive v31.0
+                                    Sovereign Hive Fitness Future
                                 </div>
                                 <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">STATUS: COLLECTIVE_SYNC_ACTIVE</span>
                             </div>
                             <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none">
-                                Aether <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-600">Hive</span>
+                                Cloud <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-600">Hive</span>
                             </h1>
                         </div>
                     </div>
@@ -352,11 +343,11 @@ const SocialHiveHub: React.FC<{ memberId?: number }> = ({ memberId }) => {
             {/* TAB NAVIGATOR */}
             <div className="flex bg-gray-950 p-2 rounded-[2rem] border border-white/5 w-fit mx-auto backdrop-blur-xl overflow-x-auto no-scrollbar">
                 {[
-                    { id: 'feed', label: 'Holo-Feed', icon: <MessageSquare className="w-4 h-4" /> },
-                    { id: 'wars', label: 'Apex Wars', icon: <Sword className="w-4 h-4" /> },
-                    { id: 'leaderboard', label: 'Titan Rankings', icon: <Trophy className="w-4 h-4" /> },
-                    { id: 'squads', label: 'Neural Squads', icon: <Users className="w-4 h-4" /> },
-                    { id: 'nexus', label: 'The Nexus', icon: <Globe className="w-4 h-4" /> },
+                    { id: 'feed', label: 'Feed', icon: <MessageSquare className="w-4 h-4" /> },
+                    { id: 'wars', label: 'Challenges', icon: <Sword className="w-4 h-4" /> },
+                    { id: 'leaderboard', label: 'Rankings', icon: <Trophy className="w-4 h-4" /> },
+                    { id: 'squads', label: 'Squads', icon: <Users className="w-4 h-4" /> },
+                    { id: 'nexus', label: 'Nexus', icon: <Globe className="w-4 h-4" /> },
                 ].map((tab) => (
                     <button
                         key={tab.id}
@@ -383,7 +374,7 @@ const SocialHiveHub: React.FC<{ memberId?: number }> = ({ memberId }) => {
                             {/* Create Post */}
                             <div className="bg-[#0c0c0c] border border-white/5 p-6 rounded-[2.5rem] shadow-xl">
                                 <div className="flex gap-4">
-                                    <img src={(currentUser as any)?.avatar || 'https://i.pravatar.cc/150'} className="w-12 h-12 rounded-2xl object-cover border border-white/10" alt="avatar" />
+                                    <img src="https://i.pravatar.cc/150?u=admin" alt="Current User" className="w-12 h-12 rounded-2xl object-cover border border-white/10" />
                                     <div className="flex-1">
                                         <textarea 
                                             value={newPostContent}
@@ -424,10 +415,10 @@ const SocialHiveHub: React.FC<{ memberId?: number }> = ({ memberId }) => {
                                     <div key={post.id} className="bg-[#0a0a0a] border border-white/5 p-6 rounded-[2.5rem] hover:border-indigo-500/20 transition-all group shadow-xl">
                                         <div className="flex justify-between items-start mb-4">
                                             <div className="flex items-center gap-3">
-                                                <img src={post.avatar || 'https://i.pravatar.cc/150'} className="w-12 h-12 rounded-2xl object-cover border border-white/10" alt="author" />
+                                                <img src={post.authorAvatar || "https://i.pravatar.cc/150?u=" + post.id} alt={post.authorName} className="w-12 h-12 rounded-2xl object-cover border border-white/10" />
                                                 <div>
-                                                    <h4 className="font-bold text-white text-sm">{post.author}</h4>
-                                                    <p className="text-[10px] text-gray-500 font-mono">{post.scheduledTime || post.time || 'Just now'} • {post.platform?.join(', ') || post.type || 'Hive'}</p>
+                                                    <h4 className="font-bold text-white text-sm">{post.memberName}</h4>
+                                                    <p className="text-[10px] text-gray-500 font-mono">{post.timestamp || 'Just now'} • {post.type || 'Hive'}</p>
                                                 </div>
                                             </div>
                                             {post.type === 'System' && <Zap className="w-4 h-4 text-amber-500 animate-pulse" />}
@@ -437,19 +428,19 @@ const SocialHiveHub: React.FC<{ memberId?: number }> = ({ memberId }) => {
                                         
                                         {post.imageUrl && !post.imageUrl.includes('pravatar') && (
                                             <div className="mb-4 rounded-3xl overflow-hidden border border-white/5 relative group/img">
-                                                <img src={post.imageUrl} className="w-full h-64 object-cover" alt="content" />
+                                                <img src={post.imageUrl} alt="Community Post" className="w-full h-64 object-cover rounded-2xl mb-4 border border-white/5" />
                                                 <div className="absolute inset-0 bg-black/20 group-hover/img:bg-transparent transition-all"></div>
                                             </div>
                                         )}
 
                                         <div className="flex items-center gap-6 pt-4 border-t border-white/5">
                                             <button onClick={() => handleLike(post.id)} className="flex items-center gap-2 text-gray-500 hover:text-amber-500 transition-colors group/act">
-                                                <Zap className={`w-4 h-4 ${(post.voltage || post.likes) > 0 ? 'fill-amber-500 text-amber-500' : ''}`} />
-                                                <span className="text-xs font-bold">{post.voltage || post.likes || 0} Voltage</span>
+                                                <Zap className={`w-4 h-4 ${(post.likes) > 0 ? 'fill-amber-500 text-amber-500' : ''}`} />
+                                                <span className="text-xs font-bold">{post.likes || 0} Voltage</span>
                                             </button>
                                             <button className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors">
                                                 <MessageSquare className="w-4 h-4" />
-                                                <span className="text-xs font-bold">{post.comments || 0} Signals</span>
+                                                <span className="text-xs font-bold">{post.comments?.length || 0} Signals</span>
                                             </button>
                                             <button className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors ml-auto">
                                                 <Share2 className="w-4 h-4" />
@@ -471,15 +462,15 @@ const SocialHiveHub: React.FC<{ memberId?: number }> = ({ memberId }) => {
                                     <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:rotate-12 transition-transform duration-1000"><Crown className="w-48 h-48" /></div>
                                     <div className="flex flex-col md:flex-row items-center gap-10 relative z-10">
                                         <div className="relative">
-                                            <div className="w-40 h-40 rounded-full border-4 border-indigo-500 p-1 bg-black shadow-[0_0_40px_#6366f1]">
-                                                <img src={leaderboard[0].avatar} className="w-full h-full rounded-full object-cover" alt="Prime" />
+                                            <div className="w-40 h-40 rounded-full border-4 border-indigo-500 p-1 bg-black shadow-[0_0_40px_#6366f1] overflow-hidden">
+                                                <img src={leaderboard[0].avatar || "https://i.pravatar.cc/150?u=" + leaderboard[0].rank} alt={leaderboard[0].name} className="w-full h-full rounded-full object-cover border border-white/10" />
                                             </div>
                                             <div className="absolute -top-4 -right-4 bg-indigo-500 text-white p-3 rounded-2xl shadow-xl animate-bounce">
                                                 <Crown className="w-6 h-6" />
                                             </div>
                                         </div>
                                         <div className="flex-1 text-center md:text-left">
-                                            <p className="text-indigo-500 font-black uppercase text-xs tracking-[0.5em] mb-2">APEX TITAN // RANK #1</p>
+                                            <p className="text-indigo-500 font-black uppercase text-xs tracking-[0.5em] mb-2">FitnessFutureTITAN // RANK #1</p>
                                             <h3 className="text-6xl font-black text-white italic uppercase tracking-tighter mb-4">{leaderboard[0].name}</h3>
                                             <div className="flex flex-wrap gap-4 justify-center md:justify-start">
                                                 <div className="bg-white/5 border border-white/10 px-6 py-2 rounded-2xl backdrop-blur-md">
@@ -500,7 +491,7 @@ const SocialHiveHub: React.FC<{ memberId?: number }> = ({ memberId }) => {
                                     <div key={user.rank} className="bg-[#0a0a0a] border border-white/5 p-6 rounded-[2.5rem] flex items-center justify-between group hover:border-indigo-500/30 transition-all shadow-xl">
                                         <div className="flex items-center gap-8">
                                             <div className="text-4xl font-black italic text-gray-800 w-12">0{user.rank}</div>
-                                            <img src={user.avatar} className="w-16 h-16 rounded-2xl object-cover border border-white/10 shadow-lg grayscale group-hover:grayscale-0 transition-all" alt="runner" />
+                                            <img src={user.avatar || "https://i.pravatar.cc/150?u=" + user.rank} alt={user.name} className="w-14 h-14 rounded-2xl object-cover border border-white/10" />
                                             <div>
                                                 <h4 className="text-2xl font-black text-white italic uppercase tracking-tight">{user.name}</h4>
                                                 <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">RANKED: VANGUARD ELITE</p>
@@ -527,7 +518,7 @@ const SocialHiveHub: React.FC<{ memberId?: number }> = ({ memberId }) => {
                                         <Zap className="w-12 h-12 text-white fill-current" />
                                     </div>
                                     <div className="flex-1 text-center md:text-left">
-                                        <h3 className="text-3xl font-black text-white uppercase italic tracking-tight mb-2">Neural Squad Finder</h3>
+                                        <h3 className="text-3xl font-black text-white uppercase italic tracking-tight mb-2">Smart Squad Finder</h3>
                                         <p className="text-gray-400 text-sm leading-relaxed italic mb-6">
                                             "Our AI scans your recent workout velocity, volume, and recovery biometrics to match you with the optimal squad node."
                                         </p>
@@ -579,7 +570,7 @@ const SocialHiveHub: React.FC<{ memberId?: number }> = ({ memberId }) => {
                         </div>
                     )}
                     
-                    {/* TAB: APEX WARS */}
+                    {/* TAB: FitnessFutureWARS */}
                     {activeTab === 'wars' && (
                         <div className="space-y-6 animate-slide-up">
                             {INITIAL_CHALLENGES.map(challenge => (

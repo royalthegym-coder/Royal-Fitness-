@@ -5,9 +5,10 @@ import { INITIAL_WORKOUT_TEMPLATES } from '../../../constants';
 import { WorkoutExercise, View, DetailedSetLog, DetailedWorkoutSession } from '../../../types';
 import ExerciseDemoModal, { getExerciseByName, EXERCISE_DB } from '../common/ExerciseDemoModal';
 import { useData } from '../../context/DataProvider';
+import { getMediaForExercise } from '../common/ExerciseDemoModal';
 import { TimerIcon } from '../icons/ActivityIcons';
 import { 
-    Play, RotateCcw, PartyPopper, Plus, Settings, Calendar, Layers, 
+    Play, Pause, RotateCcw, PartyPopper, Plus, Settings, Calendar, Layers, 
     Video, ArrowRight, Activity, PlayCircle, Clock, Users, Flame, 
     Save, BarChart3, Radio, Check, Minus, X, Info, BarChart2,
     ClipboardList, BrainCircuit, Target, RefreshCw, FileText, Zap, MessageCircle
@@ -18,6 +19,8 @@ import { ResponsiveContainer, LineChart, Line, YAxis, Tooltip, CartesianGrid, XA
 import { useToast } from '../../hooks/useToast';
 import Modal from '../common/Modal';
 import LiveTrainingHUD from './LiveTrainingHUD';
+import { motion, AnimatePresence } from 'framer-motion';
+import { NotificationService } from '../../../lib/notifications';
 import TitanVision from './TitanVision';
 import { generateWorkoutPDF } from '../../pdfGenerator';
 import { Download, Camera } from 'lucide-react';
@@ -98,8 +101,43 @@ const NotesModal: React.FC<{
     );
 };
 
+// --- SUB-COMPONENT: EXERCISE FEEDBACK MODAL ---
+const ExerciseFeedbackModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    exerciseName: string;
+    onSubmit: (feedback: string) => void;
+}> = ({ isOpen, onClose, exerciseName, onSubmit }) => {
+    if (!isOpen) return null;
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="AI Calibration">
+            <div className="space-y-4">
+                <div className="bg-cyan-900/10 border border-cyan-500/30 p-4 rounded-xl">
+                    <p className="text-[10px] font-black text-cyan-500 uppercase tracking-widest flex items-center gap-2">
+                        <BrainCircuit className="w-4 h-4" /> Future-Core AI
+                    </p>
+                    <p className="text-xs text-gray-300 mt-2">
+                        How did {exerciseName} feel? Your feedback will be used to adjust the weight and reps for your next session.
+                    </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                    {['Too Easy', 'Just Right', 'Too Hard', 'Felt Pain'].map(opt => (
+                        <button 
+                            key={opt}
+                            onClick={() => { onSubmit(opt); onClose(); }}
+                            className="py-4 bg-gray-900 border border-white/10 rounded-xl text-xs font-bold text-gray-300 hover:bg-cyan-900/30 hover:border-cyan-500/50 hover:text-cyan-400 transition-all shadow-lg"
+                        >
+                            {opt}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </Modal>
+    );
+};
+
 const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => void }> = ({ memberId, setActiveView }) => {
-    const { addRoutineLog, liveHealthData, addDetailedWorkoutLog, members, detailedWorkoutLogs, workoutTemplates, updateMember } = useData();
+    const { addRoutineLog, liveHealthData, addDetailedWorkoutLog, members, detailedWorkoutLogs, updateMember, medicalReports, workoutTemplates } = useData() as any;
     const { addToast } = useToast();
     const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 1000 / 60 / 60 / 24);
     
@@ -133,12 +171,18 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
     // Modals
     const [notesModalEx, setNotesModalEx] = useState<string | null>(null);
     const [historyModalEx, setHistoryModalEx] = useState<string | null>(null);
+    const [feedbackModalEx, setFeedbackModalEx] = useState<string | null>(null);
+    const [completedExercises, setCompletedExercises] = useState<Set<string>>(new Set());
     const [isAiAdjustModalOpen, setIsAiAdjustModalOpen] = useState(false);
     const [isOptimizeFutureModalOpen, setIsOptimizeFutureModalOpen] = useState(false);
     const [userFeedback, setUserFeedback] = useState('');
     const [isAdjusting, setIsAdjusting] = useState(false);
     const [isOptimizingFuture, setIsOptimizingFuture] = useState(false);
     const [aiModifiedWorkout, setAiModifiedWorkout] = useState<Record<string, WorkoutExercise[]> | null>(null);
+    
+    // Manual Timer State
+    const [manualTimer, setManualTimer] = useState(0);
+    const [isManualTimerRunning, setIsManualTimerRunning] = useState(false);
     
     // --- LOGIC: BUILD THE DYNAMIC WORKOUT STRUCTURE ---
     const generatedWorkout: Record<string, WorkoutExercise[]> = useMemo(() => {
@@ -174,7 +218,7 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
         const warmupVariations = [
             [{ name: 'Arm Circles', sets: '1', reps: '1 min' }, { name: 'Jumping Jacks', sets: '1', reps: '30' }],
             [{ name: 'Cat Cow', sets: '1', reps: '1 min' }, { name: 'Leg Swings', sets: '2', reps: '15' }],
-            [{ name: 'World Greatest Stretch', sets: '1', reps: '1 min' }, { name: 'Plank', sets: '1', reps: '45s' }]
+            [{ name: 'World Greatest Stretch', sets: '1', reps: '1 min' }, { name: 'High Knees', sets: '1', reps: '45s' }]
         ];
         structure['1. Pre-Workout Activation'] = warmupVariations[dayOfYear % 3];
 
@@ -182,17 +226,40 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
         let mainExercises: WorkoutExercise[] = [];
         let categoryName = "Full Body";
 
-        // Simplified logic for brevity - using existing pattern
+        const beginnerSplits = [
+            [{ name: 'Push Up', sets: '3', reps: '10' }, { name: 'Pec Deck Machine', sets: '3', reps: '12' }, { name: 'Bench Press', sets: '3', reps: '10' }],
+            [{ name: 'Lat Pulldown', sets: '3', reps: '12' }, { name: 'Seated Cable Row', sets: '3', reps: '12' }, { name: 'Straight Arm Pulldown', sets: '3', reps: '15' }],
+            [{ name: 'Goblet Squat', sets: '3', reps: '12' }, { name: 'Leg Press', sets: '3', reps: '10' }, { name: 'Leg Extension', sets: '3', reps: '15' }],
+            [{ name: 'Bicep Curl', sets: '3', reps: '12' }, { name: 'Tricep Extension', sets: '3', reps: '12' }, { name: 'Lateral Raise', sets: '3', reps: '15' }]
+        ];
+
+        const advancedSplits = [
+            [{ name: 'Barbell Bench Press', sets: '4', reps: '8' }, { name: 'Incline Dumbbell Press', sets: '3', reps: '10' }, { name: 'Cable Chest Fly', sets: '3', reps: '12' }],
+            [{ name: 'Pull Up', sets: '4', reps: 'Failure' }, { name: 'Barbell Row', sets: '3', reps: '8' }, { name: 'T-Bar Row', sets: '3', reps: '10' }],
+            [{ name: 'Barbell Squat', sets: '4', reps: '8' }, { name: 'Deadlift', sets: '3', reps: '5' }, { name: 'Bulgarian Split Squat', sets: '3', reps: '10' }],
+            [{ name: 'Overhead Press', sets: '4', reps: '8' }, { name: 'Skull Crusher', sets: '3', reps: '10' }, { name: 'Hammer Curl', sets: '3', reps: '12' }]
+        ];
+
+        const splitNames = ["Chest & Core", "Back Dominant", "Leg Protocol", "Shoulders & Arms"];
+
         if (userLevel === 'Beginner') {
-            categoryName = "Foundation Protocol";
-            mainExercises = [{ name: 'Goblet Squat', sets: '3', reps: '12' }, { name: 'Push Up', sets: '3', reps: '10' }, { name: 'Lat Pulldown', sets: '3', reps: '12' }, { name: 'Plank', sets: '3', reps: '30s' }];
+            categoryName = `Foundation: ${splitNames[splitDay]}`;
+            mainExercises = beginnerSplits[splitDay];
+            mainExercises.push({ name: 'Standard Plank', sets: '3', reps: '30s' });
         } else {
-             // Advanced Logic Placeholder
-             categoryName = "Hypertrophy A";
-             mainExercises = [{ name: 'Bench Press', sets: '4', reps: '8' }, { name: 'Incline Dumbbell Press', sets: '3', reps: '10' }, { name: 'Cable Fly', sets: '3', reps: '12' }];
+             categoryName = `Hypertrophy: ${splitNames[splitDay]}`;
+             mainExercises = advancedSplits[splitDay];
+             mainExercises.push({ name: 'Russian Twist', sets: '3', reps: '20' });
         }
+        
         structure[`2. ${categoryName} (${userLevel})`] = mainExercises;
-        structure['3. The Finisher'] = [{ name: 'Burpees', sets: '1', reps: 'Max' }];
+        
+        const finisherVariations = [
+            [{ name: 'Burpees', sets: '1', reps: 'Max' }],
+            [{ name: 'Kettlebell Swing', sets: '2', reps: '20' }],
+            [{ name: 'Box Jumps', sets: '2', reps: '10' }]
+        ];
+        structure['3. The Finisher'] = finisherVariations[dayOfYear % 3];
 
         return structure;
     }, [userLevel, dayOfYear, member, workoutTemplates]);
@@ -227,6 +294,21 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
         return () => clearInterval(interval);
     }, [isResting, restTimer]);
 
+    // Manual Timer Logic
+    useEffect(() => {
+        let interval: any;
+        if (isManualTimerRunning) {
+            interval = setInterval(() => setManualTimer(prev => prev + 1), 1000);
+        }
+        return () => clearInterval(interval);
+    }, [isManualTimerRunning]);
+
+    const formatTime = (seconds: number) => {
+        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+        const s = (seconds % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+    };
+
     const handleUpdateSet = (exercise: string, setIdx: number, field: keyof DetailedSetLog, value: number) => {
         setActiveLogs(prev => {
             const currentSets = [...(prev[exercise] || [])];
@@ -245,9 +327,54 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
 
         const isNowDone = !activeLogs[exercise]?.[setIdx]?.completed;
         if (isNowDone) {
+             // Check if ALL sets for this exercise will be completed
+             const allSets = activeLogs[exercise] || [];
+             const willBeComplete = allSets.every((s, i) => i === setIdx ? true : s.completed);
+             
+             if (willBeComplete && !completedExercises.has(exercise)) {
+                 setCompletedExercises(prev => new Set(prev).add(exercise));
+                 setFeedbackModalEx(exercise); // Trigger feedback modal
+             }
+             
              setRestTimer(userLevel === 'Pro Body' ? 90 : 60);
              setIsResting(true);
+        } else {
+             // If unchecking, remove from completed
+             const allSets = activeLogs[exercise] || [];
+             const willBeComplete = allSets.every((s, i) => i === setIdx ? false : s.completed);
+             if (!willBeComplete && completedExercises.has(exercise)) {
+                 setCompletedExercises(prev => {
+                     const newSet = new Set(prev);
+                     newSet.delete(exercise);
+                     return newSet;
+                 });
+             }
         }
+    };
+
+    const handleAddSet = (exercise: string) => {
+        setActiveLogs(prev => {
+            const currentSets = [...(prev[exercise] || [])];
+            currentSets.push({
+                setNumber: currentSets.length + 1,
+                weight: 0,
+                reps: 0,
+                rpe: 0,
+                completed: false
+            });
+            return { ...prev, [exercise]: currentSets };
+        });
+    };
+
+    const handleRemoveSet = (exercise: string, setIdx: number) => {
+        setActiveLogs(prev => {
+            const currentSets = [...(prev[exercise] || [])];
+            if (currentSets.length <= 1) return prev; // Keep at least one set
+            currentSets.splice(setIdx, 1);
+            // Re-number sets
+            const renumberedSets = currentSets.map((s, i) => ({ ...s, setNumber: i + 1 }));
+            return { ...prev, [exercise]: renumberedSets };
+        });
     };
     
     // Adjust Timer
@@ -261,6 +388,14 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
             Object.entries(activeLogs).forEach(([exerciseName, sets]) => {
                 const completedSets = (sets as DetailedSetLog[]).filter(s => s.completed);
                 if (completedSets.length > 0) {
+                    const history = getHistoryForExercise(exerciseName);
+                    const previousMax = history.length > 0 ? Math.max(...history.map(h => h.maxWeight)) : 0;
+                    const currentMax = Math.max(...completedSets.map(s => s.weight));
+                    
+                    if (currentMax > previousMax && previousMax > 0) {
+                        NotificationService.notifyPRAchievement(memberId.toString(), exerciseName, currentMax.toString());
+                    }
+
                     const sessionLog: DetailedWorkoutSession = {
                         sessionId: `SES_${Date.now()}_${exerciseName.substring(0,3)}`,
                         memberId,
@@ -283,7 +418,7 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
             setIsSyncing(false);
             setSessionComplete(true);
             window.scrollTo(0,0);
-            addToast("Quantum Uplink: Session Synced to Core.", "success");
+            addToast("FitnessFutureUplink: Session Synced to Core.", "success");
         }, 2000);
     };
 
@@ -353,18 +488,26 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                     </div>
                     
                     <div className="flex flex-col md:flex-row gap-4 mt-6 md:mt-0">
-                        <button 
-                            onClick={() => setIsOptimizeFutureModalOpen(true)}
-                            className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 px-6 py-3 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center gap-2 border border-purple-500/30 backdrop-blur-md transition-all active:scale-95"
-                        >
-                            <SparkleIcon className="w-4 h-4" /> Optimize Future Plan
-                        </button>
-                        <button 
-                            onClick={() => setIsAiAdjustModalOpen(true)}
-                            className="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 px-6 py-3 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center gap-2 border border-cyan-500/30 backdrop-blur-md transition-all active:scale-95"
-                        >
-                            <BrainCircuit className="w-4 h-4" /> AI Adjust Workout
-                        </button>
+                        {member && (new Date().getTime() - new Date(member.joinDate).getTime()) / (1000 * 60 * 60 * 24) >= 3 && (
+                            <button 
+                                onClick={() => setIsOptimizeFutureModalOpen(true)}
+                                className="relative bg-gradient-to-r from-purple-900/40 to-purple-800/40 hover:from-purple-800/60 hover:to-purple-700/60 backdrop-blur-xl border border-dashed border-purple-500/50 hover:border-purple-400 text-purple-400 px-6 py-3 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center gap-2 transition-all duration-500 hover:-translate-y-1 shadow-[0_0_20px_rgba(168,85,247,0.2)] hover:shadow-[0_0_30px_rgba(168,85,247,0.4)] group overflow-hidden"
+                            >
+                                <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                <SparkleIcon className="w-4 h-4 group-hover:scale-110 transition-transform duration-500 relative z-10" /> 
+                                <span className="relative z-10">Optimize Future Plan</span>
+                            </button>
+                        )}
+                        {member && (new Date().getTime() - new Date(member.joinDate).getTime()) / (1000 * 60 * 60 * 24) >= 2 && (
+                            <button 
+                                onClick={() => setIsAiAdjustModalOpen(true)}
+                                className="relative bg-gradient-to-r from-cyan-900/40 to-cyan-800/40 hover:from-cyan-800/60 hover:to-cyan-700/60 backdrop-blur-xl border border-dashed border-cyan-500/50 hover:border-cyan-400 text-cyan-400 px-6 py-3 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center gap-2 transition-all duration-500 hover:-translate-y-1 shadow-[0_0_20px_rgba(6,182,212,0.2)] hover:shadow-[0_0_30px_rgba(6,182,212,0.4)] group overflow-hidden"
+                            >
+                                <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                <BrainCircuit className="w-4 h-4 group-hover:scale-110 transition-transform duration-500 relative z-10" /> 
+                                <span className="relative z-10">AI Adjust Workout</span>
+                            </button>
+                        )}
                         <button 
                             onClick={() => {
                                 // Convert activeWorkout to WorkoutTemplate format for PDF
@@ -372,6 +515,7 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                                     id: 1,
                                     name: `Battle Deck - ${userLevel}`,
                                     level: userLevel as any,
+                                    priority: 'High' as const,
                                     category: 'Daily Protocol',
                                     description: 'AI-Generated Daily Workout Protocol synced via N8N.',
                                     preWorkout: { name: Object.keys(activeWorkout)[0] || 'Warmup', exercises: (Object.values(activeWorkout)[0] as WorkoutExercise[]) || [] },
@@ -381,9 +525,11 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                                 generateWorkoutPDF(template, member);
                                 addToast('PDF Downloaded Successfully', 'success');
                             }}
-                            className="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center gap-2 border border-white/20 backdrop-blur-md transition-all active:scale-95"
+                            className="relative bg-gradient-to-r from-gray-800 to-gray-900 hover:from-gray-700 hover:to-gray-800 backdrop-blur-xl border border-dashed border-gray-600/50 hover:border-white/60 text-white px-6 py-3 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center gap-2 transition-all duration-500 hover:-translate-y-1 shadow-[0_0_15px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] group overflow-hidden"
                         >
-                            <Download className="w-4 h-4" /> Download PDF
+                            <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                            <Download className="w-4 h-4 group-hover:scale-110 transition-transform duration-500 relative z-10" /> 
+                            <span className="relative z-10">Download PDF</span>
                         </button>
                     </div>
                 </div>
@@ -414,21 +560,42 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                         {exercises.map((ex, i) => {
                             const exName = ex.name || 'Exercise';
                             const setsData = activeLogs[exName] || [];
-                            const exerciseData = getExerciseByName(exName); 
+                                            const exerciseData = getExerciseByName(exName); 
+                                            const isExerciseComplete = setsData.length > 0 && setsData.every(s => s.completed);
+                                            const thumbnailUrl = getMediaForExercise(exName);
 
-                            return (
-                                <div key={i} className="bg-[#0a0a0a] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-xl hover:border-white/10 transition-all">
-                                    <div className="flex flex-col sm:flex-row">
-                                        <div className="sm:w-1/3 h-56 sm:h-auto relative group cursor-pointer bg-black overflow-hidden border-r border-white/5 flex flex-col items-center justify-center">
-                                            <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/20 to-blue-900/20 opacity-50"></div>
-                                            <div className="w-20 h-20 rounded-full border-2 border-cyan-500/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-500 bg-black/50 backdrop-blur-sm">
-                                                <Activity className="w-10 h-10 text-cyan-400" />
-                                            </div>
-                                            <p className="text-xs font-black text-white uppercase tracking-widest z-10">{exName}</p>
-                                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/80 backdrop-blur-sm">
-                                                 <button onClick={() => setLiveModeExercise(ex)} className="text-[9px] font-black text-white uppercase tracking-[0.3em] bg-black/60 px-4 py-2 rounded-full border border-cyan-500/30 hover:bg-cyan-500 hover:text-black hover:border-cyan-400 transition-all shadow-lg flex items-center gap-2">
-                                                     <Zap className="w-3 h-3"/> Neural Mirror
-                                                 </button>
+                                            return (
+                                                <motion.div 
+                                                    key={i} 
+                                                    animate={isExerciseComplete ? { 
+                                                        scale: [1, 1.02, 1], 
+                                                        borderColor: ['rgba(255,255,255,0.05)', 'rgba(34,197,94,0.5)', 'rgba(34,197,94,0.3)'],
+                                                        boxShadow: ['0 0 0px rgba(34,197,94,0)', '0 0 40px rgba(34,197,94,0.3)', '0 0 20px rgba(34,197,94,0.1)']
+                                                    } : {}}
+                                                    transition={{ duration: 0.6, ease: "easeInOut" }}
+                                                    className={`bg-[#0a0a0a] rounded-[2.5rem] border overflow-hidden shadow-xl transition-all ${isExerciseComplete ? 'border-green-500/30 shadow-[0_0_30px_rgba(34,197,94,0.1)]' : 'border-white/5 hover:border-white/10'}`}
+                                                >
+                                                    <div className="flex flex-col sm:flex-row">
+                                                        <div className="sm:w-1/3 h-56 sm:h-auto relative group cursor-pointer bg-black overflow-hidden border-r border-white/5 flex flex-col items-center justify-center">
+                                                            {thumbnailUrl ? (
+                                                                <img src={thumbnailUrl} alt={exName} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-500" />
+                                                            ) : (
+                                                                <div className={`absolute inset-0 bg-gradient-to-br transition-colors duration-700 ${isExerciseComplete ? 'from-green-900/30 to-emerald-900/30 opacity-70' : 'from-cyan-900/20 to-blue-900/20 opacity-50'}`}></div>
+                                                            )}
+                                                            <div className={`w-20 h-20 rounded-full border-2 flex items-center justify-center mb-4 group-hover:scale-110 transition-all duration-500 bg-black/50 backdrop-blur-sm relative z-10 ${isExerciseComplete ? 'border-green-500/50 shadow-[0_0_20px_rgba(34,197,94,0.4)]' : 'border-cyan-500/30'}`}>
+                                                                {isExerciseComplete ? (
+                                                                    <Check className="w-10 h-10 text-green-400" />
+                                                                ) : (
+                                                                    <PlayCircle className="w-10 h-10 text-cyan-400" />
+                                                                )}
+                                                            </div>
+                                                            <p className={`text-xs font-black uppercase tracking-widest z-10 relative ${isExerciseComplete ? 'text-green-400' : 'text-white'}`}>{exName}</p>
+                                                             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/80 backdrop-blur-sm z-20">
+                                                 {member && (new Date().getTime() - new Date(member.joinDate).getTime()) / (1000 * 60 * 60 * 24) >= 2 && (
+                                                     <button onClick={() => setLiveModeExercise(ex)} className="text-[9px] font-black text-white uppercase tracking-[0.3em] bg-black/60 px-4 py-2 rounded-full border border-cyan-500/30 hover:bg-cyan-500 hover:text-black hover:border-cyan-400 transition-all shadow-lg flex items-center gap-2">
+                                                         <Zap className="w-3 h-3"/> Smart Mirror
+                                                     </button>
+                                                 )}
                                                  <button onClick={() => setSelectedExercise(exName)} className="text-[9px] font-black text-white uppercase tracking-[0.3em] bg-black/60 px-4 py-2 rounded-full border border-white/30 hover:bg-white hover:text-black transition-all shadow-lg flex items-center gap-2">
                                                      <Info className="w-3 h-3"/> View Tutorial
                                                  </button>
@@ -478,19 +645,56 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                                                             </div>
                                                         </div>
                                                         
-                                                        <button 
-                                                            onClick={() => handleCompleteSet(exName, sIdx)}
-                                                            className={`w-full md:w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-lg ${set.completed ? 'bg-green-500 text-black shadow-green-500/20' : 'bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-white'}`}
-                                                        >
-                                                            <Check className="w-6 h-6" strokeWidth={3} />
-                                                        </button>
+                                                        <div className="flex gap-2 w-full md:w-auto">
+                                                            <button 
+                                                                onClick={() => handleRemoveSet(exName, sIdx)}
+                                                                disabled={set.completed || setsData.length <= 1}
+                                                                className="w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-lg bg-red-950/40 text-red-500 hover:bg-red-900/60 hover:text-red-400 disabled:opacity-30"
+                                                            >
+                                                                <X className="w-5 h-5" />
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => handleCompleteSet(exName, sIdx)}
+                                                                className={`flex-1 md:w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-lg ${set.completed ? 'bg-green-500 text-black shadow-[0_0_15px_rgba(34,197,94,0.5)] scale-105' : 'bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-white'}`}
+                                                            >
+                                                                <AnimatePresence mode="wait">
+                                                                    {set.completed ? (
+                                                                        <motion.div
+                                                                            key="completed"
+                                                                            initial={{ scale: 0, rotate: -180 }}
+                                                                            animate={{ scale: 1, rotate: 0 }}
+                                                                            exit={{ scale: 0, rotate: 180 }}
+                                                                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                                                        >
+                                                                            <Check className="w-6 h-6" strokeWidth={3} />
+                                                                        </motion.div>
+                                                                    ) : (
+                                                                        <motion.div
+                                                                            key="uncompleted"
+                                                                            initial={{ scale: 0 }}
+                                                                            animate={{ scale: 1 }}
+                                                                            exit={{ scale: 0 }}
+                                                                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                                                        >
+                                                                            <Check className="w-6 h-6" strokeWidth={3} />
+                                                                        </motion.div>
+                                                                    )}
+                                                                </AnimatePresence>
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))}
+                                            <button 
+                                                onClick={() => handleAddSet(exName)}
+                                                className="w-full py-4 rounded-2xl border border-dashed border-white/20 text-gray-400 font-bold uppercase tracking-widest text-xs hover:bg-white/5 hover:border-white/40 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <Plus className="w-4 h-4" /> Add Set
+                                            </button>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
+                                </motion.div>
                             );
                         })}
                     </div>
@@ -502,10 +706,13 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                 <button 
                     onClick={handleFinishSession}
                     disabled={progress < 100 || isSyncing}
-                    className={`w-full bg-white text-black font-black py-6 rounded-[3rem] text-sm shadow-[0_0_60px_rgba(255,255,255,0.3)] transition-all hover:scale-[1.02] active:scale-95 uppercase italic tracking-widest border-4 border-white/50 backdrop-blur-xl flex items-center justify-center gap-4 ${progress < 100 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`relative w-full bg-gradient-to-r from-green-900/40 to-emerald-900/40 hover:from-green-800/60 hover:to-emerald-800/60 backdrop-blur-xl text-white font-black py-6 rounded-[3rem] text-sm transition-all duration-500 uppercase italic tracking-widest border border-dashed border-green-500/50 flex items-center justify-center gap-4 group overflow-hidden ${progress < 100 ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-2 hover:border-green-400 hover:shadow-[0_0_60px_rgba(34,197,94,0.4)] hover:text-green-400 shadow-[0_0_20px_rgba(34,197,94,0.2)]'}`}
                 >
-                    {isSyncing ? <RefreshCw className="w-5 h-5 animate-spin"/> : <Save className="w-5 h-5" />}
-                    {isSyncing ? 'UPLOADING TO CORE...' : progress < 100 ? `Complete All Sets (${progress}%)` : 'Finalize & Sync Results'}
+                    <div className={`absolute inset-0 bg-white/10 translate-y-full transition-transform duration-300 ease-in-out ${progress === 100 ? 'group-hover:translate-y-0' : ''}`}></div>
+                    <div className="relative z-10 flex items-center gap-4">
+                        {isSyncing ? <RefreshCw className="w-6 h-6 animate-spin text-green-400"/> : <Save className={`w-6 h-6 transition-transform duration-500 ${progress === 100 ? 'group-hover:scale-125' : ''}`} />}
+                        <span>{isSyncing ? 'UPLOADING TO CORE...' : progress < 100 ? `Complete All Sets (${progress}%)` : 'Finalize & Sync Results'}</span>
+                    </div>
                 </button>
             </div>
             
@@ -516,7 +723,7 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                              <TimerIcon className="w-6 h-6 text-red-500" />
                         </div>
                         <div>
-                            <p className="text-[10px] font-black text-red-400 uppercase tracking-widest">Neural Cooldown</p>
+                            <p className="text-[10px] font-black text-red-400 uppercase tracking-widest">Smart Cooldown</p>
                             <p className="text-4xl font-mono font-black text-white leading-none">{restTimer}s</p>
                         </div>
                      </div>
@@ -535,6 +742,7 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                 isOpen={!!selectedExercise} 
                 onClose={() => setSelectedExercise(null)} 
                 exerciseName={selectedExercise || ''} 
+                videoUrl={selectedExercise ? (Object.values(activeWorkout).flat() as WorkoutExercise[]).find(e => e.name === selectedExercise)?.videoUrl : undefined}
             />
             
             <ExerciseHistoryModal 
@@ -568,7 +776,7 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                 <div className="space-y-6">
                     <div className="bg-cyan-900/10 border border-cyan-500/30 p-4 rounded-xl">
                         <p className="text-[10px] font-black text-cyan-500 uppercase tracking-widest flex items-center gap-2">
-                            <BrainCircuit className="w-4 h-4" /> Royal-Core AI
+                            <BrainCircuit className="w-4 h-4" /> Future-Core AI
                         </p>
                         <p className="text-xs text-gray-300 mt-2">
                             Describe how you are feeling today. Any pain, fatigue, or specific requests? I will analyze your past performance and adjust today's protocol.
@@ -596,7 +804,8 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                                 try {
                                     const { suggestWorkoutModification } = await import('../../../lib/aiWorkout');
                                     const pastLogs = detailedWorkoutLogs.filter(l => l.memberId === memberId);
-                                    const result = await suggestWorkoutModification(activeWorkout, pastLogs, userFeedback, member);
+                                    const memberReports = medicalReports.filter(r => r.member_id === memberId);
+                                    const result = await suggestWorkoutModification(activeWorkout, pastLogs, userFeedback, member, memberReports);
                                     
                                     if (result.modified_workout && result.modified_workout.length > 0) {
                                         const newWorkout: Record<string, WorkoutExercise[]> = {};
@@ -635,7 +844,7 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                 <div className="space-y-6">
                     <div className="bg-purple-900/10 border border-purple-500/30 p-4 rounded-xl">
                         <p className="text-[10px] font-black text-purple-500 uppercase tracking-widest flex items-center gap-2">
-                            <BrainCircuit className="w-4 h-4" /> Royal-Core AI
+                            <BrainCircuit className="w-4 h-4" /> Future-Core AI
                         </p>
                         <p className="text-xs text-gray-300 mt-2">
                             I will analyze your historical performance logs to automatically adjust intensity, volume, and exercise selection for your future workout plans.
@@ -693,6 +902,39 @@ const TodaysWorkout: React.FC<{ memberId: number; setActiveView: (v: View) => vo
                     </div>
                 </div>
             </Modal>
+            {/* Manual Stopwatch Widget */}
+            <div className="fixed bottom-6 left-6 z-40 bg-gray-900/90 backdrop-blur-md border border-white/10 p-3 rounded-2xl shadow-2xl flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-cyan-400" />
+                    <span className="text-xl font-mono font-black text-white w-16">{formatTime(manualTimer)}</span>
+                </div>
+                <div className="flex gap-2">
+                    <button 
+                        onClick={() => setIsManualTimerRunning(!isManualTimerRunning)}
+                        className={`p-2 rounded-lg ${isManualTimerRunning ? 'bg-amber-500/20 text-amber-500' : 'bg-green-500/20 text-green-500'} hover:bg-opacity-40 transition-all`}
+                    >
+                        {isManualTimerRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                    </button>
+                    <button 
+                        onClick={() => { setManualTimer(0); setIsManualTimerRunning(false); }}
+                        className="p-2 rounded-lg bg-red-500/20 text-red-500 hover:bg-red-500/40 transition-all"
+                    >
+                        <RotateCcw className="w-4 h-4" />
+                    </button>
+                </div>
+            </div>
+
+            <ExerciseFeedbackModal 
+                isOpen={!!feedbackModalEx}
+                onClose={() => setFeedbackModalEx(null)}
+                exerciseName={feedbackModalEx || ''}
+                onSubmit={(feedback) => {
+                    addToast(`Feedback logged: ${feedback}. AI will adjust ${feedbackModalEx} for your next session.`, "success");
+                    // Here we would typically save this feedback to the member's profile or workout log
+                    // to be used by suggestWorkoutModification in the future.
+                }}
+            />
+
         </div>
     );
 };

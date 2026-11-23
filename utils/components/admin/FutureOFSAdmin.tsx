@@ -11,10 +11,10 @@ import {
 import { useToast } from '../../hooks/useToast';
 import Modal from '../common/Modal';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
-import { getComplexResponse } from '../../../lib/gemini';
+import { getComplexResponse } from '../../../lib/core_ai';
 import { BotIcon } from '../icons/BotIcon';
 
-// Mock Zones for Holographic Floor
+// Zones for Holographic Floor
 const GYM_ZONES = [
     { id: 'rack', name: 'Squat Racks', risk: 65, active: 4 },
     { id: 'platform', name: 'Deadlift Zone', risk: 82, active: 2 },
@@ -105,7 +105,7 @@ const FutureOFSAdmin: React.FC = () => {
         setAiVerdict(null);
         const summary = highRiskLogs.map(l => `${l.memberName} (${l.exercise}, Score: ${l.formScore})`).join(', ');
         const prompt = `
-            ACT AS 'APEX BIOMECHANICS AI'. 
+            ACT AS 'FitnessFutureBIOMECHANICS AI'. 
             High-risk gym members: ${summary}.
             Most common fault is ${highRiskLogs[0]?.exercise || 'Squat'}.
             Provide one critical, gym-wide coaching cue to broadcast that would help fix the most common issue. Be concise.

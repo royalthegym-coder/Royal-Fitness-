@@ -1,7 +1,7 @@
 
 // --- MILITARY GRADE ENCRYPTION CORE ---
 
-const SECRET_SALT = "ROYAL_NEURAL_CORE_V19_SALT_KEY"; // In production, this should come from env
+const SECRET_SALT = "FUTURE_NEURAL_CORE_V19_SALT_KEY"; // In production, this should come from env
 
 // 1. One-Way Hashing for Passwords (SHA-256)
 // Fallback included for environments where crypto.subtle is restricted (non-HTTPS)

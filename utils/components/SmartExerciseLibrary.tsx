@@ -7,7 +7,7 @@ import { SparkleIcon } from './icons/SparkleIcon';
 import { VideoCameraIcon } from './icons/VideoCameraIcon';
 import { BotIcon } from './icons/BotIcon';
 import { AutoUpdateIcon } from './icons/AutoUpdateIcon';
-import { findBestExerciseVideo } from '../../lib/gemini';
+import { findBestExerciseVideo } from '../../lib/core_ai';
 import { useToast } from '../hooks/useToast';
 
 const categories = ['All', 'Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core'];
@@ -19,15 +19,15 @@ const SmartExerciseLibrary: React.FC = () => {
     const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     
-    // Neural Search States
+    // Smart Search States
     const [isThinking, setIsThinking] = useState(false);
-    const [neuralQuery, setNeuralQuery] = useState('');
+    const [neuralQuery, setSmartQuery] = useState('');
     const [aiMetadata, setAiMetadata] = useState<{ analysis: string; proTips: string[] } | undefined>(undefined);
 
     const exerciseList = useMemo(() => Object.values(EXERCISE_DB), []);
 
     useEffect(() => {
-        // Simulate fetching data
+        // Process fetching data
         const timer = setTimeout(() => {
             setIsLoading(false);
         }, 1200);
@@ -42,10 +42,10 @@ const SmartExerciseLibrary: React.FC = () => {
         });
     }, [filter, search, exerciseList]);
 
-    const handleNeuralSearch = async () => {
+    const handleSmartSearch = async () => {
         if (!neuralQuery.trim()) return;
         setIsThinking(true);
-        addToast("Neural Engine Analyzing...", "info");
+        addToast("Smart Engine Analyzing...", "info");
         setAiMetadata(undefined);
         
         try {
@@ -65,7 +65,7 @@ const SmartExerciseLibrary: React.FC = () => {
             }
         } catch (e) {
             console.error(e);
-            addToast("Neural Link Failed.", "error");
+            addToast("Smart Link Failed.", "error");
         } finally {
             setIsThinking(false);
         }
@@ -87,7 +87,7 @@ const SmartExerciseLibrary: React.FC = () => {
                     <p className="text-gray-500 text-xs font-mono mt-1 tracking-widest uppercase">Visual Protocol Database</p>
                 </div>
                 
-                {/* Neural Search Bar */}
+                {/* Smart Search Bar */}
                 <div className="relative w-full md:w-96 group">
                      <div className="absolute -inset-0.5 bg-gradient-to-r from-amber-500 to-purple-600 rounded-full blur opacity-20 group-hover:opacity-60 transition duration-500"></div>
                      <div className="relative flex bg-black rounded-full items-center p-1 border border-white/10">
@@ -98,13 +98,13 @@ const SmartExerciseLibrary: React.FC = () => {
                             type="text" 
                             placeholder="Ask AI: 'Best exercise for upper chest'..." 
                             value={neuralQuery}
-                            onChange={(e) => setNeuralQuery(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && handleNeuralSearch()}
+                            onChange={(e) => setSmartQuery(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleSmartSearch()}
                             disabled={isThinking}
                             className="w-full bg-transparent text-white text-sm focus:outline-none placeholder-gray-600 py-2"
                         />
                         <button 
-                            onClick={handleNeuralSearch}
+                            onClick={handleSmartSearch}
                             disabled={isThinking || !neuralQuery}
                             className="bg-amber-600 hover:bg-amber-500 text-white p-2 rounded-full transition-colors disabled:opacity-50"
                         >
@@ -145,7 +145,7 @@ const SmartExerciseLibrary: React.FC = () => {
             {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-32">
                     <div className="w-16 h-16 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-6"></div>
-                    <p className="text-gray-500 text-xs font-mono uppercase tracking-widest animate-pulse">Loading Neural Library...</p>
+                    <p className="text-gray-500 text-xs font-mono uppercase tracking-widest animate-pulse">Loading Smart Library...</p>
                 </div>
             ) : (
                 <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 space-y-4">
@@ -157,11 +157,7 @@ const SmartExerciseLibrary: React.FC = () => {
                         >
                             {/* Thumbnail */}
                             <div className="relative aspect-[9/16] overflow-hidden">
-                                <img 
-                                    src={ex.thumbnailUrl} 
-                                    alt={ex.name}
-                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80 group-hover:opacity-100"
-                                />
+                                <img src={ex.thumbnailUrl} alt={ex.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-90"></div>
                                 
                                 {/* Play Button Overlay */}

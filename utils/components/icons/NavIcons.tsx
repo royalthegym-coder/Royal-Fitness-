@@ -2,14 +2,14 @@
 import React from 'react';
 
 // Shared Gradient Definition
-const RoyalGradient = () => (
+const FutureGradient = () => (
     <defs>
-        <linearGradient id="royal-gold" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="future-gold" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#F59E0B" />
             <stop offset="50%" stopColor="#D97706" />
             <stop offset="100%" stopColor="#92400E" />
         </linearGradient>
-        <linearGradient id="royal-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="future-blue" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#60A5FA" />
             <stop offset="100%" stopColor="#2563EB" />
         </linearGradient>
@@ -25,8 +25,8 @@ const RoyalGradient = () => (
 
 const IconWrapper: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
   <span className={`w-6 h-6 ${className || ''}`}>
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="url(#royal-gold)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <RoyalGradient />
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="url(#future-gold)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <FutureGradient />
         {children}
     </svg>
   </span>
@@ -34,10 +34,10 @@ const IconWrapper: React.FC<{ children: React.ReactNode; className?: string }> =
 
 export const DashboardIcon: React.FC<{ className?: string }> = ({ className }) => (
   <IconWrapper className={className}>
-    <path d="M4 4h6v6H4V4z" fill="url(#royal-gold)" fillOpacity="0.1" />
+    <path d="M4 4h6v6H4V4z" fill="url(#future-gold)" fillOpacity="0.1" />
     <path d="M14 4h6v6h-6V4z" />
     <path d="M4 14h6v6H4v-6z" />
-    <path d="M14 14h6v6h-6v-6z" fill="url(#royal-gold)" fillOpacity="0.1" />
+    <path d="M14 14h6v6h-6v-6z" fill="url(#future-gold)" fillOpacity="0.1" />
   </IconWrapper>
 );
 
@@ -49,15 +49,15 @@ export const SparkleIcon = () => (
 
 export const PackageIcon = () => (
   <IconWrapper>
-    <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-14L4 7v10l8 4" fill="url(#royal-gold)" fillOpacity="0.1" />
+    <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-14L4 7v10l8 4" fill="url(#future-gold)" fillOpacity="0.1" />
   </IconWrapper>
 );
 
 export const MembersIcon: React.FC<{className?: string}> = ({className}) => (
   <span className={`w-6 h-6 ${className}`}>
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="url(#royal-gold)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <RoyalGradient />
-        <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.653-.124-1.282-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.653.124-1.282.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" fill="url(#royal-gold)" fillOpacity="0.1" />
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="url(#future-gold)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <FutureGradient />
+        <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.653-.124-1.282-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.653.124-1.282.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" fill="url(#future-gold)" fillOpacity="0.1" />
     </svg>
   </span>
 );
@@ -76,7 +76,7 @@ export const NotificationsIcon = () => (
 
 export const WorkoutIcon: React.FC<{ className?: string }> = ({ className }) => (
   <IconWrapper className={className}>
-    <path d="M13 10V3L4 14h7v7l9-11h-7z" fill="url(#royal-gold)" fillOpacity="0.2" />
+    <path d="M13 10V3L4 14h7v7l9-11h-7z" fill="url(#future-gold)" fillOpacity="0.2" />
   </IconWrapper>
 );
 

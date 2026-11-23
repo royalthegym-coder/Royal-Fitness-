@@ -1,0 +1,107 @@
+{
+  "name": "WF_member_onboarding",
+  "active": true,
+  "nodes": [
+    {
+      "id": "n1",
+      "name": "Webhook: member-joined",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "member-joined",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "id": "n2",
+      "name": "Generate Diet Plan",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [480, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://ai-engine:8001/ai/diet/generate",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Content-Type","value": "application/json"}]},
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "member_id", "value": "={{ $json.memberId }}"},
+            {"name": "health",    "value": "={{ $json.health }}"},
+            {"name": "goals",     "value": "={{ $json.goals }}"},
+            {"name": "lifestyle", "value": "={{ $json.lifestyle }}"}
+          ]
+        }
+      }
+    },
+    {
+      "id": "n3",
+      "name": "Generate Workout Plan",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [480, 420],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://ai-engine:8001/ai/workout/generate",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "member_id", "value": "={{ $('Webhook: member-joined').item.json.memberId }}"},
+            {"name": "goals",     "value": "={{ $('Webhook: member-joined').item.json.goals }}"},
+            {"name": "health",    "value": "={{ $('Webhook: member-joined').item.json.health }}"},
+            {"name": "schedule",  "value": "={{ {\"daysPerWeek\": 4, \"sessionMinutes\": 60, \"equipment\": \"Full Gym\"} }}"}
+          ]
+        }
+      }
+    },
+    {
+      "id": "n4",
+      "name": "Wait for Both Plans",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [720, 300],
+      "parameters": { "mode": "combine", "combinationMode": "mergeByIndex" }
+    },
+    {
+      "id": "n5",
+      "name": "Send WhatsApp Welcome",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [960, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://whatsapp-bot:3002/send",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "phone", "value": "={{ $('Webhook: member-joined').item.json.phone }}"},
+            {"name": "message", "value": "=🎉 Welcome to Fitness Future, {{ $('Webhook: member-joined').item.json.name }}!\n\n✅ Diet Plan Ready\n✅ Workout Plan Ready\n\nType DIET for your meal plan\nType WORKOUT for your program\n\n💳 Pay: upi://pay?pa={{ $env.GYM_UPI_ID }}&am={{ $('Webhook: member-joined').item.json.fee.total }}"}
+          ]
+        }
+      }
+    },
+    {
+      "id": "n6",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1200, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\"success\": true, \"message\": \"Onboarding triggered\"} }}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook: member-joined": {
+      "main": [[{"node": "Generate Diet Plan","type": "main","index": 0},
+                {"node": "Generate Workout Plan","type": "main","index": 0}]]
+    },
+    "Generate Diet Plan":    {"main": [[{"node": "Wait for Both Plans","type": "main","index": 0}]]},
+    "Generate Workout Plan": {"main": [[{"node": "Wait for Both Plans","type": "main","index": 1}]]},
+    "Wait for Both Plans":   {"main": [[{"node": "Send WhatsApp Welcome","type": "main","index": 0}]]},
+    "Send WhatsApp Welcome": {"main": [[{"node": "Respond OK","type": "main","index": 0}]]}
+  }
+}

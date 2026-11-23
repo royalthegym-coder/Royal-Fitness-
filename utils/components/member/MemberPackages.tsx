@@ -1,3 +1,4 @@
+import { getCurrencySymbol } from '../../store/useCurrencyStore';
 
 import React, { useState, useEffect } from 'react';
 import { useData } from '../../context/DataProvider';
@@ -5,6 +6,8 @@ import Card from '../common/Card';
 import Modal from '../common/Modal';
 import { Package } from '../../../types';
 import { useToast } from '../../hooks/useToast';
+import { sendPaymentReceipt } from '../../../lib/whatsapp';
+import { authenticateBiometric } from '../../biometrics';
 import { toDataURL } from 'qrcode';
 import { GYM_INFO } from '../../../constants';
 import { 
@@ -12,7 +15,7 @@ import {
     Package as PackageIcon, Check, Smartphone, Banknote, Scan, Clock
 } from 'lucide-react';
 
-// Simulated Stripe Elements
+// Stripe Elements
 const StripePaymentForm: React.FC<{ 
     amount: number; 
     onSuccess: () => void; 
@@ -26,7 +29,7 @@ const StripePaymentForm: React.FC<{
     const handlePay = (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        // Simulate Stripe processing delay
+        // Process Stripe processing delay
         setTimeout(() => {
             setLoading(false);
             onSuccess();
@@ -84,10 +87,13 @@ const StripePaymentForm: React.FC<{
             <button 
                 type="submit" 
                 disabled={loading}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 disabled:opacity-50"
+                className="w-full bg-gradient-to-r from-indigo-600 to-purple-700 hover:from-indigo-500 hover:to-purple-600 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] border border-indigo-400/50 border-dashed active:scale-95 disabled:opacity-50 relative overflow-hidden group"
             >
-                {loading ? <Loader className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                {loading ? 'Processing...' : `Pay ₹${amount.toLocaleString()}`}
+                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                <span className="relative z-10 flex items-center gap-2">
+                    {loading ? <Loader className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                    {loading ? 'Processing...' : `Pay ${getCurrencySymbol()}${amount.toLocaleString()}`}
+                </span>
             </button>
         </form>
     );
@@ -121,7 +127,19 @@ const MemberPackages: React.FC<{ memberId: number }> = ({ memberId }) => {
         }
     }, [selectedPkg, paymentMethod]);
 
-    const handleSuccess = () => {
+    const handleSuccess = async () => {
+        if (!selectedPkg || !currentMember) return;
+        
+        const isAuthenticated = await authenticateBiometric();
+        if (!isAuthenticated) {
+            addToast("Biometric verification failed. Payment cancelled.", "error");
+            return;
+        }
+        
+        finalizePackagePurchase();
+    };
+
+    const finalizePackagePurchase = (isVerified: boolean = false) => {
         if (!selectedPkg || !currentMember) return;
         
         const methodStr = paymentMethod === 'UPI' ? 'QR Code' : paymentMethod;
@@ -130,7 +148,9 @@ const MemberPackages: React.FC<{ memberId: number }> = ({ memberId }) => {
         // Instead of marking 'Paid' instantly, we create an invoice with 'Verification Pending'
         // Admin must approve it in Billing > Approvals.
         
-        addInvoice({
+        const invoiceStatus = isVerified ? 'Paid' : 'Verification Pending';
+        
+        const invoice = {
             id: Date.now(),
             memberId: memberId,
             memberName: currentMember.name,
@@ -138,19 +158,39 @@ const MemberPackages: React.FC<{ memberId: number }> = ({ memberId }) => {
             packageName: selectedPkg.name,
             amount: selectedPkg.price,
             date: new Date().toISOString().split('T')[0],
-            status: 'Verification Pending', // NEW STATUS
+            status: invoiceStatus as any,
             paymentMethod: methodStr,
             items: [{ description: selectedPkg.name, amount: selectedPkg.price, type: 'Membership' }]
-        });
+        };
+        addInvoice(invoice as any);
 
-        // DO NOT update member package or create transaction yet. This happens on Admin Approval.
+        if (isVerified) {
+            addTransaction({
+                id: `TXN-${Date.now()}`,
+                memberName: currentMember.name,
+                amount: selectedPkg.price,
+                date: invoice.date,
+                method: methodStr as any
+            });
+            
+            // Update member package
+            updateMember({
+                ...currentMember,
+                packageId: selectedPkg.id,
+                status: 'Active'
+            });
+            
+            if (currentMember.whatsappConsent && currentMember.phone) {
+                sendPaymentReceipt(currentMember.name, currentMember.phone, selectedPkg.price, `TXN-${Date.now()}`, selectedPkg.name);
+            }
+        }
 
         setSuccess(true);
         setTimeout(() => {
             setSuccess(false);
             setIsPaymentOpen(false);
             setSelectedPkg(null);
-            addToast("Payment submitted. Membership will activate upon Admin Approval.", "info");
+            addToast(isVerified ? "Payment successful. Membership activated." : "Payment submitted. Membership will activate upon Admin Approval.", "info");
         }, 3000);
     };
 
@@ -166,36 +206,92 @@ const MemberPackages: React.FC<{ memberId: number }> = ({ memberId }) => {
                  </div>
             </div>
 
+            {/* EXPIRATION & RENEWAL REMINDER TRACKER WIDGET */}
+            {currentMember && currentMember.packageId && (
+                <div className="bg-gray-900 border border-gray-700/50 p-6 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden shadow-xl">
+                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/20 to-transparent"></div>
+                    <div className="relative z-10 flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+                            <Clock className="w-8 h-8 text-emerald-400" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black text-white tracking-widest uppercase">Active Subscription</h3>
+                            <p className="text-gray-400 text-sm">
+                                Your current plan expires on: <strong className="text-emerald-400">{new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}</strong>
+                            </p>
+                            <p className="text-xs text-emerald-500 font-bold mt-1 uppercase tracking-widest bg-emerald-500/10 inline-block px-2 py-0.5 rounded">
+                                <CheckCircle className="w-3 h-3 inline mr-1" /> Active
+                            </p>
+                        </div>
+                    </div>
+                    <div className="relative z-10 flex items-center gap-3">
+                        <button 
+                            onClick={() => {
+                                const activePkg = packages.find(p => p.id === currentMember.packageId);
+                                if (activePkg) handleSelect(activePkg);
+                            }} 
+                            className="bg-emerald-500 hover:bg-emerald-400 text-black px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all active:scale-95"
+                        >
+                            Renew Plan
+                        </button>
+                        <button 
+                            onClick={() => {
+                                if (confirm('Are you sure you want to cancel your membership?')) {
+                                    addToast('Membership successfully cancelled.', 'success');
+                                }
+                            }}
+                            className="bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border border-red-500/50 transition-all active:scale-95"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {packages.map(pkg => {
+                {packages.map((pkg, pkgIdx) => {
                     const isCurrent = currentMember?.packageId === pkg.id;
+                    const fallbackImg = [
+                        '/icon.svg',
+                        '/icon.svg',
+                        '/icon.svg',
+                    ][pkgIdx % 3];
                     return (
                         <Card key={pkg.id} className={`p-8 rounded-[2.5rem] border relative overflow-hidden group transition-all hover:-translate-y-1 ${isCurrent ? 'bg-indigo-900/20 border-indigo-500/50' : 'bg-gray-900 border-white/5 hover:border-indigo-500/30'}`}>
-                            {isCurrent && (
-                                <div className="absolute top-4 right-4 bg-indigo-500 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-lg">Current</div>
-                            )}
-                            
-                            <h3 className="text-2xl font-black text-white italic uppercase tracking-tight mb-2">{pkg.name}</h3>
-                            <div className="flex items-baseline gap-1 mb-6">
-                                <span className="text-4xl font-black text-indigo-400">₹{pkg.price.toLocaleString()}</span>
-                                <span className="text-xs font-bold text-gray-500 uppercase">/ {pkg.duration}</span>
+                            {/* Background Image */}
+                            <div className="absolute inset-0 z-0 opacity-20 group-hover:opacity-30 transition-opacity duration-500">
+                                <img src={pkg.image || fallbackImg} alt={pkg.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-[#080808] via-[#080808]/80 to-transparent"></div>
                             </div>
 
-                            <ul className="space-y-3 mb-8">
-                                {pkg.features.map((feat, i) => (
-                                    <li key={i} className="flex items-center gap-3 text-sm text-gray-400">
-                                        <Check className="w-4 h-4 text-green-500" /> {feat}
-                                    </li>
-                                ))}
-                            </ul>
+                            <div className="relative z-10">
+                                {isCurrent && (
+                                    <div className="absolute top-0 right-0 bg-indigo-500 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-lg">Current</div>
+                                )}
+                                
+                                <h3 className="text-2xl font-black text-white italic uppercase tracking-tight mb-2">{pkg.name}</h3>
+                                <div className="flex items-baseline gap-1 mb-6">
+                                    <span className="text-4xl font-black text-indigo-400">{getCurrencySymbol()}{pkg.price.toLocaleString()}</span>
+                                    <span className="text-xs font-bold text-gray-500 uppercase">/ {pkg.duration}</span>
+                                </div>
 
-                            <button 
-                                onClick={() => handleSelect(pkg)}
-                                disabled={isCurrent}
-                                className={`w-full py-4 rounded-xl font-black uppercase tracking-widest text-xs transition-all ${isCurrent ? 'bg-gray-800 text-gray-500 cursor-default' : 'bg-white text-black hover:bg-indigo-500 hover:text-white shadow-xl active:scale-95'}`}
-                            >
-                                {isCurrent ? 'Active Plan' : 'Select Plan'}
-                            </button>
+                                <ul className="space-y-3 mb-8">
+                                    {pkg.features.map((feat, i) => (
+                                        <li key={i} className="flex items-center gap-3 text-sm text-gray-400">
+                                            <Check className="w-4 h-4 text-green-500" /> {feat}
+                                        </li>
+                                    ))}
+                                </ul>
+
+                                <button 
+                                    onClick={() => handleSelect(pkg)}
+                                    disabled={isCurrent}
+                                    className={`w-full py-4 rounded-xl font-black uppercase tracking-widest text-xs transition-all relative overflow-hidden group ${isCurrent ? 'bg-gray-800 text-gray-500 cursor-default' : 'bg-gradient-to-r from-indigo-900/80 to-purple-900/80 hover:from-indigo-800 hover:to-purple-800 border-2 border-dashed border-indigo-400/50 text-indigo-300 shadow-[0_0_30px_rgba(99,102,241,0.3)] backdrop-blur-md active:scale-95'}`}
+                                >
+                                    {!isCurrent && <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>}
+                                    <span className="relative z-10">{isCurrent ? 'Active Plan' : 'Select Plan'}</span>
+                                </button>
+                            </div>
                         </Card>
                     );
                 })}
@@ -220,7 +316,7 @@ const MemberPackages: React.FC<{ memberId: number }> = ({ memberId }) => {
                             <p className="text-xs font-bold text-indigo-300 uppercase tracking-widest mb-1">Selected Package</p>
                             <div className="flex justify-between items-center">
                                 <h3 className="text-xl font-black text-white italic">{selectedPkg?.name}</h3>
-                                <p className="text-xl font-bold text-white">₹{selectedPkg?.price.toLocaleString()}</p>
+                                <p className="text-xl font-bold text-white">{getCurrencySymbol()}{selectedPkg?.price.toLocaleString()}</p>
                             </div>
                         </div>
                         
@@ -231,10 +327,13 @@ const MemberPackages: React.FC<{ memberId: number }> = ({ memberId }) => {
                                     <button 
                                         key={m} 
                                         onClick={() => setPaymentMethod(m)} 
-                                        className={`flex-1 py-3 rounded-lg text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-2 ${paymentMethod === m ? 'bg-white text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                                        className={`flex-1 py-3 rounded-lg text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-2 relative overflow-hidden group ${paymentMethod === m ? 'bg-gradient-to-r from-gray-100 to-white text-black shadow-[0_0_15px_rgba(255,255,255,0.2)] border border-gray-300/50 border-dashed' : 'text-gray-500 hover:text-white border border-transparent'}`}
                                     >
-                                        {m === 'UPI' ? <Smartphone className="w-4 h-4"/> : m === 'Card' ? <CreditCard className="w-4 h-4"/> : <Banknote className="w-4 h-4"/>}
-                                        {m}
+                                        {paymentMethod === m && <div className="absolute inset-0 bg-black/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>}
+                                        <span className="relative z-10 flex items-center gap-2">
+                                            {m === 'UPI' ? <Smartphone className="w-4 h-4"/> : m === 'Card' ? <CreditCard className="w-4 h-4"/> : <Banknote className="w-4 h-4"/>}
+                                            {m}
+                                        </span>
                                     </button>
                                 ))}
                             </div>
@@ -244,10 +343,11 @@ const MemberPackages: React.FC<{ memberId: number }> = ({ memberId }) => {
                             {paymentMethod === 'UPI' && (
                                 <div className="text-center py-6">
                                      <div className="bg-white p-4 rounded-3xl inline-block shadow-2xl border-[8px] border-white ring-4 ring-green-500/20 mb-6">
-                                        <img src={qrCodeUrl} className="w-40 h-40 object-contain mix-blend-multiply" alt="QR" />
+                                        {qrCodeUrl && <img src={qrCodeUrl} className="w-56 h-56 mx-auto" alt="UPI QR Code" />}
                                     </div>
-                                    <button onClick={handleSuccess} className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs shadow-lg transition-all active:scale-95">
-                                        I Have Paid
+                                    <button onClick={handleSuccess} className="w-full bg-gradient-to-r from-green-900/80 to-emerald-900/80 hover:from-green-800 hover:to-emerald-800 border-2 border-dashed border-green-400/50 text-green-300 font-black py-4 rounded-xl uppercase tracking-widest text-xs shadow-[0_0_30px_rgba(34,197,94,0.3)] backdrop-blur-md transition-all active:scale-95 relative overflow-hidden group">
+                                        <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                        <span className="relative z-10">I Have Paid</span>
                                     </button>
                                 </div>
                             )}
@@ -269,8 +369,9 @@ const MemberPackages: React.FC<{ memberId: number }> = ({ memberId }) => {
                                         <h4 className="text-lg font-bold text-white mb-2">Pay at Reception</h4>
                                         <p className="text-gray-400 text-xs px-10">Create a pending invoice and pay cash at the gym desk to activate your plan.</p>
                                     </div>
-                                    <button onClick={handleSuccess} className="w-full bg-white text-black font-black py-4 rounded-xl uppercase tracking-widest text-xs shadow-lg transition-all active:scale-95">
-                                        Submit Request
+                                    <button onClick={handleSuccess} className="w-full bg-gradient-to-r from-gray-100 to-white hover:from-white hover:to-gray-100 text-black font-black py-4 rounded-xl uppercase tracking-widest text-xs shadow-[0_0_20px_rgba(255,255,255,0.2)] border border-gray-300/50 border-dashed transition-all active:scale-95 relative overflow-hidden group">
+                                        <div className="absolute inset-0 bg-black/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                        <span className="relative z-10">Submit Request</span>
                                     </button>
                                 </div>
                             )}

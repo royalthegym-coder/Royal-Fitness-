@@ -1,22 +1,11 @@
+export interface OSSubscription {
+    tier: 'Basic' | 'Premium' | 'Elite' | 'None';
+    startDate: string;
+    endDate?: string;
+    autoRenew?: boolean;
+}
 
-export type View = 
-    | 'dashboard' | 'members' | 'billing' | 'packages' | 'staff' 
-    | 'expenses' | 'settings' | 'futureOFSAdmin' | 'healthEngine' 
-    | 'aetherMed' | 'geniusMode' | 'workouts' | 'diet' | 'synthesisX' 
-    | 'royalOvermind' | 'revenueOracle' | 'cityHealthMap' | 'bioScout' 
-    | 'bots' | 'crm' | 'googleBusiness' | 'whatsapp' | 'socialHive' 
-    | 'visualLaunch' | 'royalSingularity' | 'aetherOmni' | 'aetherReality' 
-    | 'synapseIoT' | 'neuroSync' | 'autoupgrade' | 'selfrepair' 
-    | 'neuralCore' | 'geminiHub' | 'autoProcurement' | 'quantumLedger' 
-    | 'automationHub'
-    | 'security' | 'debugEngine' | 'performance' | 'tasks' | 'storkTeam'
-    | 'payment' | 'leads' | 'aiFitnessTracker' | 'hormonalClock' | 'metabolicTracker' | 'neuroRecovery'
-    | 'socialManager' | 'adminAttendance'
-    // Member views
-    | 'dailyProtocol' | 'attendance' | 'workout' | 'futureOFS' | 'neuralRep' | 'performanceLab'
-    | 'health' | 'medicalHub' | 'biomarkerVault' | 'aetherCommunity' | 'wearables' | 'helpSupport'
-    | 'payments' | 'globalHealthPassport' | 'scheduler' | 'nutritionAdvisor' | 'quantumDNA' | 'digitalTwin'
-    ;
+export type View = string;
 
 export type Theme = 'dark' | 'light';
 
@@ -28,6 +17,7 @@ export interface Package {
     duration: string;
     features: string[];
     details?: string;
+    image?: string;
 }
 
 export interface EmergencyContact {
@@ -100,12 +90,15 @@ export interface AttendanceRecord {
 
 export interface Member {
     id: number;
+    loginId?: string;
+    password?: string;
     name: string;
     email: string;
     phone: string;
     aadhaar?: string;
     joinDate: string;
     packageId: number;
+    ptPackageId?: number;
     status: 'Active' | 'Pending' | 'Expired' | 'Inactive';
     avatar: string;
     whatsappConsent: boolean;
@@ -129,6 +122,29 @@ export interface Member {
     coaching_notes?: { id: string; text: string; timestamp: string; isVoice: boolean }[];
     biologicalAge?: number;
     activeSynthesisProtocol?: string;
+    // Biometric Data
+    height?: number;
+    weight?: number;
+    bodyFat?: number;
+    muscleMass?: number;
+    fitnessGoal?: string;
+    trainingStyle?: string;
+    fitness_goals?: { id: string; type: 'weight' | 'exercise_target' | 'workout_frequency'; label: string; targetValue: number; currentValue: number; deadline: string; completed: boolean }[];
+    onboardingCompleted?: boolean;
+    aiStrategy?: string;
+    gender?: 'Male' | 'Female' | 'Other';
+    dob?: string;
+    address?: string;
+    auth_mode?: 'password' | 'biometric_only';
+    device_id?: string;
+    biometric_public_key?: string;
+    hipaaConsent?: boolean;
+    gdprConsent?: boolean;
+    biometricCredentials?: any[];
+    updated_at?: string;
+    walletBalance?: number;
+    pastWorkoutPerformance?: string;
+    workoutModifications?: string;
 }
 
 export interface InvoiceItem {
@@ -157,6 +173,7 @@ export interface Staff {
     phone: string;
     joinDate: string;
     salary: number;
+    photo?: string;
 }
 
 export interface Expense {
@@ -189,6 +206,17 @@ export interface Transaction {
     method: 'QR Code' | 'Cash' | 'Card' | 'Online' | 'NEFT/RTGS';
 }
 
+export interface SleepLog {
+    id: string;
+    memberId: number;
+    date: string;
+    totalHours: number;
+    deepHours: number;
+    remHours: number;
+    quality?: string;
+    notes?: string;
+}
+
 export interface HealthData {
     date: string;
     steps: number;
@@ -211,6 +239,12 @@ export interface WorkoutExercise {
     name: string;
     sets: string;
     reps: string;
+    rest?: string;
+    tempo?: string;
+    rpe?: string;
+    technique?: string;
+    videoUrl?: string;
+    notes?: string;
 }
 
 export interface WorkoutSection {
@@ -226,6 +260,10 @@ export interface WorkoutTemplate {
     description: string;
     exercises?: WorkoutExercise[]; // Legacy support
     sections?: WorkoutSection[]; // New Section Support
+    preWorkout?: WorkoutSection;
+    mainWorkout?: WorkoutSection[];
+    finisher?: WorkoutSection;
+    priority?: 'Low' | 'Medium' | 'High';
 }
 
 export interface DailySchedule {
@@ -313,6 +351,7 @@ export interface WorkoutLog {
     sets: number;
     reps: number;
     weight: number;
+    detailedSets?: { setNumber: number; reps: number; weight: number }[];
 }
 
 export interface BodyMetric {
@@ -345,6 +384,11 @@ export interface Task {
     dueDate: string;
     completed: boolean;
     dependencies?: number[];
+    order?: number;
+    isRecurring?: boolean;
+    recurrencePattern?: 'daily' | 'weekly' | 'monthly';
+    lastGeneratedDate?: string;
+    progress?: number;
 }
 
 export interface MedicalTestMaster {
@@ -427,6 +471,7 @@ export interface InventoryItem {
     name: string;
     category: 'Supplement' | 'Accessory' | 'Apparel' | 'Food Supplement' | 'Medicine';
     stock: number;
+    reorder_threshold?: number;
     threshold: number;
     maxCapacity: number;
     status: 'In Stock' | 'Low Stock' | 'Out of Stock';
@@ -484,4 +529,73 @@ export interface SocialReview {
     aiReply?: string;
     isReplied: boolean;
     timestamp: string;
+}
+
+export interface StoreTransaction {
+    id: string;
+    product_id: string;
+    member_id: number;
+    quantity: number;
+    timestamp: string;
+    total_price: number;
+}
+
+export interface StoreProduct {
+    id: string;
+    name: string;
+    category: 'Supplement' | 'Gear' | 'Beverage' | 'Other';
+    price: number;
+    stock: number;
+    image: string;
+    description: string;
+    initialStock?: number;
+    reorder_threshold?: number;
+    soldStock?: number;
+    failedStock?: number;
+    failedDetails?: { qty: number; reason: string; date: string }[];
+}
+
+export interface StoreOrder {
+    id: string;
+    memberId: number;
+    items: { productId: string; name: string; price: number; qty: number }[];
+    total: number;
+    status: 'Pending' | 'Completed' | 'Cancelled';
+    date: string;
+    paymentMethod: 'Future Pay' | 'UPI' | 'Cash' | 'Card';
+}
+
+export interface WalletTransaction {
+    id: string;
+    memberId: number;
+    amount: number;
+    type: 'credit' | 'debit';
+    description: string;
+    date: string;
+}
+
+export interface EMIPlan {
+    id: string;
+    memberId: number;
+    packageId?: number;
+    totalAmount: number;
+    remainingAmount: number;
+    installments: {
+        amount: number;
+        dueDate: string;
+        status: 'pending' | 'paid';
+        paidDate?: string;
+    }[];
+    status: 'Active' | 'Completed' | 'Defaulted';
+    createdAt: string;
+}
+
+export interface CartItem {
+    id?: string;
+    productId?: string;
+    itemId?: string;
+    name: string;
+    price: number;
+    qty: number;
+    type?: string;
 }

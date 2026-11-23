@@ -14,12 +14,12 @@ import { BotIcon } from './icons/BotIcon';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { useToast } from '../hooks/useToast';
 import { GYM_INFO } from '../../constants';
-import { getComplexResponse } from '../../lib/gemini';
+import { getComplexResponse } from '../../lib/core_ai';
 
-// --- v31.0 CONSTANTS ---
+// --- Fitness Future CONSTANTS ---
 const STATIC_FAQS = [
   {
-    q: "How does Aether-Prime analysis work?",
+    q: "How does Cloud-Prime analysis work?",
     a: "Our Sovereign AI scans your medical biomarkers and kinetic history to synthesize a 100% personalized training and nutrition protocol."
   },
   {
@@ -28,11 +28,11 @@ const STATIC_FAQS = [
   },
   {
     q: "Payment not reflecting in wallet?",
-    a: "Neural sync can take up to 300 seconds. If it persists, use the 'Raise Ticket' feature for an immediate treasury audit."
+    a: "Smart sync can take up to 300 seconds. If it persists, use the 'Raise Ticket' feature for an immediate treasury audit."
   },
   {
     q: "Can I pause my membership?",
-    a: "Membership freeze is available for 'Sovereign' tier users for up to 30 days. Contact admin via Neural Ticket."
+    a: "Membership freeze is available for 'Sovereign' tier users for up to 30 days. Contact admin via Smart Ticket."
   }
 ];
 
@@ -87,7 +87,7 @@ const HelpSupport: React.FC<HelpSupportProps> = ({ setChatOpen }) => {
           "Bio-Scan: Verifying Biometric Hash...",
           "Cache: Integrity Check (SHA-256)...",
           "Network: Latency < 20ms confirmed...",
-          "Neural Uplink: Calibrating..."
+          "Smart Uplink: Calibrating..."
       ];
       
       let i = 0;
@@ -115,7 +115,7 @@ const HelpSupport: React.FC<HelpSupportProps> = ({ setChatOpen }) => {
     }
 
     setIsSubmitting(true);
-    addToast("Neural Dispatcher: Routing Ticket to Admin...", "info");
+    addToast("Smart Dispatcher: Routing Ticket to Admin...", "info");
     
     // Sovereign Handshake Simulation
     setTimeout(() => {
@@ -139,18 +139,18 @@ const HelpSupport: React.FC<HelpSupportProps> = ({ setChatOpen }) => {
   };
 
   // --- NEURAL KNOWLEDGE MATRIX (AI SEARCH) ---
-  const handleNeuralQuery = async () => {
+  const handleSmartQuery = async () => {
       if (!searchTerm.trim()) return;
       setIsThinking(true);
       setAiAnswer(null);
 
       const prompt = `
-        Act as the Support AI for 'Royal The Gym'.
+        Act as the Support AI for 'Fitness Future'.
         User Question: "${searchTerm}"
         
         Context:
         - We are a high-tech, AI-powered gym.
-        - Features: Bio-Scan, Future OFS, Neural Recovery, Smart Payments.
+        - Features: Bio-Scan, Future OFS, Smart Recovery, Smart Payments.
         - Tone: Professional, Futuristic, Helpful.
         
         Provide a concise (max 2 sentences) answer.
@@ -160,7 +160,7 @@ const HelpSupport: React.FC<HelpSupportProps> = ({ setChatOpen }) => {
           const res = await getComplexResponse(prompt);
           setAiAnswer(res);
       } catch (e) {
-          setAiAnswer("Neural Link Offline. Please check static FAQs.");
+          setAiAnswer("Smart Link Offline. Please check static FAQs.");
       } finally {
           setIsThinking(false);
       }
@@ -174,7 +174,7 @@ const HelpSupport: React.FC<HelpSupportProps> = ({ setChatOpen }) => {
 
   return (
     <div className="space-y-8 animate-fade-in pb-32">
-      {/* ROYAL SOVEREIGN HEADER */}
+      {/* FUTURE SOVEREIGN HEADER */}
       <div className="bg-[#020308] p-10 rounded-[4rem] border border-blue-500/30 relative overflow-hidden shadow-[0_0_120px_rgba(59,130,246,0.15)] group">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-15"></div>
         <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[150px] animate-pulse"></div>
@@ -187,7 +187,7 @@ const HelpSupport: React.FC<HelpSupportProps> = ({ setChatOpen }) => {
                 <div>
                     <div className="flex items-center gap-3 mb-3">
                         <div className="px-4 py-1.5 bg-blue-500 text-white rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg">
-                            Assistance Node v31.0
+                            Assistance Node Fitness Future
                         </div>
                         <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">STATUS: SUPPORT_UPLINK_STABLE</span>
                     </div>
@@ -264,7 +264,7 @@ const HelpSupport: React.FC<HelpSupportProps> = ({ setChatOpen }) => {
                     </div>
 
                     {/* 2. TICKET FORM */}
-                    <Card title="Neural Ticket Dispatcher" className="bg-gray-950 border-white/5 p-10 rounded-[3.5rem] shadow-2xl relative overflow-hidden">
+                    <Card title="Smart Ticket Dispatcher" className="bg-gray-950 border-white/5 p-10 rounded-[3.5rem] shadow-2xl relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-8 opacity-5"><Terminal className="w-32 h-32 text-blue-500" /></div>
                         
                         <form onSubmit={handleSubmitTicket} className="space-y-10 relative z-10">
@@ -361,7 +361,7 @@ const HelpSupport: React.FC<HelpSupportProps> = ({ setChatOpen }) => {
             {/* TAB: KNOWLEDGE MATRIX (AI) */}
             {activeTab === 'matrix' && (
                 <div className="space-y-6 animate-slide-up">
-                    <Card title="Neural Knowledge Base" className="bg-gray-950 border-white/5 p-10 rounded-[3rem] shadow-2xl">
+                    <Card title="Smart Knowledge Base" className="bg-gray-950 border-white/5 p-10 rounded-[3rem] shadow-2xl">
                          <div className="relative mb-10">
                             <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-600" />
                             <input 
@@ -369,11 +369,11 @@ const HelpSupport: React.FC<HelpSupportProps> = ({ setChatOpen }) => {
                                 placeholder="Ask the Hive Mind (e.g. 'How to freeze membership?')"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                onKeyPress={(e) => e.key === 'Enter' && handleNeuralQuery()}
+                                onKeyPress={(e) => e.key === 'Enter' && handleSmartQuery()}
                                 className="w-full bg-black border border-white/10 rounded-[2rem] py-6 pl-16 pr-32 text-white font-black italic focus:border-blue-500 outline-none shadow-inner"
                             />
                             <button 
-                                onClick={handleNeuralQuery}
+                                onClick={handleSmartQuery}
                                 disabled={isThinking || !searchTerm}
                                 className="absolute right-2 top-2 bottom-2 bg-blue-600 text-white font-black px-6 rounded-[1.5rem] uppercase text-[10px] tracking-widest hover:bg-blue-500 transition-all disabled:opacity-50"
                             >
@@ -386,7 +386,7 @@ const HelpSupport: React.FC<HelpSupportProps> = ({ setChatOpen }) => {
                             <div className="mb-10 p-8 bg-blue-900/10 border-l-4 border-blue-500 rounded-r-[3rem] animate-fade-in relative overflow-hidden">
                                 <div className="absolute top-0 right-0 p-4 opacity-10"><BotIcon className="w-20 h-20 text-blue-400"/></div>
                                 <h4 className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                    <Sparkles className="w-3 h-3" /> Neural Response
+                                    <Sparkles className="w-3 h-3" /> Smart Response
                                 </h4>
                                 <p className="text-blue-100 text-sm leading-relaxed italic">{aiAnswer}</p>
                             </div>
@@ -419,7 +419,7 @@ const HelpSupport: React.FC<HelpSupportProps> = ({ setChatOpen }) => {
                             <WhatsAppIcon className="w-12 h-12 text-green-400" />
                         </div>
                         <h3 className="text-3xl font-black text-white italic uppercase tracking-tighter">WhatsApp Admin</h3>
-                        <p className="text-green-500/60 text-[10px] font-black uppercase tracking-widest mt-2">Instant Neural Sync</p>
+                        <p className="text-green-500/60 text-[10px] font-black uppercase tracking-widest mt-2">Instant Smart Sync</p>
                     </Card>
 
                     <Card onClick={() => handleContactAction('call')} className="bg-blue-950/10 border-blue-500/20 hover:border-blue-500 cursor-pointer group transition-all text-center py-16 rounded-[3.5rem] shadow-2xl relative overflow-hidden">
@@ -461,9 +461,9 @@ const HelpSupport: React.FC<HelpSupportProps> = ({ setChatOpen }) => {
                     <BotIcon className="w-16 h-16 text-indigo-400" />
                 </div>
                 
-                <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter mb-4 leading-none">Neural Assistant</h3>
+                <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter mb-4 leading-none">Smart Assistant</h3>
                 <p className="text-gray-400 text-sm mb-10 font-medium italic">
-                    "Uplink directly to the Royal Sovereign AI for instant bio-metric analysis or troubleshooting."
+                    "Uplink directly to the Future Sovereign AI for instant bio-metric analysis or troubleshooting."
                 </p>
                 
                 <button 
@@ -497,7 +497,7 @@ const HelpSupport: React.FC<HelpSupportProps> = ({ setChatOpen }) => {
                 <div className="flex -space-x-4 mb-6 justify-center">
                     {[1, 2, 3, 4].map(i => (
                         <div key={i} className="w-12 h-12 rounded-2xl border-4 border-gray-950 bg-gray-900 flex items-center justify-center shadow-lg relative group">
-                             <img src={`https://i.pravatar.cc/100?u=council${i}`} className="w-full h-full rounded-xl grayscale group-hover:grayscale-0 transition-all" alt="council" />
+                             <img src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=200&q=80" alt="Support Agent" className="w-12 h-12 rounded-full object-cover border border-amber-500/40" />
                         </div>
                     ))}
                 </div>

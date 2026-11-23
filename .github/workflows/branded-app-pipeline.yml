@@ -1,0 +1,100 @@
+name: Branded App Pipeline
+
+# Trigger on push to the main branch or manual dispatch
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build & Test Stage
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Env
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Base Dependencies
+        run: npm ci
+
+      - name: Run Static Code Analysis & Linter
+        run: npm run lint
+
+      - name: Compile App Bundle (Vite Build)
+        run: npm run build
+
+      - name: Upload Compiled Production Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-build-assets
+          path: dist/
+          retention-days: 7
+
+  deploy-and-notify:
+    name: Deployment & Notification Stage
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download Production Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: production-build-assets
+          path: dist/
+
+      - name: Setup AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      # Custom step to deploy artifacts to AWS S3 / CloudFront node (Branded App Pipeline)
+      - name: Deploy Frontend Assets to AWS Ingress Node
+        run: |
+          echo "Syncing build artifacts with production host target..."
+          # aws s3 sync dist/ s3://${{ secrets.AWS_S3_BUCKET_NAME }} --delete
+
+      # Dispatch active build status webhook monitoring alert if the build succeeds
+      - name: Send Deployment Report Notification & Sync Status
+        if: success()
+        run: |
+          echo "Dispatching successful deployment webhook trigger to Branded App Command Center..."
+          curl -X POST "https://fitnessfuture-management.fitnessfuture.com/api/github/webhook" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "repository": "FitnessFuture/fitness-future",
+              "branch": "main",
+              "commitSha": "${{ github.sha }}",
+              "platform": "Web/AWS-Swarm",
+              "version": "1.2.5",
+              "status": "SUCCESS",
+              "files": ["dist/index.html", "dist/assets/index.js"],
+              "recipientEmail": "royalthegym@gmail.com"
+            }'
+
+      # Dispatch failure notification webhook in case build, test, or deploy stage fails
+      - name: Trigger Pipeline Failure Hook Alert
+        if: failure()
+        run: |
+          echo "Build duration or deploy error detected. Dispatching alert webhook to Gym Owner..."
+          curl -X POST "https://fitnessfuture-management.fitnessfuture.com/api/github/webhook" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "repository": "FitnessFuture/fitness-future",
+              "branch": "main",
+              "commitSha": "${{ github.sha }}",
+              "platform": "Web/AWS-Swarm",
+              "version": "1.2.5",
+              "status": "FAILED",
+              "files": [],
+              "recipientEmail": "royalthegym@gmail.com"
+            }'

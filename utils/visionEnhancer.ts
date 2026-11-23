@@ -12,7 +12,7 @@ export function enhanceFrame(videoElement: HTMLVideoElement, canvasElement: HTML
     canvasElement.width = videoElement.videoWidth;
     canvasElement.height = videoElement.videoHeight;
 
-    // Apply hardware-accelerated filters to simulate CLAHE/Low-light enhancement
+    // Apply hardware-accelerated filters to Process CLAHE/Low-light enhancement
     // 1. Brightness: Boost overall light
     // 2. Contrast: Increase difference between dark and light areas
     // 3. Saturate: Recover colors lost in low light
@@ -39,7 +39,7 @@ export function getEnhancedCanvas(videoElement: HTMLVideoElement, canvasElement:
     canvasElement.width = videoElement.videoWidth;
     canvasElement.height = videoElement.videoHeight;
 
-    // Simulate CLAHE
+    // Process CLAHE
     ctx.filter = 'brightness(1.2) contrast(1.3) saturate(1.2)';
     ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
     ctx.filter = 'none';

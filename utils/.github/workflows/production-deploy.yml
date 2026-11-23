@@ -1,0 +1,70 @@
+name: FITNESS FUTURE OS - Production CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REPOSITORY: fitness-gym-microservices
+
+jobs:
+  build-and-deploy:
+    name: Build, Push, and Deploy to AWS
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build and Push Python AI Backend
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:python-backend-$IMAGE_TAG ./apps/ai-engine
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:python-backend-$IMAGE_TAG
+
+    - name: Build and Push Node.js Automation
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:node-automation-$IMAGE_TAG ./apps/backend-api
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:node-automation-$IMAGE_TAG
+
+    - name: Deploy to AWS Production Server via SSH
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.PROD_SERVER_IP }}
+        username: ubuntu
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          cd /opt/fitness-gym-os
+          git pull origin main
+          
+          # Update .env with latest secrets from AWS Parameter Store / GitHub Secrets
+          echo "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" > .env
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+          echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> .env
+          
+          # Pull latest images from ECR
+          aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+          
+          # Deploy using Docker Swarm / Compose with Zero Downtime
+          docker-compose -f infra/docker-compose.prod.yml up -d --build --remove-orphans
+          
+          # Clean up old images to save disk space
+          docker image prune -af

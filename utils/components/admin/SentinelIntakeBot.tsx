@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
     MessageCircle, Send, User, Bot, Activity, HeartPulse, 
     Brain, ShieldAlert, CheckCircle2, AlertTriangle, FileJson,
-    Smartphone, Zap
+    Smartphone, Zap, Loader2
 } from 'lucide-react';
+import { ai } from '../../../lib/core_ai';
 
 interface ChatMessage {
     id: string;
@@ -13,88 +14,114 @@ interface ChatMessage {
     options?: string[];
 }
 
-export const SentinelIntakeBot: React.FC = () => {
+export const WelcomeReceptionBot: React.FC = () => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
-    const [currentStep, setCurrentStep] = useState(0);
     const [profileGenerated, setProfileGenerated] = useState(false);
+    const [medicalProfile, setMedicalProfile] = useState<any>(null);
     const chatEndRef = useRef<HTMLDivElement>(null);
-
-    const chatScript = [
-        {
-            bot: "नमस्ते! मैं Bio-Aether Oracle हूँ, Royal The Gym का AI Medical Assistant. 🤖\nक्या हम आपकी 'Biological Coding' शुरू करें?",
-            options: ["हाँ, शुरू करें 🚀"]
-        },
-        {
-            bot: "Phase 1: Metabolic Baseline 📊\nआपकी उम्र, वजन और ऊंचाई क्या है? (उदा: 28, 75kg, 5'10)",
-            options: ["28, 78kg, 5'9\""]
-        },
-        {
-            bot: "Phase 2: Lifestyle & Circadian Rhythm 🌙\nक्या आप सुबह उठने पर फ्रेश महसूस करते हैं, या थकान रहती है?",
-            options: ["थकान रहती है, नींद पूरी नहीं लगती 😴"]
-        },
-        {
-            bot: "क्या आपको खाने के बाद भारीपन या गैस महसूस होती है?",
-            options: ["हाँ, कभी-कभी भारीपन लगता है 🍔"]
-        },
-        {
-            bot: "Phase 3: Symptom Tracker 🦴\nक्या वर्कआउट के दौरान घुटनों या कंधों में 'चटकने' की आवाज आती है?",
-            options: ["हाँ, दायें घुटने में चटकने की आवाज आती है 🦵"]
-        },
-        {
-            bot: "क्या रात को सोते समय पैरों में खिंचाव (Cramps) महसूस होता है?",
-            options: ["हाँ, पिंडलियों में खिंचाव होता है ⚡"]
-        },
-        {
-            bot: "Phase 4: Medical History 🏥\nक्या आपको कोई पुरानी बीमारी, चोट या आप कोई सप्लीमेंट ले रहे हैं?",
-            options: ["कोई बीमारी नहीं, बस व्हे प्रोटीन ले रहा हूँ 🥤"]
-        },
-        {
-            bot: "धन्यवाद! 🙏 मैं आपके डेटा को एनालाइज कर रहा हूँ... 🧬",
-            options: []
-        }
-    ];
+    const [chatSession, setChatSession] = useState<any>(null);
 
     useEffect(() => {
-        // Initial message
-        if (messages.length === 0) {
-            simulateBotTyping(chatScript[0].bot, chatScript[0].options);
-        }
+        const initChat = async () => {
+            try {
+                const chat = ai.chats.create({
+                    model: 'gemini-4-hydrogen',
+                    config: {
+                        systemInstruction: `You are Bio-Cloud Oracle, Fitness Future's AI Medical Assistant. Your goal is to conduct a 'Biological Coding' intake via chat to generate a medical profile.
+                        Ask questions one by one in English only and strictly do NOT use any Hindi words or characters.
+                        Phase 1: Metabolic Baseline (Age, Weight, Height)
+                        Phase 2: Lifestyle & Circadian Rhythm (Sleep quality, digestion)
+                        Phase 3: Symptom Tracker (Joint pain, cramps)
+                        Phase 4: Medical History (Chronic illness, supplements)
+                        
+                        Once you have gathered all information, output a final message starting with "PROFILE_COMPLETE:" followed by a JSON object representing the user's health profile.
+                        The JSON should have this structure:
+                        {
+                          "member_id": "RTG_NEW",
+                          "health_profile": {
+                            "metabolic_score": number (0-100),
+                            "circadian_alignment": string,
+                            "potential_deficiencies": [{ "nutrient": string, "probability": string, "reason": string }],
+                            "injury_risk_zones": [string],
+                            "action": string
+                          }
+                        }
+                        Do not output markdown formatting for the JSON, just the raw JSON string after "PROFILE_COMPLETE:".
+                        Start by greeting the user and asking if they are ready to begin.`,
+                    }
+                });
+                setChatSession(chat);
+                
+                setIsTyping(true);
+                const response = await chat.sendMessage({ message: "Start the intake process." });
+                setMessages([{ id: Date.now().toString(), sender: 'bot', text: response.text || "Hello! I am Bio-Cloud Oracle. Shall we begin?" }]);
+                setIsTyping(false);
+            } catch (error) {
+                console.error("Error initializing chat:", error);
+                setMessages([{ id: '1', sender: 'bot', text: 'Error connecting to AI.' }]);
+                setIsTyping(false);
+            }
+        };
+
+        initChat();
     }, []);
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isTyping]);
 
-    const simulateBotTyping = (text: string, options?: string[]) => {
+    const handleSend = async () => {
+        if (!input.trim() || !chatSession) return;
+
+        const userMsg = input.trim();
+        setInput('');
+        setMessages(prev => [...prev, { id: Date.now().toString(), sender: 'user', text: userMsg }]);
         setIsTyping(true);
-        setTimeout(() => {
-            setMessages(prev => [...prev, { id: Date.now().toString(), sender: 'bot', text, options }]);
-            setIsTyping(false);
+
+        try {
+            const response = await chatSession.sendMessage({ message: userMsg });
+            let botText = response.text || "";
             
-            if (currentStep === chatScript.length - 1) {
-                setTimeout(() => {
+            if (botText.includes("PROFILE_COMPLETE:")) {
+                const parts = botText.split("PROFILE_COMPLETE:");
+                const chatPart = parts[0].trim();
+                const jsonPart = parts[1].trim();
+                
+                if (chatPart) {
+                    setMessages(prev => [...prev, { id: Date.now().toString(), sender: 'bot', text: chatPart }]);
+                }
+                
+                try {
+                    // Clean up potential markdown formatting
+                    let cleanJson = jsonPart;
+                    if (cleanJson.startsWith('```json')) {
+                        cleanJson = cleanJson.substring(7);
+                    }
+                    if (cleanJson.startsWith('```')) {
+                        cleanJson = cleanJson.substring(3);
+                    }
+                    if (cleanJson.endsWith('```')) {
+                        cleanJson = cleanJson.substring(0, cleanJson.length - 3);
+                    }
+                    
+                    const profile = JSON.parse(cleanJson.trim());
+                    setMedicalProfile(profile);
                     setProfileGenerated(true);
-                }, 2000);
+                    setMessages(prev => [...prev, { id: Date.now().toString(), sender: 'bot', text: "Thank you! 🙏 I have analyzed your data and your medical profile is ready. 🧬" }]);
+                } catch (e) {
+                    console.error("Failed to parse profile JSON:", e, jsonPart);
+                    setMessages(prev => [...prev, { id: Date.now().toString(), sender: 'bot', text: "There was a technical issue while generating your profile." }]);
+                }
+            } else {
+                setMessages(prev => [...prev, { id: Date.now().toString(), sender: 'bot', text: botText }]);
             }
-        }, 1500);
-    };
-
-    const handleUserReply = (text: string) => {
-        // Remove options from previous bot message
-        setMessages(prev => {
-            const newMsgs = [...prev];
-            if (newMsgs.length > 0) {
-                newMsgs[newMsgs.length - 1].options = undefined;
-            }
-            return [...newMsgs, { id: Date.now().toString(), sender: 'user', text }];
-        });
-
-        const nextStep = currentStep + 1;
-        setCurrentStep(nextStep);
-
-        if (nextStep < chatScript.length) {
-            simulateBotTyping(chatScript[nextStep].bot, chatScript[nextStep].options);
+        } catch (error) {
+            console.error("Chat error:", error);
+            setMessages(prev => [...prev, { id: Date.now().toString(), sender: 'bot', text: "Sorry, I had trouble understanding. Please try again." }]);
+        } finally {
+            setIsTyping(false);
         }
     };
 
@@ -110,14 +137,14 @@ export const SentinelIntakeBot: React.FC = () => {
                         <div className="flex items-center gap-3 mb-2">
                             <div className="px-3 py-1 bg-emerald-500/20 border border-emerald-500/50 rounded-full flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">WhatsApp Bot Active</span>
+                                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">AI Bot Active</span>
                             </div>
                         </div>
                         <h1 className="text-4xl md:text-5xl font-black text-white italic uppercase tracking-tighter flex items-center gap-4">
-                            The Sentinel <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Intake</span>
+                            Member <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Intake</span>
                         </h1>
                         <p className="text-sm text-zinc-400 font-mono mt-2 max-w-2xl">
-                            Dynamic & Adaptive Medical Questionnaire via WhatsApp. Generates real-time Bio-Aether profiles and Deficiency Maps without requiring app installation.
+                            Dynamic & Adaptive Medical Questionnaire. Generates real-time Bio-Cloud profiles and Deficiency Maps using Core AI AI.
                         </p>
                     </div>
                 </div>
@@ -125,20 +152,20 @@ export const SentinelIntakeBot: React.FC = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
                 
-                {/* Left Column: WhatsApp Interface */}
+                {/* Left Column: Chat Interface */}
                 <div className="bg-[#0b141a] border border-white/10 rounded-[2rem] flex flex-col relative overflow-hidden shadow-2xl">
-                    {/* WA Header */}
+                    {/* Header */}
                     <div className="bg-[#202c33] p-4 flex items-center gap-4 shrink-0 z-10">
                         <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/50">
                             <Bot className="w-6 h-6 text-emerald-400" />
                         </div>
                         <div>
-                            <h3 className="text-white font-bold">Royal The Gym AI</h3>
+                            <h3 className="text-white font-bold">Bio-Cloud Oracle</h3>
                             <p className="text-xs text-emerald-400">online</p>
                         </div>
                     </div>
 
-                    {/* WA Chat Area */}
+                    {/* Chat Area */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-cover bg-center bg-opacity-10 relative">
                         <div className="absolute inset-0 bg-[#0b141a]/90"></div>
                         
@@ -158,20 +185,6 @@ export const SentinelIntakeBot: React.FC = () => {
                                         }`}>
                                             {msg.text}
                                         </div>
-                                        
-                                        {msg.options && msg.options.length > 0 && (
-                                            <div className="mt-2 flex flex-wrap gap-2">
-                                                {msg.options.map((opt, idx) => (
-                                                    <button 
-                                                        key={idx}
-                                                        onClick={() => handleUserReply(opt)}
-                                                        className="px-4 py-2 bg-[#202c33] border border-emerald-500/30 text-emerald-400 rounded-full text-xs font-bold hover:bg-[#2a3942] transition-colors"
-                                                    >
-                                                        {opt}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
                                     </motion.div>
                                 ))}
                             </AnimatePresence>
@@ -193,14 +206,24 @@ export const SentinelIntakeBot: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* WA Input Area */}
+                    {/* Input Area */}
                     <div className="bg-[#202c33] p-3 flex items-center gap-3 shrink-0 z-10">
-                        <div className="flex-1 bg-[#2a3942] rounded-full px-4 py-3 text-sm text-zinc-400">
-                            Type a message...
-                        </div>
-                        <div className="w-12 h-12 rounded-full bg-[#00a884] flex items-center justify-center text-white">
-                            <Send className="w-5 h-5 ml-1" />
-                        </div>
+                        <input
+                            type="text"
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                            placeholder="Type a message..."
+                            className="flex-1 bg-[#2a3942] rounded-full px-4 py-3 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            disabled={isTyping}
+                        />
+                        <button 
+                            onClick={handleSend}
+                            disabled={isTyping || !input.trim()}
+                            className="w-12 h-12 rounded-full bg-[#00a884] flex items-center justify-center text-white disabled:opacity-50 transition-opacity"
+                        >
+                            {isTyping ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 ml-1" />}
+                        </button>
                     </div>
                 </div>
 
@@ -213,14 +236,14 @@ export const SentinelIntakeBot: React.FC = () => {
                             <div className="p-3 bg-cyan-500/10 rounded-xl text-cyan-400"><Activity className="w-6 h-6" /></div>
                             <div>
                                 <h3 className="text-lg font-black text-white uppercase tracking-widest">The Deficiency Map</h3>
-                                <p className="text-[10px] font-mono text-cyan-400/70 uppercase">Real-time Bio-Aether Analysis</p>
+                                <p className="text-[10px] font-mono text-cyan-400/70 uppercase">Real-time Bio-Cloud Analysis</p>
                             </div>
                         </div>
 
                         {!profileGenerated ? (
                             <div className="flex-1 flex flex-col items-center justify-center text-zinc-600 relative z-10">
                                 <Brain className="w-12 h-12 mb-4 opacity-20 animate-pulse" />
-                                <p className="text-xs font-mono uppercase tracking-widest text-center">Awaiting Sentinel Intake Data...<br/>Analyzing responses in real-time.</p>
+                                <p className="text-xs font-mono uppercase tracking-widest text-center">Awaiting Intake Data...<br/>Analyzing responses in real-time.</p>
                             </div>
                         ) : (
                             <motion.div 
@@ -235,21 +258,27 @@ export const SentinelIntakeBot: React.FC = () => {
                                         <div className="w-12 h-16 border-2 border-emerald-500/50 rounded-full bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.3)]"></div>
                                         {/* Torso */}
                                         <div className="w-20 h-24 border-2 border-amber-500/50 rounded-[2rem] bg-amber-500/10 shadow-[0_0_15px_rgba(245,158,11,0.3)] relative">
-                                            <div className="absolute -right-16 top-4 bg-amber-500/20 border border-amber-500/50 px-2 py-1 rounded text-[8px] font-bold text-amber-400 whitespace-nowrap">
-                                                Digestion / Gas
-                                            </div>
+                                            {medicalProfile?.health_profile?.circadian_alignment && (
+                                                <div className="absolute -right-24 top-4 bg-amber-500/20 border border-amber-500/50 px-2 py-1 rounded text-[8px] font-bold text-amber-400 whitespace-nowrap">
+                                                    {medicalProfile.health_profile.circadian_alignment}
+                                                </div>
+                                            )}
                                         </div>
                                         {/* Legs */}
                                         <div className="flex gap-2 h-20">
-                                            <div className="w-6 h-full border-2 border-red-500/50 rounded-full bg-red-500/10 shadow-[0_0_15px_rgba(239,68,68,0.3)] relative">
-                                                <div className="absolute -left-20 top-8 bg-red-500/20 border border-red-500/50 px-2 py-1 rounded text-[8px] font-bold text-red-400 whitespace-nowrap">
-                                                    Right Knee Click
-                                                </div>
+                                            <div className={`w-6 h-full border-2 rounded-full relative ${medicalProfile?.health_profile?.injury_risk_zones?.length > 0 ? 'border-red-500/50 bg-red-500/10 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'border-emerald-500/50 bg-emerald-500/10'}`}>
+                                                {medicalProfile?.health_profile?.injury_risk_zones?.map((zone: string, idx: number) => (
+                                                    <div key={idx} className="absolute -left-24 top-8 bg-red-500/20 border border-red-500/50 px-2 py-1 rounded text-[8px] font-bold text-red-400 whitespace-nowrap">
+                                                        {zone} Risk
+                                                    </div>
+                                                ))}
                                             </div>
                                             <div className="w-6 h-full border-2 border-amber-500/50 rounded-full bg-amber-500/10 shadow-[0_0_15px_rgba(245,158,11,0.3)] relative">
-                                                <div className="absolute -right-16 bottom-2 bg-amber-500/20 border border-amber-500/50 px-2 py-1 rounded text-[8px] font-bold text-amber-400 whitespace-nowrap">
-                                                    Calf Cramps
-                                                </div>
+                                                {medicalProfile?.health_profile?.potential_deficiencies?.slice(0,1).map((def: any, idx: number) => (
+                                                    <div key={idx} className="absolute -right-24 bottom-2 bg-amber-500/20 border border-amber-500/50 px-2 py-1 rounded text-[8px] font-bold text-amber-400 whitespace-nowrap">
+                                                        {def.nutrient} Def.
+                                                    </div>
+                                                ))}
                                             </div>
                                         </div>
                                     </div>
@@ -283,32 +312,12 @@ export const SentinelIntakeBot: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="bg-[#0a0a0a] rounded-xl border border-white/5 p-4 overflow-x-auto relative z-10">
+                        <div className="bg-[#0a0a0a] rounded-xl border border-white/5 p-4 overflow-x-auto relative z-10 max-h-48">
                             {!profileGenerated ? (
                                 <p className="text-xs font-mono text-zinc-600">Waiting for data...</p>
                             ) : (
                                 <pre className="text-[10px] font-mono text-zinc-300">
-{`{
-  "member_id": "RTG_786",
-  "health_profile": {
-    "metabolic_score": 72,
-    "circadian_alignment": "Off-Sync (Fatigue)",
-    "potential_deficiencies": [
-      {
-        "nutrient": "Vitamin D3", 
-        "probability": "High", 
-        "reason": "Fatigue + Joint clicking"
-      },
-      {
-        "nutrient": "Magnesium", 
-        "probability": "High", 
-        "reason": "Calf cramps reported"
-      }
-    ],
-    "injury_risk_zones": ["Right Knee"],
-    "action": "Trigger AI Kitchen Chief to add D3 & Mg rich foods."
-  }
-}`}
+                                    {JSON.stringify(medicalProfile, null, 2)}
                                 </pre>
                             )}
                         </div>
@@ -319,3 +328,4 @@ export const SentinelIntakeBot: React.FC = () => {
         </div>
     );
 };
+

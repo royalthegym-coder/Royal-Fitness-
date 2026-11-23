@@ -22,7 +22,7 @@ export const DigitalBioHealthPass: React.FC<DigitalBioHealthPassProps> = ({ memb
                 setShowConsent(true);
                 setIsGenerating(false);
             } else {
-                // Simulate secure generation of the pass
+                // Process secure generation of the pass
                 const timer = setTimeout(() => {
                     setIsGenerating(false);
                     setSecurityHash(Math.random().toString(36).substring(2, 15).toUpperCase() + '-' + Date.now().toString(36).toUpperCase());
@@ -103,7 +103,7 @@ export const DigitalBioHealthPass: React.FC<DigitalBioHealthPassProps> = ({ memb
                         </li>
                         <li className="flex gap-3">
                             <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
-                            <span><strong>AI Processing:</strong> Your anonymized data will be processed by our Bio-Aether Oracle to generate health insights.</span>
+                            <span><strong>AI Processing:</strong> Your anonymized data will be processed by our Bio-Cloud Oracle to generate health insights.</span>
                         </li>
                     </ul>
                 </div>
@@ -111,15 +111,18 @@ export const DigitalBioHealthPass: React.FC<DigitalBioHealthPassProps> = ({ memb
                 <div className="flex justify-end gap-4">
                     <button 
                         onClick={() => window.history.back()}
-                        className="px-6 py-3 rounded-xl text-white font-bold uppercase tracking-widest text-xs hover:bg-white/5 transition-colors"
+                        className="relative px-6 py-3 bg-gradient-to-r from-gray-900/40 to-gray-800/40 hover:from-gray-800/60 hover:to-gray-700/60 backdrop-blur-xl border border-dashed border-white/10 hover:border-white/30 text-white rounded-xl font-bold uppercase tracking-widest text-xs transition-all shadow-[0_0_15px_rgba(0,0,0,0.5)] hover:shadow-[0_0_25px_rgba(255,255,255,0.1)] group overflow-hidden"
                     >
-                        Decline & Go Back
+                        <div className="absolute inset-0 bg-white/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                        <span className="relative z-10">Decline & Go Back</span>
                     </button>
                     <button 
                         onClick={handleAcceptConsent}
-                        className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-black rounded-xl font-black uppercase tracking-widest text-xs transition-colors flex items-center gap-2"
+                        className="relative px-6 py-3 bg-gradient-to-r from-emerald-900/40 to-emerald-800/40 hover:from-emerald-800/60 hover:to-emerald-700/60 backdrop-blur-xl border border-dashed border-emerald-500/50 hover:border-emerald-400 text-emerald-400 rounded-xl font-black uppercase tracking-widest text-xs transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:shadow-[0_0_30px_rgba(16,185,129,0.4)] group overflow-hidden"
                     >
-                        <Lock className="w-4 h-4" /> I Consent & Agree
+                        <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                        <Lock className="w-4 h-4 relative z-10 group-hover:scale-110 transition-transform duration-500" /> 
+                        <span className="relative z-10">I Consent & Agree</span>
                     </button>
                 </div>
             </div>
@@ -151,11 +154,13 @@ export const DigitalBioHealthPass: React.FC<DigitalBioHealthPassProps> = ({ memb
                     <span className="text-xs font-mono text-zinc-400 uppercase tracking-widest">Medical Compliance: Active (HIPAA/GDPR)</span>
                 </div>
                 <div className="flex gap-3">
-                    <button onClick={handleShare} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white transition-colors">
-                        <Share2 className="w-4 h-4" />
+                    <button onClick={handleShare} className="relative p-2 bg-gradient-to-r from-gray-900/40 to-gray-800/40 hover:from-gray-800/60 hover:to-gray-700/60 backdrop-blur-xl border border-dashed border-white/10 hover:border-white/30 text-white rounded-lg transition-all shadow-[0_0_15px_rgba(0,0,0,0.5)] hover:shadow-[0_0_25px_rgba(255,255,255,0.1)] group overflow-hidden">
+                        <div className="absolute inset-0 bg-white/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                        <Share2 className="w-4 h-4 relative z-10 group-hover:scale-110 transition-transform duration-500" />
                     </button>
-                    <button className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-colors">
-                        <Download className="w-4 h-4" />
+                    <button className="relative p-2 bg-gradient-to-r from-emerald-900/40 to-emerald-800/40 hover:from-emerald-800/60 hover:to-emerald-700/60 backdrop-blur-xl border border-dashed border-emerald-500/50 hover:border-emerald-400 text-emerald-400 rounded-lg transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] hover:shadow-[0_0_25px_rgba(16,185,129,0.4)] group overflow-hidden">
+                        <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                        <Download className="w-4 h-4 relative z-10 group-hover:scale-110 transition-transform duration-500" />
                     </button>
                 </div>
             </div>
@@ -173,7 +178,7 @@ export const DigitalBioHealthPass: React.FC<DigitalBioHealthPassProps> = ({ memb
                         <div className="flex items-center gap-6">
                             <div className="relative">
                                 <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-emerald-500/50 relative z-10">
-                                    <img src={member.avatar} alt={member.name} className="w-full h-full object-cover" />
+                                    <img src={member.avatar || "https://i.pravatar.cc/150?u=" + member.id} alt={member.name} className="w-full h-full object-cover" />
                                 </div>
                                 <div className="absolute -inset-2 bg-emerald-500/20 rounded-3xl blur-md -z-10"></div>
                                 <div className="absolute -bottom-3 -right-3 bg-black p-1.5 rounded-lg border border-emerald-500/50">
@@ -313,7 +318,7 @@ export const DigitalBioHealthPass: React.FC<DigitalBioHealthPassProps> = ({ memb
                             </div>
                         </div>
                         <div className="text-right">
-                            <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">Bio-Aether Oracle Verified</p>
+                            <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">Bio-Cloud Oracle Verified</p>
                             <p className="text-[8px] text-zinc-500 font-mono uppercase tracking-widest mt-1">Generated: {new Date().toLocaleString()}</p>
                         </div>
                     </div>

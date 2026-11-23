@@ -1,41 +1,44 @@
+import { getCurrencySymbol } from '../store/useCurrencyStore';
 
 import React, { useState, useMemo } from 'react';
 import Card from './common/Card';
-import { INITIAL_INVOICES, INITIAL_MEMBERS, INITIAL_PACKAGES } from '../../constants';
+import { INITIAL_PACKAGES } from '../../constants';
+import { useData } from '../context/DataProvider';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, Sector, LineChart, Line, CartesianGrid } from 'recharts';
-import { getComplexResponse } from '../../lib/gemini';
+import { getComplexResponse } from '../../lib/core_ai';
 import { SparkleIcon } from './icons/SparkleIcon';
 import CustomTooltip from './common/CustomTooltip';
 import { TrendingUpIcon } from './icons/TrendingUpIcon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
 
 const Reports: React.FC = () => {
+    const { members, invoices } = useData();
     const [aiSummary, setAiSummary] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [activeTab, setActiveTab] = useState<'standard' | 'predictive'>('standard');
 
     const monthlyRevenueData = useMemo(() => {
         const months: { [key: string]: number } = {};
-        INITIAL_INVOICES.filter(i => i.status === 'Paid').forEach(invoice => {
+        invoices.filter(i => i.status === 'Paid').forEach(invoice => {
             const month = new Date(invoice.date).toLocaleString('default', { month: 'short', year: 'numeric' });
             months[month] = (months[month] || 0) + invoice.amount;
         });
         return Object.entries(months).map(([name, revenue]) => ({ name, revenue })).reverse();
-    }, []);
+    }, [invoices]);
 
     const packagePopularityData = useMemo(() => {
         const packageCounts: { [key: string]: number } = {};
-        INITIAL_MEMBERS.forEach(member => {
+        members.forEach(member => {
             const pkg = INITIAL_PACKAGES.find(p => p.id === member.packageId);
             if (pkg) {
                 packageCounts[pkg.name] = (packageCounts[pkg.name] || 0) + 1;
             }
         });
         return Object.entries(packageCounts).map(([name, value]) => ({ name, value }));
-    }, []);
+    }, [members]);
 
     const membershipGrowthData = useMemo(() => {
-        const sortedMembers = [...INITIAL_MEMBERS].sort((a, b) => new Date(a.joinDate).getTime() - new Date(b.joinDate).getTime());
+        const sortedMembers = [...members].sort((a, b) => new Date(a.joinDate).getTime() - new Date(b.joinDate).getTime());
         const growth: { [key: string]: number } = {};
         let count = 0;
         
@@ -45,11 +48,10 @@ const Reports: React.FC = () => {
             growth[month] = count;
         });
 
-        // Ensure we have at least a few months for the chart even with sparse data
         return Object.entries(growth).map(([name, members]) => ({ name, members }));
-    }, []);
+    }, [members]);
 
-    // Mock Data for Predictive Analytics
+    // Data for Predictive Analytics
     const forecastData = [
         { month: 'Aug', actual: 78000, projected: 78000 },
         { month: 'Sep', actual: null, projected: 82000 },
@@ -57,11 +59,13 @@ const Reports: React.FC = () => {
         { month: 'Nov', actual: null, projected: 81000 },
     ];
 
-    const churnRiskMembers = [
-        { name: 'Rohan Kumar', risk: 85, reason: 'Absent > 20 days' },
-        { name: 'Vikram Mehta', risk: 60, reason: 'Membership expiring soon' },
-        { name: 'Anika Singh', risk: 15, reason: 'Consistent attendance' },
-    ];
+    const churnRiskMembers = useMemo(() => {
+        return members.map(m => ({
+            name: m.name,
+            risk: m.status === 'Expired' ? 85 : m.status === 'Inactive' ? 60 : 15,
+            reason: m.status === 'Expired' ? 'Membership expired' : m.status === 'Inactive' ? 'Low recent attendance' : 'Consistent attendance'
+        }));
+    }, [members]);
 
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658'];
 
@@ -80,8 +84,8 @@ const Reports: React.FC = () => {
             Membership Growth:
             ${JSON.stringify(membershipGrowthData)}
 
-            Total Members: ${INITIAL_MEMBERS.length}
-            Total Paid Invoices: ${INITIAL_INVOICES.filter(i => i.status === 'Paid').length}
+            Total Members: ${members.length}
+            Total Paid Invoices: ${invoices.filter(i => i.status === 'Paid').length}
         `;
 
         const summary = await getComplexResponse(promptData);
@@ -92,9 +96,15 @@ const Reports: React.FC = () => {
     return (
         <div className="space-y-6">
             <div className="flex justify-center mb-6">
-                <div className="bg-gray-800 rounded-lg p-1 flex space-x-1">
-                    <button onClick={() => setActiveTab('standard')} className={`px-4 py-2 rounded-md text-sm font-bold transition-colors ${activeTab === 'standard' ? 'bg-amber-500 text-gray-900' : 'text-gray-400 hover:text-white'}`}>Standard Reports</button>
-                    <button onClick={() => setActiveTab('predictive')} className={`px-4 py-2 rounded-md text-sm font-bold transition-colors ${activeTab === 'predictive' ? 'bg-amber-500 text-gray-900' : 'text-gray-400 hover:text-white'}`}>Predictive Analytics (AI)</button>
+                <div className="bg-gray-900/80 rounded-2xl p-1.5 flex space-x-1 border border-white/10 shadow-xl backdrop-blur-md">
+                    <button onClick={() => setActiveTab('standard')} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative overflow-hidden group ${activeTab === 'standard' ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-black shadow-[0_0_20px_rgba(245,158,11,0.4)] border border-amber-400/50 border-dashed' : 'text-gray-400 hover:text-white border border-transparent'}`}>
+                        {activeTab === 'standard' && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>}
+                        <span className="relative z-10">Standard Reports</span>
+                    </button>
+                    <button onClick={() => setActiveTab('predictive')} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative overflow-hidden group ${activeTab === 'predictive' ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-black shadow-[0_0_20px_rgba(245,158,11,0.4)] border border-amber-400/50 border-dashed' : 'text-gray-400 hover:text-white border border-transparent'}`}>
+                        {activeTab === 'predictive' && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>}
+                        <span className="relative z-10">Predictive Analytics (AI)</span>
+                    </button>
                 </div>
             </div>
 
@@ -104,10 +114,11 @@ const Reports: React.FC = () => {
                         <button
                             onClick={handleGenerateSummary}
                             disabled={isLoading}
-                            className="w-full bg-amber-500 text-gray-900 font-bold py-2 px-4 rounded-lg hover:bg-amber-400 transition-colors disabled:bg-gray-600 flex items-center justify-center"
+                            className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-black font-black py-4 rounded-xl uppercase tracking-widest text-[10px] shadow-[0_0_20px_rgba(245,158,11,0.3)] border border-amber-400/50 border-dashed transition-all disabled:opacity-50 flex items-center justify-center gap-2 relative overflow-hidden group"
                         >
-                            <SparkleIcon className="w-5 h-5 mr-2" />
-                            {isLoading ? 'Generating Analysis...' : 'Generate AI Summary'}
+                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                            <SparkleIcon className="w-4 h-4 relative z-10" />
+                            <span className="relative z-10">{isLoading ? 'Generating Analysis...' : 'Generate AI Summary'}</span>
                         </button>
                         {aiSummary && (
                             <div className="mt-4 p-4 bg-gray-100 dark:bg-gray-700/50 rounded-lg">
@@ -124,10 +135,10 @@ const Reports: React.FC = () => {
                                     <BarChart data={monthlyRevenueData}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
                                         <XAxis dataKey="name" stroke="#9CA3AF" fontSize={12} tickLine={false} axisLine={false} />
-                                        <YAxis stroke="#9CA3AF" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `₹${value/1000}k`} />
+                                        <YAxis stroke="#9CA3AF" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${getCurrencySymbol()}${value/1000}k`} />
                                         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(125, 125, 125, 0.1)' }} />
                                         <Legend />
-                                        <Bar dataKey="revenue" name="Revenue (₹)" fill="#fbbf24" radius={[4, 4, 0, 0]} activeBar={<rect fill="#f59e0b" />} />
+                                        <Bar dataKey="revenue" name={`Revenue (${getCurrencySymbol()})`} fill="#fbbf24" radius={[4, 4, 0, 0]} activeBar={<rect fill="#f59e0b" />} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
@@ -207,8 +218,9 @@ const Reports: React.FC = () => {
                                     </div>
                                 ))}
                             </div>
-                            <button className="mt-4 w-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold py-2 rounded transition-colors">
-                                Send Re-engagement Offers
+                            <button className="mt-6 w-full bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-black py-4 rounded-xl uppercase tracking-widest text-[10px] shadow-[0_0_20px_rgba(37,99,235,0.3)] border border-blue-500/50 border-dashed transition-all relative overflow-hidden group">
+                                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                <span className="relative z-10">Send Re-engagement Offers</span>
                             </button>
                         </Card>
                     </div>

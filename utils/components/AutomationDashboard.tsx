@@ -13,7 +13,7 @@ const AutomationDashboard: React.FC = () => {
         { id: '4', name: 'Lead Welcome', trigger: 'New Lead', action: 'Auto-Reply', active: false },
     ]);
 
-    const toggleFlow = (id: number) => {
+    const toggleFlow = (id: string | number) => {
         setFlows(prev => prev.map(f => f.id === id ? { ...f, active: !f.active } : f));
         addToast("Automation State Updated.", "info");
     };

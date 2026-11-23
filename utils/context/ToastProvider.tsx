@@ -2,7 +2,7 @@
 import React, { createContext, useState, useCallback, ReactNode } from 'react';
 import ToastContainer from '../components/common/Toast';
 
-type ToastType = 'success' | 'error' | 'info';
+type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 interface ToastMessage {
   id: number;

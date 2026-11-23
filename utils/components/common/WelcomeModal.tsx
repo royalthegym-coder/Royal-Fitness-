@@ -4,7 +4,7 @@ import Modal from './Modal';
 import { Member } from '../../../types';
 import { GYM_INFO } from '../../../constants';
 import { WhatsAppIcon } from '../icons/WhatsAppIcon';
-import { generateTextToSpeech } from '../../../lib/gemini';
+import { generateTextToSpeech } from '../../../lib/core_ai';
 import { decode, decodeAudioData } from '../../audio';
 import { SpeakerIcon } from '../icons/SpeakerIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
@@ -22,7 +22,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ isOpen, onClose, member, we
   
   if (!member) return null;
 
-  const welcomeMessage = `Hello ${member.name}, welcome to ${GYM_INFO.name}! We're thrilled to have you join our fitness community. Your membership is now active. For more details, visit our website: ${GYM_INFO.website}. See you at the gym!`;
+  const welcomeMessage = `Hello ${member.name}, welcome to ${GYM_INFO.name}! We're thrilled to have you join our fitness community. Your membership is now active. Your unique Member ID is #${member.id}. For more details, visit our website: ${GYM_INFO.website}. See you at the gym!`;
   const sanitizedPhone = `91${member.phone.replace(/\D/g, '')}`;
   const whatsappUrl = `https://wa.me/${sanitizedPhone}?text=${encodeURIComponent(welcomeMessage)}`;
 
@@ -57,7 +57,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ isOpen, onClose, member, we
         <div className="text-center space-y-6">
             <div className="flex justify-center">
                 <div className="h-24 w-24 rounded-full overflow-hidden border-4 border-amber-500 shadow-lg">
-                    <img src={member.avatar} alt={member.name} className="h-full w-full object-cover" />
+                    <img src={member.avatar || "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=300&q=80"} alt={member.name || "Member Avatar"} className="w-full h-full object-cover" />
                 </div>
             </div>
             

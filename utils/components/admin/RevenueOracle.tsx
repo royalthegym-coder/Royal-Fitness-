@@ -1,15 +1,18 @@
+import { getCurrencySymbol } from '../../store/useCurrencyStore';
 
 import React, { useState, useMemo } from 'react';
 import Card from '../common/Card';
 import { useData } from '../../context/DataProvider';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { DollarSign, TrendingUp, TrendingDown, Activity, Calendar, Download, RefreshCw } from 'lucide-react';
+import { useToast } from '../../hooks/useToast';
 
 const RevenueOracle: React.FC = () => {
     const { invoices, totalRevenue } = useData();
+    const { addToast } = useToast();
     const [timeRange, setTimeRange] = useState<'Week' | 'Month' | 'Year'>('Month');
     
-    // Mock Prediction Logic
+    // Prediction Logic
     const predictionData = useMemo(() => {
         const data = [];
         const base = 50000;
@@ -30,17 +33,36 @@ const RevenueOracle: React.FC = () => {
     return (
         <div className="space-y-8 animate-fade-in pb-20">
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-center bg-[#050505] p-8 rounded-[3rem] border border-emerald-500/20 shadow-2xl">
-                <div>
-                    <h1 className="text-4xl font-black text-white italic uppercase tracking-tighter flex items-center gap-3">
-                        Revenue <span className="text-emerald-500">Oracle</span>
-                    </h1>
-                    <p className="text-gray-500 text-xs font-mono mt-2 tracking-widest uppercase">Financial Intelligence v31.0</p>
-                </div>
-                <div className="flex gap-3 mt-4 md:mt-0">
-                     <button className="bg-emerald-600 text-black px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-500 transition-all flex items-center gap-2">
-                        <Download className="w-4 h-4" /> Export Report
-                     </button>
+            <div className="mb-6 bg-[#020202] p-8 rounded-[3rem] border border-cyan-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(6,182,212,0.15)] group">
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[150px] animate-pulse"></div>
+                
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+                    <div className="flex items-center gap-6">
+                        <div className="p-4 bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-[2rem] shadow-[0_0_60px_rgba(6,182,212,0.5)] border border-cyan-400 group-hover:rotate-12 transition-transform duration-700">
+                             <DollarSign className="w-12 h-12" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="px-4 py-1.5 bg-cyan-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
+                                    <Activity className="w-3 h-3" /> Fitness Future
+                                </div>
+                                <span className="text-[10px] font-mono text-cyan-500/70 tracking-[0.4em] uppercase">FINANCIAL INTELLIGENCE</span>
+                            </div>
+                            <h1 className="text-4xl md:text-6xl font-black text-white italic uppercase tracking-tighter leading-none">
+                                Revenue <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-fuchsia-400">Oracle</span>
+                            </h1>
+                        </div>
+                    </div>
+                    
+                    <div className="flex gap-3 mt-4 md:mt-0">
+                         <button 
+                            onClick={() => addToast("Financial Report exported successfully.", "success")}
+                            className="bg-cyan-600 text-black px-6 py-3 rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.3)] transition-all flex items-center gap-2"
+                         >
+                            <Download className="w-4 h-4" /> Export Report
+                         </button>
+                    </div>
                 </div>
             </div>
 
@@ -52,21 +74,21 @@ const RevenueOracle: React.FC = () => {
                         <span className="text-[10px] bg-emerald-900/30 text-emerald-400 px-2 py-1 rounded font-bold">+12%</span>
                     </div>
                     <p className="text-gray-500 text-xs font-black uppercase tracking-widest">Total Revenue</p>
-                    <h3 className="text-3xl font-black text-white italic">₹{(totalRevenue/1000).toFixed(1)}k</h3>
+                    <h3 className="text-3xl font-black text-white italic">{getCurrencySymbol()}{(totalRevenue/1000).toFixed(1)}k</h3>
                 </Card>
                 <Card className="bg-gray-900 border-white/5 p-6">
                     <div className="flex justify-between items-start mb-4">
                         <div className="p-3 bg-blue-500/20 rounded-xl text-blue-400"><Activity className="w-6 h-6"/></div>
                     </div>
                     <p className="text-gray-500 text-xs font-black uppercase tracking-widest">Monthly Recurring (MRR)</p>
-                    <h3 className="text-3xl font-black text-white italic">₹{(mrr/1000).toFixed(1)}k</h3>
+                    <h3 className="text-3xl font-black text-white italic">{getCurrencySymbol()}{(mrr/1000).toFixed(1)}k</h3>
                 </Card>
                 <Card className="bg-gray-900 border-white/5 p-6">
                     <div className="flex justify-between items-start mb-4">
                         <div className="p-3 bg-amber-500/20 rounded-xl text-amber-400"><TrendingUp className="w-6 h-6"/></div>
                     </div>
                     <p className="text-gray-500 text-xs font-black uppercase tracking-widest">Proj. Next Month</p>
-                    <h3 className="text-3xl font-black text-white italic">₹{((mrr * 1.15)/1000).toFixed(1)}k</h3>
+                    <h3 className="text-3xl font-black text-white italic">{getCurrencySymbol()}{((mrr * 1.15)/1000).toFixed(1)}k</h3>
                 </Card>
                 <Card className="bg-gray-900 border-white/5 p-6">
                     <div className="flex justify-between items-start mb-4">

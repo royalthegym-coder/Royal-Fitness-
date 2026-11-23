@@ -42,7 +42,7 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ isOpen, onClose, ex
                                 <div className="absolute inset-0 rounded-full border-t-4 border-cyan-400 animate-spin"></div>
                                 <PlayCircle className="w-12 h-12 text-cyan-400" />
                             </div>
-                            <p className="text-cyan-400 font-mono uppercase tracking-widest text-sm font-bold">Neural Simulation Active</p>
+                            <p className="text-cyan-400 font-mono uppercase tracking-widest text-sm font-bold">Smart Simulation Active</p>
                             <p className="text-gray-500 text-xs mt-2">Video stream unavailable. Follow protocol instructions.</p>
                         </div>
                     )}

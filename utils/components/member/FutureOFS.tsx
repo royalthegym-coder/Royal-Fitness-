@@ -8,7 +8,7 @@ import {
 import { useData } from '../../context/DataProvider';
 import { useToast } from '../../hooks/useToast';
 import LiveTrainingHUD from './LiveTrainingHUD';
-import { getComplexResponse, cleanAndParseJSON } from '../../../lib/gemini';
+import { getComplexResponse, cleanAndParseJSON } from '../../../lib/core_ai';
 import { BotIcon } from '../icons/BotIcon';
 
 // FIX: Define a strict type for muscle groups to ensure type safety.
@@ -34,7 +34,7 @@ const FutureOFS: React.FC<{ memberId: number }> = ({ memberId }) => {
 
     const member = members.find(m => m.id === memberId);
     
-    // --- 1. RECOVERY HEATMAP LOGIC (Simulated from logs) ---
+    // --- 1. RECOVERY HEATMAP LOGIC (from logs) ---
     const muscleStatus = useMemo(() => {
         // Simplified logic: Check if a major lift for a bodypart was done recently
         const hasRecent = (bodypart: string) => {
@@ -72,7 +72,7 @@ const FutureOFS: React.FC<{ memberId: number }> = ({ memberId }) => {
         setIsTapping(false);
         const calculatedScore = Math.min(100, Math.round((tapCount / 35) * 100));
         setCnsScore(calculatedScore);
-        addToast(`Neural Benchmark: ${calculatedScore}%`, calculatedScore < 50 ? 'error' : 'success');
+        addToast(`Smart Benchmark: ${calculatedScore}%`, calculatedScore < 50 ? 'error' : 'success');
         setPhase('Generating'); 
         generateProtocol(calculatedScore);
     };

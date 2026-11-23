@@ -5,7 +5,7 @@ import { TerminalIcon } from './icons/TerminalIcon';
 import { BugFixIcon } from './icons/BugFixIcon';
 import { AutoUpdateIcon } from './icons/AutoUpdateIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
-import { getComplexResponse } from '../../lib/gemini';
+import { getComplexResponse } from '../../lib/core_ai';
 import { 
     Terminal, Cpu, Network, Lock, Zap, 
     AlertTriangle, RefreshCw, FileCode, Play, 
@@ -68,7 +68,7 @@ const DebugEngine: React.FC = () => {
 
     const handleApplyPatch = async (id: string) => {
         setAnomalies(prev => prev.map(a => a.id === id ? { ...a, status: 'Fixing' } : a));
-        addLog(`AI: Requesting Neural Patch for anomaly ID: ${id}...`);
+        addLog(`AI: Requesting Smart Patch for anomaly ID: ${id}...`);
         
         try {
             const anomaly = anomalies.find(a => a.id === id);
@@ -80,7 +80,7 @@ const DebugEngine: React.FC = () => {
 
             setTimeout(() => {
                 setAnomalies(prev => prev.map(a => a.id === id ? { ...a, status: 'Patched' } : a));
-                addLog(`SUCCESS: Hotfix applied to production-v31.0`);
+                addLog(`SUCCESS: Hotfix applied to production-Fitness Future`);
                 addToast("Hotfix Deployed.", "success");
             }, 2000);
         } catch (e) {
@@ -90,7 +90,7 @@ const DebugEngine: React.FC = () => {
 
     const executeCommand = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && command) {
-            addLog(`root@royal:~$ ${command}`);
+            addLog(`root@fitness:~$ ${command}`);
             if (command === 'clear') setLogs([]);
             else if (command === 'scan') handleDeepScan();
             else if (command === 'help') addLog("Available commands: scan, clear, reboot, status");
@@ -178,7 +178,7 @@ const DebugEngine: React.FC = () => {
                     <div className="bg-gray-900/80 px-8 py-5 flex items-center justify-between border-b border-white/5 backdrop-blur-md">
                         <div className="flex items-center gap-3">
                             <Server className="w-4 h-4 text-green-500" />
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">royal_os:pts/0</span>
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">fitness_os:pts/0</span>
                         </div>
                         <div className="flex items-center gap-4">
                             <button onClick={() => setIsRunningStream(!isRunningStream)} className="text-gray-500 hover:text-white transition-colors">

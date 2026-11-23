@@ -10,10 +10,10 @@ import {
     Plus, BrainCircuit, Activity, History,
     ShoppingCart, Archive, Pill, Infinity
 } from 'lucide-react';
-import { getComplexResponse } from '../../lib/gemini';
+import { getComplexResponse } from '../../lib/core_ai';
 import { useToast } from '../hooks/useToast';
 
-// --- ATOMIC SEQUENCER VISUALIZER (God Tier v31.0) ---
+// --- ATOMIC SEQUENCER VISUALIZER (Advanced Fitness Future) ---
 const AtomicSequencer: React.FC<{ active: boolean; color: string; intensity: number }> = ({ active, color, intensity }) => {
     return (
         <div className="relative w-full h-96 flex items-center justify-center overflow-hidden">
@@ -65,7 +65,7 @@ const SynthesisX: React.FC<{ memberId?: number }> = ({ memberId }) => {
     // Core State
     const [selectedId, setSelectedId] = useState<number | ''>(memberId || '');
     const [activeTab, setActiveTab] = useState<'generator' | 'stack' | 'vault'>('generator');
-    const [optimizationMode, setOptimizationMode] = useState<'Bio-Repair' | 'Neural-Peak' | 'Elite-Mass'>('Neural-Peak');
+    const [optimizationMode, setOptimizationMode] = useState<'Bio-Repair' | 'Smart-Peak' | 'Elite-Mass'>('Smart-Peak');
     const [processState, setProcessState] = useState<'Idle' | 'DNA-Handshake' | 'Atomic-Bonding' | 'Stabilizing' | 'Complete'>('Idle');
     const [formula, setFormula] = useState<any>(null);
     const [logs, setLogs] = useState<string[]>([]);
@@ -90,7 +90,7 @@ const SynthesisX: React.FC<{ memberId?: number }> = ({ memberId }) => {
 
     const handleSynthesize = async () => {
         if (!member) return addToast("Biological Signature Not Detected.", "error");
-        if (userBalance < 200) return addToast("Insufficient RYL Credits for v31.0 Protocol.", "error");
+        if (userBalance < 200) return addToast("Insufficient RYL Credits for Fitness Future Protocol.", "error");
         
         setProcessState('DNA-Handshake');
         setProgress(10);
@@ -109,7 +109,7 @@ const SynthesisX: React.FC<{ memberId?: number }> = ({ memberId }) => {
             addLocalLog("CHEMISTRY: Aligning Amino Acid Strings...");
 
             const prompt = `
-                ACT AS ROYAL SOVEREIGN BIO-CHEMIST v31.0 (APEX).
+                ACT AS FUTURE SOVEREIGN BIO-CHEMIST Fitness Future (OMNI).
                 MEMBER: ${member.name}
                 VITALS: HRV ${liveHealthData.heartRate.hrv}ms, Sleep ${liveHealthData.sleep.totalHours}h, Stress Index: ${liveHealthData.heartRate.avg > 90 ? 'High' : 'Optimal'}.
                 MODE: ${optimizationMode}
@@ -135,8 +135,8 @@ const SynthesisX: React.FC<{ memberId?: number }> = ({ memberId }) => {
                 setFormula(data);
                 setProcessState('Complete');
                 setProgress(100);
-                addLocalLog("SUCCESS: Neural Protocol Compiled.");
-                addToast("God Tier Protocol Ready.", "success");
+                addLocalLog("SUCCESS: Smart Protocol Compiled.");
+                addToast("Advanced Protocol Ready.", "success");
             } catch (e) {
                 setProcessState('Idle');
                 addToast("Synthesis Interrupted.", "error");
@@ -179,19 +179,19 @@ const SynthesisX: React.FC<{ memberId?: number }> = ({ memberId }) => {
                         <div>
                             <div className="flex items-center gap-4 mb-3">
                                 <div className="px-5 py-2 bg-indigo-500 text-black rounded-full flex items-center gap-3 shadow-lg font-black uppercase tracking-[0.2em] text-[10px]">
-                                    <Infinity className="w-3 h-3 animate-spin-slow" /> Molecular God Tier v31.0
+                                    <Infinity className="w-3 h-3 animate-spin-slow" /> Advanced Protocol
                                 </div>
-                                <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">KERNEL: APEX_CONTINUUM</span>
+                                <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">KERNEL: OMNI_CONTINUUM</span>
                             </div>
                             <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none">
-                                Neural <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-500">Stacks</span>
+                                Smart <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-500">Stacks</span>
                             </h1>
                         </div>
                     </div>
                     
                     <div className="flex bg-gray-900/80 p-2 rounded-3xl border border-white/10 backdrop-blur-3xl shadow-2xl overflow-x-auto no-scrollbar max-w-full">
                         <button onClick={() => setActiveTab('generator')} className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'generator' ? 'bg-indigo-500 text-black shadow-2xl' : 'text-gray-500 hover:text-white'}`}>
-                            <RefreshCw className="w-4 h-4" /> Quantum Reactor
+                            <RefreshCw className="w-4 h-4" /> FitnessFutureReactor
                         </button>
                         <button onClick={() => setActiveTab('stack')} className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'stack' ? 'bg-indigo-500 text-black shadow-2xl' : 'text-gray-500 hover:text-white'}`}>
                             <Pill className="w-4 h-4" /> Active Stack
@@ -222,7 +222,7 @@ const SynthesisX: React.FC<{ memberId?: number }> = ({ memberId }) => {
                         <div className="space-y-3">
                             {[
                                 { id: 'Bio-Repair', label: 'Cellular Fix', icon: <Microscope/>, color: 'text-blue-400' },
-                                { id: 'Neural-Peak', label: 'Cognitive Flow', icon: <Cpu/>, color: 'text-purple-400' },
+                                { id: 'Smart-Peak', label: 'Cognitive Flow', icon: <Cpu/>, color: 'text-purple-400' },
                                 { id: 'Elite-Mass', label: 'Force Output', icon: <Zap/>, color: 'text-amber-400' }
                             ].map(mode => (
                                 <button 
@@ -266,7 +266,7 @@ const SynthesisX: React.FC<{ memberId?: number }> = ({ memberId }) => {
                              <div className="absolute inset-0 z-0">
                                 <AtomicSequencer 
                                     active={processState !== 'Idle' && processState !== 'Complete'} 
-                                    color={optimizationMode === 'Bio-Repair' ? '#3b82f6' : optimizationMode === 'Neural-Peak' ? '#a855f7' : '#f59e0b'}
+                                    color={optimizationMode === 'Bio-Repair' ? '#3b82f6' : optimizationMode === 'Smart-Peak' ? '#a855f7' : '#f59e0b'}
                                     intensity={progress}
                                 />
                              </div>
@@ -276,7 +276,7 @@ const SynthesisX: React.FC<{ memberId?: number }> = ({ memberId }) => {
                                      <Beaker className="w-48 h-48 mx-auto text-gray-700 transition-transform group-hover:scale-110" />
                                      <div>
                                          <h3 className="text-4xl font-black text-white uppercase tracking-[0.6em] italic">Reactor Standby</h3>
-                                         <p className="text-gray-600 font-mono text-[10px] uppercase mt-2">Awaiting Neural Signature...</p>
+                                         <p className="text-gray-600 font-mono text-[10px] uppercase mt-2">Awaiting Smart Signature...</p>
                                      </div>
                                      <button 
                                         onClick={handleSynthesize} 
@@ -304,7 +304,7 @@ const SynthesisX: React.FC<{ memberId?: number }> = ({ memberId }) => {
                                  <div className="w-full h-full p-12 relative z-10 animate-scale-in flex flex-col">
                                      <div className="flex justify-between items-end mb-12 border-b-4 border-white/5 pb-10">
                                          <div>
-                                             <p className="text-[11px] font-black text-indigo-400 uppercase tracking-[0.5em] mb-3">Composition v31.0 Certified</p>
+                                             <p className="text-[11px] font-black text-indigo-400 uppercase tracking-[0.5em] mb-3">Composition Fitness Future Certified</p>
                                              <h2 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none">{formula.protocol_name}</h2>
                                          </div>
                                          <div className="text-right">
@@ -339,7 +339,7 @@ const SynthesisX: React.FC<{ memberId?: number }> = ({ memberId }) => {
                                          <div className="space-y-10">
                                              <div>
                                                 <h4 className="text-xs font-black text-white uppercase tracking-[0.3em] mb-5 flex items-center gap-3">
-                                                    <BrainCircuit className="w-5 h-5 text-pink-400" /> Neural Impact Summary
+                                                    <BrainCircuit className="w-5 h-5 text-pink-400" /> Smart Impact Summary
                                                 </h4>
                                                 <div className="bg-indigo-900/10 border border-indigo-500/30 p-8 rounded-[3rem] text-indigo-100 italic leading-relaxed shadow-inner" dangerouslySetInnerHTML={{ __html: formula.neural_benefit }} />
                                              </div>

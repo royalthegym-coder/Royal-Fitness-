@@ -1,0 +1,9 @@
+name = "fitness-future-edge-gateway"
+main = "cloudflare-edge-gateway.ts"
+compatibility_date = "2024-04-01"
+
+[vars]
+SUPABASE_URL = "https://your-project.supabase.co"
+WEBHOOK_HMAC_SECRET = "your-hmac-sha256-webhook-secret"
+N8N_WHATSAPP_WEBHOOK = "https://your-n8n-instance.cloud/webhook/whatsapp-receipt"
+# SUPABASE_SERVICE_ROLE_KEY should be set via: wrangler secret put SUPABASE_SERVICE_ROLE_KEY

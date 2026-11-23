@@ -77,11 +77,11 @@ const CardioThemes: React.FC = () => {
         const logs = [
             "Pulling weights: stable-video-diffusion-img2vid-xt-1-1...",
             "Context: " + activeTheme?.title,
-            "Analyzing image keypoints via Llama 3.2 Vision...",
+            "Analyzing image keypoints via Secure Local Node 3.2 Vision...",
             "Latent Diffusion Process started (25 steps)...",
             "Synthesizing motion vectors...",
             "Upscaling to 1080p via R-ESRGAN...",
-            "Neural Rendering Complete."
+            "Smart Rendering Complete."
         ];
 
         let i = 0;
@@ -120,11 +120,7 @@ const CardioThemes: React.FC = () => {
                     >
                         {/* Background Image */}
                         <div className="absolute inset-0">
-                            <img 
-                                src={theme.image} 
-                                alt={theme.title} 
-                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                            />
+                            <img src={theme.image} alt={theme.title} className="w-full h-full object-cover opacity-60" />
                             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90 group-hover:opacity-80 transition-opacity" />
                         </div>
 
@@ -191,11 +187,7 @@ const CardioThemes: React.FC = () => {
                                 />
                             ) : (
                                 <>
-                                    <img 
-                                        src={activeTheme.image} 
-                                        alt={activeTheme.title} 
-                                        className="w-full h-full object-cover opacity-60"
-                                    />
+                                    <img src={activeTheme.image} alt={activeTheme.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                                     {videoError && (
                                         <div className="absolute top-4 left-4 bg-red-900/80 text-white text-[10px] px-2 py-1 rounded border border-red-500/50">
                                             Video Feed Offline. Showing Poster.

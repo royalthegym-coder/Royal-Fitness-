@@ -8,7 +8,7 @@ import { UserGroupIcon } from './icons/UserGroupIcon';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { BotIcon } from './icons/BotIcon';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, LineChart, Line, Legend } from 'recharts';
-import { getComplexResponse } from '../../lib/gemini';
+import { getComplexResponse } from '../../lib/core_ai';
 import { Gauge, Activity, Cpu, Zap, Layers, RefreshCw, BarChart2, Radio } from 'lucide-react';
 
 // --- DATA STRUCTURES ---
@@ -66,37 +66,38 @@ const PerformanceLayer: React.FC = () => {
     // --- SIMULATION EFFECTS ---
 
     useEffect(() => {
-        const interval = setInterval(() => {
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            
-            setMetrics(prev => {
-                const defaultMetric: SystemMetric = { 
-                    time: timeStr, 
-                    cpu: 20, 
-                    memory: 400, 
-                    eventLoopLag: 5, 
-                    rps: 100, 
-                    latency: 50 
-                };
-                const last = prev.length > 0 ? prev[prev.length - 1] : defaultMetric;
+        let isMounted = true;
+        const fetchStats = async () => {
+            try {
+                const res = await fetch('/api/system-stats');
+                if (!res.ok) return;
+                const data = await res.json();
                 
-                let baseCpu = loadTestStatus === 'running' ? 85 : 25;
-                let baseLatency = loadTestStatus === 'running' ? 450 : 45;
-                let baseRps = loadTestStatus === 'running' ? 2500 : 150;
+                if (isMounted) {
+                    const now = new Date();
+                    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-                const newMetric: SystemMetric = {
-                    time: timeStr,
-                    cpu: Math.min(100, Math.max(0, baseCpu + Math.random() * 10 - 5)),
-                    memory: Math.min(2048, Math.max(200, (last.memory) + (Math.random() * 20 - 10))),
-                    eventLoopLag: Math.max(0, (loadTestStatus === 'running' ? 50 : 5) + Math.random() * 10),
-                    rps: Math.max(0, baseRps + Math.random() * 50),
-                    latency: Math.max(10, baseLatency + Math.random() * 100),
-                };
-                return [...prev.slice(-30), newMetric]; // Keep last 30 seconds
-            });
+                    setMetrics(prev => {
+                        const newMetric: SystemMetric = {
+                            time: timeStr,
+                            cpu: data.cpu,
+                            memory: data.memory,
+                            eventLoopLag: data.eventLoopLag,
+                            rps: data.rps,
+                            latency: data.latency,
+                        };
+                        return [...prev.slice(-30), newMetric];
+                    });
+                }
+            } catch (err) {
+                // Endpoint might not be up yet
+            }
+        };
 
-            // Simulate Traces
+        const interval = setInterval(() => {
+            fetchStats();
+            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            // Process Traces
             if (Math.random() > 0.7) {
                 const endpoints = ['/api/members', '/api/workouts', '/api/billing', '/api/auth/login'];
                 const methods: ('GET' | 'POST' | 'PUT')[] = ['GET', 'POST', 'PUT'];
@@ -118,7 +119,7 @@ const PerformanceLayer: React.FC = () => {
                 setTraces(prev => [newTrace, ...prev].slice(0, 15));
             }
 
-            // Simulate Cache Ops
+            // Process Cache Ops
             if (Math.random() > 0.5) {
                 const ops = ['GET user:123', 'SET session:abc', 'GET config:global', 'DEL cache:temp'];
                 const op = ops[Math.floor(Math.random() * ops.length)];
@@ -131,7 +132,10 @@ const PerformanceLayer: React.FC = () => {
             }
 
         }, 1000);
-        return () => clearInterval(interval);
+        return () => {
+             isMounted = false;
+             clearInterval(interval);
+        };
     }, [loadTestStatus]);
 
     // --- HANDLERS ---
@@ -328,7 +332,7 @@ const PerformanceLayer: React.FC = () => {
                 <Card title="Locust Controller" className="bg-gray-950 border-white/5 p-8 rounded-[3rem] shadow-2xl">
                     <div className="space-y-6">
                         <div>
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Simulated Users</label>
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Users</label>
                             <input type="number" value={users} onChange={e => setUsers(Number(e.target.value))} className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white font-bold outline-none focus:border-red-500" />
                         </div>
                         <div>
@@ -437,7 +441,7 @@ const PerformanceLayer: React.FC = () => {
                         <div>
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="px-4 py-1.5 bg-indigo-500 text-white rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
-                                    <Activity className="w-3 h-3" /> Telemetry v31.0
+                                    <Activity className="w-3 h-3" /> Telemetry Fitness Future
                                 </div>
                                 <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">LINK: ULTRA_LOW_LATENCY</span>
                             </div>
@@ -479,7 +483,7 @@ const PerformanceLayer: React.FC = () => {
                     </div>
                     <div>
                         <h3 className="font-black text-white text-lg italic uppercase tracking-tight">AI Site Reliability Engineer</h3>
-                        <p className="text-xs text-gray-400 font-medium">Neural Analysis Engine Standing By.</p>
+                        <p className="text-xs text-gray-400 font-medium">Smart Analysis Engine Standing By.</p>
                     </div>
                 </div>
                 <button 

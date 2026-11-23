@@ -12,7 +12,7 @@ import {
     Search, Pin, Filter, MoreVertical, Globe,
     Radio, BrainCircuit, Scan, Target
 } from 'lucide-react';
-import { getComplexResponse } from '../../lib/gemini';
+import { getComplexResponse } from '../../lib/core_ai';
 import { useToast } from '../hooks/useToast';
 import { useData } from '../context/DataProvider';
 
@@ -57,24 +57,20 @@ const StorkCollaboration: React.FC = () => {
     const [inputText, setInputText] = useState('');
     const [isRecording, setIsRecording] = useState(false);
     
-    // Singularity Features
+    // FitnessFutureMatrix Features
     const [hiveSync, setHiveSync] = useState(88); // Team Alignment Score
     const [isThinking, setIsThinking] = useState(false);
     const [extractedMissions, setExtractedMissions] = useState<ExtractedMission[]>([]);
     
     // Data
     const [channels, setChannels] = useState<StorkChannel[]>([
-        { id: 'general', name: 'Global Command', description: 'Central Ops', type: 'public', missionCount: 12, securityLevel: 1 },
-        { id: 'trainers', name: 'Trainers Pit', description: 'Coaching Protocols', type: 'secure', unread: 3, missionCount: 5, securityLevel: 3 },
-        { id: 'treasury', name: 'Treasury Node', description: 'Fiscal & Billing', type: 'secure', missionCount: 2, securityLevel: 5 },
-        { id: 'maintenance', name: 'Fortress Guard', description: 'Infra Status', type: 'public', missionCount: 8, securityLevel: 2 },
+        { id: 'general', name: 'Global Command', description: 'Central Ops', type: 'public', missionCount: 0, securityLevel: 1 },
+        { id: 'trainers', name: 'Trainers Pit', description: 'Coaching Protocols', type: 'secure', unread: 0, missionCount: 0, securityLevel: 3 },
+        { id: 'treasury', name: 'Treasury Node', description: 'Fiscal & Billing', type: 'secure', missionCount: 0, securityLevel: 5 },
+        { id: 'maintenance', name: 'Facility Ops', description: 'Infra Status', type: 'public', missionCount: 0, securityLevel: 2 },
     ]);
 
-    const [messages, setMessages] = useState<StorkMessage[]>([
-        { id: 'm1', sender: 'Mahesh Saini', avatar: 'https://i.pravatar.cc/150?u=mahesh', type: 'text', content: 'Neural Eye v31.0 deployed. Calibrate your scanners.', timestamp: '08:30 AM', sentiment: 'Positive', readBy: 5 },
-        { id: 'm2', sender: 'Ravi Trainer', avatar: 'https://i.pravatar.cc/150?u=ravi', type: 'alert', content: 'AC Unit 4 in Cardio Zone is vibrating excessively. Requesting diagnostics.', timestamp: '09:12 AM', sentiment: 'Urgent', readBy: 4 },
-        { id: 'm3', sender: 'Finance Bot', avatar: 'https://i.ibb.co/6800735/Royal-The-Gym.png', type: 'mission', content: 'Revenue Oracle identified 12 high-probability renewals.', timestamp: '10:00 AM', sentiment: 'Neutral', readBy: 2 }
-    ]);
+    const [messages, setMessages] = useState<StorkMessage[]>([]);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -119,7 +115,7 @@ const StorkCollaboration: React.FC = () => {
                     status: 'Active'
                 };
                 setExtractedMissions(prev => [mission, ...prev]);
-                addToast("Neural Core extracted a new mission from your directive.", "success");
+                addToast("Smart Core extracted a new mission from your directive.", "success");
                 setIsThinking(false);
             }, 1500);
         }
@@ -143,12 +139,12 @@ const StorkCollaboration: React.FC = () => {
         `;
 
         try {
-            // Simulated AI processing for speed
+            // AI processing for speed
             await new Promise(r => setTimeout(r, 2000));
             addToast("Audit Complete. Directive: Prioritize AC Repair.", "success");
             setHiveSync(98);
         } catch (e) {
-            addToast("Neural Link Weak.", "error");
+            addToast("Smart Link Weak.", "error");
         } finally {
             setIsThinking(false);
         }
@@ -168,12 +164,12 @@ const StorkCollaboration: React.FC = () => {
                         </div>
                         <div>
                             <h2 className="text-xl font-black text-white italic uppercase tracking-tighter leading-none">Team <span className="text-indigo-500">Stork</span></h2>
-                            <p className="text-[9px] text-gray-500 font-mono tracking-widest mt-1">HIVE_LINK v31.0</p>
+                            <p className="text-[9px] text-gray-500 font-mono tracking-widest mt-1">HIVE_LINK Fitness Future</p>
                         </div>
                     </div>
 
                     <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2">
-                        <p className="text-[10px] font-black text-gray-600 uppercase tracking-[0.4em] mb-4 pl-4">Neural Nodes</p>
+                        <p className="text-[10px] font-black text-gray-600 uppercase tracking-[0.4em] mb-4 pl-4">Smart Nodes</p>
                         {channels.map((chan) => (
                             <button
                                 key={chan.id}
@@ -235,7 +231,7 @@ const StorkCollaboration: React.FC = () => {
                             {messages.map((msg) => (
                                 <div key={msg.id} className={`flex gap-4 animate-slide-up ${msg.sender === 'Admin (You)' ? 'flex-row-reverse' : ''}`}>
                                     <div className="relative">
-                                        <img src={msg.avatar} className="w-10 h-10 rounded-2xl object-cover border border-white/10" alt="avatar" />
+                                        <img src={"https://i.pravatar.cc/150?u=" + encodeURIComponent(msg.sender)} alt={msg.sender} className="w-10 h-10 rounded-xl object-cover border border-white/10" />
                                         <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-black ${msg.readBy > 0 ? 'bg-green-500' : 'bg-gray-500'}`}></div>
                                     </div>
                                     <div className={`max-w-[70%]`}>

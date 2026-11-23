@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  # 1. Frontend (Web App - PWA)
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./dist:/usr/share/nginx/html # Production static build files
+    restart: always
+
+  # 2. AI Backend (Node.js)
+  ai-backend:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - DATABASE_URL=${SUPABASE_URL}
+    deploy:
+      resources:
+        limits:
+          memory: 4G # Memory limit to prevent OOM crashes
+    restart: on-failure
+
+  # 3. Redis Cache (For 10x API speed acceleration)
+  redis-cache:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    restart: always

@@ -1,3 +1,4 @@
+import { getCurrencySymbol } from '../store/useCurrencyStore';
 
 import React, { useState, useMemo } from 'react';
 import { Expense } from '../../types';
@@ -52,7 +53,7 @@ const EntropyLog: React.FC = () => {
         return Object.entries(map).map(([name, value]) => ({ name, value }));
     }, [expenses]);
 
-    // Simulated Forecast Data
+    // Forecast Data
     const forecastData = [
         { month: 'Jul', actual: totalExpenses, projected: totalExpenses },
         { month: 'Aug', actual: 0, projected: totalExpenses * 1.05 },
@@ -70,11 +71,11 @@ const EntropyLog: React.FC = () => {
         setIsAuditing(true);
         setAuditResults([]);
         
-        // Simulate AI Audit Process
+        // Process AI Audit Process
         setTimeout(() => {
             const anomalies = expenses
                 .filter(e => e.amount > 20000 && e.category !== 'Rent') // Ignore Rent for high value check
-                .map(e => ({ id: e.id, issue: `High entropy event: ₹${e.amount.toLocaleString()} for ${e.item}. Variance detected.` }));
+                .map(e => ({ id: e.id, issue: `High entropy event: ${getCurrencySymbol()}${e.amount.toLocaleString()} for ${e.item}. Variance detected.` }));
             
             if (Math.random() > 0.5) {
                 anomalies.push({ id: 999, issue: "Recursive Pattern: 'Electricity Bill' logged with irregular interval." });
@@ -82,7 +83,7 @@ const EntropyLog: React.FC = () => {
 
             setAuditResults(anomalies);
             setIsAuditing(false);
-            addToast("Neural Audit Complete. Anomalies Flagged.", "success");
+            addToast("Smart Audit Complete. Anomalies Flagged.", "success");
         }, 2000);
     };
 
@@ -107,25 +108,25 @@ const EntropyLog: React.FC = () => {
     return (
         <div className="space-y-8 animate-fade-in pb-24">
             
-            {/* 1. APEX-CONTINUUM HEADER */}
-            <div className="bg-[#020202] p-10 rounded-[3.5rem] border border-red-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(239,68,68,0.15)] group">
+            {/* 1. FitnessFuture-CONTINUUM HEADER */}
+            <div className="bg-[#020202] p-10 rounded-[3.5rem] border border-cyan-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(6,182,212,0.15)] group">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-red-600/10 rounded-full blur-[150px] animate-pulse"></div>
+                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[150px] animate-pulse"></div>
                 
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-10">
                     <div className="flex items-center gap-8">
-                        <div className="p-8 bg-red-600 text-white rounded-[3rem] shadow-[0_0_60px_rgba(220,38,38,0.5)] border border-red-400 group-hover:rotate-12 transition-transform duration-700">
+                        <div className="p-8 bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-[3rem] shadow-[0_0_60px_rgba(6,182,212,0.5)] border border-cyan-400 group-hover:rotate-12 transition-transform duration-700">
                             <Flame className="w-16 h-16 animate-pulse" />
                         </div>
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="px-4 py-1.5 bg-red-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
-                                    <Infinity className="w-3 h-3" /> Apex-Continuum v31.0
+                                <div className="px-4 py-1.5 bg-cyan-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
+                                    <Infinity className="w-3 h-3" /> Fitness Future-Continuum Fitness Future
                                 </div>
-                                <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">SYSTEM: ENTROPY_MONITOR</span>
+                                <span className="text-[10px] font-mono text-cyan-500/70 tracking-[0.4em] uppercase">SYSTEM: ENTROPY_MONITOR</span>
                             </div>
                             <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none">
-                                Entropy <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-orange-600">Log</span>
+                                Entropy <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-fuchsia-400">Log</span>
                             </h1>
                         </div>
                     </div>
@@ -133,7 +134,7 @@ const EntropyLog: React.FC = () => {
                     <div className="flex bg-gray-900/80 p-2 rounded-3xl border border-white/10 backdrop-blur-3xl shadow-2xl">
                          <div className="px-10 py-5 text-center border-r border-white/5">
                              <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-2">Total Decay</p>
-                             <p className="text-4xl font-black text-white italic">₹{(totalExpenses/1000).toFixed(1)}k</p>
+                             <p className="text-4xl font-black text-white italic">{getCurrencySymbol()}{(totalExpenses/1000).toFixed(1)}k</p>
                          </div>
                          <div className="px-10 py-5 text-center border-r border-white/5">
                              <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-2">Burn Rate</p>
@@ -151,7 +152,7 @@ const EntropyLog: React.FC = () => {
                  <div className="flex gap-4">
                     <div className="flex bg-black rounded-2xl p-1.5 border border-white/5">
                         <button onClick={() => setActiveTab('stream')} className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'stream' ? 'bg-red-500 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}>Live Stream</button>
-                        <button onClick={() => setActiveTab('audit')} className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'audit' ? 'bg-red-500 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}>Neural Audit</button>
+                        <button onClick={() => setActiveTab('audit')} className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'audit' ? 'bg-red-500 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}>Smart Audit</button>
                         <button onClick={() => setActiveTab('matrix')} className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'matrix' ? 'bg-red-500 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}>Visual Matrix</button>
                     </div>
                  </div>
@@ -184,28 +185,46 @@ const EntropyLog: React.FC = () => {
                         </div>
                     </div>
                     <div className="flex-1 overflow-auto custom-scrollbar">
-                        <table className="w-full text-left">
+                        {/* Desktop Table View */}
+                        <table className="w-full text-left hidden md:table">
                             <thead className="bg-black text-gray-500 font-black uppercase text-[10px] tracking-[0.2em] sticky top-0 z-10">
                                 <tr>
-                                    <th className="p-6">Entity (Item)</th>
-                                    <th className="p-6">Classification</th>
-                                    <th className="p-6">Timestamp</th>
-                                    <th className="p-6 text-right">Value Decay</th>
+                                    <th className="p-6 whitespace-nowrap">Entity (Item)</th>
+                                    <th className="p-6 whitespace-nowrap">Classification</th>
+                                    <th className="p-6 whitespace-nowrap">Timestamp</th>
+                                    <th className="p-6 text-right whitespace-nowrap">Value Decay</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5 text-sm font-mono">
                                 {filteredExpenses.map(expense => (
                                     <tr key={expense.id} className="hover:bg-white/5 transition-all group">
-                                        <td className="p-6 font-bold text-white uppercase italic">{expense.item}</td>
-                                        <td className="p-6">
+                                        <td className="p-6 font-bold text-white uppercase italic whitespace-nowrap">{expense.item}</td>
+                                        <td className="p-6 whitespace-nowrap">
                                             <span className="bg-gray-800 text-gray-400 px-3 py-1 rounded-lg text-[10px] font-bold border border-white/5">{expense.category}</span>
                                         </td>
-                                        <td className="p-6 text-gray-500 text-xs">{expense.date}</td>
-                                        <td className="p-6 text-right font-black text-red-500 text-lg">- ₹{expense.amount.toLocaleString()}</td>
+                                        <td className="p-6 text-gray-500 text-xs whitespace-nowrap">{expense.date}</td>
+                                        <td className="p-6 text-right font-black text-red-500 text-lg whitespace-nowrap">- {getCurrencySymbol()}{expense.amount.toLocaleString()}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
+
+                        {/* Mobile Card Layout */}
+                        <div className="md:hidden flex flex-col space-y-4 p-4">
+                            {filteredExpenses.map(expense => (
+                                <div key={expense.id} className="bg-black border border-white/10 rounded-2xl p-4 flex flex-col gap-3">
+                                    <div className="flex justify-between items-start">
+                                        <h4 className="font-bold text-white uppercase italic text-sm">{expense.item}</h4>
+                                        <span className="bg-gray-800 text-gray-400 px-2 py-0.5 rounded text-[9px] font-bold border border-white/5 uppercase">{expense.category}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center border-t border-white/5 pt-3 mt-1">
+                                        <span className="text-gray-500 text-[10px] font-mono">{expense.date}</span>
+                                        <span className="font-black text-red-500 text-base font-mono">- {getCurrencySymbol()}{expense.amount.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
                         {filteredExpenses.length === 0 && (
                             <div className="py-20 text-center opacity-30">
                                 <FileText className="w-16 h-16 mx-auto mb-4 text-gray-600"/>
@@ -338,7 +357,7 @@ const EntropyLog: React.FC = () => {
                                         className="w-full bg-gray-900 border border-white/10 rounded-2xl p-4 text-white font-bold text-sm outline-none focus:border-red-500 pl-10" 
                                         placeholder="0.00" 
                                     />
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">₹</span>
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">{getCurrencySymbol()}</span>
                                 </div>
                              </div>
                              <div>

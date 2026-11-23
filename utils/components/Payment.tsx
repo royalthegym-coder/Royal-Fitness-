@@ -1,28 +1,39 @@
+import { getCurrencySymbol } from '../store/useCurrencyStore';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Card from './common/Card';
 import { GYM_INFO } from '../../constants';
 import { Transaction, Invoice, InvoiceItem, InventoryItem } from '../../types';
 import { toDataURL } from 'qrcode';
-import { sendPaymentReceipt } from '../../lib/whatsapp';
+import { sendPaymentReceipt, sendPaymentRequest } from '../../lib/whatsapp';
 import ReceiptTemplate from './common/ReceiptTemplate';
 import { useData } from '../context/DataProvider';
+import { useGym } from '../context/GymProvider';
 import { 
     Printer, CreditCard, Smartphone, Banknote, 
     Search, Zap, ArrowRight, ShieldCheck,
     CheckCircle, AlertTriangle, Fingerprint, 
     Activity, ShoppingBag, Plus, Minus, Trash2, User, Cpu, 
-    RefreshCw, ScanLine, Globe
+    RefreshCw, ScanLine, Globe, Target, Settings
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { ResponsiveContainer, AreaChart, Area } from 'recharts';
 
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
+
 const Payment: React.FC = () => {
-    const { invoices = [], updateInvoiceStatus, transactions = [], addTransaction, members = [], inventory, updateInventory, addInvoice, addAuditLog } = useData();
+    const isOnline = useNetworkStatus();
+    const { 
+        invoices = [], updateInvoiceStatus, transactions = [], addTransaction, members = [], 
+        inventory, updateInventory, addInventory, addInvoice, addAuditLog,
+        packages=[], addPackage, updatePackage,
+        globalFees, updateGlobalFees
+    } = useData();
+    const { currentGym, setCurrentGym } = useGym();
     const { addToast } = useToast();
-    const [activeTab, setActiveTab] = useState<'terminal' | 'pos' | 'history'>('terminal');
+    const [activeTab, setActiveTab] = useState<'terminal' | 'pos' | 'history' | 'feemaster'>('terminal');
     
-    // v31.0 Global State
+    // Fitness Future Global State
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -43,15 +54,55 @@ const Payment: React.FC = () => {
     // Context Refs
     const [historyReceiptData, setHistoryReceiptData] = useState<{txn: Transaction, items: InvoiceItem[]} | null>(null);
 
+    // Fee Master State
+    const [admissionFeeInput, setAdmissionFeeInput] = useState(globalFees?.admissionFee || 500);
+    const [signatureInput, setSignatureInput] = useState<string | null>(globalFees?.receiptSignature || null);
+    
+    // Manual setup states for Active Gym Tenant
+    const [editGymName, setEditGymName] = useState(currentGym.gymName);
+    const [editGymAddress, setEditGymAddress] = useState(currentGym.address);
+    const [editGymEmail, setEditGymEmail] = useState(currentGym.email || '');
+    const [editGymPhone, setEditGymPhone] = useState(currentGym.phone || '');
+    const [editGymUpi, setEditGymUpi] = useState(currentGym.paymentUpiId || currentGym.upiId || '');
+    const [editGatewayId, setEditGatewayId] = useState(currentGym.paymentGatewayId || '');
+    const [editSignature, setEditSignature] = useState(currentGym.signatureUrl || '');
+
+    const [newPlan, setNewPlan] = useState({ name: '', price: 0, durationMonths: 1, type: 'Regular' as 'Regular' | 'Personal Training' });
+    const [newAccessory, setNewAccessory] = useState({ name: '', price: 0, category: 'Accessory' as const, stock: 10 });
+
+    useEffect(() => {
+        if (currentGym) {
+            setEditGymName(currentGym.gymName);
+            setEditGymAddress(currentGym.address);
+            setEditGymEmail(currentGym.email || '');
+            setEditGymPhone(currentGym.phone || '');
+            setEditGymUpi(currentGym.paymentUpiId || currentGym.upiId || '');
+            setEditGatewayId(currentGym.paymentGatewayId || '');
+            setEditSignature(currentGym.signatureUrl || '');
+        }
+    }, [currentGym]);
+
+    const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setSignatureInput(reader.result as string);
+                setEditSignature(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
     // --- LIVE LIQUIDITY ENGINE ---
     useEffect(() => {
-        // Initialize graph with recent transactions or mock data if empty
+        // Initialize graph with recent transactions or data if empty
         const recent = transactions.slice(0, 15).map(t => ({
             time: t.id.split('-')[1] ? new Date(parseInt(t.id.split('-')[1])).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '00:00',
             amount: t.amount
         })).reverse();
 
-        // Fill with dummy data if not enough to look good
+        // Fill with standard data if not enough to look good
         const filledData = recent.length < 5 
             ? Array.from({length: 10}, (_, i) => ({ time: `${10+i}:00`, amount: Math.random() * 5000 + 1000 })) 
             : recent;
@@ -88,20 +139,30 @@ const Payment: React.FC = () => {
         if (selectedInvoice && (paymentMethod === 'UPI' || paymentMethod === 'Google Pay')) {
             const note = `Inv-${selectedInvoice.id}`;
             // Standard UPI String
-            const upiId = paymentMethod === 'Google Pay' ? (localStorage.getItem('google_pay_upi') || GYM_INFO.upiIds.gpay1) : GYM_INFO.upiIds.gpay1;
-            const uri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${selectedInvoice.amount.toFixed(2)}&cu=INR&tn=${note}`;
+            const upiId = currentGym.upiId;
+            const uri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(currentGym.gymName)}&am=${selectedInvoice.amount.toFixed(2)}&cu=INR&tn=${note}`;
             
             toDataURL(uri, { width: 400, margin: 1, color: { dark: '#000000', light: '#ffffff' } }).then(url => setQrCode(url));
         }
-    }, [selectedInvoice, paymentMethod]);
+    }, [selectedInvoice, paymentMethod, currentGym]);
 
     const handleProcessTreasury = async () => {
+        if (!isOnline) {
+            addToast("Treasury execution blocked. Working in offline mode.", 'error');
+            return;
+        }
+        if (!selectedInvoice) return;
+        
+        finalizeTreasuryProcess();
+    };
+
+    const finalizeTreasuryProcess = async () => {
         if (!selectedInvoice) return;
         
         setIsProcessing(true);
         setProcessStep('encrypting');
         
-        // v31.0 Sentinel Security Handshake Simulation
+        // Fitness Future Sentinel Security Handshake Simulation
         await new Promise(r => setTimeout(r, 800));
         
         // AI Fraud Check for Cash > 5000
@@ -233,7 +294,7 @@ const Payment: React.FC = () => {
             addAuditLog({
                 member_id: posMemberId === 'Walk-in' ? 0 : (posMemberId as number),
                 action: 'POS_SALE',
-                details: `Sold ${posCart.length} items. Total: ₹${posTotal}`
+                details: `Sold ${posCart.length} items. Total: ${getCurrencySymbol()}${posTotal}`
             });
             
             // Update Graph
@@ -248,6 +309,310 @@ const Payment: React.FC = () => {
 
         }, 1500);
     };
+
+    const saveGymBrandingAndPaymentGateway = () => {
+        // Build updated config
+        const updatedGym = {
+            ...currentGym,
+            gymName: editGymName || currentGym.gymName,
+            address: editGymAddress || currentGym.address,
+            email: editGymEmail || currentGym.email,
+            phone: editGymPhone || currentGym.phone,
+            upiId: editGymUpi || currentGym.upiId,
+            paymentUpiId: editGymUpi || currentGym.paymentUpiId,
+            paymentGatewayId: editGatewayId || currentGym.paymentGatewayId,
+            signatureUrl: editSignature || currentGym.signatureUrl,
+            isSetupComplete: true
+        };
+        setCurrentGym(updatedGym);
+        
+        // Save the updated values to our local context and global variables
+        updateGlobalFees({ 
+            admissionFee: admissionFeeInput, 
+            receiptSignature: editSignature || signatureInput || undefined
+        });
+        
+        addToast("Gym parameters, manually uploaded payment ID, UPI ID, and branding configured successfully! System customization complete.", "success");
+    };
+
+    const addPlan = () => {
+        if(!newPlan.name || newPlan.price <= 0) return;
+        const newId = Date.now();
+        addPackage({
+            id: newId,
+            name: newPlan.name,
+            duration: `${newPlan.durationMonths} Months`,
+            price: newPlan.price,
+            status: 'Active',
+            features: ['Standard Entry'],
+            category: newPlan.type,
+            popular: false
+        } as any);
+        setNewPlan({ ...newPlan, name: '', price: 0 });
+        addToast("New Plan Configured", "success");
+    };
+
+    const addAcc = () => {
+        if(!newAccessory.name || newAccessory.price <= 0) return;
+        const newId = `itm-${Date.now()}`;
+        addInventory({
+            id: newId,
+            name: newAccessory.name,
+            price: newAccessory.price,
+            category: newAccessory.category,
+            stock: newAccessory.stock,
+            threshold: 5
+        } as any);
+        setNewAccessory({ ...newAccessory, name: '', price: 0 });
+        addToast("Store Item Added", "success");
+    };
+
+    const renderFeeMasterTab = () => (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-20 animate-fade-in">
+            {/* Global Fees & Gym Branding Gateways */}
+            <Card className="bg-[#0a0a0a] border-white/5 rounded-[2.5rem] p-8 shadow-2xl space-y-6">
+                <div>
+                    <h3 className="text-xl font-black text-amber-500 uppercase tracking-widest italic flex items-center gap-2">
+                        <Settings className="w-5 h-5"/> Brand & Gateway Settings
+                    </h3>
+                    <p className="text-xs text-gray-500 font-mono mt-1">
+                        Configure your gym branding credentials, manual payment gateway key IDs, and merchant UPI parameters.
+                    </p>
+                </div>
+                
+                <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 block">Gym Name</label>
+                            <input 
+                                type="text"
+                                value={editGymName}
+                                onChange={(e) => setEditGymName(e.target.value)}
+                                className="bg-black/60 w-full border border-white/10 rounded-2xl p-4 text-white font-bold text-sm outline-none focus:border-amber-500 transition-all"
+                                placeholder="e.g. Fitness Future Gym"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 block">Mobile Number</label>
+                            <input 
+                                type="text"
+                                value={editGymPhone}
+                                onChange={(e) => setEditGymPhone(e.target.value)}
+                                className="bg-black/60 w-full border border-white/10 rounded-2xl p-4 text-white text-sm outline-none focus:border-amber-500 transition-all font-mono"
+                                placeholder="e.g. +91 98XXXXXXXX"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 block">Email ID</label>
+                            <input 
+                                type="email"
+                                value={editGymEmail}
+                                onChange={(e) => setEditGymEmail(e.target.value)}
+                                className="bg-black/60 w-full border border-white/10 rounded-2xl p-4 text-white text-sm outline-none focus:border-amber-500 transition-all"
+                                placeholder="e.g. admin@fitnessfuture.com"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 block">Admission Fee ($)</label>
+                            <input 
+                                type="number"
+                                value={admissionFeeInput}
+                                onChange={(e) => setAdmissionFeeInput(Number(e.target.value))}
+                                className="bg-black/60 w-full border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-amber-500 transition-all"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 block">Gym Location / Address</label>
+                        <input 
+                            type="text"
+                            value={editGymAddress}
+                            onChange={(e) => setEditGymAddress(e.target.value)}
+                            className="bg-black/60 w-full border border-white/10 rounded-2xl p-4 text-white text-sm outline-none focus:border-amber-500 transition-all"
+                            placeholder="Full address of the gym"
+                        />
+                    </div>
+
+                    <div className="border-t border-white/5 pt-4 my-2">
+                        <span className="text-[11px] font-extrabold text-cyan-400 uppercase tracking-widest block mb-3">Merchant Payment Gateway Configs</span>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 block">Payment Gateway Key ID</label>
+                                <input 
+                                    type="text"
+                                    value={editGatewayId}
+                                    onChange={(e) => setEditGatewayId(e.target.value)}
+                                    placeholder="rzp_live_xxxxxxxxxxx or payment gateway ID"
+                                    className="bg-black/60 w-full border border-white/10 rounded-2xl p-4 text-white font-mono text-xs outline-none focus:border-cyan-500 transition-all"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 block">Merchant UPI ID</label>
+                                <input 
+                                    type="text"
+                                    value={editGymUpi}
+                                    onChange={(e) => setEditGymUpi(e.target.value)}
+                                    placeholder="e.g. merchant@okaxis"
+                                    className="bg-black/60 w-full border border-white/10 rounded-2xl p-4 text-white font-mono text-xs outline-none focus:border-cyan-500 transition-all"
+                                />
+                                <p className="text-[8px] text-gray-500 font-mono mt-1">Note: Saving a new UPI ID will replace the previous merchant UPI ID.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 block">Authorized Signatory Signature</label>
+                        <div className="flex items-center gap-4">
+                            <input 
+                                type="file" 
+                                accept="image/*"
+                                onChange={handleSignatureUpload}
+                                className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:border-0 file:text-xs file:font-black file:uppercase file:tracking-widest file:bg-white/10 file:text-white hover:file:bg-white/20 file:rounded-xl cursor-pointer"
+                            />
+                            {editSignature && (
+                                <div className="border border-white/15 bg-white p-1 rounded-lg">
+                                    <img src={editSignature} alt="Authorized Signature" className="max-h-12 max-w-[120px] object-contain invert" />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={saveGymBrandingAndPaymentGateway}
+                        className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black px-8 py-4 rounded-2xl w-full font-black uppercase tracking-widest text-xs transition-all active:scale-95 shadow-lg mt-2"
+                    >
+                        Save & Deploy Brand Parameters
+                    </button>
+                </div>
+            </Card>
+
+            {/* Gym Subscription Plans Config */}
+            <Card className="bg-[#0a0a0a] border-white/5 rounded-[2.5rem] p-8 shadow-2xl space-y-6">
+                <div>
+                    <h3 className="text-xl font-black text-white uppercase tracking-widest italic flex items-center gap-2">
+                        <User className="w-5 h-5 text-cyan-500"/> Membership & PT Plans
+                    </h3>
+                    <p className="text-xs text-gray-500 font-mono mt-1">Add new gym and training plans</p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                     <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 block">Plan Name</label>
+                        <input 
+                            type="text"
+                            placeholder="e.g. Growth"
+                            value={newPlan.name}
+                            onChange={(e) => setNewPlan({...newPlan, name: e.target.value})}
+                            className="bg-black/60 w-full border border-white/10 rounded-2xl p-4 text-white text-sm outline-none focus:border-amber-500 transition-all"
+                        />
+                     </div>
+                     <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 block">Price (${getCurrencySymbol()})</label>
+                        <input 
+                            type="number"
+                            value={newPlan.price || ''}
+                            onChange={(e) => setNewPlan({...newPlan, price: Number(e.target.value)})}
+                            className="bg-black/60 w-full border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-amber-500 transition-all"
+                        />
+                     </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                     <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 block">Type</label>
+                        <select 
+                            value={newPlan.type}
+                            onChange={(e) => setNewPlan({...newPlan, type: e.target.value as any})}
+                            className="bg-black/60 w-full border border-white/10 rounded-2xl p-4 text-white text-sm outline-none focus:border-amber-500 transition-all appearance-none"
+                        >
+                            <option value="Regular">Gym Package</option>
+                            <option value="Personal Training">Personal Training</option>
+                        </select>
+                     </div>
+                     <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 block">Duration (Months)</label>
+                        <input 
+                            type="number"
+                            min="1"
+                            value={newPlan.durationMonths}
+                            onChange={(e) => setNewPlan({...newPlan, durationMonths: Number(e.target.value)})}
+                            className="bg-black/60 w-full border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-amber-500 transition-all"
+                        />
+                     </div>
+                </div>
+                <button 
+                    onClick={addPlan}
+                    className="w-full bg-cyan-600 hover:bg-cyan-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2"
+                >
+                    <Plus className="w-4 h-4"/> Add New Plan
+                </button>
+            </Card>
+
+             {/* Accessory / Store Item Config */}
+             <Card className="bg-[#0a0a0a] border-white/5 rounded-[2.5rem] p-8 shadow-2xl space-y-6 lg:col-span-2">
+                 <div>
+                    <h3 className="text-xl font-black text-white uppercase tracking-widest italic flex items-center gap-2">
+                        <ShoppingBag className="w-5 h-5 text-amber-500"/> Store & Accessories
+                    </h3>
+                    <p className="text-xs text-gray-500 font-mono mt-1">Add inventory items for the gym</p>
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 block">Item Name</label>
+                        <input 
+                            type="text"
+                            placeholder="e.g. Protein Shake"
+                            value={newAccessory.name}
+                            onChange={(e) => setNewAccessory({...newAccessory, name: e.target.value})}
+                            className="bg-black/60 w-full border border-white/10 rounded-2xl p-4 text-white text-sm outline-none focus:border-amber-500 transition-all"
+                        />
+                     </div>
+                     <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 block">Price (${getCurrencySymbol()})</label>
+                        <input 
+                            type="number"
+                            value={newAccessory.price || ''}
+                            onChange={(e) => setNewAccessory({...newAccessory, price: Number(e.target.value)})}
+                            className="bg-black/60 w-full border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-amber-500 transition-all"
+                        />
+                     </div>
+                     <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 block">Category</label>
+                        <select 
+                            value={newAccessory.category}
+                            onChange={(e) => setNewAccessory({...newAccessory, category: e.target.value as any})}
+                            className="bg-black/60 w-full border border-white/10 rounded-2xl p-4 text-white text-sm outline-none focus:border-amber-500 transition-all appearance-none"
+                        >
+                            <option value="Supplement">Supplement</option>
+                            <option value="Accessory">Accessory</option>
+                            <option value="Apparel">Apparel</option>
+                        </select>
+                     </div>
+                     <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 block">Initial Stock</label>
+                        <input 
+                            type="number"
+                            min="1"
+                            value={newAccessory.stock}
+                            onChange={(e) => setNewAccessory({...newAccessory, stock: Number(e.target.value)})}
+                            className="bg-black/60 w-full border border-white/10 rounded-2xl p-4 text-white font-mono text-sm outline-none focus:border-amber-500 transition-all"
+                        />
+                     </div>
+                </div>
+                <button 
+                    onClick={addAcc}
+                    className="w-full bg-amber-600 hover:bg-amber-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2"
+                >
+                    <Plus className="w-4 h-4"/> Add Store Item
+                </button>
+             </Card>
+        </div>
+    );
 
     const renderPosTab = () => (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
@@ -299,7 +664,7 @@ const Payment: React.FC = () => {
                                 </p>
                             </div>
                             <div className="relative z-10 flex justify-between items-end">
-                                <p className="text-lg font-black text-amber-500 italic">₹{item.price?.toLocaleString() || 'N/A'}</p>
+                                <p className="text-lg font-black text-amber-500 italic">{getCurrencySymbol()}{item.price?.toLocaleString() || 'N/A'}</p>
                                 <button className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
                                     <Plus className="w-4 h-4" />
                                 </button>
@@ -339,7 +704,7 @@ const Payment: React.FC = () => {
                                 <div key={cartItem.item.id} className="flex justify-between items-center bg-gray-900/50 p-3 rounded-2xl border border-white/5">
                                     <div className="flex-1 min-w-0 mr-3">
                                         <p className="text-xs font-bold text-white truncate">{cartItem.item.name}</p>
-                                        <p className="text-[10px] text-gray-500">₹{cartItem.item.price} x {cartItem.qty}</p>
+                                        <p className="text-[10px] text-gray-500">{getCurrencySymbol()}{cartItem.item.price} x {cartItem.qty}</p>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <button onClick={() => updatePosQty(cartItem.item.id, -1)} className="p-1 hover:bg-white/10 rounded"><Minus className="w-3 h-3 text-gray-400"/></button>
@@ -356,7 +721,7 @@ const Payment: React.FC = () => {
                     <div className="pt-4 border-t border-white/10 space-y-4">
                         <div className="flex justify-between items-center">
                             <span className="text-xs text-gray-400 uppercase font-bold">Total</span>
-                            <span className="text-2xl font-black text-amber-500">₹{posTotal.toLocaleString()}</span>
+                            <span className="text-2xl font-black text-amber-500">{getCurrencySymbol()}{posTotal.toLocaleString()}</span>
                         </div>
                         
                         <div className="flex gap-2">
@@ -379,6 +744,26 @@ const Payment: React.FC = () => {
                             {isProcessing ? <RefreshCw className="w-4 h-4 animate-spin"/> : <CheckCircle className="w-4 h-4" />}
                             {isProcessing ? 'Processing...' : 'Complete Sale'}
                         </button>
+
+                        <button 
+                            onClick={async () => {
+                                if (posMemberId === 'Walk-in') {
+                                    addToast("Payment Link requires a registered member.", "error");
+                                    return;
+                                }
+                                const member = members.find(m => m.id === posMemberId);
+                                if (member && posTotal > 0) {
+                                    addToast("Dispatching Gateway Link via WhatsApp...", "info");
+                                    const breakdown = posCart.map(c => `${c.qty}x ${c.item.name}`).join(', ');
+                                    const success = await sendPaymentRequest(member, posTotal, breakdown);
+                                    if(success) addToast("Payment Link Sent Successfully.", "success");
+                                }
+                            }}
+                            disabled={posCart.length === 0 || posMemberId === 'Walk-in'}
+                            className="w-full bg-transparent hover:bg-amber-500/10 text-amber-500 border border-amber-500/30 font-black py-3 rounded-2xl uppercase tracking-widest text-[9px] transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                        >
+                            Send Payment Link via WhatsApp
+                        </button>
                     </div>
                 </Card>
             </div>
@@ -387,19 +772,19 @@ const Payment: React.FC = () => {
 
     return (
         <div className="space-y-6 animate-fade-in pb-20">
-            {/* v31.0 Autonomous Header */}
+            {/* Fitness Future Autonomous Header */}
             <div className="bg-[#050505] p-8 rounded-[3.5rem] border border-amber-500/20 shadow-2xl relative overflow-hidden group">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 pointer-events-none"></div>
                 <div className="absolute -right-20 -top-20 w-96 h-96 bg-amber-500/5 rounded-full blur-[100px] animate-pulse"></div>
                 
                 <div className="flex flex-col md:flex-row justify-between items-center gap-6 relative z-10">
                     <div className="flex items-center gap-6">
-                        <div className="p-5 bg-gradient-to-tr from-amber-600 to-orange-400 rounded-[2rem] text-black shadow-[0_0_40px_rgba(245,158,11,0.4)] transform group-hover:rotate-12 transition-transform">
+                        <div className="p-5 bg-gradient-to-tr from-cyan-600 to-blue-400 rounded-[2rem] text-white shadow-[0_0_40px_rgba(6,182,212,0.4)] transform group-hover:rotate-12 transition-transform">
                             <Zap className="w-10 h-10 fill-current" />
                         </div>
                         <div>
-                            <h1 className="text-4xl font-black text-white uppercase italic tracking-tighter leading-none">Fiscal <span className="text-amber-500">Terminal</span></h1>
-                            <p className="text-gray-500 text-[9px] font-mono tracking-[0.5em] uppercase font-bold mt-2">Inbuilt v31.0 Global Treasury Hub</p>
+                            <h1 className="text-4xl font-black text-white uppercase italic tracking-tighter leading-none">Fiscal <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">Terminal</span></h1>
+                            <p className="text-cyan-500/70 text-[9px] font-mono tracking-[0.5em] uppercase font-bold mt-2">Fitness Future Global Treasury Hub</p>
                         </div>
                     </div>
                     
@@ -408,15 +793,19 @@ const Payment: React.FC = () => {
                             <Activity className="w-4 h-4"/> Live Queue
                         </button>
                         <button onClick={() => setActiveTab('pos')} className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'pos' ? 'bg-white text-black shadow-2xl' : 'text-gray-500 hover:text-white'}`}>
-                            <ShoppingBag className="w-4 h-4"/> Holo-POS
+                            <ShoppingBag className="w-4 h-4"/> Billing Point (POS)
                         </button>
                         <button onClick={() => setActiveTab('history')} className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'history' ? 'bg-white text-black shadow-2xl' : 'text-gray-500 hover:text-white'}`}>
-                            <ShieldCheck className="w-4 h-4"/> Quantum Ledger
+                            <ShieldCheck className="w-4 h-4"/> Transactions Ledger
+                        </button>
+                        <button onClick={() => setActiveTab('feemaster')} className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'feemaster' ? 'bg-white text-black shadow-2xl' : 'text-gray-500 hover:text-white'}`}>
+                            <Target className="w-4 h-4"/> Fee Master
                         </button>
                     </div>
                 </div>
             </div>
 
+            {activeTab === 'feemaster' && renderFeeMasterTab()}
             {activeTab === 'pos' && renderPosTab()}
 
             {activeTab === 'terminal' && (
@@ -434,7 +823,7 @@ const Payment: React.FC = () => {
                                 <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
                                 <input 
                                     type="text" 
-                                    placeholder="Scan Neural Signature..." 
+                                    placeholder="Scan Smart Signature..." 
                                     value={searchTerm} 
                                     onChange={(e) => setSearchTerm(e.target.value)} 
                                     className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-14 pr-4 text-xs text-white focus:outline-none focus:border-amber-500 transition-all font-mono" 
@@ -478,7 +867,7 @@ const Payment: React.FC = () => {
                                         </p>
                                     </div>
                                     <div className="text-right relative z-10">
-                                        <span className="text-2xl font-black text-white italic tracking-tighter">₹{inv.amount.toLocaleString()}</span>
+                                        <span className="text-2xl font-black text-white italic tracking-tighter">{getCurrencySymbol()}{inv.amount.toLocaleString()}</span>
                                         <div className="flex justify-end mt-1">
                                              <ArrowRight className={`w-4 h-4 transition-transform ${selectedInvoice?.id === inv.id ? 'text-amber-500 translate-x-1' : 'text-gray-800 group-hover:translate-x-1'}`} />
                                         </div>
@@ -529,7 +918,7 @@ const Payment: React.FC = () => {
                                     </div>
                                     <div className="text-right mt-6 md:mt-0">
                                         <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Net Treasury Input</p>
-                                        <div className="text-7xl font-black text-white italic tracking-tighter">₹{selectedInvoice.amount.toLocaleString()}</div>
+                                        <div className="text-7xl font-black text-white italic tracking-tighter">{getCurrencySymbol()}{selectedInvoice.amount.toLocaleString()}</div>
                                     </div>
                                 </div>
 
@@ -538,8 +927,8 @@ const Payment: React.FC = () => {
                                     <div className="w-full md:w-80 bg-gray-900/30 border-r border-white/5 p-8 space-y-4">
                                         <p className="text-[10px] font-black text-gray-600 uppercase tracking-[0.4em] mb-8">Select Entry Protocol</p>
                                         {[
-                                            { id: 'UPI', icon: <Smartphone />, label: 'Neural Link' },
-                                            { id: 'Google Pay', icon: <Globe />, label: 'Google Business' },
+                                            { id: 'UPI', icon: <Smartphone />, label: 'Smart Link' },
+                                            { id: 'Google Pay', icon: <Globe />, label: 'Google Opals & Payment' },
                                             { id: 'Card', icon: <CreditCard />, label: 'Card Swiper' },
                                             { id: 'Cash', icon: <Banknote />, label: 'Physical Vault' }
                                         ].map((m) => (
@@ -577,23 +966,23 @@ const Payment: React.FC = () => {
                                                          processStep === 'handshake' ? 'AUTH_HANDSHAKE' : 'UPLINKING...'}
                                                     </p>
                                                     <p className="text-gray-600 text-[10px] font-mono tracking-widest">
-                                                        {processStep === 'fraud_check' ? 'ANALYZING PATTERNS' : 'PROTOCOL: ROYAL_v31_TLS'}
+                                                        {processStep === 'fraud_check' ? 'ANALYZING PATTERNS' : 'PROTOCOL: FUTURE_v31_TLS'}
                                                     </p>
                                                 </div>
                                             </div>
                                         ) : (paymentMethod === 'UPI' || paymentMethod === 'Google Pay') ? (
                                             <div className="text-center animate-fade-in relative">
                                                 <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-green-500/10 text-green-400 px-4 py-1.5 rounded-full border border-green-500/30 text-[9px] font-black uppercase tracking-widest flex items-center gap-2">
-                                                    <ShieldCheck className="w-3 h-3" /> {paymentMethod === 'Google Pay' ? 'Google Business Node Verified' : 'UPI Node Verified'}
+                                                    <ShieldCheck className="w-3 h-3" /> {paymentMethod === 'Google Pay' ? 'Opals Payment Node Verified' : 'UPI Node Verified'}
                                                 </div>
                                                 <div className="bg-white p-8 rounded-[4rem] inline-block shadow-[0_0_80px_rgba(255,255,255,0.1)] border-[16px] border-white ring-4 ring-green-500/20 relative group mb-10 overflow-hidden">
-                                                    <img src={qrCode} alt="QR" className="w-64 h-64 object-contain mix-blend-multiply relative z-10" />
+                                                    <img src={qrCode} alt="UPI Payment QR Code" className="w-52 h-52 object-contain" />
                                                     <div className="absolute inset-0 bg-white/90 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20">
                                                         <p className="text-black font-black text-xs uppercase tracking-widest text-center">Scan with<br/>GPay / PhonePe</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex flex-col gap-2">
-                                                    <p className="text-gray-500 font-bold text-[10px] uppercase tracking-[0.6em]">Inbuilt v31.0 Payment Node</p>
+                                                    <p className="text-gray-500 font-bold text-[10px] uppercase tracking-[0.6em]">Inbuilt Fitness Future Payment Node</p>
                                                 </div>
                                             </div>
                                         ) : paymentMethod === 'Card' ? (
@@ -614,7 +1003,7 @@ const Payment: React.FC = () => {
                                                 </div>
                                                 <div>
                                                     <p className="text-amber-400 font-black uppercase tracking-[0.4em] text-sm">Treasury Drawer Released</p>
-                                                    <p className="text-gray-600 text-[10px] font-mono mt-3 uppercase">CONFIRM INJECTION: ₹{selectedInvoice.amount}</p>
+                                                    <p className="text-gray-600 text-[10px] font-mono mt-3 uppercase">CONFIRM INJECTION: ${getCurrencySymbol()}{selectedInvoice.amount}</p>
                                                 </div>
                                             </div>
                                         )}
@@ -669,7 +1058,7 @@ const Payment: React.FC = () => {
                                     <th className="p-10">Entity Name</th>
                                     <th className="p-10">Timestamp</th>
                                     <th className="p-10 text-center">Protocol</th>
-                                    <th className="p-10 text-right">Credits (₹)</th>
+                                    <th className="p-10 text-right">Credits (${getCurrencySymbol()})</th>
                                     <th className="p-10 text-right">Control</th>
                                 </tr>
                             </thead>
@@ -682,7 +1071,7 @@ const Payment: React.FC = () => {
                                         <td className="p-10 text-center">
                                             <span className="bg-gray-900 border border-white/10 px-4 py-1.5 rounded-xl text-[9px] font-black text-gray-400 uppercase tracking-widest">{txn.method}</span>
                                         </td>
-                                        <td className="p-10 text-right font-black text-white italic text-2xl">₹{Math.abs(txn.amount).toLocaleString()}</td>
+                                        <td className="p-10 text-right font-black text-white italic text-2xl">{getCurrencySymbol()}{Math.abs(txn.amount).toLocaleString()}</td>
                                         <td className="p-10 text-right">
                                              <button 
                                                 onClick={() => { setHistoryReceiptData({ txn, items: [] }); }} 

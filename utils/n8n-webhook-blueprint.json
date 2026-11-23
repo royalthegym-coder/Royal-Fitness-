@@ -1,0 +1,229 @@
+{
+  "meta": {
+    "instanceId": "fitness_future_n8n_instance_8829fba"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "behavioral-event-trigger",
+        "options": {}
+      },
+      "id": "1d8eb94c-e35c-43f1-bd12-f7efd75224e2",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        360
+      ],
+      "webhookId": "cb48f6ee-a708-4bf0-a6dd-c3fc949989fe"
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.body.member_id || $json.body.userId || $json.member_id }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": ""
+            }
+          ]
+        }
+      },
+      "id": "fe9a4dc5-da30-47b2-933e-e6da7edb02fe",
+      "name": "Validate Request Payload",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        470,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getRow",
+        "table": "members",
+        "rowId": "={{ $node[\"Webhook Trigger\"].json.body.member_id || $node[\"Webhook Trigger\"].json.body.userId || $node[\"Webhook Trigger\"].json.member_id }}",
+        "options": {
+          "outputFields": "id, full_name, phone_number, plan_tier, status, last_attendance_at, inactivity_days"
+        }
+      },
+      "id": "a933f282-3dcf-448f-8df9-482bc682da0a",
+      "name": "Query Supabase State",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        700,
+        280
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase_credential_node_9a",
+          "name": "Production Supabase Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "value2": "ACTIVE"
+            }
+          ]
+        }
+      },
+      "id": "b3e0c0fe-3e0e-4fa0-be9c-29f8f2b86aef",
+      "name": "Verify Active Membership",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        920,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $node[\"Webhook Trigger\"].json.body || $node[\"Webhook Trigger\"].json;\nconst member = $node[\"Query Supabase State\"].json;\n\n// Production Schema fields: full_name, phone_number, plan_tier, status, inactivity_days\nconst userName = member.full_name || payload.full_name || \"Champion\";\nconst eventName = payload.event || \"User absent for 4+ days (CHURN_RISK check)\";\nlet messageText = \"\";\nlet templateName = \"\";\n\nif (eventName.includes(\"Diet Page\") || eventName.includes(\"Diet\")) {\n  messageText = `Hey ${userName}! ⚡ We noticed you've been away from the gym, but your nutrition focus is active. Let's power up! Reply 'COACH' to adjust your workout intensity or ask for custom diet modifications!`;\n  templateName = \"retention_diet_engagement\";\n} else {\n  messageText = `Hey ${userName}! 🚀 It's been ${member.inactivity_days || 4} days since your last check-in. Your custom 'FutureOS' fitness tracker is waiting. Let's crush a workout today!`;\n  templateName = \"generic_absentee_10_days\";\n}\n\nreturn {\n  member_id: member.id || payload.member_id,\n  phone_number: (member.phone_number || payload.phone_number || payload.phone || '').replace(/^\\+?91/, ''),\n  full_name: userName,\n  plan_tier: member.plan_tier || payload.plan_tier || 'Standard',\n  status: member.status || 'ACTIVE',\n  messageText,\n  templateName\n};"
+      },
+      "id": "8c42b7d9-c0ae-4f04-9494-b77da1b8fa8a",
+      "name": "Generate Highly Personalized Template",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        250
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"recipient_type\": \"individual\",\n  \"to\": \"91{{ $json.phone_number }}\",\n  \"type\": \"template\",\n  \"template\": {\n    \"name\": \"{{ $json.templateName }}\",\n    \"language\": {\n      \"code\": \"en_US\"\n    },\n    \"components\": [\n      {\n        \"type\": \"body\",\n        \"parameters\": [\n          {\n            \"type\": \"text\",\n            \"text\": \"{{ $json.full_name }}\"\n          },\n          {\n            \"type\": \"text\",\n            \"text\": \"4 days\"\n          }\n        ]\n      }\n    ]\n  }\n}",
+        "options": {}
+      },
+      "id": "402f06bd-de38-4e9b-813c-ccbb4ac012b1",
+      "name": "Route To Meta Cloud API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        250
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\n  status: \"skipped\",\n  reason: \"Incomplete query payload headers/body missing.\"\n};"
+      },
+      "id": "189ec322-a544-4822-ba92-fcc61a096c44",
+      "name": "Malformed Trigger Stop",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\n  status: \"skipped\",\n  reason: \"Target client does not possess an 'Active' membership status in Supabase. Cancellation or Hold flag detected.\"\n};"
+      },
+      "id": "1db2fc33-dd1e-455b-bf99-88371ef82a20",
+      "name": "Inactive Client Stop",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        410
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate Request Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Request Payload": {
+      "main": [
+        [
+          {
+            "node": "Query Supabase State",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Malformed Trigger Stop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Supabase State": {
+      "main": [
+        [
+          {
+            "node": "Verify Active Membership",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Active Membership": {
+      "main": [
+        [
+          {
+            "node": "Generate Highly Personalized Template",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Inactive Client Stop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Highly Personalized Template": {
+      "main": [
+        [
+          {
+            "node": "Route To Meta Cloud API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -8,18 +8,22 @@ import {
     CheckCircle,
     Grid
 } from 'lucide-react';
-import { generateTextToSpeech, getComplexResponse, analyzeExerciseForm } from '../../../lib/gemini';
+import { generateTextToSpeech, getComplexResponse, analyzeExerciseForm } from '../../../lib/core_ai';
 import { decode, decodeAudioData } from '../../audio';
 import { useData } from '../../context/DataProvider';
 import { useToast } from '../../hooks/useToast';
 import { BotIcon } from '../icons/BotIcon';
-import { Pose, POSE_CONNECTIONS, Results } from '@mediapipe/pose';
-import { Camera } from '@mediapipe/camera_utils';
-import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
+import * as poseUtils from '@mediapipe/pose';
+const { Pose, POSE_CONNECTIONS } = (poseUtils as any).default || poseUtils;
+import * as camUtils from '@mediapipe/camera_utils';
+const Camera = (camUtils as any).Camera || (camUtils as any).default?.Camera || (window as any).Camera;
+import * as drawUtils from '@mediapipe/drawing_utils';
+const { drawConnectors, drawLandmarks } = (drawUtils as any).default || drawUtils;
 
 interface LiveTrainingHUDProps {
     exercise: string;
     sets: string;
+    memberId?: number;
     onClose: () => void;
 }
 
@@ -33,7 +37,7 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
     const [phase, setPhase] = useState<'Setup' | 'Calibrating' | 'Active' | 'PostAudit'>('Setup');
     
     // Live Metrics (Calculated Client-Side)
-    const [neuralDrive, setNeuralDrive] = useState(0); 
+    const [neuralDrive, setSmartDrive] = useState(0); 
     const [symmetry, setSymmetry] = useState(50); // 50 = Balanced
     const [velocity, setVelocity] = useState(0.0); // m/s
     const [repCount, setRepCount] = useState(0);
@@ -53,7 +57,7 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
 
     // UI/Voice Control
     const [isMuted, setIsMuted] = useState(false);
-    const [isGhostActive, setIsGhostActive] = useState(true);
+    const [isVisualActive, setIsVisualActive] = useState(true);
     const [cameraActive, setCameraActive] = useState(false);
     const [showGrid, setShowGrid] = useState(true);
 
@@ -63,8 +67,8 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
     const frameIdRef = useRef<number>(0);
 
     // MediaPipe Refs
-    const poseRef = useRef<Pose | null>(null);
-    const cameraRef = useRef<Camera | null>(null);
+    const poseRef = useRef<any | null>(null);
+    const cameraRef = useRef<any | null>(null);
     const landmarksRef = useRef<any>(null);
     const workerRef = useRef<Worker | null>(null);
 
@@ -139,7 +143,7 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
         
         workerRef.current.onmessage = (e: MessageEvent) => {
             const { neuralDrive, symmetry, velocity, formScore, smoothedLandmarks } = e.data;
-            setNeuralDrive(neuralDrive);
+            setSmartDrive(neuralDrive);
             setSymmetry(symmetry);
             setVelocity(velocity);
             setFormScore(formScore);
@@ -169,7 +173,7 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
             minTrackingConfidence: 0.5
         });
 
-        pose.onResults((results: Results) => {
+        pose.onResults((results: any) => {
             if (results.poseLandmarks) {
                 // Offload heavy math to Web Worker (Isolate equivalent)
                 if (workerRef.current && phase === 'Active') {
@@ -268,13 +272,13 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
 
     const triggerVisualAudit = async () => {
         if (!videoRef.current || !cameraActive) {
-             // Simulate for demo if camera off
+             // Process for demo if camera off
              setLiveFeedback("SIMULATION: PERFECT FORM");
              setFormScore(100);
              return;
         }
         setIsAnalyzingVision(true);
-        addToast("Capturing Frame for Neural Audit...", "info");
+        addToast("Capturing Frame for Smart Audit...", "info");
 
         try {
             const tempCanvas = document.createElement('canvas');
@@ -283,7 +287,7 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
             // This significantly improves AI analysis in low-light conditions
             const base64 = enhanceFrame(videoRef.current, tempCanvas);
 
-            // Send to Gemini Vision (Single Call)
+            // Send to Core AI Vision (Single Call)
             const res = await analyzeExerciseForm(base64);
             
             if (res.status !== 'Idle') {
@@ -350,13 +354,13 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
 
             ctx.clearRect(0, 0, w, h);
 
-            // 1. Ghost v2.0 (Holographic Overlay) - Only if no real landmarks or explicitly requested
-            if (isGhostActive && !landmarksRef.current) {
+            // 1. Visual v2.0 (Holographic Overlay) - Only if no real landmarks or explicitly requested
+            if (isVisualActive && !landmarksRef.current) {
                 const ghostY = cy + Math.sin(t) * 100;
-                drawSkeleton(ctx, cx + 150, ghostY, 'rgba(6, 182, 212, 0.4)', [5, 5], 1.0); // Cyan Ghost
+                drawSkeleton(ctx, cx + 150, ghostY, 'rgba(6, 182, 212, 0.4)', [5, 5], 1.0); // Cyan Visual
             }
 
-            // 2. User Neural Skeleton (Live MediaPipe)
+            // 2. User Smart Skeleton (Live MediaPipe)
             if (landmarksRef.current) {
                 // Draw MediaPipe Landmarks
                 ctx.save();
@@ -424,7 +428,7 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
         return () => {
             if (frameIdRef.current) cancelAnimationFrame(frameIdRef.current);
         };
-    }, [phase, isGhostActive, isMuted, cameraActive, formScore, showGrid]);
+    }, [phase, isVisualActive, isMuted, cameraActive, formScore, showGrid]);
 
     const handleStartSequence = async () => {
         setPhase('Calibrating');
@@ -445,7 +449,7 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
         const uniqueIssues = [...new Set(analysisLog.current)].join(', ');
 
         const prompt = `
-            ACT AS SOVEREIGN BIOMECHANICS ORACLE (Gemini 3 Pro).
+            ACT AS SOVEREIGN BIOMECHANICS ORACLE (Core AI 3 Pro).
             SUBJECT: ${exercise} SESSION.
             REPS: ${repCount}.
             AVG DRIVE: ${neuralDrive}%.
@@ -458,7 +462,7 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
             const report = await getComplexResponse(prompt);
             setAiAuditReport(report);
         } catch (e) {
-            setAiAuditReport("<p>Neural Link Offline. Basic stats: All systems nominal.</p>");
+            setAiAuditReport("<p>Smart Link Offline. Basic stats: All systems nominal.</p>");
         } finally {
             setIsThinking(false);
             analysisLog.current = []; // Clear log
@@ -507,7 +511,7 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
                     <button onClick={() => setShowGrid(!showGrid)} className={`p-4 rounded-2xl backdrop-blur-xl border transition-all ${showGrid ? 'bg-cyan-900/40 border-cyan-500 text-cyan-400' : 'bg-black/40 border-white/10 text-gray-500'}`}>
                         <Grid className="w-5 h-5" />
                     </button>
-                    <button onClick={() => setIsGhostActive(!isGhostActive)} className={`p-4 rounded-2xl backdrop-blur-xl border transition-all ${isGhostActive ? 'bg-indigo-900/40 border-indigo-500 text-indigo-400' : 'bg-black/40 border-white/10 text-gray-500'}`}>
+                    <button onClick={() => setIsVisualActive(!isVisualActive)} className={`p-4 rounded-2xl backdrop-blur-xl border transition-all ${isVisualActive ? 'bg-indigo-900/40 border-indigo-500 text-indigo-400' : 'bg-black/40 border-white/10 text-gray-500'}`}>
                         <Ghost className="w-5 h-5" />
                     </button>
                     <button onClick={() => setIsMuted(!isMuted)} className={`p-4 rounded-2xl backdrop-blur-xl border transition-all ${!isMuted ? 'bg-green-900/40 border-green-500 text-green-400' : 'bg-black/40 border-white/10 text-gray-500'}`}>
@@ -544,9 +548,9 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
                                 <div className="w-40 h-40 rounded-full bg-cyan-900/10 flex items-center justify-center border-[6px] border-cyan-500/30 mb-10 shadow-[0_0_60px_rgba(6,182,212,0.3)] animate-pulse">
                                     <Layers className="w-16 h-16 text-cyan-400" />
                                 </div>
-                                <h3 className="text-6xl font-black text-white italic uppercase tracking-tighter mb-4">Neural Mirror</h3>
+                                <h3 className="text-6xl font-black text-white italic uppercase tracking-tighter mb-4">Smart Mirror</h3>
                                 <p className="text-gray-400 max-w-lg text-lg leading-relaxed mb-12 font-medium">
-                                    "Align your body within the grid. Bio-Metrics will be pulled from {connectedDevice ? connectedDevice.name : "Simulated Core"}."
+                                    "Align your body within the grid. Bio-Metrics will be pulled from {connectedDevice ? connectedDevice.name : "Core"}."
                                 </p>
                                 <button 
                                     onClick={handleStartSequence}
@@ -612,7 +616,7 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
                     <div className="flex gap-6">
                         <div className="bg-black/60 backdrop-blur-xl p-5 rounded-[2rem] border border-white/10 w-48 shadow-2xl text-right">
                              <p className="text-[9px] font-black text-purple-400 uppercase tracking-widest mb-1 flex items-center justify-end gap-2">
-                                 Neural Drive <Zap className="w-3 h-3"/> 
+                                 Smart Drive <Zap className="w-3 h-3"/> 
                              </p>
                              <p className="text-3xl font-black text-white italic">{neuralDrive}%</p>
                              <div className="w-full h-1 bg-gray-800 rounded-full mt-2 overflow-hidden">
@@ -629,7 +633,7 @@ const LiveTrainingHUD: React.FC<LiveTrainingHUDProps> = ({ exercise, sets, onClo
                     {isThinking ? (
                         <div className="text-center space-y-6">
                             <RefreshCw className="w-20 h-20 text-cyan-500 animate-spin mx-auto" />
-                            <h3 className="text-3xl font-black text-white uppercase italic tracking-widest animate-pulse">Compiling Neural Report...</h3>
+                            <h3 className="text-3xl font-black text-white uppercase italic tracking-widest animate-pulse">Compiling Smart Report...</h3>
                             <p className="text-cyan-400 font-mono text-sm tracking-widest">Analyzing {repCount} Repetitions</p>
                         </div>
                     ) : aiAuditReport ? (

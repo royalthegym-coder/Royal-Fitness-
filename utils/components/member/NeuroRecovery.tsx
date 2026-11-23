@@ -9,7 +9,7 @@ import {
     Fan, Disc, Power
 } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
-import { getComplexResponse, generateTextToSpeech, generateNeuroProtocol } from '../../../lib/gemini';
+import { getComplexResponse, generateTextToSpeech, generateNeuroProtocol } from '../../../lib/core_ai';
 import { decode, decodeAudioData } from '../../audio';
 import { BotIcon } from '../icons/BotIcon';
 import { useData } from '../../context/DataProvider';
@@ -90,11 +90,16 @@ const SonicFrequencyTuner: React.FC = () => {
     // Member context
     const memberId = members[0]?.id;
 
+    // Advanced Sound Engine Parameters
+    const [solfeggioAlign, setSolfeggioAlign] = useState(true);
+    const [waveType, setWaveType] = useState<'sine' | 'triangle' | 'sine-harmonic'>('sine-harmonic');
+    const [ambientSurf, setAmbientSurf] = useState<'none' | 'ocean' | 'pink-cosmic' | 'brown-deep'>('ocean');
+
     // State
     const [activeMode, setActiveMode] = useState<TherapyMode>(MODES[1]); 
     const [isPlaying, setIsPlaying] = useState(false);
-    const [volume, setVolume] = useState(0.5);
-    const [isIsochronic, setIsIsochronic] = useState(false); 
+    const [volume, setVolume] = useState(0.4);
+    const [isIsochronic, setIsIsochronic] = useState(true); 
     const [bioSync, setBioSync] = useState(false); 
     const [timer, setTimer] = useState(900); 
     const [isFullScreen, setIsFullScreen] = useState(false);
@@ -113,6 +118,8 @@ const SonicFrequencyTuner: React.FC = () => {
     const masterGainRef = useRef<GainNode | null>(null);
     const isoGainRef = useRef<GainNode | null>(null);
     const lfoRef = useRef<OscillatorNode | null>(null);
+    const oLfoRef = useRef<OscillatorNode | null>(null);
+    const noiseSrcRef = useRef<AudioBufferSourceNode | null>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
     const animationFrameRef = useRef<number>(0);
@@ -140,94 +147,301 @@ const SonicFrequencyTuner: React.FC = () => {
         setActiveColor(activeMode.colorTo);
     }, [activeMode]);
 
+    const createNoiseBuffer = (ctx: AudioContext, type: 'pink' | 'brown' | 'white') => {
+        const bufferSize = ctx.sampleRate * 2; // 2 seconds buffer
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = buffer.getChannelData(0);
+
+        if (type === 'white') {
+            for (let i = 0; i < bufferSize; i++) {
+                output[i] = Math.random() * 2 - 1;
+            }
+        } else if (type === 'pink') {
+            let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
+            for (let i = 0; i < bufferSize; i++) {
+                const white = Math.random() * 2 - 1;
+                b0 = 0.99886 * b0 + white * 0.0555179;
+                b1 = 0.99332 * b1 + white * 0.0750759;
+                b2 = 0.96900 * b2 + white * 0.1538520;
+                b3 = 0.86650 * b3 + white * 0.3104856;
+                b4 = 0.55000 * b4 + white * 0.5329522;
+                b5 = -0.7616 * b5 - white * 0.0168980;
+                output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+                output[i] *= 0.11; // compensate gain
+                b6 = white * 0.115926;
+            }
+        } else if (type === 'brown') {
+            let lastOut = 0;
+            for (let i = 0; i < bufferSize; i++) {
+                const white = Math.random() * 2 - 1;
+                output[i] = (lastOut + (0.02 * white)) / 1.02;
+                lastOut = output[i];
+                output[i] *= 3.5; 
+            }
+        }
+        return buffer;
+    };
+
     const initAudio = async () => {
         try {
-            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({
+                sampleRate: 48000,
+                latencyHint: 'playback'
+            });
             audioCtxRef.current = ctx;
 
-            // Master Output
+            // --- 0. ADVANCED MASTERING CHAIN ---
+            // Master Compressor for pristine dynamic range and zero clipping
+            const compressor = ctx.createDynamicsCompressor();
+            compressor.threshold.setValueAtTime(-24, ctx.currentTime);
+            compressor.knee.setValueAtTime(30, ctx.currentTime);
+            compressor.ratio.setValueAtTime(12, ctx.currentTime);
+            compressor.attack.setValueAtTime(0.003, ctx.currentTime);
+            compressor.release.setValueAtTime(0.25, ctx.currentTime);
+            
+            // Sub-Bass Exciter / Multiband EQ
+            const subEq = ctx.createBiquadFilter();
+            subEq.type = 'lowshelf';
+            subEq.frequency.setValueAtTime(80, ctx.currentTime);
+            subEq.gain.setValueAtTime(4.5, ctx.currentTime);
+
+            const airEq = ctx.createBiquadFilter();
+            airEq.type = 'highshelf';
+            airEq.frequency.setValueAtTime(8000, ctx.currentTime);
+            airEq.gain.setValueAtTime(2.0, ctx.currentTime);
+
+            // Master Output Node with exponential ramp for ultra-smooth fade in
             const masterGain = ctx.createGain();
-            masterGain.gain.value = volume;
+            masterGain.gain.setValueAtTime(0.001, ctx.currentTime);
+            masterGain.gain.exponentialRampToValueAtTime(volume, ctx.currentTime + 2.5);
+            
+            // Routing: Nodes -> Air EQ -> Sub EQ -> Compressor -> Master Gain -> Destination
+            airEq.connect(subEq);
+            subEq.connect(compressor);
+            compressor.connect(masterGain);
             masterGain.connect(ctx.destination);
             masterGainRef.current = masterGain;
 
-            // Analyser for Visuals
+            // Analyser for Visuals (high res)
             const analyser = ctx.createAnalyser();
-            analyser.fftSize = 2048;
+            analyser.fftSize = 4096;
+            analyser.smoothingTimeConstant = 0.88;
             masterGain.connect(analyser); // Connect master to analyser
             analyserRef.current = analyser;
 
-            // Helper for Panner (Safari compatibility)
+            // Helper for 3D Panner (Advanced Spatial Audio HRTF mapping)
             const createPanner = (panValue: number) => {
-                if (ctx.createStereoPanner) {
-                    const panner = ctx.createStereoPanner();
-                    panner.pan.value = panValue;
-                    return panner;
-                } else {
-                    const panner = ctx.createPanner();
-                    panner.panningModel = 'equalpower';
-                    panner.setPosition(panValue, 0, 1 - Math.abs(panValue));
-                    return panner;
-                }
+                const panner = ctx.createPanner();
+                panner.panningModel = 'HRTF';
+                panner.distanceModel = 'inverse';
+                panner.refDistance = 1;
+                panner.maxDistance = 10000;
+                panner.rolloffFactor = 1;
+                
+                // Position calculation for absolute lateral spread (spatial width)
+                // Left = -1, Right = +1
+                panner.setPosition(panValue * 3.5, Math.abs(panValue) * -0.5, panValue === 0 ? 0 : 2);
+                return panner;
             };
 
-            // --- 1. BINAURAL BEATS ENGINE ---
-            const oscL = ctx.createOscillator();
-            const pL = createPanner(-1);
-            oscL.frequency.value = activeMode.freqLeft;
-            oscL.connect(pL);
-            
-            const oscR = ctx.createOscillator();
-            const pR = createPanner(1);
-            oscR.frequency.value = activeMode.freqRight;
-            oscR.connect(pR);
+            // Solfeggio Scale Alignment Carrier math
+            let freqL = activeMode.freqLeft;
+            let freqR = activeMode.freqRight;
 
-            // --- 2. ISOCHRONIC MODULATOR ---
+            if (solfeggioAlign) {
+                let solfeggioBase = 432; // Standard ambient
+                if (activeMode.id === 'deep_repair') solfeggioBase = 174; // Pain relief and deep physical repair
+                else if (activeMode.id === 'cns_reset') solfeggioBase = 417; // Undoing negative emotions / facilitation
+                else if (activeMode.id === 'focus_flow') solfeggioBase = 528; // Miracle tone, cellular renewal and focus
+                else if (activeMode.id === 'power_surge') solfeggioBase = 852; // Cognitive awakening and spiritual focus
+                
+                const gap = Math.abs(activeMode.freqRight - activeMode.freqLeft);
+                freqL = solfeggioBase;
+                freqR = solfeggioBase + gap;
+            }
+
+            // --- 1. BINAURAL BEATS ENGINE WITH NEXT-GEN HARMONICS ---
+            const createAcousticCarrier = (frequency: number, panVal: number) => {
+                const subGain = ctx.createGain();
+                subGain.gain.value = 0.55; // relative mix proportion
+
+                const oscBase = ctx.createOscillator();
+                oscBase.frequency.value = frequency;
+                
+                if (waveType === 'triangle') {
+                    oscBase.type = 'triangle';
+                } else {
+                    oscBase.type = 'sine';
+                }
+                oscBase.connect(subGain);
+                oscBase.start();
+
+                if (waveType === 'sine-harmonic') {
+                    // Inject warm, perfectly mathematically aligned pythagorean overtones
+                    // Second Harmonic (1 Octave up - Air/Breath)
+                    const oscOct = ctx.createOscillator();
+                    oscOct.frequency.value = frequency * 2;
+                    oscOct.type = 'sine';
+                    const gainOct = ctx.createGain();
+                    gainOct.gain.value = 0.12; 
+                    oscOct.connect(gainOct);
+                    gainOct.connect(subGain);
+                    oscOct.start();
+
+                    // Perfect Fifth Overtone (Cerebral Harmony - Warmth/Presence)
+                    const oscFifth = ctx.createOscillator();
+                    oscFifth.frequency.value = frequency * 1.5;
+                    oscFifth.type = 'sine';
+                    const gainFifth = ctx.createGain();
+                    gainFifth.gain.value = 0.08;
+                    oscFifth.connect(gainFifth);
+                    gainFifth.connect(subGain);
+                    oscFifth.start();
+
+                    // Third Harmonic (Bright, clear projection - Crystal Clear Resonance)
+                    const oscThird = ctx.createOscillator();
+                    oscThird.frequency.value = frequency * 3;
+                    oscThird.type = 'sine';
+                    const gainThird = ctx.createGain();
+                    gainThird.gain.value = 0.04;
+                    oscThird.connect(gainThird);
+                    gainThird.connect(subGain);
+                    oscThird.start();
+                }
+
+                const panner = createPanner(panVal);
+                subGain.connect(panner);
+                return { panner, oscBase };
+            };
+
+            const { panner: nodeL, oscBase: oscL } = createAcousticCarrier(freqL, -1);
+            const { panner: nodeR, oscBase: oscR } = createAcousticCarrier(freqR, 1);
+
+            // --- 2. ISOCHRONIC MODULATOR (POP-FREE, ZERO-CROSSING TRIANGLE + LPF WARMER) ---
             const isoGain = ctx.createGain();
-            isoGain.gain.value = 1;
+            isoGain.gain.setValueAtTime(0.65, ctx.currentTime);
             isoGainRef.current = isoGain;
             
-            // Route Oscillators -> IsoGain -> MasterGain
-            pL.connect(isoGain);
-            pR.connect(isoGain);
-            isoGain.connect(masterGain);
+            nodeL.connect(isoGain);
+            nodeR.connect(isoGain);
+            isoGain.connect(airEq); // Connect to advanced mastering chain
 
             if (isIsochronic && activeMode.isoPulse) {
                 const lfo = ctx.createOscillator();
-                lfo.type = 'square'; // Sharp pulse
+                lfo.type = 'sine'; // Super smooth sine sweep for liquid isochronic pulses
                 lfo.frequency.value = activeMode.isoPulse;
+                
                 const lfoGain = ctx.createGain();
-                lfoGain.gain.value = 1; // Modulation depth
+                lfoGain.gain.value = 0.40; // Amplitude tracking depth
+                
                 lfo.connect(lfoGain);
-                lfoGain.connect(isoGain.gain); // Modulate volume
+                lfoGain.connect(isoGain.gain); // waves isoGain.gain 
                 lfo.start();
                 lfoRef.current = lfo;
+
+                // Modulate filter cutoff organically with isochronic pulse for fluid sound
+                const pulseWarmFilter = ctx.createBiquadFilter();
+                pulseWarmFilter.type = 'lowpass';
+                pulseWarmFilter.frequency.setValueAtTime(2000, ctx.currentTime);
+                isoGain.disconnect();
+                isoGain.connect(pulseWarmFilter);
+                pulseWarmFilter.connect(airEq);
+
+                const filterLfoGain = ctx.createGain();
+                filterLfoGain.gain.value = 500;
+                lfo.connect(filterLfoGain);
+                filterLfoGain.connect(pulseWarmFilter.frequency);
             }
 
-            oscL.start(); 
-            oscR.start();
+            // --- 3. DYNAMIC ATMOSPHERIC OCEAN/COSMIC GENERATORS (Pristine Stochastic Noise) ---
+            if (ambientSurf !== 'none') {
+                const nType = ambientSurf === 'pink-cosmic' ? 'pink' : 'brown';
+                const nBuffer = createNoiseBuffer(ctx, nType);
+                const nSrc = ctx.createBufferSource();
+                nSrc.buffer = nBuffer;
+                nSrc.loop = true;
 
-            // --- 3. SUBLIMINAL MANTRA LAYER ---
+                // Create a beautiful Biquad Resonant Filter with cascading curves
+                const resonantFilter = ctx.createBiquadFilter();
+                resonantFilter.type = ambientSurf === 'pink-cosmic' ? 'bandpass' : 'lowpass';
+                resonantFilter.Q.value = ambientSurf === 'pink-cosmic' ? 5.5 : 2.5;
+                resonantFilter.frequency.setValueAtTime(320, ctx.currentTime);
+
+                // Immersive Phase Shifter FX for Space Engine
+                const phaserFreq = ctx.createBiquadFilter();
+                phaserFreq.type = 'allpass';
+                phaserFreq.frequency.setValueAtTime(1000, ctx.currentTime);
+
+                // Ocean Waves slow filter swept oscillator (0.015 Hz = ~66 seconds macro cycle)
+                const sweepLfo = ctx.createOscillator();
+                sweepLfo.type = 'sine';
+                sweepLfo.frequency.value = ambientSurf === 'brown-deep' ? 0.02 : 0.04;
+
+                const sweepLfoGain = ctx.createGain();
+                // Sweep width: lush dynamic breathing of the wave
+                sweepLfoGain.gain.value = ambientSurf === 'pink-cosmic' ? 420 : 300;
+
+                const sweepLfoPhaser = ctx.createGain();
+                sweepLfoPhaser.gain.value = 800; // Phaser sweep
+
+                sweepLfo.connect(sweepLfoGain);
+                sweepLfo.connect(sweepLfoPhaser);
+                
+                sweepLfoGain.connect(resonantFilter.frequency);
+                sweepLfoPhaser.connect(phaserFreq.frequency);
+
+                const noiseGain = ctx.createGain();
+                noiseGain.gain.value = ambientSurf === 'brown-deep' ? 0.16 : 0.10;
+
+                const spacePanner = createPanner(0); 
+
+                nSrc.connect(resonantFilter);
+                resonantFilter.connect(phaserFreq);
+                phaserFreq.connect(noiseGain);
+                noiseGain.connect(spacePanner);
+                spacePanner.connect(airEq);
+
+                sweepLfo.start();
+                nSrc.start();
+
+                oLfoRef.current = sweepLfo;
+                noiseSrcRef.current = nSrc;
+            }
+
+            // --- 4. SUBLIMINAL MANTRA LAYER (High-Fidelity Whispers) ---
             if (activeMode.mantra) {
                 try {
                     const audioBase64 = await generateTextToSpeech(activeMode.mantra);
                     if (audioBase64) {
-                        const buffer = await decodeAudioData(decode(audioBase64), ctx, 24000, 1);
+                        const buffer = await decodeAudioData(decode(audioBase64), ctx, 48000, 1);
                         const source = ctx.createBufferSource();
                         source.buffer = buffer;
                         source.loop = true;
                         
                         const whisperGain = ctx.createGain();
-                        whisperGain.gain.value = 0.15; // Low volume for subliminal effect
+                        whisperGain.gain.value = 0.09; // Psycho-acoustic whisper threshold
                         
-                        // Low pass filter to make it sound "internal"
-                        const lowPass = ctx.createBiquadFilter();
-                        lowPass.type = 'lowpass';
-                        lowPass.frequency.value = 600;
+                        // Ethereal Reverb Simulator (Delay-based Comb Filtering)
+                        const delay1 = ctx.createDelay(); delay1.delayTime.value = 0.15;
+                        const delay2 = ctx.createDelay(); delay2.delayTime.value = 0.25;
+                        const fback = ctx.createGain(); fback.gain.value = 0.3;
+                        delay1.connect(delay2); delay2.connect(fback); fback.connect(delay1);
 
-                        source.connect(lowPass);
-                        lowPass.connect(whisperGain);
-                        whisperGain.connect(masterGain);
+                        // Resonant acoustic bandpass filter for mysterious subliminal effect
+                        const bwFilter = ctx.createBiquadFilter();
+                        bwFilter.type = 'bandpass';
+                        bwFilter.frequency.value = 800;
+                        bwFilter.Q.value = 1.0;
+
+                        const whisperPanner = createPanner(0);
+
+                        source.connect(bwFilter);
+                        bwFilter.connect(delay1);
+                        bwFilter.connect(whisperGain);
+                        delay1.connect(whisperGain);
+                        
+                        whisperGain.connect(whisperPanner);
+                        whisperPanner.connect(airEq); // Route through mastering
                         source.start();
                     }
                 } catch (speechErr) {
@@ -244,7 +458,33 @@ const SonicFrequencyTuner: React.FC = () => {
     };
 
     const stopAudio = () => {
-        if (audioCtxRef.current) audioCtxRef.current.close();
+        if (oLfoRef.current) {
+            try { oLfoRef.current.stop(); } catch (e) {}
+            oLfoRef.current = null;
+        }
+        if (noiseSrcRef.current) {
+            try { noiseSrcRef.current.stop(); } catch (e) {}
+            noiseSrcRef.current = null;
+        }
+        
+        if (masterGainRef.current && audioCtxRef.current) {
+            const ctx = audioCtxRef.current;
+            try {
+                // Smooth professional volume ramp down to eliminate speaker clipping/popping
+                masterGainRef.current.gain.setValueAtTime(masterGainRef.current.gain.value, ctx.currentTime);
+                masterGainRef.current.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+                const ctxToClose = audioCtxRef.current;
+                setTimeout(() => {
+                    try {
+                        ctxToClose.close();
+                    } catch (err) {}
+                }, 180);
+            } catch (err) {
+                try { audioCtxRef.current.close(); } catch (e) {}
+            }
+        } else if (audioCtxRef.current) {
+            try { audioCtxRef.current.close(); } catch (e) {}
+        }
         audioCtxRef.current = null;
         
         // Log Session
@@ -294,19 +534,24 @@ const SonicFrequencyTuner: React.FC = () => {
         if (masterGainRef.current) masterGainRef.current.gain.value = volume;
     }, [volume]);
 
-    // Restart audio if mode changes while playing
+    // Restart audio if mode or setting changes while playing
     useEffect(() => {
         if (isPlaying) {
             stopAudio();
-            setTimeout(initAudio, 100);
+            const delayTimer = setTimeout(() => {
+                initAudio();
+            }, 180);
+            return () => clearTimeout(delayTimer);
         }
-    }, [activeMode, isIsochronic]);
+    }, [activeMode, isIsochronic, solfeggioAlign, waveType, ambientSurf]);
 
     // --- VISUALIZER LOOP ---
     useEffect(() => {
         if (!isPlaying || !canvasRef.current) return;
         const ctx = canvasRef.current.getContext('2d');
         if (!ctx) return;
+
+        let rotationAngle = 0;
 
         const render = () => {
             animationFrameRef.current = requestAnimationFrame(render);
@@ -320,60 +565,99 @@ const SonicFrequencyTuner: React.FC = () => {
             const h = canvasRef.current!.height;
             const cx = w / 2;
             const cy = h / 2;
-            const radius = Math.min(w, h) / 3;
+            const radius = Math.min(w, h) / 3.2;
 
-            // Dynamic Background based on audio energy
-            const energy = dataArray[10] / 255;
-            ctx.fillStyle = `rgba(0, 0, 0, ${0.1 + energy * 0.1})`; // Trails effect
+            // Deep cosmic canvas trail effect
+            const energy = dataArray[15] / 255.0 || 0.1;
+            ctx.fillStyle = `rgba(3, 3, 7, ${0.12 - energy * 0.05})`; 
             ctx.fillRect(0, 0, w, h);
 
-            // Draw Radial Visualizer
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = activeColor; // Use active IoT color
-            
-            const bars = 120; // Smoother
-            const step = (Math.PI * 2) / bars;
-
-            for (let i = 0; i < bars; i++) {
-                const val = dataArray[i * 2] / 255.0;
-                const barH = val * radius * 0.8;
-                const angle = i * step;
-                
-                // Draw mirrored lines for symmetry
+            // Draw glowing background grids representing neural synaptic pathways
+            ctx.strokeStyle = `rgba(255, 255, 255, ${0.01 + energy * 0.03})`;
+            ctx.lineWidth = 0.5;
+            for (let r = radius * 0.3; r < radius * 2; r += radius * 0.45) {
                 ctx.beginPath();
-                ctx.moveTo(cx, cy);
-                
-                // Outer point
-                const x = cx + Math.cos(angle) * (radius + barH);
-                const y = cy + Math.sin(angle) * (radius + barH);
-                
-                // Inner point (create a ring effect)
-                const xInner = cx + Math.cos(angle) * (radius * 0.5);
-                const yInner = cy + Math.sin(angle) * (radius * 0.5);
-
-                ctx.moveTo(xInner, yInner);
-                ctx.lineTo(x, y);
+                ctx.arc(cx, cy, r, 0, Math.PI * 2);
                 ctx.stroke();
             }
 
-            // Center Pulse
+            // Spirograph Sacred Geometry parameters
+            rotationAngle += 0.006 + (energy * 0.01);
+            const petPoints = activeMode.id === 'deep_repair' ? 6 : activeMode.id === 'cns_reset' ? 8 : activeMode.id === 'focus_flow' ? 12 : 16;
+            
+            // Draw Sacred Spirograph Petals
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = activeColor;
+            ctx.shadowBlur = 10 + (energy * 25);
+            ctx.shadowColor = activeColor;
+
+            for (let petal = 0; petal < petPoints; petal++) {
+                const baseAngle = (petal * Math.PI * 2) / petPoints + rotationAngle;
+                ctx.beginPath();
+                
+                // Construct beautiful responsive nodes
+                const subAmp = dataArray[Math.floor(petal * (bufferLength / petPoints))] / 255.0 || 0.5;
+                const dynamicRad = radius * (0.65 + subAmp * 0.5);
+
+                const xStart = cx + Math.cos(baseAngle) * (radius * 0.35);
+                const yStart = cy + Math.sin(baseAngle) * (radius * 0.35);
+
+                // Control points to bend the curve gracefully
+                const cpAngle = baseAngle + Math.PI / petPoints;
+                const cpX = cx + Math.cos(cpAngle) * dynamicRad * 1.5;
+                const cpY = cy + Math.sin(cpAngle) * dynamicRad * 1.5;
+
+                const xEnd = cx + Math.cos(baseAngle + (Math.PI * 2) / petPoints) * (radius * 0.35);
+                const yEnd = cy + Math.sin(baseAngle + (Math.PI * 2) / petPoints) * (radius * 0.35);
+
+                ctx.moveTo(xStart, yStart);
+                ctx.quadraticCurveTo(cpX, cpY, xEnd, yEnd);
+                ctx.stroke();
+            }
+
+            // Draw Radial Audio Bars as sparkling outer corona
+            ctx.shadowBlur = 0; // turn off shadow for raw speed
+            ctx.lineWidth = 1.0;
+            const coronaBars = 90;
+            const step = (Math.PI * 2) / coronaBars;
+            for (let i = 0; i < coronaBars; i++) {
+                const val = dataArray[i * 4] / 255.0 || 0;
+                const barH = val * radius * 0.45;
+                const angle = i * step - (rotationAngle * 0.5);
+                
+                const startX = cx + Math.cos(angle) * (radius * 0.95);
+                const startY = cy + Math.sin(angle) * (radius * 0.95);
+                const endX = cx + Math.cos(angle) * (radius * 0.95 + barH);
+                const endY = cy + Math.sin(angle) * (radius * 0.95 + barH);
+
+                ctx.beginPath();
+                ctx.strokeStyle = `rgba(${parseInt(activeColor.substring(1,3), 16) || 120}, ${parseInt(activeColor.substring(3,5), 16) || 100}, 255, ${0.45 + val * 0.55})`;
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+            }
+
+            // Center Nucleus representing pure state of consciousness
             ctx.beginPath();
-            ctx.arc(cx, cy, radius * 0.9 + (energy * 20), 0, Math.PI * 2);
-            ctx.fillStyle = `${activeColor}44`; // Semi-transparent fill
+            ctx.arc(cx, cy, radius * 0.28 + (energy * 18), 0, Math.PI * 2);
+            ctx.fillStyle = `${activeColor}22`;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.5;
             ctx.fill();
+            ctx.stroke();
 
             // VISUAL ENTRAINMENT (Strobe Effect)
             if (isIsochronic && activeMode.isoPulse && pulseRef.current) {
-                // Calculate strobe based on time to match Hz
                 const now = Date.now() / 1000;
-                // Simple square wave opacity
-                const strobe = Math.sin(now * activeMode.isoPulse * Math.PI * 2) > 0 ? 0.1 : 0;
-                pulseRef.current.style.opacity = strobe.toString();
+                // Soft triangular strobe to match smooth audio
+                const cyclePos = (now * activeMode.isoPulse) % 1.0;
+                const strobe = cyclePos < 0.5 ? cyclePos * 2 * 0.08 : (1 - cyclePos) * 2 * 0.08;
+                pulseRef.current.style.opacity = strobe.toFixed(4);
             }
         };
         render();
         return () => cancelAnimationFrame(animationFrameRef.current);
-    }, [isPlaying, activeMode, isIsochronic, activeColor]);
+    }, [isPlaying, activeMode, isIsochronic, activeColor, waveType, solfeggioAlign]);
 
     // AI Generator
     const handleGenerateCustom = async () => {
@@ -397,7 +681,7 @@ const SonicFrequencyTuner: React.FC = () => {
             };
             setActiveMode(customMode);
             setActiveColor(data.colorTo || '#fff');
-            addToast("Neural Architect: Protocol Generated.", "success");
+            addToast("Smart Architect: Protocol Generated.", "success");
         } catch (e) {
             addToast("Logic Drift Detected. Using defaults.", "error");
         } finally {
@@ -442,8 +726,9 @@ const SonicFrequencyTuner: React.FC = () => {
                                 <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(Number(e.target.value))} className="w-64 h-1 bg-white/20 rounded-full appearance-none accent-white cursor-pointer" />
                             </div>
                             
-                            <button onClick={toggleSession} className="bg-white/10 hover:bg-white/20 text-white p-6 rounded-full border border-white/10 transition-all active:scale-95 group">
-                                <X className="w-10 h-10 group-hover:rotate-90 transition-transform" />
+                            <button onClick={toggleSession} className="relative bg-gradient-to-r from-gray-900/40 to-gray-800/40 hover:from-gray-800/60 hover:to-gray-700/60 backdrop-blur-xl text-white p-6 rounded-full border border-dashed border-white/10 hover:border-white/30 transition-all active:scale-95 group overflow-hidden shadow-[0_0_15px_rgba(0,0,0,0.5)] hover:shadow-[0_0_25px_rgba(255,255,255,0.1)]">
+                                <div className="absolute inset-0 bg-white/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                <X className="w-10 h-10 relative z-10 group-hover:rotate-90 transition-transform duration-500" />
                             </button>
                         </div>
                     </div>
@@ -474,7 +759,7 @@ const SonicFrequencyTuner: React.FC = () => {
                             <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-3">
                                     <BotIcon className="w-6 h-6 text-amber-500" />
-                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Neural Architect v31.0</p>
+                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Smart Architect Fitness Future</p>
                                 </div>
                                 <label className="flex items-center gap-2 cursor-pointer">
                                      <span className={`text-[10px] font-black uppercase tracking-widest ${bioSync ? 'text-green-400' : 'text-gray-600'}`}>Bio-Sync (HRV)</span>
@@ -493,19 +778,122 @@ const SonicFrequencyTuner: React.FC = () => {
                                 <button 
                                    onClick={handleGenerateCustom}
                                    disabled={isThinking}
-                                   className="bg-indigo-600 text-white p-4 rounded-2xl hover:bg-indigo-500 disabled:opacity-50 transition-all"
+                                   className="relative bg-gradient-to-r from-indigo-900/40 to-indigo-800/40 hover:from-indigo-800/60 hover:to-indigo-700/60 backdrop-blur-xl border border-dashed border-indigo-500/50 hover:border-indigo-400 text-indigo-400 p-4 rounded-2xl disabled:opacity-50 transition-all shadow-[0_0_15px_rgba(99,102,241,0.3)] hover:shadow-[0_0_25px_rgba(99,102,241,0.5)] group overflow-hidden"
                                 >
-                                    {isThinking ? <RefreshCw className="animate-spin w-5 h-5"/> : <Zap className="w-5 h-5" />}
+                                    <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                    <div className="relative z-10 group-hover:scale-110 transition-transform duration-500">
+                                        {isThinking ? <RefreshCw className="animate-spin w-5 h-5"/> : <Zap className="w-5 h-5" />}
+                                    </div>
                                 </button>
                             </div>
                             <p className="text-[10px] text-gray-600 mt-4 italic leading-relaxed">"{activeMode.description}"</p>
                         </div>
 
+                        {/* Next-Gen Acoustic Tuning Panel */}
+                        <div className="bg-black/40 border border-white/5 p-6 rounded-3xl space-y-6">
+                            <h4 className="text-xs font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                                <Radio className="w-4 h-4 animate-pulse" /> Advanced NeuroAcoustic Synthesiser
+                            </h4>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Solfeggio Scale */}
+                                <div className="space-y-2">
+                                    <label className="text-[10px] uppercase font-bold text-gray-500 tracking-wider flex justify-between">
+                                        <span>Solfeggio Scale Resonator</span>
+                                        <span className={solfeggioAlign ? "text-green-400" : "text-gray-500"}>
+                                            {solfeggioAlign ? "Enabled" : "Disabled"}
+                                        </span>
+                                    </label>
+                                    <button 
+                                        onClick={() => setSolfeggioAlign(!solfeggioAlign)}
+                                        className={`w-full py-3 px-4 rounded-xl text-left border text-xs transition-all ${
+                                            solfeggioAlign 
+                                                ? "bg-indigo-900/20 border-indigo-500/50 text-indigo-200" 
+                                                : "bg-white/5 border-white/5 text-gray-400 hover:border-white/10"
+                                        }`}
+                                    >
+                                        <div className="font-extrabold flex items-center justify-between">
+                                            <span>{solfeggioAlign ? "✨ Sacred Tones Active" : "🧬 Lab Standards Only"}</span>
+                                            <span className="text-[9px] px-2 py-0.5 rounded bg-indigo-500/25 text-indigo-300">
+                                                {solfeggioAlign ? "432 / 528Hz" : "Raw"}
+                                            </span>
+                                        </div>
+                                        <p className="text-[10px] text-gray-500 mt-1">
+                                            {solfeggioAlign 
+                                                ? "Harmonically offsets base carrier waves using organic, DNA-repaired Solfeggio scale structures."
+                                                : "Uses direct clinical brainwave differentials based purely on direct lab targets (e.g. Delta/Beta)."}
+                                        </p>
+                                    </button>
+                                </div>
+
+                                {/* Waveforms */}
+                                <div className="space-y-2">
+                                    <label className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Carrier Tone Harmonics</label>
+                                    <div className="flex flex-col gap-2">
+                                        {([
+                                            { id: 'sine', label: ' Pure Sine Wave', desc: 'Clinical, ultra-pure focused signal.' },
+                                            { id: 'triangle', label: '▲ Soothing Triangle', desc: 'Pre-filtered, naturally smooth roll-off.' },
+                                            { id: 'sine-harmonic', label: '🎻 Pythagorean Harmonics', desc: 'Golden Ratio overtones (Pipe/Singing Bowl).' }
+                                        ] as const).map(w => (
+                                            <button
+                                                key={w.id}
+                                                onClick={() => setWaveType(w.id)}
+                                                className={`py-2 px-3 rounded-xl border text-left text-xs transition-all ${
+                                                    waveType === w.id
+                                                        ? "bg-purple-900/20 border-purple-500/50 text-purple-200"
+                                                        : "bg-white/5 border-white/5 text-gray-400 hover:border-white/10"
+                                                }`}
+                                            >
+                                                <div className="font-bold">{w.label}</div>
+                                                <div className="text-[9px] text-gray-500">{w.desc}</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Ambient Sound Scape Layer */}
+                            <div className="space-y-2 pt-2 border-t border-white/5">
+                                <label className="text-[10px] uppercase font-bold text-gray-500 tracking-wider flex justify-between">
+                                    <span>Atmospheric Sound Generator Backdrop</span>
+                                    <span className="text-zinc-400 text-[10px] font-mono">
+                                        {ambientSurf === 'none' ? "Off" : ambientSurf === 'ocean' ? "LUSH OCEAN SURF" : ambientSurf === 'pink-cosmic' ? "STELLAR SPACE WIND" : "GROUNDING SUB-BASS BROWN"}
+                                    </span>
+                                </label>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                    {([
+                                        { id: 'none', label: 'Off' },
+                                        { id: 'ocean', label: '🌊 Ocean Surf' },
+                                        { id: 'pink-cosmic', label: '🌌 Cosmic Wind' },
+                                        { id: 'brown-deep', label: '🧘 Sub Ground' }
+                                    ] as const).map(amb => (
+                                        <button
+                                            key={amb.id}
+                                            onClick={() => setAmbientSurf(amb.id)}
+                                            className={`py-2.5 px-3 rounded-xl border text-xs font-bold text-center transition-all ${
+                                                ambientSurf === amb.id 
+                                                    ? 'bg-indigo-600/25 border-indigo-500 text-white shadow-lg shadow-indigo-950/40 font-black' 
+                                                    : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
+                                            }`}
+                                        >
+                                            {amb.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-[9px] text-zinc-500 italic leading-relaxed">
+                                    All backdrops are synthesized procedurally in-browser using pure mathematical noise filter sweeps. No audio lag, no heavy streams, entirely clear and pristine.
+                                </p>
+                            </div>
+                        </div>
+
                         <button 
                            onClick={toggleSession}
-                           className="w-full bg-white text-black font-black py-6 rounded-[2.5rem] shadow-[0_0_50px_rgba(255,255,255,0.2)] hover:bg-indigo-400 transition-all uppercase tracking-widest text-xs italic flex items-center justify-center gap-4"
+                           className="relative w-full bg-gradient-to-r from-gray-900/40 to-gray-800/40 hover:from-gray-800/60 hover:to-gray-700/60 backdrop-blur-xl border border-dashed border-white/10 hover:border-white/30 text-white font-black py-6 rounded-[2.5rem] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(255,255,255,0.1)] transition-all uppercase tracking-widest text-xs italic flex items-center justify-center gap-4 group overflow-hidden"
                         >
-                            <Headphones className="w-5 h-5" /> Initiate Recovery Sequence
+                            <div className="absolute inset-0 bg-white/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                            <div className="relative z-10 flex items-center gap-4 group-hover:scale-105 transition-transform duration-500">
+                                <Headphones className="w-5 h-5" /> <span>Initiate Recovery Sequence</span>
+                            </div>
                         </button>
                     </div>
                 </Card>
@@ -572,8 +960,10 @@ const SonicFrequencyTuner: React.FC = () => {
                                         <button 
                                             key={lvl}
                                             onClick={() => setHapticIntensity(lvl)}
-                                            className={`flex-1 h-8 rounded-lg transition-all ${hapticIntensity === lvl ? 'bg-purple-600' : 'bg-gray-800 hover:bg-gray-700'}`}
-                                        ></button>
+                                            className={`relative flex-1 h-8 rounded-lg transition-all group overflow-hidden ${hapticIntensity === lvl ? 'bg-gradient-to-r from-purple-900/40 to-purple-800/40 backdrop-blur-xl border border-dashed border-purple-500/50 shadow-[0_0_10px_rgba(168,85,247,0.4)]' : 'bg-transparent border border-transparent hover:border-gray-600/50 hover:bg-gray-800/40'}`}
+                                        >
+                                            <div className={`absolute inset-0 bg-white/5 translate-y-full transition-transform duration-300 ease-in-out ${hapticIntensity !== lvl ? 'group-hover:translate-y-0' : ''}`}></div>
+                                        </button>
                                     ))}
                                 </div>
                             </div>
@@ -586,7 +976,7 @@ const SonicFrequencyTuner: React.FC = () => {
                     <div>
                         <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">CNS Insight</p>
                         <p className="text-gray-400 text-xs italic leading-relaxed">
-                            "v31.0 Protocol utilizes Isochronic pulsing for faster entrainment. Combined with Bio-Sync, expect 20% faster sympathetic withdrawal."
+                            "Fitness Future Protocol utilizes Isochronic pulsing for faster entrainment. Combined with Bio-Sync, expect 20% faster sympathetic withdrawal."
                         </p>
                     </div>
                 </div>
@@ -627,7 +1017,7 @@ const NeuroSyncHubWrapper: React.FC = () => {
                     <div>
                         <div className="flex items-center gap-3 mb-2">
                             <div className="px-5 py-2 bg-indigo-500 text-white rounded-full flex items-center gap-3 shadow-lg font-black uppercase tracking-[0.2em] text-[10px]">
-                                <Infinity className="w-3 h-3 animate-spin-slow" /> Synaptic Core v31.0
+                                <Infinity className="w-3 h-3 animate-spin-slow" /> Synaptic Core Fitness Future
                             </div>
                             <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] mt-2">Cerebral Cortex Online</p>
                         </div>

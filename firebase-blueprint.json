@@ -1,0 +1,1002 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Global user account record in Firestore representing Super Admins, Gym Admins, Trainers, and Members with role, account creation date, lock/force-unlock state, and membership expiration.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Unique Firestore user identifier"
+        },
+        "name": {
+          "type": "string",
+          "description": "Full display name of the user"
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Contact phone number"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["super_admin", "admin", "trainer", "member"],
+          "description": "User role across the 3-portal architecture"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Active", "Expired", "Locked", "Suspended", "Pending", "Inactive"],
+          "description": "Current account and membership status"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO date string when the account was created"
+        },
+        "expiryDate": {
+          "type": "string",
+          "description": "ISO date string when membership or lease expires"
+        },
+        "accountLocked": {
+          "type": "boolean",
+          "description": "Whether the account is currently locked"
+        },
+        "forceUnlocked": {
+          "type": "boolean",
+          "description": "Whether Super Admin has force-unlocked this account"
+        },
+        "forceUnlockedAt": {
+          "type": "string",
+          "description": "ISO timestamp when Super Admin force-unlocked the account"
+        },
+        "gymName": {
+          "type": "string",
+          "description": "Associated gym franchise or branch name"
+        },
+        "subscriptionCycle": {
+          "type": "string",
+          "description": "Monthly, Quarterly, Half-Yearly, Yearly, or Lifetime"
+        }
+      },
+      "required": ["uid", "name", "email", "role", "status", "createdAt"]
+    },
+    "Member": {
+      "title": "Member",
+      "description": "A gym member profile with billing, membership expiry, lock/unlock governance, health tracking, biometric authentication, and gamified progress.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "Unique identifier for the gym member"
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of the member"
+        },
+        "email": {
+          "type": "string",
+          "description": "Valid email address"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Mobile contact number"
+        },
+        "role": {
+          "type": "string",
+          "description": "Account role (member)"
+        },
+        "gymId": {
+          "type": "string",
+          "description": "Parent gym tenant identifier binding this member to a Gym Owner"
+        },
+        "gymName": {
+          "type": "string",
+          "description": "Parent gym display name"
+        },
+        "gymOwnerEmail": {
+          "type": "string",
+          "description": "Email address of the parent gym owner"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO date string when account was created"
+        },
+        "joinDate": {
+          "type": "string",
+          "description": "ISO date string when membership started"
+        },
+        "expiryDate": {
+          "type": "string",
+          "description": "ISO date string when current membership expires"
+        },
+        "packageId": {
+          "type": "integer",
+          "description": "Id of the subscribed package"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the member (Active, Expired, Pending, Inactive)"
+        },
+        "accountLocked": {
+          "type": "boolean",
+          "description": "Whether the member account is locked or unlocked by admin"
+        },
+        "forceUnlocked": {
+          "type": "boolean",
+          "description": "Whether the member account is force-unlocked by Super Admin"
+        },
+        "paymentConfirmed": {
+          "type": "boolean",
+          "description": "Whether the latest membership payment has been confirmed via Firestore"
+        },
+        "faceGeometrySignature": {
+          "type": "array",
+          "description": "Compact 8-point lighting-normalized geometric ratio signature for hybrid camera attendance"
+        },
+        "faceGeometryEnrolledAt": {
+          "type": "string",
+          "description": "ISO timestamp when face geometry signature was enrolled"
+        },
+        "lastPaymentReference": {
+          "type": "string",
+          "description": "UTR or transaction reference of the confirmed payment"
+        },
+        "lastPaymentDate": {
+          "type": "string",
+          "description": "ISO timestamp of last confirmed payment"
+        },
+        "avatar": {
+          "type": "string",
+          "description": "URL to the avatar image"
+        },
+        "whatsappConsent": {
+          "type": "boolean",
+          "description": "Acceptance for WhatsApp notifications"
+        },
+        "xp": {
+          "type": "integer",
+          "description": "Gamification experience points"
+        },
+        "level": {
+          "type": "integer",
+          "description": "Gamification level"
+        },
+        "achievements": {
+          "type": "array",
+          "description": "Awarded level badges or milestones"
+        },
+        "hrv": {
+          "type": "integer",
+          "description": "Heart Rate Variability index"
+        },
+        "lbm": {
+          "type": "number",
+          "description": "Lean Body Mass weight"
+        },
+        "health_score": {
+          "type": "integer",
+          "description": "Dynamic wellness score"
+        },
+        "bio_age": {
+          "type": "integer",
+          "description": "Calculated biological age"
+        }
+      },
+      "required": ["id", "name", "email", "phone", "joinDate", "packageId", "status"]
+    },
+    "SystemPolicy": {
+      "title": "SystemPolicy",
+      "description": "Global Super Admin governance policy for membership expiration, grace periods, and force-unlock overrides.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Policy document identifier"
+        },
+        "expirationMode": {
+          "type": "string",
+          "enum": ["standard", "grace_period", "bypass_all"],
+          "description": "Global membership expiration enforcement mode"
+        },
+        "gracePeriodDays": {
+          "type": "integer",
+          "description": "Number of grace days granted globally after expiryDate"
+        },
+        "forceUnlockAllAccounts": {
+          "type": "boolean",
+          "description": "Whether all accounts are globally force-unlocked by Super Admin"
+        },
+        "autoLockOnExpiry": {
+          "type": "boolean",
+          "description": "Whether accounts automatically lock when membership expires"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last policy update"
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "Email of the Super Admin who updated the policy"
+        }
+      },
+      "required": ["id", "expirationMode", "gracePeriodDays", "forceUnlockAllAccounts"]
+    },
+    "Package": {
+      "title": "Package",
+      "description": "A membership plan or subscription tier with details and price.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "Unique plan ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Commercial name of the package"
+        },
+        "category": {
+          "type": "string",
+          "description": "Target tier like Elite or Basic"
+        },
+        "price": {
+          "type": "number",
+          "description": "Cost in local currency"
+        },
+        "duration": {
+          "type": "string",
+          "description": "Duration eg 'Monthly' or 'Yearly'"
+        },
+        "features": {
+          "type": "array",
+          "description": "Included facilities or access points"
+        }
+      },
+      "required": ["id", "name", "category", "price", "duration"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Membership payment and billing confirmation record stored in Firestore.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "Unique invoice ID"
+        },
+        "memberId": {
+          "type": "integer",
+          "description": "ID of the member"
+        },
+        "memberName": {
+          "type": "string",
+          "description": "Name of the member"
+        },
+        "packageId": {
+          "type": "integer",
+          "description": "ID of the package"
+        },
+        "packageName": {
+          "type": "string",
+          "description": "Name of the package"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Invoice amount"
+        },
+        "date": {
+          "type": "string",
+          "description": "Invoice date"
+        },
+        "status": {
+          "type": "string",
+          "description": "Payment confirmation status (Paid, Pending, Overdue, Verification Pending, Rejected)"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Payment channel (UPI, Razorpay, Cash, Card)"
+        }
+      },
+      "required": ["id", "memberId", "memberName", "amount", "date", "status"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Biometric, NFC, or Passkey attendance and gate entry logs for gym members.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique attendance log ID"
+        },
+        "memberId": {
+          "type": "string",
+          "description": "ID of the member checking in"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO timestamp of check-in"
+        },
+        "method": {
+          "type": "string",
+          "description": "Verification method (e.g. RPPG, Passkey, QR, Admin)"
+        },
+        "status": {
+          "type": "string",
+          "description": "Check-in status (PRESENT, DENIED)"
+        }
+      },
+      "required": ["memberId", "timestamp"]
+    },
+    "WorkoutLog": {
+      "title": "WorkoutLog",
+      "description": "Logged workout session with custom routine, exercises, sets, reps, and weights",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Workout session log ID"
+        },
+        "memberId": {
+          "type": "number",
+          "description": "ID of the member who performed the workout"
+        },
+        "memberName": {
+          "type": "string",
+          "description": "Name of the member"
+        },
+        "routineName": {
+          "type": "string",
+          "description": "Name of the custom workout routine"
+        },
+        "date": {
+          "type": "string",
+          "description": "ISO date of workout session"
+        },
+        "durationMinutes": {
+          "type": "number",
+          "description": "Duration of workout in minutes"
+        },
+        "totalVolumeKg": {
+          "type": "number",
+          "description": "Total volume lifted (sets x reps x weight in kg)"
+        },
+        "totalSets": {
+          "type": "number",
+          "description": "Total completed sets"
+        },
+        "exercises": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "description": "Logged exercises with individual sets, reps, and weights"
+        }
+      },
+      "required": ["id", "routineName", "date"]
+    },
+    "GymClass": {
+      "title": "GymClass",
+      "description": "Scheduled gym class with trainer, schedule time, seat capacity, and bookings",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique class ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Class title"
+        },
+        "type": {
+          "type": "string",
+          "description": "Class category (HIIT, Yoga, Strength, Zumba, CrossFit, Spinning, MMA)"
+        },
+        "day": {
+          "type": "string",
+          "description": "Day of week (Monday - Sunday)"
+        },
+        "time": {
+          "type": "string",
+          "description": "Scheduled time and duration"
+        },
+        "instructor": {
+          "type": "string",
+          "description": "Assigned trainer or instructor name"
+        },
+        "totalSeats": {
+          "type": "number",
+          "description": "Maximum class capacity"
+        },
+        "bookedSeats": {
+          "type": "number",
+          "description": "Current number of booked seats"
+        }
+      },
+      "required": ["id", "title", "day", "time", "instructor", "totalSeats"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Cryptographically verified administrator record for elevated gym franchise control.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Admin Firebase UID"
+        },
+        "email": {
+          "type": "string",
+          "description": "Verified admin email"
+        },
+        "assignedBy": {
+          "type": "string",
+          "description": "Super admin who authorized access"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Authorization timestamp"
+        }
+      },
+      "required": ["uid", "email"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Payment transaction and ledger record synchronized via Supabase and Cloud Firestore.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique payment transaction ID"
+        },
+        "member_id": {
+          "type": "string",
+          "description": "Associated member ID"
+        },
+        "txn_reference": {
+          "type": "string",
+          "description": "UTR or transaction reference"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Transaction amount"
+        },
+        "status": {
+          "type": "string",
+          "description": "Payment status (SUCCESS, Paid, Pending)"
+        },
+        "updated_at": {
+          "type": "string",
+          "description": "ISO timestamp of update"
+        }
+      },
+      "required": ["id", "amount"]
+    },
+    "Tenant": {
+      "title": "Tenant",
+      "description": "Multi-tenant gym franchise configuration record including Gym Owner identity, contact, UPI ID, Google Location, Gym Logo, and Owner Signature.",
+      "type": "object",
+      "properties": {
+        "gym_id": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Unique gym tenant identifier"
+        },
+        "gym_name": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Gym display name"
+        },
+        "owner_name": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Full name of the Gym Owner"
+        },
+        "email_id": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Gym Owner email address"
+        },
+        "phone_number": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Gym Owner mobile number"
+        },
+        "location": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Physical street address of the gym"
+        },
+        "google_location_url": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Google Maps location URL for receipts and Member Portal navigation"
+        },
+        "upi_id": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Gym UPI ID for fee collection and receipt payment QR"
+        },
+        "logo_url": {
+          "type": "string",
+          "maxLength": 250000,
+          "description": "Uploaded Gym Logo image URL or compressed data URI"
+        },
+        "signature_url": {
+          "type": "string",
+          "maxLength": 250000,
+          "description": "Uploaded Gym Owner Signature image URL or compressed data URI"
+        },
+        "social_links": {
+          "type": "object",
+          "description": "Official gym social media links (WhatsApp, Instagram, Facebook, YouTube) reflected on the public profile"
+        },
+        "account_locked": {
+          "type": "boolean",
+          "description": "Whether the gym tenant and its member portal are locked"
+        },
+        "subscription_status": {
+          "type": "string",
+          "description": "Tenant subscription status"
+        }
+      },
+      "required": ["gym_name", "email_id"]
+    },
+    "HealthData": {
+      "title": "HealthData",
+      "description": "Encrypted biometric and wearable health telemetry record.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique health record ID"
+        },
+        "memberId": {
+          "type": "number",
+          "description": "Associated member ID"
+        },
+        "updated_at": {
+          "type": "string",
+          "description": "ISO timestamp of sync"
+        }
+      },
+      "required": ["id"]
+    },
+    "Profile": {
+      "title": "Profile",
+      "description": "Canonical member, trainer, receptionist, and owner profile with biometric turnstile access flag and AI coaching preferences.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "full_name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["member", "trainer", "owner", "receptionist"] },
+        "gender": { "type": "string", "enum": ["male", "female", "other"] },
+        "biometric_id": { "type": "string" },
+        "biometric_access_enabled": { "type": "boolean" },
+        "assigned_trainer_id": { "type": "string" },
+        "height_cm": { "type": "number" },
+        "current_weight_kg": { "type": "number" },
+        "target_weight_kg": { "type": "number" },
+        "fitness_goal": { "type": "string" },
+        "diet_preference": { "type": "string" },
+        "streak_days": { "type": "integer" },
+        "xp_points": { "type": "integer" },
+        "churn_risk_score": { "type": "number" },
+        "whatsapp_opt_in": { "type": "boolean" }
+      },
+      "required": ["id", "full_name", "phone", "role"]
+    },
+    "ExerciseMaster": {
+      "title": "ExerciseMaster",
+      "description": "Master exercise and MediaPipe AI vision biomechanics catalog with injury contraindications.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "target_muscle": { "type": "string" },
+        "equipment_type": { "type": "string" },
+        "video_3d_url": { "type": "string" },
+        "ai_vision_supported": { "type": "boolean" }
+      },
+      "required": ["id", "name", "target_muscle", "video_3d_url"]
+    },
+    "MembershipPlan": {
+      "title": "MembershipPlan",
+      "description": "Commercial gym membership plan catalog with INR pricing, GST, and freeze allowance.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "duration_days": { "type": "integer" },
+        "base_price_inr": { "type": "number" },
+        "gst_percent": { "type": "number" },
+        "max_freeze_days": { "type": "integer" },
+        "includes_ai_coach": { "type": "boolean" },
+        "is_active": { "type": "boolean" }
+      },
+      "required": ["id", "name", "duration_days", "base_price_inr"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "Member active or historical subscription contract synced with biometric gate access.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "member_id": { "type": "string" },
+        "plan_id": { "type": "string" },
+        "start_date": { "type": "string" },
+        "end_date": { "type": "string" },
+        "freeze_days_used": { "type": "integer" },
+        "status": { "type": "string", "enum": ["active", "expired", "frozen", "cancelled"] },
+        "auto_renew_enabled": { "type": "boolean" },
+        "upi_mandate_id": { "type": "string" }
+      },
+      "required": ["id", "member_id", "start_date", "end_date", "status"]
+    },
+    "PaymentTransaction": {
+      "title": "PaymentTransaction",
+      "description": "GST-compliant financial payment transaction linked to member subscriptions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "member_id": { "type": "string" },
+        "subscription_id": { "type": "string" },
+        "invoice_number": { "type": "string" },
+        "subtotal_inr": { "type": "number" },
+        "cgst_inr": { "type": "number" },
+        "sgst_inr": { "type": "number" },
+        "discount_inr": { "type": "number" },
+        "total_paid_inr": { "type": "number" },
+        "payment_mode": { "type": "string" },
+        "payment_status": { "type": "string" }
+      },
+      "required": ["id", "invoice_number", "total_paid_inr", "payment_mode"]
+    },
+    "PTContract": {
+      "title": "PTContract",
+      "description": "Personal training package contract with commission tracking and session quota.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "member_id": { "type": "string" },
+        "trainer_id": { "type": "string" },
+        "total_sessions": { "type": "integer" },
+        "completed_sessions": { "type": "integer" },
+        "price_paid_inr": { "type": "number" },
+        "trainer_commission_pct": { "type": "number" },
+        "valid_until": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "expired", "frozen", "cancelled"] }
+      },
+      "required": ["id", "member_id", "total_sessions", "price_paid_inr", "valid_until"]
+    },
+    "PTSessionLog": {
+      "title": "PTSessionLog",
+      "description": "Individual OTP-verified personal training session execution record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "contract_id": { "type": "string" },
+        "member_id": { "type": "string" },
+        "trainer_id": { "type": "string" },
+        "session_date": { "type": "string" },
+        "is_verified_by_member": { "type": "boolean" }
+      },
+      "required": ["id", "contract_id"]
+    },
+    "AttendanceLog": {
+      "title": "AttendanceLog",
+      "description": "Biometric, QR, and Face ID turnstile attendance log.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "member_id": { "type": "string" },
+        "check_in_time": { "type": "string" },
+        "check_out_time": { "type": "string" },
+        "entry_method": { "type": "string" },
+        "hardware_device_id": { "type": "string" },
+        "access_granted": { "type": "boolean" },
+        "denial_reason": { "type": "string" }
+      },
+      "required": ["id", "member_id", "entry_method", "access_granted"]
+    },
+    "AIWorkoutPlan": {
+      "title": "AIWorkoutPlan",
+      "description": "AI-generated weekly hypertrophy/conditioning schedule reviewed by trainer.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "member_id": { "type": "string" },
+        "week_start_date": { "type": "string" },
+        "ai_model_used": { "type": "string" },
+        "trainer_reviewed": { "type": "boolean" },
+        "is_current": { "type": "boolean" }
+      },
+      "required": ["id", "member_id", "week_start_date", "ai_model_used"]
+    },
+    "WorkoutSessionLog": {
+      "title": "WorkoutSessionLog",
+      "description": "Real-time exercise set log with RPE, weight, reps, and MediaPipe posture score.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "member_id": { "type": "string" },
+        "exercise_id": { "type": "string" },
+        "workout_date": { "type": "string" },
+        "set_number": { "type": "integer" },
+        "weight_kg": { "type": "number" },
+        "reps_completed": { "type": "integer" },
+        "rpe_score": { "type": "integer" },
+        "ai_posture_score": { "type": "number" }
+      },
+      "required": ["id", "member_id", "set_number", "weight_kg", "reps_completed"]
+    },
+    "AINutritionPlan": {
+      "title": "AINutritionPlan",
+      "description": "AI personalized daily macro and hydration target plan.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "member_id": { "type": "string" },
+        "daily_calories": { "type": "integer" },
+        "protein_g": { "type": "integer" },
+        "carbs_g": { "type": "integer" },
+        "fats_g": { "type": "integer" },
+        "water_liters": { "type": "number" },
+        "is_current": { "type": "boolean" }
+      },
+      "required": ["id", "member_id", "daily_calories", "protein_g", "carbs_g", "fats_g"]
+    },
+    "DailyMealLog": {
+      "title": "DailyMealLog",
+      "description": "Logged daily meal from Vision Meal Scanner or manual macro tracking.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "member_id": { "type": "string" },
+        "meal_type": { "type": "string" },
+        "total_calories": { "type": "integer" },
+        "protein_g": { "type": "number" },
+        "carbs_g": { "type": "number" },
+        "fats_g": { "type": "number" }
+      },
+      "required": ["id", "member_id", "meal_type", "total_calories"]
+    },
+    "BodyMetricsLog": {
+      "title": "BodyMetricsLog",
+      "description": "Smart BCA scale telemetry, circumference measurements, and progress photos.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "member_id": { "type": "string" },
+        "recorded_date": { "type": "string" },
+        "weight_kg": { "type": "number" },
+        "body_fat_pct": { "type": "number" },
+        "muscle_mass_kg": { "type": "number" }
+      },
+      "required": ["id", "member_id", "weight_kg"]
+    },
+    "GymLead": {
+      "title": "GymLead",
+      "description": "Walk-in and social CRM lead pipeline record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "full_name": { "type": "string" },
+        "phone": { "type": "string" },
+        "source": { "type": "string" },
+        "status": { "type": "string", "enum": ["new", "trial_scheduled", "trial_done", "converted", "lost"] }
+      },
+      "required": ["id", "full_name", "phone", "status"]
+    },
+    "AutomationLog": {
+      "title": "AutomationLog",
+      "description": "WhatsApp and n8n automation workflow audit log.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "target_phone": { "type": "string" },
+        "member_id": { "type": "string" },
+        "workflow_type": { "type": "string" },
+        "delivery_status": { "type": "string" }
+      },
+      "required": ["id", "target_phone", "workflow_type"]
+    },
+    "GymOccupancy": {
+      "title": "GymOccupancy",
+      "description": "Live gym floor occupancy counter.",
+      "type": "object",
+      "properties": {
+        "gym_id": { "type": "string" },
+        "current_occupancy": { "type": "integer" },
+        "max_capacity": { "type": "integer" }
+      },
+      "required": ["gym_id", "current_occupancy", "max_capacity"]
+    },
+    "RealTimeAttendanceLog": {
+      "title": "RealTimeAttendanceLog",
+      "description": "Turnstile directional IN/OUT event log for live floor heatmap.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "gym_id": { "type": "string" },
+        "member_name": { "type": "string" },
+        "direction": { "type": "string", "enum": ["IN", "OUT"] }
+      },
+      "required": ["id", "gym_id", "member_name", "direction"]
+    },
+    "CommunityPost": {
+      "title": "CommunityPost",
+      "description": "Categorized member community forum discussion with questions, replies, likes, and optional compressed photo.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "author": { "type": "string", "maxLength": 100 },
+        "category": { "type": "string", "enum": ["पोषण", "कसरत युक्तियाँ", "प्रेरणा"] },
+        "title": { "type": "string", "maxLength": 180 },
+        "content": { "type": "string", "maxLength": 4000 },
+        "likes": { "type": "integer" },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "author", "category", "title", "content", "createdAt"]
+    },
+    "SystemGovernance": {
+      "title": "SystemGovernance",
+      "description": "Global Smart AI settings and automation governance switches.",
+      "type": "object",
+      "properties": {
+        "language": { "type": "string", "enum": ["en", "hi"] },
+        "autoOperatorEnabled": { "type": "boolean" },
+        "whatsappAutoSend": { "type": "boolean" },
+        "googleBusinessAutoReply": { "type": "boolean" },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      }
+    },
+    "SocialProfile": {
+      "title": "SocialProfile",
+      "description": "Gym and Super Admin social media links (WhatsApp, Instagram, Facebook, YouTube) and featured YouTube video lists displayed on the public profile.",
+      "type": "object",
+      "properties": {
+        "gym": {
+          "type": "object",
+          "description": "Gym official social profile bundle with platform links and videos"
+        },
+        "super_admin": {
+          "type": "object",
+          "description": "Super Admin official social profile bundle with platform links and videos"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "admins/{adminId}": {
+      "schema": "Admin",
+      "description": "Trusted administrative directory queried by Firestore security rules to verify admin privileges without relying on client claims"
+    },
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Global directory of all platform users (Super Admins, Gym Admins, Trainers, and Members) with role, creation date, force-unlock state, and membership expiration"
+    },
+    "members/{memberId}": {
+      "schema": "Member",
+      "description": "Secure repository of gym members profiles and lock/expiry state"
+    },
+    "system_policies/{policyId}": {
+      "schema": "SystemPolicy",
+      "description": "Global Super Admin governance and membership expiration policies"
+    },
+    "packages/{packageId}": {
+      "schema": "Package",
+      "description": "Standardized gym subscription packages"
+    },
+    "invoices/{invoiceId}": {
+      "schema": "Invoice",
+      "description": "Membership invoices and payment confirmation records"
+    },
+    "payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Financial transactions and payment ledger synchronized across Supabase and Cloud Firestore"
+    },
+    "tenants/{tenantId}": {
+      "schema": "Tenant",
+      "description": "Multi-tenant gym franchise accounts and isolation configs"
+    },
+    "health_data/{healthId}": {
+      "schema": "HealthData",
+      "description": "Encrypted member health and wearable telemetry records"
+    },
+    "attendance/{attId}": {
+      "schema": "Attendance",
+      "description": "Audit log of member check-ins and gate access"
+    },
+    "workout_logs/{logId}": {
+      "schema": "WorkoutLog",
+      "description": "Member workout session logs with exercises, sets, reps, and weights"
+    },
+    "classes/{classId}": {
+      "schema": "GymClass",
+      "description": "Gym class schedule and seat booking records"
+    },
+    "profiles/{profileId}": {
+      "schema": "Profile",
+      "description": "Canonical member, trainer, receptionist, and owner profiles synchronized with Supabase profiles"
+    },
+    "exercises_master/{exerciseId}": {
+      "schema": "ExerciseMaster",
+      "description": "Master exercise and AI MediaPipe vision biomechanics library"
+    },
+    "membership_plans/{planId}": {
+      "schema": "MembershipPlan",
+      "description": "Active gym membership tiers with GST and freeze limits"
+    },
+    "subscriptions/{subscriptionId}": {
+      "schema": "Subscription",
+      "description": "Member subscription periods controlling biometric access"
+    },
+    "payment_transactions/{txId}": {
+      "schema": "PaymentTransaction",
+      "description": "GST-itemized payment transactions ledger"
+    },
+    "pt_contracts/{contractId}": {
+      "schema": "PTContract",
+      "description": "Personal training contracts and commission records"
+    },
+    "pt_session_logs/{sessionId}": {
+      "schema": "PTSessionLog",
+      "description": "OTP-verified personal training session logs"
+    },
+    "attendance_logs/{attendanceId}": {
+      "schema": "AttendanceLog",
+      "description": "Biometric and QR turnstile check-in/check-out records"
+    },
+    "ai_workout_plans/{planId}": {
+      "schema": "AIWorkoutPlan",
+      "description": "AI weekly workout splits"
+    },
+    "workout_session_logs/{logId}": {
+      "schema": "WorkoutSessionLog",
+      "description": "Per-set training logs with RPE and MediaPipe posture telemetry"
+    },
+    "ai_nutrition_plans/{planId}": {
+      "schema": "AINutritionPlan",
+      "description": "AI personalized macro targets and meal plans"
+    },
+    "daily_meal_logs/{mealId}": {
+      "schema": "DailyMealLog",
+      "description": "Logged daily meals from Vision Meal Scanner"
+    },
+    "body_metrics_logs/{metricId}": {
+      "schema": "BodyMetricsLog",
+      "description": "Smart BCA body composition and progress tracking"
+    },
+    "gym_leads/{leadId}": {
+      "schema": "GymLead",
+      "description": "Walk-in and social media CRM lead pipeline"
+    },
+    "automation_logs/{logId}": {
+      "schema": "AutomationLog",
+      "description": "WhatsApp and n8n automation audit trail"
+    },
+    "gym_occupancy/{gymId}": {
+      "schema": "GymOccupancy",
+      "description": "Live gym floor occupancy metrics"
+    },
+    "real_time_attendance_logs/{logId}": {
+      "schema": "RealTimeAttendanceLog",
+      "description": "Turnstile directional event stream"
+    },
+    "community_posts/{postId}": {
+      "schema": "CommunityPost",
+      "description": "Categorized gym member community forum posts, photos, and threaded replies"
+    },
+    "system_governance/{docId}": {
+      "schema": "SystemGovernance",
+      "description": "Global Smart AI settings and automation channel governance"
+    },
+    "social_profiles/{profileId}": {
+      "schema": "SocialProfile",
+      "description": "Official Gym and Super Admin social links and featured videos"
+    }
+  }
+}
+

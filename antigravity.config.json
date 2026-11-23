@@ -1,0 +1,88 @@
+{
+  "schemaVersion": "2.0.0",
+  "agent": "antigravity-preview-09-2026",
+  "application": {
+    "appletId": "4b01b935-96ec-40cf-a6b1-2b2f4c4ae4c6",
+    "name": "Fitness Future — Pro Platform",
+    "version": "5.5.0-Pro",
+    "owner": {
+      "name": "Fitness Future Owner",
+      "email": "owner@fitnessfuture.in",
+      "clearance": "OWNER_CONSOLE",
+      "merchantUpi": "your-upi@bank"
+    },
+    "urls": {
+      "dev": "https://ais-dev-hakfvy5pcvvusj25knx2eb-9972469637.asia-east1.run.app",
+      "production": "https://ais-pre-hakfvy5pcvvusj25knx2eb-9972469637.asia-east1.run.app",
+      "local": "http://localhost:3000"
+    }
+  },
+  "firebase": {
+    "projectId": "project-74356317-8adc-420c-9be",
+    "appId": "1:164248160596:web:c2743f573d1dca712620c1",
+    "firestoreDatabaseId": "ai-studio-4b01b935-96ec-40cf-a6b1-2b2f4c4ae4c6",
+    "authDomain": "project-74356317-8adc-420c-9be.firebaseapp.com",
+    "storageBucket": "project-74356317-8adc-420c-9be.firebasestorage.app",
+    "collections": [
+      "users",
+      "members",
+      "tenants",
+      "system_policies",
+      "packages",
+      "invoices",
+      "payments",
+      "attendance",
+      "admin_activity_logs",
+      "force_unlock_audit_logs",
+      "force_unlock_logs",
+      "security_audit"
+    ]
+  },
+  "portals": {
+    "tier1_member": {
+      "name": "Member Super-App (Client Portal)",
+      "access": "FULL_READ_WRITE_OVERRIDE",
+      "features": [
+        "FIDO2 WebAuthn Passkeys",
+        "Multimodal AI Meal Scanner",
+        "Bio-Adaptive Progressive Overload",
+        "Instant UPI Renewal (your-upi@bank)",
+        "Offline-First PWA & IndexedDB Sync"
+      ]
+    },
+    "tier2_admin": {
+      "name": "Gym Admin / Owner Portal (Fitness Future Operations)",
+      "access": "FULL_READ_WRITE_OVERRIDE",
+      "features": [
+        "HMAC-SHA256 Verified Payment Ledger",
+        "Autonomous Churn Prediction Engine",
+        "Staff, Trainer & Floor Attendance Manager",
+        "Branded App Simulator & GitHub CI/CD Pushes"
+      ]
+    },
+    "tier3_super_admin": {
+      "name": "Supreme Super Admin Panel (Master Control Center)",
+      "access": "ROOT_SOVEREIGN_CONTROL",
+      "features": [
+        "Global Subscription Gatekeeper (Auto-Lock / Auto-Unlock)",
+        "Centralized Master Data Vault",
+        "One-Click Account Override & Passkey Reset",
+        "Antigravity CLI Root Terminal & Edge Gateway Monitor"
+      ]
+    }
+  },
+  "permissions": {
+    "rootShellAccess": true,
+    "firestoreReadWrite": true,
+    "tenantLockOverride": true,
+    "memberLockOverride": true,
+    "hmacPaymentVerification": true,
+    "aiAgentOrchestration": true,
+    "ciCdWebhookDispatch": true
+  },
+  "cli": {
+    "binary": "antigravity",
+    "entryPoint": "cli/antigravity.ts",
+    "apiControlPlane": "/api/antigravity"
+  }
+}

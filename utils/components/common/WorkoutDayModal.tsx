@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
-import { Member, DailySchedule, WorkoutExercise } from '../../../types';
+import { Member, DailySchedule, WorkoutExercise } from '../../types';
 import { INITIAL_WORKOUT_TEMPLATES } from '../../../constants';
 import ExerciseDemoModal, { getMediaForExercise, EXERCISE_DB } from './ExerciseDemoModal';
 import { VideoCameraIcon } from '../icons/VideoCameraIcon';
@@ -127,12 +127,7 @@ const WorkoutDayModal: React.FC<WorkoutDayModalProps> = ({ isOpen, onClose, date
                                     onClick={() => setDemoModalExercise(ex.name)}
                                     title="View Form Demo"
                                 >
-                                    <img 
-                                        src={getMediaForExercise(ex.name)} 
-                                        alt="demo" 
-                                        className="w-full h-full object-cover opacity-80 group-hover:opacity-50 transition-opacity" 
-                                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                    />
+                                    <img loading="lazy" src={(ex as any).thumbnail || ""} alt={ex.name || "Exercise"} className="w-full h-full object-cover rounded-xl transition-all duration-700 group-hover:scale-105" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                         <VideoCameraIcon className="w-5 h-5 text-white" />
                                     </div>

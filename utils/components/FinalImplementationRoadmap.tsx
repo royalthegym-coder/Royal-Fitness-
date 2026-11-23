@@ -17,19 +17,19 @@ export const FinalImplementationRoadmap: React.FC = () => {
             tasks: [
                 { name: "Setup React/Vite + Tailwind CSS Architecture", done: true },
                 { name: "Implement Role-Based Access Control (Admin/Member)", done: true },
-                { name: "Quantum Encryption (Simulated) & HIPAA/GDPR Data Models", done: true },
+                { name: "FitnessFutureEncryption  & HIPAA/GDPR Data Models", done: true },
                 { name: "Global State Management (Data Provider)", done: true }
             ]
         },
         {
-            title: "Phase 2: The 4 Pillars of Singularity",
+            title: "Phase 2: The 4 Pillars of FitnessFutureMatrix",
             icon: <Cpu className="w-6 h-6 text-cyan-400" />,
             status: "in-progress",
             tasks: [
                 { name: "Titan Vision: Pose Estimation & Rep Counting UI", done: true },
                 { name: "AI Kitchen Chief: Nutrigenomic Diet Generator", done: true },
-                { name: "Ghost Pulse & IoT: Universal Gadget Sync Dashboard", done: true },
-                { name: "Bio-Aether Oracle: AI Doctor Voice/Chat Interface", done: true },
+                { name: "Visual Pulse & IoT: Universal Gadget Sync Dashboard", done: true },
+                { name: "Bio-Cloud Oracle: AI Bio-Analyst Voice/Chat Interface", done: true },
                 { name: "Digital Bio-Health Pass Generation", done: true }
             ]
         },
@@ -38,7 +38,7 @@ export const FinalImplementationRoadmap: React.FC = () => {
             icon: <Database className="w-6 h-6 text-amber-400" />,
             status: "pending",
             tasks: [
-                { name: "Connect Gemini 3.1 Pro API for all AI Agents", done: true },
+                { name: "Connect Core AI 3.1 Pro API for all AI Agents", done: true },
                 { name: "Setup Vector Database (Pinecone/Weaviate) for RAG", done: false },
                 { name: "Integrate Real WebSockets for Live Gadget Data", done: false },
                 { name: "Deploy Edge Functions for Zero-Latency Processing", done: false }
@@ -52,7 +52,7 @@ export const FinalImplementationRoadmap: React.FC = () => {
                 { name: "Procure & Test EMG Fabrics & CGM Patches", done: false },
                 { name: "Install 3D Depth Cameras in Gym Premises", done: false },
                 { name: "Beta Testing with 50 Elite Members", done: false },
-                { name: "Official Launch of 'Royal The Gym: The Singularity'", done: false }
+                { name: "Official Launch of 'Fitness Future: The FitnessFutureMatrix'", done: false }
             ]
         }
     ];
@@ -70,7 +70,7 @@ export const FinalImplementationRoadmap: React.FC = () => {
                         </div>
                         <h1 className="text-4xl font-black text-white italic uppercase tracking-tighter">Final Implementation Roadmap</h1>
                         <p className="text-zinc-400 mt-2 text-sm max-w-2xl">
-                            The master checklist to bring "The Singularity" from a digital prototype to a real-world, hardware-integrated AI Super-Gym.
+                            The master checklist to bring "The FitnessFutureMatrix" from a digital prototype to a real-world, hardware-integrated AI Super-Gym.
                         </p>
                     </div>
                     <div className="flex items-center gap-4 bg-black/50 p-4 rounded-xl border border-white/5">
@@ -99,13 +99,13 @@ export const FinalImplementationRoadmap: React.FC = () => {
                 </div>
                 <div className="bg-zinc-900/50 p-6 rounded-2xl border border-white/5 text-center hover:border-cyan-500/30 transition-colors">
                     <Activity className="w-8 h-8 text-cyan-400 mx-auto mb-3" />
-                    <h3 className="text-sm font-black text-white uppercase tracking-widest mb-1">Ghost Pulse</h3>
+                    <h3 className="text-sm font-black text-white uppercase tracking-widest mb-1">Visual Pulse</h3>
                     <p className="text-xs text-zinc-500">IoT & Wearable Sync</p>
                 </div>
                 <div className="bg-zinc-900/50 p-6 rounded-2xl border border-white/5 text-center hover:border-amber-500/30 transition-colors">
                     <Stethoscope className="w-8 h-8 text-amber-400 mx-auto mb-3" />
                     <h3 className="text-sm font-black text-white uppercase tracking-widest mb-1">Bio-Oracle</h3>
-                    <p className="text-xs text-zinc-500">Med-PaLM 3 AI Doctor</p>
+                    <p className="text-xs text-zinc-500">Med-PaLM 3 AI Bio-Analyst</p>
                 </div>
             </div>
 
@@ -175,7 +175,7 @@ export const FinalImplementationRoadmap: React.FC = () => {
                 <div>
                     <h4 className="text-sm font-bold text-red-400 uppercase tracking-widest mb-1">Critical Compliance Notice</h4>
                     <p className="text-xs text-red-200/70 leading-relaxed">
-                        Before connecting real medical data (Blood Reports, DNA) to the Gemini API, ensure a BAA (Business Associate Agreement) is signed for HIPAA compliance, and all PII (Personally Identifiable Information) is stripped or encrypted at the edge layer.
+                        Before connecting real medical data (Blood Reports, DNA) to the Core AI API, ensure a BAA (Business Associate Agreement) is signed for HIPAA compliance, and all PII (Personally Identifiable Information) is stripped or encrypted at the edge layer.
                     </p>
                 </div>
             </div>

@@ -1,17 +1,28 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import Card from './common/Card';
-import { INITIAL_MEMBERS, INITIAL_BROADCASTS } from '../../constants';
+import { INITIAL_BROADCASTS } from '../../constants';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { BroadcastMessage } from '../../types';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import { useToast } from '../hooks/useToast';
+import { useData } from '../context/DataProvider';
+import { Activity } from 'lucide-react';
 
 const WhatsAppBroadcast: React.FC = () => {
+    const isOnline = useNetworkStatus();
+    const { addToast } = useToast();
+    const { members } = useData();
     const [message, setMessage] = useState('');
     const [audience, setAudience] = useState<'all' | 'active' | 'expired'>('all');
     const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>(INITIAL_BROADCASTS);
     const [showSuccess, setShowSuccess] = useState(false);
+    
+    // Webhook Testing State
+    const [webhookUrl, setWebhookUrl] = useState(localStorage.getItem('monitoring_webhook_url') || '');
+    const [isTestingWebhook, setIsTestingWebhook] = useState(false);
 
-    const consentedMembers = useMemo(() => INITIAL_MEMBERS.filter(m => m.whatsappConsent), []);
+    const consentedMembers = useMemo(() => members.filter(m => m.whatsappConsent), [members]);
 
     const targetMembers = useMemo(() => {
         let members = consentedMembers;
@@ -31,24 +42,66 @@ const WhatsAppBroadcast: React.FC = () => {
         }
     }, [showSuccess]);
 
-    const handleSendBroadcast = () => {
+    const handleSendBroadcast = useCallback(() => {
+        if (!isOnline) {
+            addToast('Cannot send broadcast. You are currently offline.', 'error');
+            return;
+        }
+
         if (!message.trim()) {
-            alert('Please enter a message to send.');
+            addToast('Please enter a message to send.', 'error');
             return;
         }
 
         const newBroadcast: BroadcastMessage = {
-            id: Math.max(0, ...broadcasts.map(b => b.id)) + 1,
+            id: Math.max(0, ...broadcasts.map(b => Number(b.id) || 0)) + 1,
             message,
             audience,
             recipientCount: targetMembers.length,
             sentAt: new Date().toISOString().split('T')[0],
         };
 
-        setBroadcasts([newBroadcast, ...broadcasts]);
+        setBroadcasts(prev => [newBroadcast, ...prev]);
         
         setShowSuccess(true);
         setMessage('');
+    }, [message, audience, targetMembers.length, broadcasts, isOnline, addToast]);
+
+    const handleTestWebhook = async () => {
+        if (!webhookUrl) {
+            addToast('Please enter a webhook URL first.', 'error');
+            return;
+        }
+
+        setIsTestingWebhook(true);
+        try {
+            const mockPayload = {
+                event: 'test_notification',
+                timestamp: new Date().toISOString(),
+                data: {
+                    message: 'This is a test notification from the Gym OS.',
+                    priority: 'high'
+                }
+            };
+
+            const response = await fetch(webhookUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(mockPayload)
+            });
+
+            if (response.ok) {
+                addToast('Webhook test successful! Payload delivered.', 'success');
+            } else {
+                addToast(`Webhook test failed: ${response.status} ${response.statusText}`, 'error');
+            }
+        } catch (error: any) {
+            addToast(`Webhook test error: ${error.message}`, 'error');
+        } finally {
+            setIsTestingWebhook(false);
+        }
     };
 
     return (
@@ -112,8 +165,8 @@ const WhatsAppBroadcast: React.FC = () => {
                     </Card>
                 </div>
                 
-                {/* Consent Info */}
-                <div>
+                {/* Consent Info and Webhook Test */}
+                <div className="space-y-6">
                     <Card title="Consent Status">
                         <div className="text-center">
                             <p className="text-6xl font-bold text-amber-400">{consentedMembers.length}</p>
@@ -121,6 +174,37 @@ const WhatsAppBroadcast: React.FC = () => {
                         </div>
                         <div className="mt-4 text-xs text-gray-500">
                              <p>Consent can be managed from the "Edit Member" screen. This feature ensures compliance with privacy policies by only targeting members who opted-in.</p>
+                        </div>
+                    </Card>
+
+                    <Card title="Real-Time Notification Testing">
+                        <div className="space-y-4">
+                            <div>
+                                <label htmlFor="webhookUrl" className="block text-sm font-medium text-gray-300">Webhook URL</label>
+                                <input
+                                    type="url"
+                                    id="webhookUrl"
+                                    value={webhookUrl}
+                                    onChange={(e) => {
+                                        setWebhookUrl(e.target.value);
+                                        localStorage.setItem('monitoring_webhook_url', e.target.value);
+                                    }}
+                                    placeholder="https://example.com/webhook"
+                                    className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500"
+                                />
+                            </div>
+                            <button
+                                onClick={handleTestWebhook}
+                                disabled={isTestingWebhook || !webhookUrl}
+                                className={`w-full inline-flex items-center justify-center font-bold py-2 px-4 rounded-lg transition-colors ${
+                                    isTestingWebhook || !webhookUrl
+                                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                        : 'bg-amber-600 hover:bg-amber-500 text-white'
+                                }`}
+                            >
+                                <Activity className={`w-4 h-4 mr-2 ${isTestingWebhook ? 'animate-spin' : ''}`} />
+                                {isTestingWebhook ? 'Sending...' : 'Test Webhook Payload'}
+                            </button>
                         </div>
                     </Card>
                 </div>
@@ -139,14 +223,14 @@ const WhatsAppBroadcast: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {broadcasts.map(b => (
+                                    {useMemo(() => broadcasts.map(b => (
                                         <tr key={b.id} className="border-b border-gray-700 hover:bg-gray-700/50">
                                             <td className="p-3 text-sm text-gray-400 whitespace-nowrap">{b.sentAt}</td>
                                             <td className="p-3 text-sm">{b.message}</td>
                                             <td className="p-3 hidden sm:table-cell capitalize">{b.audience}</td>
                                             <td className="p-3 text-center">{b.recipientCount}</td>
                                         </tr>
-                                    ))}
+                                    )), [broadcasts])}
                                 </tbody>
                             </table>
                         </div>

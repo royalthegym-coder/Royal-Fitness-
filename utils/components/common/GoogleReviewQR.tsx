@@ -17,7 +17,7 @@ const GoogleReviewQR: React.FC<GoogleReviewQRProps> = ({ className = "", showCon
     const [qrCodeUrl, setQrCodeUrl] = useState('');
     
     // Use the actual Google Review Link here
-    const reviewLink = "https://g.page/r/royal-the-gym/review"; 
+    const reviewLink = "https://g.page/r/future-fitness/review"; 
 
     useEffect(() => {
         toDataURL(reviewLink, { width: 500, margin: 1, color: { dark: '#000000', light: '#ffffff' } })
@@ -29,7 +29,7 @@ const GoogleReviewQR: React.FC<GoogleReviewQRProps> = ({ className = "", showCon
         try {
             const canvas = await html2canvas(cardRef.current, { scale: 3, useCORS: true });
             const link = document.createElement('a');
-            link.download = 'Royal_Google_Review_Card.png';
+            link.download = 'Future_Fitness_Google_Review_Card.png';
             link.href = canvas.toDataURL();
             link.click();
         } catch (err) {
@@ -65,7 +65,7 @@ const GoogleReviewQR: React.FC<GoogleReviewQRProps> = ({ className = "", showCon
 
                 <div className="relative">
                     {/* The Qr Code */}
-                    {qrCodeUrl && <img src={qrCodeUrl} alt="Review QR" className="w-40 h-40 object-contain mix-blend-multiply" />}
+                    {qrCodeUrl && <img src={qrCodeUrl} alt="Google Review QR Code" className="w-48 h-48 mx-auto rounded-xl object-contain" />}
                     
                     {/* Center Star Overlay */}
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -77,7 +77,7 @@ const GoogleReviewQR: React.FC<GoogleReviewQRProps> = ({ className = "", showCon
 
                 <div className="text-center w-full pb-2">
                     <h3 className="text-lg font-black text-gray-900 uppercase tracking-widest">{GYM_INFO.name.toUpperCase()}</h3>
-                    <p className="text-xs font-bold text-gray-500 mt-1 uppercase tracking-wider">Jhunjhunu</p>
+                    <p className="text-xs font-bold text-gray-500 mt-1 uppercase tracking-wider">Fitness Future</p>
                 </div>
             </div>
 

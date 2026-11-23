@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { ActivityEvent } from '../../types';
-import { INITIAL_ACTIVITY_EVENTS, INITIAL_MEMBERS } from '../../constants';
+import { INITIAL_ACTIVITY_EVENTS } from '../../constants';
+import { useData } from '../context/DataProvider';
 import { View } from '../../types';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { BellIcon } from './icons/BellIcon';
@@ -37,8 +38,9 @@ const EventIcon: React.FC<{ type: ActivityEvent['type'] }> = ({ type }) => {
 };
 
 const LiveActivity: React.FC<LiveActivityProps> = ({ setCurrentView }) => {
+    const { members } = useData();
     const [events, setEvents] = useState<ActivityEvent[]>(INITIAL_ACTIVITY_EVENTS);
-    const [now, setNow] = useState(new Date());
+    const [, setNow] = useState(new Date());
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -49,7 +51,8 @@ const LiveActivity: React.FC<LiveActivityProps> = ({ setCurrentView }) => {
 
     useEffect(() => {
         const activityInterval = setInterval(() => {
-            const randomMember = INITIAL_MEMBERS[Math.floor(Math.random() * INITIAL_MEMBERS.length)];
+            if (members.length === 0) return;
+            const randomMember = members[Math.floor(Math.random() * members.length)];
             const newEvent: ActivityEvent = {
                 id: Date.now(),
                 type: 'check-in',
@@ -61,7 +64,7 @@ const LiveActivity: React.FC<LiveActivityProps> = ({ setCurrentView }) => {
         }, 1000 * 15); // Add a new check-in every 15 seconds
 
         return () => clearInterval(activityInterval);
-    }, []);
+    }, [members]);
 
     return (
         <Card>

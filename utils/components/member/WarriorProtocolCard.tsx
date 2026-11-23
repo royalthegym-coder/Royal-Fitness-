@@ -12,10 +12,10 @@ interface WarriorProtocolCardProps {
 
 const WarriorProtocolCard: React.FC<WarriorProtocolCardProps> = ({ exercise, protocol, tubeId }) => {
     
-    const handleNeuralLink = () => {
+    const handleSmartLink = () => {
         // Since we removed YouTube, we can trigger an alert or open the modal if we had context
         // For this isolated component, we'll just indicate action
-        console.log("Activating Neural Link for:", exercise);
+        console.log("Activating Smart Link for:", exercise);
         // Ideally this would emit an event to open ExerciseDemoModal
     };
 
@@ -36,11 +36,11 @@ const WarriorProtocolCard: React.FC<WarriorProtocolCardProps> = ({ exercise, pro
 
                 <div className="flex gap-3">
                     <button 
-                        onClick={handleNeuralLink}
+                        onClick={handleSmartLink}
                         className="p-4 bg-red-600 rounded-2xl shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:scale-105 active:scale-95 transition-all text-white flex items-center gap-2 group"
                     >
                         <Play className="w-6 h-6 fill-current" />
-                        <span className="text-[10px] font-black uppercase tracking-widest hidden md:block">Neural Link</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest hidden md:block">Smart Link</span>
                     </button>
                     <button className="p-4 bg-gray-800 rounded-2xl border border-white/10 text-gray-400 hover:text-white transition-all">
                         <Database className="w-6 h-6" />

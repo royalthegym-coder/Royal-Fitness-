@@ -3,14 +3,15 @@ import React, { useState, useMemo } from 'react';
 import { Lead, LeadSource, LeadStage } from '../../types';
 import { useData } from '../context/DataProvider';
 import { useToast } from '../hooks/useToast';
-import { getComplexResponse, cleanAndParseJSON } from '../../lib/gemini';
+import { getComplexResponse, cleanAndParseJSON } from '../../lib/core_ai';
 import { 
     Target, Search, BrainCircuit, RefreshCw, 
     UserPlus, Edit3, Trash2, 
-    MessageSquare, CheckCircle, ArrowRight, ChevronRight
+    MessageSquare, CheckCircle, ArrowRight, ChevronRight, Zap
 } from 'lucide-react';
 import { FacebookIcon, InstagramIcon, WalkInIcon, WebIcon, OtherSourceIcon } from './icons/SocialIcons';
 import { BotIcon } from './icons/BotIcon';
+import { sendWhatsAppOfferMessage } from '../../lib/whatsapp';
 
 const SourceIcon: React.FC<{ source: LeadSource, className?: string }> = ({ source, className = "w-5 h-5" }) => {
     switch (source) {
@@ -32,6 +33,7 @@ const Leads: React.FC = () => {
     const { addToast } = useToast();
     const { leads = [], updateLead } = useData();
     const [isScoring, setIsScoring] = useState(false);
+    const [isSending, setIsSending] = useState<number | null>(null);
 
     const pipelineData = useMemo<Record<LeadStage, Lead[]>>(() => {
         const stages: LeadStage[] = ['New', 'Contacted', 'Trial', 'Converted', 'Lost'];
@@ -68,7 +70,7 @@ const Leads: React.FC = () => {
                 const lead = leads.find(l => l.id === s.id);
                 if (lead) updateLead({ ...lead, aiScore: s.score });
             });
-            addToast("Neural Scoring Complete.", "success");
+            addToast("Smart Scoring Complete.", "success");
         } catch (e) {
             addToast("Scoring failed.", "error");
         } finally {
@@ -76,15 +78,38 @@ const Leads: React.FC = () => {
         }
     };
 
+    const handleAutoPitch = async (e: React.MouseEvent, lead: Lead) => {
+        e.stopPropagation();
+        setIsSending(lead.id);
+        
+        // WhatsApp API Call
+        const success = await sendWhatsAppOfferMessage(lead.phone || '9999999999', lead.name, 'SPECIAL20');
+        
+        if (success) {
+            updateLead({ ...lead, status: 'Contacted' });
+            addToast(`WhatsApp Offer Dispatched to ${lead.name}`, "success");
+        } else {
+            addToast(`Failed to send WhatsApp to ${lead.name}`, "error");
+        }
+        setIsSending(null);
+    };
+
     return (
         <div className="space-y-8 animate-fade-in pb-24 h-full flex flex-col">
-            <div className="bg-black/80 p-8 rounded-[3.5rem] border border-amber-500/20 relative overflow-hidden shadow-2xl group">
-                <div className="flex items-center gap-8">
-                    <div className="p-8 bg-amber-600 text-black rounded-[3rem] shadow-[0_0_60px_rgba(245,158,11,0.5)] border border-amber-400">
+            <div className="bg-[#020202] p-8 rounded-[3.5rem] border border-cyan-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(6,182,212,0.15)] group">
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[150px] animate-pulse"></div>
+                <div className="relative z-10 flex items-center gap-8">
+                    <div className="p-8 bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-[3rem] shadow-[0_0_60px_rgba(6,182,212,0.5)] border border-cyan-400">
                         <Target className="w-16 h-16" />
                     </div>
                     <div>
-                        <h1 className="text-6xl font-black text-white italic uppercase tracking-tighter">Future Streams</h1>
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="px-4 py-1.5 bg-cyan-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
+                                <BrainCircuit className="w-3 h-3" /> Fitness Future
+                            </div>
+                        </div>
+                        <h1 className="text-6xl font-black text-white italic uppercase tracking-tighter">Future <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-fuchsia-400">Streams</span></h1>
                     </div>
                 </div>
             </div>
@@ -97,9 +122,12 @@ const Leads: React.FC = () => {
                         <p className="text-xs text-gray-500">Predictive Lead Qualification Engine</p>
                     </div>
                 </div>
-                <button onClick={handleRunScoring} disabled={isScoring} className="bg-white text-black font-black px-10 py-4 rounded-2xl text-xs uppercase tracking-widest shadow-lg flex items-center gap-3 active:scale-95 disabled:opacity-50">
-                    {isScoring ? <RefreshCw className="animate-spin w-4 h-4"/> : <BrainCircuit className="w-4 h-4"/>}
-                    {isScoring ? 'SCORING...' : 'RUN AI SCORING'}
+                <button onClick={handleRunScoring} disabled={isScoring} className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-black font-black px-10 py-4 rounded-2xl text-xs uppercase tracking-widest shadow-[0_0_20px_rgba(245,158,11,0.3)] border border-amber-400/50 border-dashed flex items-center gap-3 active:scale-95 disabled:opacity-50 transition-all relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                    <span className="relative z-10 flex items-center gap-3">
+                        {isScoring ? <RefreshCw className="animate-spin w-4 h-4"/> : <BrainCircuit className="w-4 h-4"/>}
+                        {isScoring ? 'SCORING...' : 'RUN AI SCORING'}
+                    </span>
                 </button>
             </div>
 
@@ -132,6 +160,18 @@ const Leads: React.FC = () => {
                                         </div>
                                         <span className="text-[9px] text-gray-600 font-mono">{lead.inquiryDate}</span>
                                     </div>
+                                    
+                                    {/* Auto-WhatsApp Action */}
+                                    {(stage === 'New' || stage === 'Contacted') && (
+                                        <button 
+                                            onClick={(e) => handleAutoPitch(e, lead)}
+                                            disabled={isSending === lead.id}
+                                            className="w-full mt-2 py-2 rounded-xl border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 text-green-400 text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95"
+                                        >
+                                            {isSending === lead.id ? <RefreshCw className="w-3 h-3 animate-spin"/> : <Zap className="w-3 h-3"/>}
+                                            WhatsApp Pitch
+                                        </button>
+                                    )}
                                 </div>
                             ))}
                         </div>

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Card from '../common/Card';
 import { useData } from '../../context/DataProvider';
-import { getComplexResponse } from '../../../lib/gemini';
+import { getComplexResponse } from '../../../lib/core_ai';
 import { Clock, Activity, Zap, AlertTriangle, Sun, Moon, TrendingUp, ShieldAlert, CheckCircle, RefreshCw, Cpu, Infinity } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from 'recharts';
 import { BotIcon } from '../icons/BotIcon';
@@ -44,7 +44,7 @@ const HormonalClock: React.FC = () => {
             const hour = (wakeH + i) % 24; // Cycle 24 hours starting from wake
             const timeLabel = `${hour.toString().padStart(2, '0')}:00`;
             
-            // BIOLOGICAL ALGORITHM SIMULATION (v31.0 Logic)
+            // BIOLOGICAL ALGORITHM SIMULATION (Fitness Future Logic)
             let cortisol = 0;
             if (i === 0) cortisol = 40; // Waking
             else if (i === 1) cortisol = 90; // CAR (Cortisol Awakening Response)
@@ -115,7 +115,7 @@ const HormonalClock: React.FC = () => {
         setVerdict(null);
 
         const prompt = `
-            Act as a Chronobiology Sports Scientist for "Royal The Gym".
+            Act as a Chronobiology Sports Scientist for "Fitness Future".
             User Data:
             - Connected Device: ${connectedDevice?.name || "Manual Input"}
             - Wake Time: ${wakeTime}
@@ -135,7 +135,7 @@ const HormonalClock: React.FC = () => {
             const response = await getComplexResponse(prompt);
             setVerdict(response);
         } catch (e) {
-            setVerdict("Neural Network Offline. Rely on the chart data.");
+            setVerdict("Smart Network Offline. Rely on the chart data.");
         } finally {
             setIsAnalyzing(false);
         }
@@ -152,7 +152,7 @@ const HormonalClock: React.FC = () => {
                     <div>
                         <div className="flex items-center gap-3 mb-2">
                              <div className="px-5 py-2 bg-amber-500 text-black rounded-full flex items-center gap-3 shadow-lg font-black uppercase tracking-[0.2em] text-[10px]">
-                                <Infinity className="w-3 h-3 animate-spin-slow" /> Bio-Rhythm v31.0
+                                <Infinity className="w-3 h-3 animate-spin-slow" /> Bio-Rhythm Fitness Future
                             </div>
                              <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">SYNC: CHRONOS_MASTER</span>
                         </div>
@@ -292,7 +292,7 @@ const HormonalClock: React.FC = () => {
                                     <Cpu className="w-10 h-10 text-amber-500" />
                                 </div>
                                 <div className="flex-1">
-                                    <h3 className="text-xl font-black text-white italic uppercase mb-4">Neural Analysis</h3>
+                                    <h3 className="text-xl font-black text-white italic uppercase mb-4">Smart Analysis</h3>
                                     
                                     {verdict ? (
                                         <div className="prose dark:prose-invert prose-sm text-gray-300 leading-relaxed max-w-none animate-fade-in" dangerouslySetInnerHTML={{ __html: verdict }} />

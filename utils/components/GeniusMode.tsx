@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Card from './common/Card';
 import { useData } from '../context/DataProvider';
-import { generateDeepDiveGenius } from '../../lib/gemini';
+import { generateDeepDiveGenius } from '../../lib/core_ai';
 import { sendGeniusProtocol } from '../../lib/whatsapp';
 import { 
     BrainCircuit, Zap, RefreshCcw, Search, Cpu, 
@@ -25,7 +25,7 @@ interface GeniusResult {
 }
 
 const OracleAI: React.FC = () => {
-    const { members, updateMember, detailedWorkoutLogs } = useData();
+    const { members, updateMember, detailedWorkoutLogs, medicalReports } = useData();
     const { addToast } = useToast();
 
     const [selectedMemberId, setSelectedMemberId] = useState<number | ''>(members[0]?.id || '');
@@ -34,8 +34,8 @@ const OracleAI: React.FC = () => {
     const [isDeploying, setIsDeploying] = useState(false);
     const [activeTab, setActiveTab] = useState<'logic' | 'analysis' | 'protocol' | 'prophecy'>('logic');
     
-    // Neural Simulation States
-    const [neuralLoad, setNeuralLoad] = useState(0);
+    // Smart Simulation States
+    const [neuralLoad, setSmartLoad] = useState(0);
     const [thoughtStep, setThoughtStep] = useState(0);
     
     // Prediction Data (Prophecy Engine)
@@ -47,11 +47,11 @@ const OracleAI: React.FC = () => {
         let interval: any;
         if (isAnalyzing) {
             interval = setInterval(() => {
-                setNeuralLoad(prev => Math.min(99, prev + Math.random() * 5));
+                setSmartLoad(prev => Math.min(99, prev + Math.random() * 5));
                 setThoughtStep(prev => (prev + 1) % 4);
             }, 500);
         } else {
-            setNeuralLoad(0);
+            setSmartLoad(0);
             setThoughtStep(0);
         }
         return () => clearInterval(interval);
@@ -62,11 +62,12 @@ const OracleAI: React.FC = () => {
         setIsAnalyzing(true);
         setResult(null);
         setTrajectoryData([]);
-        addToast("Sovereign Node: Establishing Neural Bridge...", "info");
+        addToast("Sovereign Node: Establishing Smart Bridge...", "info");
 
         try {
             const memberLogs = detailedWorkoutLogs.filter(l => l.memberId === member.id);
-            const jsonStr = await generateDeepDiveGenius(member, { logs: memberLogs });
+            const memberReports = medicalReports.filter(r => r.member_id === member.id);
+            const jsonStr = await generateDeepDiveGenius(member, { logs: memberLogs }, memberReports);
             const parsedResult: GeniusResult = JSON.parse(jsonStr);
             
             // Generate Predictive Data based on result (Mocking AI prediction for visual)
@@ -82,11 +83,11 @@ const OracleAI: React.FC = () => {
             setTimeout(() => {
                 setResult(parsedResult);
                 setIsAnalyzing(false);
-                addToast("Oracle Sync Successful. Singularity Reached.", "success");
+                addToast("Oracle Sync Successful. FitnessFuture Matrix Reached.", "success");
             }, 3000);
         } catch (e) {
             console.error(e);
-            addToast("Neural Link Failure. Retrying sync...", "error");
+            addToast("Smart Link Failure. Retrying sync...", "error");
             setIsAnalyzing(false);
         }
     };
@@ -111,23 +112,22 @@ const OracleAI: React.FC = () => {
     return (
         <div className="space-y-8 animate-fade-in pb-24">
             {/* OLYMPUS HEADER HUD */}
-            <div className="bg-[#050505] p-12 rounded-[4rem] border border-amber-500/30 relative overflow-hidden shadow-[0_0_120px_rgba(245,158,11,0.15)] group">
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
-                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-amber-600/5 rounded-full blur-[150px] animate-pulse"></div>
+            <div className="mb-6 bg-[#020202] p-8 rounded-[3rem] border border-cyan-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(6,182,212,0.15)] group">
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[150px] animate-pulse"></div>
                 
                 <div className="relative z-10 flex flex-col lg:flex-row justify-between items-center gap-10">
                     <div className="flex-1">
                         <div className="flex items-center gap-4 mb-6">
-                            <div className="px-5 py-2 bg-amber-500 text-black border border-amber-400 rounded-full flex items-center gap-3 shadow-[0_0_30px_#f59e0b]">
-                                <Infinity className="w-5 h-5 animate-spin-slow" />
-                                <span className="text-xs font-black uppercase tracking-[0.2em]">Singularity Core v31.0</span>
+                            <div className="px-4 py-1.5 bg-cyan-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
+                                <Cpu className="w-3 h-3" /> Fitness Future
                             </div>
-                            <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase bg-white/5 px-4 py-2 rounded-full border border-white/5">MODE: GENIUS_GOD</span>
+                            <span className="text-[10px] font-mono text-cyan-500/70 tracking-[0.4em] uppercase bg-white/5 px-4 py-2 rounded-full border border-white/5">MODE: GENIUS_GOD</span>
                         </div>
                         <h1 className="text-6xl md:text-8xl font-black text-white uppercase italic tracking-tighter leading-none mb-6">
-                            Divine <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-200 to-orange-500">Oracle</span>
+                            AI <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-fuchsia-400">Planner</span>
                         </h1>
-                        <p className="text-gray-400 text-lg max-w-2xl leading-relaxed italic border-l-4 border-amber-500 pl-8">
+                        <p className="text-gray-400 text-lg max-w-2xl leading-relaxed italic border-l-4 border-cyan-500 pl-8">
                             "I see all timelines. I calculate all outcomes. I am the architect of your physical evolution."
                         </p>
                     </div>
@@ -136,7 +136,7 @@ const OracleAI: React.FC = () => {
                         <div className="bg-gray-900/60 p-8 rounded-[3rem] border border-white/10 backdrop-blur-2xl flex flex-col items-center min-w-[200px] shadow-2xl relative overflow-hidden">
                             <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-3">Cognitive Load</p>
                             <div className="text-5xl font-black text-white font-mono italic">{Math.round(neuralLoad)}%</div>
-                            <div className="absolute bottom-0 left-0 h-1.5 bg-amber-500 transition-all duration-300 shadow-[0_0_20px_#f59e0b]" style={{ width: `${neuralLoad}%` }}></div>
+                            <div className="absolute bottom-0 left-0 h-1.5 bg-cyan-500 transition-all duration-300 shadow-[0_0_20px_rgba(6,182,212,0.8)]" style={{ width: `${neuralLoad}%` }}></div>
                         </div>
                     </div>
                 </div>
@@ -172,23 +172,23 @@ const OracleAI: React.FC = () => {
                         </div>
                     </Card>
 
-                    <Card title="Neural Process Trace" className="bg-black border-white/5 h-96 flex flex-col p-0 overflow-hidden rounded-[3rem]">
+                    <Card title="Smart Process Trace" className="bg-black border-white/5 h-96 flex flex-col p-0 overflow-hidden rounded-[3rem]">
                         <div className="bg-gray-900/50 px-8 py-4 border-b border-white/5 flex justify-between items-center">
                             <span className="text-[10px] font-mono text-gray-500 uppercase flex items-center gap-2"><Terminal className="w-3 h-3"/> oracle_kernel@v31</span>
                             <div className="flex gap-2"><div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"/><div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse delay-100"/><div className="w-2 h-2 bg-green-500 rounded-full animate-pulse delay-200"/></div>
                         </div>
                         <div className="flex-1 overflow-y-auto p-8 font-mono text-[11px] text-amber-500/80 space-y-3 custom-scrollbar bg-[#020202]">
-                            <div>[SYSTEM] Neural link stability: 99.8%</div>
+                            <div>[SYSTEM] Smart link stability: 99.8%</div>
                             <div>[INFO] Loading kinematic logs for ID #{selectedMemberId || 'NULL'}</div>
                             {isAnalyzing && (
                                 <>
                                     <div className="text-cyan-400 animate-pulse">&gt;&gt; Step {thoughtStep + 1}: De-compiling muscle fiber recruitment patterns...</div>
                                     <div className="text-gray-600">&gt;&gt; Calculating ATP recycling efficiency...</div>
-                                    <div className="text-purple-400">&gt;&gt; Simulating 12,000 future workout variations...</div>
+                                    <div className="text-purple-400">&gt;&gt; processing 12,000 future workout variations...</div>
                                     <div className="text-green-400">&gt;&gt; Cross-referencing DNA markers...</div>
                                 </>
                             )}
-                            {result && <div className="text-green-400 font-bold">&gt;&gt; COMPLETE: Singularity Solution Generated.</div>}
+                            {result && <div className="text-green-400 font-bold">&gt;&gt; COMPLETE: FitnessFutureMatrix Solution Generated.</div>}
                             <div className="flex items-center gap-2"><span className="text-cyan-400">{'>'}</span><span className="w-2 h-5 bg-amber-500 animate-pulse"></span></div>
                         </div>
                     </Card>
@@ -219,7 +219,7 @@ const OracleAI: React.FC = () => {
                             {/* Tabs Navigation */}
                             <div className="flex bg-gray-900 p-2 rounded-2xl border border-white/10 w-fit backdrop-blur-xl flex-wrap shadow-xl">
                                 {[
-                                    { id: 'logic', label: 'Neural Logic', icon: <Workflow className="w-4 h-4"/> },
+                                    { id: 'logic', label: 'Smart Logic', icon: <Workflow className="w-4 h-4"/> },
                                     { id: 'analysis', label: 'Physio Audit', icon: <Activity className="w-4 h-4"/> },
                                     { id: 'prophecy', label: 'Prophecy Engine', icon: <TrendingUp className="w-4 h-4"/> },
                                     { id: 'protocol', label: 'God-Tier Plan', icon: <Zap className="w-4 h-4"/> }

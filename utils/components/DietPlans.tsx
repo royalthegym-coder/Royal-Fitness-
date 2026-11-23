@@ -9,16 +9,17 @@ import {
     FileText, Dumbbell, Binary, Cpu, Sparkles,
     Scan, ArrowRight, Save, Target, BrainCircuit, Database
 } from 'lucide-react';
-import { getAIChefRecipe, getNutritionAnalysisFromImage, cleanAndParseJSON, generateHyperPersonalizedDiet } from '../../lib/gemini';
+import { getAIChefRecipe, getNutritionAnalysisFromImage, cleanAndParseJSON, generateHyperPersonalizedDiet } from '../../lib/core_ai';
 import { useToast } from '../hooks/useToast';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { BotIcon } from './icons/BotIcon';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { StructuredDietPlan, AIRecommendation } from '../../types';
+import OpalsDietArchitect from './OpalsDietArchitect';
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6']; // Protein, Carbs, Fats, Other
 
-// Mock Micronutrient Data
+// Micronutrient Data
 const MICRO_DATA = [
     { subject: 'Vit D3', A: 120, fullMark: 150 },
     { subject: 'Zinc', A: 98, fullMark: 150 },
@@ -29,12 +30,12 @@ const MICRO_DATA = [
 ];
 
 const FuelAlchemy: React.FC = () => {
-    const { members, updateMember, liveHealthData, dailyRoutineLogs } = useData();
+    const { members, updateMember, liveHealthData, dailyRoutineLogs, medicalReports } = useData();
     const { addToast } = useToast();
     
     // Core State
     const [selectedId, setSelectedId] = useState<number | ''>(members[0]?.id || '');
-    const [activeTab, setActiveTab] = useState<'matrix' | 'architect' | 'vision' | 'synthesis'>('matrix');
+    const [activeTab, setActiveTab] = useState<'matrix' | 'architect' | 'vision' | 'synthesis' | 'opals_architect'>('opals_architect');
     
     // Architect State
     const [goal, setGoal] = useState('Muscle Gain');
@@ -96,9 +97,28 @@ const FuelAlchemy: React.FC = () => {
 
     // --- HANDLERS ---
 
-    // AI Diet Validation Logic (Python to TypeScript conversion)
+    // AI Diet Validation Logic (Deterministic Fallback & Rule Engine)
+    const SAFE_FOOD_DATABASE = [
+        // Grains & Carbs
+        "roti", "chapati", "rice", "oats", "dalia", "bajra", "jowar", "quinoa", "sattu", "bread", "toast", "pasta", "millet", "poha", "upma", "khichdi", "idli", "dosa", "suji", "besan", "wheat", "corn", "cereal", "bran",
+        // Proteins
+        "paneer", "tofu", "soya", "soy", "dal", "lentil", "moong", "chana", "rajma", "chicken", "egg", "fish", "whey", "casein", "mutton", "sprout", "chickpea", "salmon", "tuna", "turkey", "protein", "meat",
+        // Veggies
+        "spinach", "palak", "broccoli", "cauliflower", "cabbage", "carrot", "peas", "potato", "sweet potato", "tomato", "onion", "garlic", "ginger", "capsicum", "bhindi", "lauki", "salad", "cucumber", "radish", "beetroot", "mushroom", "bean", "veg", "vegetable", "green",
+        // Fruits
+        "apple", "banana", "orange", "papaya", "mango", "grape", "watermelon", "pomegranate", "berr", "guava", "kiwi", "melon", "lemon", "avocado", "fruit",
+        // Dairy & Fats
+        "milk", "curd", "dahi", "yogurt", "buttermilk", "chaas", "ghee", "butter", "cheese", "oil", "fat", "peanut", "almond",
+        // Nuts & Seeds
+        "walnut", "cashew", "chia", "flax", "pumpkin", "sunflower", "seed", "nut", "raisin", "date", "anjeer", "pistachio", "makhana",
+        // Supplements & Herbs (Strictly Indian/Safe)
+        "ashwagandha", "shilajit", "creatine", "bcaa", "multivitamin", "fish oil", "omega", "vitamin", "calcium", "zinc", "magnesium", "pre-workout", "glutamine", "eaa", "supplement", "isolate", "concentrate",
+        // Beverages & Misc
+        "water", "tea", "coffee", "honey", "jaggery", "sugar", "salt", "pepper", "spice", "soup", "juice", "shake", "smoothie", "meal", "snack", "dish", "curry", "sabzi"
+    ];
+
     const validateDiet = (aiDietJson: any, memberAllergies: string[]) => {
-        if (!aiDietJson || !aiDietJson.meals || !memberAllergies || memberAllergies.length === 0) {
+        if (!aiDietJson || !aiDietJson.meals) {
             return { isValid: true, message: "Safe Diet" };
         }
         
@@ -108,10 +128,21 @@ const FuelAlchemy: React.FC = () => {
             if (!meal.items) continue;
             for (const item of meal.items) {
                 const itemLower = item.toLowerCase();
+                
+                // 1. Allergy Check (Critical Safety)
                 for (const allergy of allergiesLower) {
-                    if (itemLower.includes(allergy)) {
+                    if (allergy && itemLower.includes(allergy)) {
                         return { isValid: false, message: `Alert: AI suggested ${item} which contains an allergy (${allergy})!` };
                     }
+                }
+
+                // 2. Safe Food Database Check (Deterministic Fallback)
+                const isSafe = SAFE_FOOD_DATABASE.some(safeFood => itemLower.includes(safeFood));
+                if (!isSafe) {
+                    return { 
+                        isValid: false, 
+                        message: `Rule Engine Blocked: '${item}' is not in our approved Indian/Rajasthani Safe Food Database. Preventing AI hallucination.` 
+                    };
                 }
             }
         }
@@ -121,7 +152,7 @@ const FuelAlchemy: React.FC = () => {
     const handleGeneratePlan = async () => {
         if (!member) return;
         setIsGenerating(true);
-        addToast("Neural Architect: Analyzing Bio-Markers...", "info");
+        addToast("Smart Architect: Analyzing Bio-Markers...", "info");
 
         const profile = {
             name: member.name,
@@ -134,26 +165,34 @@ const FuelAlchemy: React.FC = () => {
         };
 
         try {
-            const res = await generateHyperPersonalizedDiet(profile);
+            const memberReports = medicalReports.filter(r => r.member_id === Number(selectedId));
+            const res = await generateHyperPersonalizedDiet(profile, memberReports);
             const plan: StructuredDietPlan = cleanAndParseJSON(res);
             
             if (plan && plan.meals) {
-                // Validate Diet against Allergies
+                // Validate Diet against Allergies & Safe Food Database
                 const allergyList = allergies.split(',').map(a => a.trim()).filter(a => a);
                 const validation = validateDiet(plan, allergyList);
                 
                 if (!validation.isValid) {
                     addToast(validation.message, "error");
-                    throw new Error("Diet validation failed due to allergies.");
+                    throw new Error(validation.message);
                 }
 
                 // Ensure the plan has the correct structure before saving
                 const structuredPlan: StructuredDietPlan = {
-                    ...plan,
-                    id: Date.now(),
-                    level: level,
-                    aiGenerated: true,
-                    scientificNote: plan.scientificNote || "AI Generated Protocol"
+                    planId: `AI-${Date.now()}`,
+                    goal: plan.goal || goal,
+                    caloriesTarget: plan.caloriesTarget || 2000,
+                    macrosTarget: plan.macrosTarget || { protein: 150, carbs: 200, fats: 60 },
+                    meals: plan.meals?.map((m: any) => ({
+                        name: m.name,
+                        time: m.time,
+                        items: m.items?.map((item: string) => ({ food: item, portion: "1 serving" })) || [],
+                        totalCalories: m.calories || 0,
+                        macros: { protein: m.protein || 0, carbs: m.carbs || 0, fats: m.fats || 0 }
+                    })) || [],
+                    scienceNote: (plan as any).scientificNote || plan.scienceNote || "AI Generated Protocol"
                 };
                 updateMember({ ...member, approvedDietPlan: structuredPlan });
                 addToast("Protocol Synthesized & Deployed.", "success");
@@ -163,10 +202,11 @@ const FuelAlchemy: React.FC = () => {
             }
         } catch (e: any) {
             console.error(e);
-            if (e.message === "Diet validation failed due to allergies.") {
-                addToast("Neural Link Failed: Allergy detected in AI suggestion. Please try again.", "error");
+            if (e.message.includes("Rule Engine Blocked") || e.message.includes("Alert: AI suggested")) {
+                // Toast already shown in validation block
+                addToast("Smart Link Failed: Rule Engine blocked unsafe AI suggestion. Please try again.", "error");
             } else {
-                addToast("Neural Link Failed. Using fallback protocol.", "error");
+                addToast("Smart Link Failed. Using fallback protocol.", "error");
             }
         } finally {
             setIsGenerating(false);
@@ -214,33 +254,33 @@ const FuelAlchemy: React.FC = () => {
         const phone = `91${member.phone.replace(/\D/g, '')}`;
         const url = `https://wa.me/${phone}?text=Your%20Fuel%20Alchemy%20Shopping%20List%20is%20Ready!`;
         window.open(url, '_blank');
-        addToast("List Transmitted via Neural Net (WhatsApp).", "success");
+        addToast("List Transmitted via Smart Net (WhatsApp).", "success");
     };
 
     return (
         <div className="space-y-8 animate-fade-in pb-24">
             
             {/* 1. HEADER HUD */}
-            <div className="bg-[#020308] p-10 rounded-[4rem] border border-emerald-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(16,185,129,0.15)] group">
+            <div className="bg-[#020308] p-10 rounded-[4rem] border border-cyan-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(6,182,212,0.15)] group">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-15"></div>
-                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-emerald-600/10 rounded-full blur-[150px] animate-pulse"></div>
+                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[150px] animate-pulse"></div>
                 
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-10">
                     <div className="flex items-center gap-8">
-                        <div className="p-8 bg-emerald-600 text-black rounded-[3rem] shadow-[0_0_60px_rgba(16,185,129,0.5)] border border-emerald-400 group-hover:rotate-12 transition-transform duration-700">
+                        <div className="p-8 bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-[3rem] shadow-[0_0_60px_rgba(6,182,212,0.5)] border border-cyan-400 group-hover:rotate-12 transition-transform duration-700">
                             <FlaskConical className="w-16 h-16" />
                         </div>
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="px-4 py-1.5 bg-emerald-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
-                                    <Cpu className="w-3 h-3" /> Fuel Alchemy v31.0
+                                <div className="px-4 py-1.5 bg-cyan-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
+                                    <Cpu className="w-3 h-3" /> Fitness Future
                                 </div>
                                 <span className={`text-[10px] font-mono tracking-[0.4em] uppercase font-bold flex items-center gap-2 ${metabolicState.color}`}>
                                     {metabolicState.icon} {metabolicState.status}
                                 </span>
                             </div>
                             <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none">
-                                Fuel <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-600">Alchemy</span>
+                                Fuel <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-fuchsia-400">Alchemy</span>
                             </h1>
                         </div>
                     </div>
@@ -248,30 +288,40 @@ const FuelAlchemy: React.FC = () => {
                     <div className="flex gap-4">
                          <button 
                             onClick={() => addToast('Triggering N8N AI Diet Generator Workflow...', 'info')}
-                            className="px-6 py-3 rounded-2xl bg-gradient-to-r from-orange-600 to-red-600 text-white font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-lg hover:scale-105 transition-transform"
+                            className="px-6 py-3 rounded-2xl bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-[0_0_20px_rgba(234,88,12,0.3)] border border-orange-500/50 border-dashed transition-all relative overflow-hidden group"
                         >
-                            <SparkleIcon className="w-4 h-4 text-white" /> N8N AI Sync
+                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                            <SparkleIcon className="w-4 h-4 text-white relative z-10" /> <span className="relative z-10">N8N AI Sync</span>
                         </button>
                         <button 
                             onClick={() => addToast('Syncing advanced diet protocols to GitHub...', 'success')}
-                            className="px-6 py-3 rounded-2xl bg-gradient-to-r from-gray-800 to-gray-900 text-white font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-lg hover:scale-105 transition-transform border border-gray-700"
+                            className="px-6 py-3 rounded-2xl bg-gradient-to-r from-gray-800 to-gray-900 hover:from-gray-700 hover:to-gray-800 text-white font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-[0_0_15px_rgba(0,0,0,0.5)] border border-gray-600/50 border-dashed transition-all relative overflow-hidden group"
                         >
-                            <Database className="w-4 h-4 text-white" /> GitHub Backup
+                            <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                            <Database className="w-4 h-4 text-white relative z-10" /> <span className="relative z-10">GitHub Backup</span>
                         </button>
                     </div>
 
                     <div className="flex bg-gray-900/80 p-2 rounded-3xl border border-white/10 backdrop-blur-3xl shadow-2xl overflow-x-auto no-scrollbar max-w-full">
-                        <button onClick={() => setActiveTab('matrix')} className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'matrix' ? 'bg-emerald-500 text-black shadow-2xl' : 'text-gray-500 hover:text-white'}`}>
-                            <Activity className="w-4 h-4"/> Matrix
+                        <button onClick={() => setActiveTab('matrix')} className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 relative overflow-hidden group ${activeTab === 'matrix' ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-black shadow-[0_0_20px_rgba(16,185,129,0.4)] border border-emerald-400/50 border-dashed' : 'text-gray-500 hover:text-white border border-transparent'}`}>
+                            {activeTab === 'matrix' && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>}
+                            <Activity className="w-4 h-4 relative z-10"/> <span className="relative z-10">Matrix</span>
                         </button>
-                        <button onClick={() => setActiveTab('architect')} className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'architect' ? 'bg-emerald-500 text-black shadow-2xl' : 'text-gray-500 hover:text-white'}`}>
-                            <BotIcon className="w-4 h-4"/> Architect
+                        <button onClick={() => setActiveTab('architect')} className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 relative overflow-hidden group ${activeTab === 'architect' ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-black shadow-[0_0_20px_rgba(16,185,129,0.4)] border border-emerald-400/50 border-dashed' : 'text-gray-500 hover:text-white border border-transparent'}`}>
+                            {activeTab === 'architect' && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>}
+                            <BotIcon className="w-4 h-4 relative z-10"/> <span className="relative z-10">Architect</span>
                         </button>
-                        <button onClick={() => setActiveTab('vision')} className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'vision' ? 'bg-emerald-500 text-black shadow-2xl' : 'text-gray-500 hover:text-white'}`}>
-                            <Scan className="w-4 h-4"/> Vision
+                        <button onClick={() => setActiveTab('vision')} className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 relative overflow-hidden group ${activeTab === 'vision' ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-black shadow-[0_0_20px_rgba(16,185,129,0.4)] border border-emerald-400/50 border-dashed' : 'text-gray-500 hover:text-white border border-transparent'}`}>
+                            {activeTab === 'vision' && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>}
+                            <Scan className="w-4 h-4 relative z-10"/> <span className="relative z-10">Vision</span>
                         </button>
-                        <button onClick={() => setActiveTab('synthesis')} className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'synthesis' ? 'bg-emerald-500 text-black shadow-2xl' : 'text-gray-500 hover:text-white'}`}>
-                            <ChefHat className="w-4 h-4"/> Lab
+                        <button onClick={() => setActiveTab('synthesis')} className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 relative overflow-hidden group ${activeTab === 'synthesis' ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-black shadow-[0_0_20px_rgba(16,185,129,0.4)] border border-emerald-400/50 border-dashed' : 'text-gray-500 hover:text-white border border-transparent'}`}>
+                            {activeTab === 'synthesis' && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>}
+                            <ChefHat className="w-4 h-4 relative z-10"/> <span className="relative z-10">Lab</span>
+                        </button>
+                        <button onClick={() => setActiveTab('opals_architect')} className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 relative overflow-hidden group ${activeTab === 'opals_architect' ? 'bg-gradient-to-r from-fuchsia-600 via-purple-600 to-cyan-600 text-white shadow-[0_0_20px_rgba(217,70,239,0.4)] border border-fuchsia-400/50 border-dashed' : 'text-gray-500 hover:text-white border border-transparent'}`}>
+                            {activeTab === 'opals_architect' && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>}
+                            <BrainCircuit className="w-4 h-4 relative z-10"/> <span className="relative z-10">Fitness Future-NUTRITION</span>
                         </button>
                     </div>
                 </div>
@@ -381,9 +431,20 @@ const FuelAlchemy: React.FC = () => {
                                                 ))}
                                             </div>
                                         </div>
-                                        <button onClick={handleShareList} className="w-full bg-white text-black font-black py-4 rounded-2xl uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-xl hover:bg-emerald-400 transition-all">
-                                            <Share2 className="w-4 h-4"/> Beam to WhatsApp
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button onClick={handleShareList} className="flex-1 bg-white text-black font-black py-4 rounded-2xl uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-xl hover:bg-emerald-400 transition-all">
+                                                <Share2 className="w-4 h-4"/> Beam to WhatsApp
+                                            </button>
+                                            <button 
+                                                onClick={() => {
+                                                    addToast("Compiling ingredient list and redirecting to Zepto/Blinkit...", "success");
+                                                    setTimeout(() => window.open('https://www.zeptonow.com/', '_blank'), 1500);
+                                                }} 
+                                                className="flex-1 bg-purple-600 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-xl hover:bg-purple-500 transition-all"
+                                            >
+                                                <ShoppingBag className="w-4 h-4"/> Order Groceries
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             ) : (
@@ -433,8 +494,25 @@ const FuelAlchemy: React.FC = () => {
                                 className="w-full bg-emerald-600 hover:bg-emerald-500 text-black font-black py-5 rounded-3xl shadow-xl transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-xs active:scale-95 disabled:opacity-50"
                             >
                                 {isGenerating ? <RefreshCw className="w-4 h-4 animate-spin"/> : <BrainCircuit className="w-4 h-4"/>}
-                                {isGenerating ? 'Synthesizing Protocol...' : 'Execute Neural Design'}
+                                {isGenerating ? 'Synthesizing Protocol...' : 'Execute Smart Design'}
                             </button>
+                            
+                            {isGenerating && (
+                                <div className="mt-8 space-y-6 animate-pulse">
+                                    <div className="h-8 bg-emerald-900/20 rounded-xl w-1/3 mx-auto"></div>
+                                    <div className="h-4 bg-emerald-900/20 rounded-md w-1/2 mx-auto"></div>
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div className="h-24 bg-emerald-900/20 rounded-2xl"></div>
+                                        <div className="h-24 bg-emerald-900/20 rounded-2xl"></div>
+                                        <div className="h-24 bg-emerald-900/20 rounded-2xl"></div>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div className="h-20 bg-emerald-900/10 rounded-2xl w-full"></div>
+                                        <div className="h-20 bg-emerald-900/10 rounded-2xl w-full"></div>
+                                        <div className="h-20 bg-emerald-900/10 rounded-2xl w-full"></div>
+                                    </div>
+                                </div>
+                            )}
                         </Card>
                     )}
 
@@ -444,7 +522,7 @@ const FuelAlchemy: React.FC = () => {
                             <Card className="bg-black border-2 border-dashed border-emerald-500/30 p-10 rounded-[3rem] flex flex-col items-center justify-center text-center cursor-pointer hover:bg-emerald-900/10 transition-all group min-h-[400px]" onClick={() => fileInputRef.current?.click()}>
                                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleMealScan} />
                                 {scanImage ? (
-                                    <img src={scanImage} className="w-full h-64 object-cover rounded-3xl shadow-2xl border border-white/10" alt="meal" />
+                                    <img src={scanImage} alt="Food Scan Preview" className="w-full h-full object-cover" />
                                 ) : (
                                     <div className="w-32 h-32 bg-gray-900 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-2xl border-4 border-gray-800">
                                         <Camera className="w-12 h-12 text-emerald-500" />
@@ -532,6 +610,12 @@ const FuelAlchemy: React.FC = () => {
                         </div>
                     )}
 
+                    {/* TAB 5: OPALS DIET ARCHITECT */}
+                    {activeTab === 'opals_architect' && (
+                        <div className="space-y-6 animate-slide-up">
+                            <OpalsDietArchitect isAdminView={true} memberId={selectedId ? Number(selectedId) : undefined} />
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

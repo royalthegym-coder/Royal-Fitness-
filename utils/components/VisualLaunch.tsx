@@ -18,7 +18,7 @@ const VisualLaunch: React.FC = () => {
     
     // --- STATE ---
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [aiTicker, setAiTicker] = useState("Welcome to Royal The Gym. Train Hard, Recover Smart.");
+    const [aiTicker, setAiTicker] = useState("Welcome to Fitness Future. Train Hard, Recover Smart.");
     const [qrCode, setQrCode] = useState('');
     const [weather, setWeather] = useState({ temp: 24, humidity: 45, aqi: 42 });
     const [prAlert, setPrAlert] = useState<{ member: Member, exercise: string, record: string } | null>(null);
@@ -39,7 +39,7 @@ const VisualLaunch: React.FC = () => {
                 aqi: 35 + Math.floor(Math.random() * 15)
             }));
             
-            // Pulse Data (Simulating Gym Energy)
+            // Pulse Data (processing Gym Energy)
             setGymPulseData(prev => {
                 const newData = [...prev, { time: Date.now(), value: Math.random() * 80 + 20 }];
                 return newData.slice(-30); // Keep last 30 points
@@ -52,7 +52,7 @@ const VisualLaunch: React.FC = () => {
         }, 1000);
 
         // WiFi QR Code
-        toDataURL(`WIFI:S:${GYM_INFO.name};T:WPA;P:RoyalFit2024;;`, { width: 300, margin: 1, color: { dark: '#000000', light: '#ffffff' } })
+        toDataURL(`WIFI:S:${GYM_INFO.name};T:WPA;P:FutureFit2024;;`, { width: 300, margin: 1, color: { dark: '#000000', light: '#ffffff' } })
             .then(url => setQrCode(url));
 
         return () => { clearInterval(timer); clearInterval(envTimer); };
@@ -124,7 +124,7 @@ const VisualLaunch: React.FC = () => {
             <div className="w-full max-w-5xl bg-[#0a0a0a] border-y-4 border-amber-500 rounded-[4rem] p-16 relative overflow-hidden shadow-[0_0_150px_rgba(245,158,11,0.6)] flex items-center gap-16">
                 <div className="relative">
                     <div className="absolute inset-0 bg-amber-500 rounded-full blur-3xl opacity-40 animate-pulse"></div>
-                    <img src={alert.member.avatar} className="w-64 h-64 rounded-full object-cover border-8 border-amber-500 shadow-2xl relative z-10 grayscale contrast-125" alt={alert.member.name} />
+                    <img src={alert.member.avatar || "https://i.pravatar.cc/150?u=" + alert.member.id} alt={alert.member.name} className="w-48 h-48 rounded-full object-cover border-4 border-amber-500 relative z-10" />
                     <div className="absolute -top-10 -right-10 text-amber-400 animate-bounce-slow">
                         <Crown className="w-32 h-32 fill-current" />
                     </div>
@@ -232,7 +232,7 @@ const VisualLaunch: React.FC = () => {
                             <Trophy className="w-8 h-8" />
                         </div>
                         <div>
-                            <h3 className="text-3xl font-black text-white uppercase italic tracking-tighter">Apex Warriors</h3>
+                            <h3 className="text-3xl font-black text-white uppercase italic tracking-tighter">FitnessFutureWarriors</h3>
                             <p className="text-[10px] text-gray-500 font-mono uppercase tracking-[0.3em]">Live XP Ranking</p>
                         </div>
                     </div>
@@ -242,7 +242,7 @@ const VisualLaunch: React.FC = () => {
                                 <div className={`text-4xl font-black italic w-12 text-center ${i === 0 ? 'text-amber-500' : i === 1 ? 'text-gray-300' : i === 2 ? 'text-orange-700' : 'text-gray-600'}`}>
                                     {i+1}
                                 </div>
-                                <img src={m.avatar} className="w-14 h-14 rounded-2xl object-cover border-2 border-white/10 shadow-lg grayscale group-hover:grayscale-0 transition-all" alt={m.name} />
+                                <img src={m.avatar || "https://i.pravatar.cc/150?u=" + m.id} alt={m.name} className="w-12 h-12 rounded-2xl object-cover border border-white/10" />
                                 <div className="flex-1">
                                     <h4 className="text-lg font-bold text-white uppercase tracking-tight">{m.name}</h4>
                                     <div className="flex items-center gap-2 mt-1">
@@ -313,10 +313,10 @@ const VisualLaunch: React.FC = () => {
                     </div>
                     <div className="flex-1 bg-white rounded-[2.5rem] p-6 flex flex-col items-center justify-center text-center shadow-2xl relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-blue-600"></div>
-                        <img src={qrCode} className="w-32 h-32 mix-blend-multiply mb-4" alt="WiFi" />
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=WIFI:S:FutureFit_5G;T:WPA;P:fitness2026;;" alt="WiFi QR Code" className="w-28 h-28 object-contain mb-3" />
                         <div className="space-y-1">
                             <h4 className="text-black font-black uppercase text-sm tracking-widest">Free High-Speed WiFi</h4>
-                            <p className="text-gray-500 text-xs font-mono">Network: RoyalFit_5G</p>
+                            <p className="text-gray-500 text-xs font-mono">Network: FutureFit_5G</p>
                         </div>
                     </div>
                 </div>

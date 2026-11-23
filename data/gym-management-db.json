@@ -1,0 +1,1259 @@
+{
+  "schema_version": 2,
+  "seeded_at": "2026-11-21T17:36:18.951Z",
+  "gyms": [
+    {
+      "gym_id": "default_gym",
+      "name": "Fitness Future",
+      "owner_name": "Vikram Singh",
+      "email": "owner@fitnessfuture.in",
+      "mobile": "9829011223",
+      "upi_id": "fitnessfuture@upi",
+      "address": "C-Scheme, Jaipur, Rajasthan 302001",
+      "google_maps_url": "https://maps.google.com/?q=C-Scheme+Jaipur",
+      "logo_url": "",
+      "signature_url": "",
+      "registration_status": "Verified",
+      "whatsapp_url": "",
+      "instagram_url": "",
+      "facebook_url": "",
+      "youtube_url": "",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    }
+  ],
+  "users": [
+    {
+      "id": "USR-OWNER-01",
+      "gym_id": "default_gym",
+      "name": "Vikram Singh",
+      "email": "owner@fitnessfuture.in",
+      "role": "owner",
+      "password_hash": "6b79b0cfb86a9441b02e677492ad35820fc64d377740b171151a4e98e67076e28cdc36ef92142b1354e0405122c47d247bc501ceea78195cd7538b7dc7abe959",
+      "password_salt": "d255ca560662d81f8aa866b3f2cafdbe",
+      "status": "Active",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": "USR-MGR-02",
+      "gym_id": "default_gym",
+      "name": "Ananya Sharma",
+      "email": "manager@fitnessfuture.in",
+      "role": "manager",
+      "password_hash": "58cb304e2e2c65a733858aa28041544b596bb5bee1c5054194013aa8a853550509eea49d9471b972acb2319522d62f102a1ed04ad1d0662667e323f9c8bb0bca",
+      "password_salt": "dc99b38dd42214570c6f59badd4a0b5e",
+      "status": "Active",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": "USR-TRN-03",
+      "gym_id": "default_gym",
+      "name": "Kabir Malhotra",
+      "email": "trainer@fitnessfuture.in",
+      "role": "trainer",
+      "password_hash": "428be58b043a3790117836f61afec427b23ab38d5342236c8cedafd64277c31db3be474d9015dcfb714b89d3e66d8cb36fd686ed7c296c889dc0e223c3476fcd",
+      "password_salt": "d05066e0934e9bd3e864a4f4216dde71",
+      "status": "Active",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    }
+  ],
+  "members": [
+    {
+      "id": 101,
+      "gym_id": "default_gym",
+      "member_code": "FF-1101",
+      "name": "Aarav Sharma",
+      "email": "aarav.sharma@example.com",
+      "phone": "9876543210",
+      "gender": "Male",
+      "dob": "1995-05-14",
+      "address": "Malviya Nagar, Jaipur",
+      "join_date": "2026-09-22",
+      "expiry_date": "2027-09-22",
+      "package_id": 4,
+      "assigned_trainer_id": 1,
+      "status": "Active",
+      "archived": false,
+      "fitness_goal": "Muscle Gain",
+      "training_experience": "Intermediate",
+      "height_cm": 176,
+      "weight_kg": 74,
+      "whatsapp_consent": true,
+      "digital_consent": true,
+      "emergency_contact": {
+        "name": "Rakesh Sharma",
+        "phone": "9876543200",
+        "relation": "Father"
+      },
+      "medical_notes": "No chronic conditions.",
+      "approved_workout_plan": "Hypertrophy Upper/Lower Split",
+      "approved_diet_plan": "Lean Muscle Gain 2600 kcal",
+      "bmi": 23.9,
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 102,
+      "gym_id": "default_gym",
+      "member_code": "FF-1102",
+      "name": "Priya Verma",
+      "email": "priya.verma@example.com",
+      "phone": "9876543211",
+      "gender": "Female",
+      "dob": "1997-08-22",
+      "address": "Vaishali Nagar, Jaipur",
+      "join_date": "2026-10-07",
+      "expiry_date": "2027-04-05",
+      "package_id": 3,
+      "assigned_trainer_id": 1,
+      "status": "Active",
+      "archived": false,
+      "fitness_goal": "Weight Loss",
+      "training_experience": "Beginner",
+      "height_cm": 162,
+      "weight_kg": 66,
+      "whatsapp_consent": true,
+      "digital_consent": true,
+      "emergency_contact": {
+        "name": "Sunita Verma",
+        "phone": "9876543201",
+        "relation": "Mother"
+      },
+      "medical_notes": "Mild knee sensitivity on deep plyometrics.",
+      "approved_workout_plan": "Fat Loss Metabolic Circuit",
+      "approved_diet_plan": "Indian Veg Fat Loss 1650 kcal",
+      "bmi": 25.1,
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 103,
+      "gym_id": "default_gym",
+      "member_code": "FF-1103",
+      "name": "Rohan Mehta",
+      "email": "rohan.mehta@example.com",
+      "phone": "9876543212",
+      "gender": "Male",
+      "dob": "1992-02-11",
+      "address": "Mansarovar, Jaipur",
+      "join_date": "2026-08-08",
+      "expiry_date": "2026-11-06",
+      "package_id": 2,
+      "assigned_trainer_id": 1,
+      "status": "Expired",
+      "archived": false,
+      "fitness_goal": "Fitness",
+      "training_experience": "Intermediate",
+      "height_cm": 180,
+      "weight_kg": 82,
+      "whatsapp_consent": true,
+      "digital_consent": true,
+      "emergency_contact": {
+        "name": "Neha Mehta",
+        "phone": "9876543202",
+        "relation": "Spouse"
+      },
+      "medical_notes": "Cleared for full training.",
+      "bmi": 25.3,
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 104,
+      "gym_id": "default_gym",
+      "member_code": "FF-1104",
+      "name": "Sneha Gupta",
+      "email": "sneha.gupta@example.com",
+      "phone": "9876543213",
+      "gender": "Female",
+      "dob": "1998-11-04",
+      "address": "Raja Park, Jaipur",
+      "join_date": "2026-11-09",
+      "expiry_date": "2026-12-09",
+      "package_id": 1,
+      "assigned_trainer_id": 1,
+      "status": "Active",
+      "archived": false,
+      "fitness_goal": "Fitness",
+      "training_experience": "Beginner",
+      "height_cm": 165,
+      "weight_kg": 59,
+      "whatsapp_consent": false,
+      "digital_consent": true,
+      "emergency_contact": {
+        "name": "Deepak Gupta",
+        "phone": "9876543203",
+        "relation": "Brother"
+      },
+      "medical_notes": "None",
+      "bmi": 21.7,
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 105,
+      "gym_id": "default_gym",
+      "member_code": "FF-1105",
+      "name": "Devansh Rathore",
+      "email": "devansh.rathore@example.com",
+      "phone": "9876543214",
+      "gender": "Male",
+      "dob": "1994-03-29",
+      "address": "C-Scheme, Jaipur",
+      "join_date": "2026-11-16",
+      "expiry_date": "2027-02-14",
+      "package_id": 2,
+      "assigned_trainer_id": 1,
+      "status": "Pending",
+      "archived": false,
+      "fitness_goal": "Muscle Gain",
+      "training_experience": "Advanced",
+      "height_cm": 178,
+      "weight_kg": 79,
+      "whatsapp_consent": true,
+      "digital_consent": true,
+      "emergency_contact": {
+        "name": "Karan Rathore",
+        "phone": "9876543204",
+        "relation": "Brother"
+      },
+      "medical_notes": "None",
+      "bmi": 24.9,
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    }
+  ],
+  "membership_packages": [
+    {
+      "id": 1,
+      "gym_id": "default_gym",
+      "name": "Monthly Fitness",
+      "category": "General",
+      "duration_months": 1,
+      "duration_label": "1 Month",
+      "monthly_base_rate": 1500,
+      "registration_fee": 500,
+      "discount_percent": 0,
+      "fixed_discount": 0,
+      "price": 1500,
+      "features": [
+        "Full Gym Floor Access",
+        "Cardio & Strength Zone",
+        "Locker Room"
+      ],
+      "details": "Flexible month-to-month access.",
+      "is_popular": false,
+      "is_active": true,
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 2,
+      "gym_id": "default_gym",
+      "name": "Quarterly Transformation",
+      "category": "General",
+      "duration_months": 3,
+      "duration_label": "3 Months",
+      "monthly_base_rate": 1500,
+      "registration_fee": 500,
+      "discount_percent": 10,
+      "fixed_discount": 0,
+      "price": 4050,
+      "features": [
+        "Full Gym Access",
+        "BMI & Body Assessment",
+        "1 Personal Training Orientation"
+      ],
+      "details": "Save 10% compared to monthly billing.",
+      "is_popular": false,
+      "is_active": true,
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 3,
+      "gym_id": "default_gym",
+      "name": "Half-Yearly Pro",
+      "category": "General",
+      "duration_months": 6,
+      "duration_label": "6 Months",
+      "monthly_base_rate": 1500,
+      "registration_fee": 500,
+      "discount_percent": 15,
+      "fixed_discount": 0,
+      "price": 7650,
+      "features": [
+        "All Equipment & CrossFit Zone",
+        "AI Smart Workout Plan",
+        "Monthly Diet Check-in"
+      ],
+      "details": "Save 15% with 6-month commitment.",
+      "is_popular": false,
+      "is_active": true,
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 4,
+      "gym_id": "default_gym",
+      "name": "Annual Value Pass",
+      "category": "Annual",
+      "duration_months": 12,
+      "duration_label": "12 Months",
+      "monthly_base_rate": 1500,
+      "registration_fee": 0,
+      "discount_percent": 20,
+      "fixed_discount": 0,
+      "price": 14400,
+      "features": [
+        "20% Annual Discount Applied",
+        "Zero Registration Fee",
+        "Priority Trainer Support",
+        "Free AI Workout & Diet Plans"
+      ],
+      "details": "Best value — save ₹3,600/year.",
+      "is_popular": true,
+      "is_active": true,
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    }
+  ],
+  "memberships": [
+    {
+      "id": "MS-101-01",
+      "gym_id": "default_gym",
+      "member_id": 101,
+      "package_id": 4,
+      "start_date": "2026-09-22",
+      "end_date": "2027-09-22",
+      "status": "Active",
+      "auto_renew": true,
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": "MS-102-01",
+      "gym_id": "default_gym",
+      "member_id": 102,
+      "package_id": 3,
+      "start_date": "2026-10-07",
+      "end_date": "2027-04-05",
+      "status": "Active",
+      "auto_renew": false,
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": "MS-103-01",
+      "gym_id": "default_gym",
+      "member_id": 103,
+      "package_id": 2,
+      "start_date": "2026-08-08",
+      "end_date": "2026-11-06",
+      "status": "Expired",
+      "auto_renew": false,
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": "MS-104-01",
+      "gym_id": "default_gym",
+      "member_id": 104,
+      "package_id": 1,
+      "start_date": "2026-11-09",
+      "end_date": "2026-12-09",
+      "status": "Active",
+      "auto_renew": false,
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": "MS-105-01",
+      "gym_id": "default_gym",
+      "member_id": 105,
+      "package_id": 2,
+      "start_date": "2026-11-16",
+      "end_date": "2027-02-14",
+      "status": "Pending",
+      "auto_renew": false,
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    }
+  ],
+  "payments": [
+    {
+      "id": "PAY-1001-1",
+      "gym_id": "default_gym",
+      "invoice_id": 1001,
+      "member_id": 101,
+      "member_name": "Aarav Sharma",
+      "amount": 14400,
+      "method": "UPI",
+      "status": "Completed",
+      "idempotency_key": "SEED-PAY-1001",
+      "reference_no": "UPI99281726",
+      "paid_at": "2026-09-22",
+      "created_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": "PAY-1002-1",
+      "gym_id": "default_gym",
+      "invoice_id": 1002,
+      "member_id": 102,
+      "member_name": "Priya Verma",
+      "amount": 7650,
+      "method": "Card",
+      "status": "Completed",
+      "idempotency_key": "SEED-PAY-1002",
+      "reference_no": "POS881920",
+      "paid_at": "2026-10-07",
+      "created_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": "PAY-1003-1",
+      "gym_id": "default_gym",
+      "invoice_id": 1003,
+      "member_id": 104,
+      "member_name": "Sneha Gupta",
+      "amount": 2000,
+      "method": "Cash",
+      "status": "Completed",
+      "idempotency_key": "SEED-PAY-1003",
+      "reference_no": "CASH-1003",
+      "paid_at": "2026-11-09",
+      "created_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": "PAY-1004-1",
+      "gym_id": "default_gym",
+      "invoice_id": 1004,
+      "member_id": 105,
+      "member_name": "Devansh Rathore",
+      "amount": 2000,
+      "method": "UPI",
+      "status": "Completed",
+      "idempotency_key": "SEED-PAY-1004-PART1",
+      "reference_no": "UPI442190",
+      "paid_at": "2026-11-16",
+      "created_at": "2026-11-21T17:36:18.951Z"
+    }
+  ],
+  "attendance": [
+    {
+      "id": "ATT-SEED-01",
+      "gym_id": "default_gym",
+      "member_id": 101,
+      "member_name": "Aarav Sharma",
+      "date": "2026-11-21",
+      "check_in_time": "06:45 AM",
+      "check_out_time": "08:05 AM",
+      "duration_minutes": 80,
+      "zone": "Strength",
+      "method": "QR",
+      "access_granted": true,
+      "denial_reason": null,
+      "status": "Checked Out",
+      "created_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": "ATT-SEED-02",
+      "gym_id": "default_gym",
+      "member_id": 102,
+      "member_name": "Priya Verma",
+      "date": "2026-11-21",
+      "check_in_time": "07:30 AM",
+      "check_out_time": null,
+      "zone": "Cardio",
+      "method": "QR",
+      "access_granted": true,
+      "denial_reason": null,
+      "status": "Checked In",
+      "created_at": "2026-11-21T17:36:18.951Z"
+    }
+  ],
+  "expenses": [
+    {
+      "id": 1,
+      "gym_id": "default_gym",
+      "item": "Gym Floor Commercial Rent",
+      "category": "Rent",
+      "vendor": "C-Scheme Commercial Properties",
+      "amount": 35000,
+      "date": "2026-11-11",
+      "payment_method": "Bank Transfer",
+      "payment_status": "Paid",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 2,
+      "gym_id": "default_gym",
+      "item": "Electricity & HVAC Power Bill",
+      "category": "Utilities",
+      "vendor": "JVVNL Power",
+      "amount": 8400,
+      "date": "2026-11-14",
+      "payment_method": "UPI",
+      "payment_status": "Paid",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 3,
+      "gym_id": "default_gym",
+      "item": "Treadmill Belt & Cable Maintenance",
+      "category": "Maintenance",
+      "vendor": "ProFit Service Engineers",
+      "amount": 4200,
+      "date": "2026-11-18",
+      "payment_method": "UPI",
+      "payment_status": "Paid",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    }
+  ],
+  "invoices": [
+    {
+      "id": 1001,
+      "gym_id": "default_gym",
+      "invoice_number": "INV-2026-1001",
+      "member_id": 101,
+      "member_name": "Aarav Sharma",
+      "membership_id": "MS-101-01",
+      "package_id": 4,
+      "package_name": "Annual Value Pass",
+      "subtotal": 14400,
+      "registration_fee": 0,
+      "coupon_code": null,
+      "discount_amount": 0,
+      "total_amount": 14400,
+      "paid_amount": 14400,
+      "balance_amount": 0,
+      "refunded_amount": 0,
+      "status": "Paid",
+      "payment_method": "UPI",
+      "date": "2026-09-22",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 1002,
+      "gym_id": "default_gym",
+      "invoice_number": "INV-2026-1002",
+      "member_id": 102,
+      "member_name": "Priya Verma",
+      "membership_id": "MS-102-01",
+      "package_id": 3,
+      "package_name": "Half-Yearly Pro",
+      "subtotal": 7650,
+      "registration_fee": 500,
+      "coupon_code": "FIT20",
+      "discount_amount": 500,
+      "total_amount": 7650,
+      "paid_amount": 7650,
+      "balance_amount": 0,
+      "refunded_amount": 0,
+      "status": "Paid",
+      "payment_method": "Card",
+      "date": "2026-10-07",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 1003,
+      "gym_id": "default_gym",
+      "invoice_number": "INV-2026-1003",
+      "member_id": 104,
+      "member_name": "Sneha Gupta",
+      "membership_id": "MS-104-01",
+      "package_id": 1,
+      "package_name": "Monthly Fitness",
+      "subtotal": 1500,
+      "registration_fee": 500,
+      "coupon_code": null,
+      "discount_amount": 0,
+      "total_amount": 2000,
+      "paid_amount": 2000,
+      "balance_amount": 0,
+      "refunded_amount": 0,
+      "status": "Paid",
+      "payment_method": "Cash",
+      "date": "2026-11-09",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 1004,
+      "gym_id": "default_gym",
+      "invoice_number": "INV-2026-1004",
+      "member_id": 105,
+      "member_name": "Devansh Rathore",
+      "membership_id": "MS-105-01",
+      "package_id": 2,
+      "package_name": "Quarterly Transformation",
+      "subtotal": 4050,
+      "registration_fee": 500,
+      "coupon_code": null,
+      "discount_amount": 0,
+      "total_amount": 4550,
+      "paid_amount": 2000,
+      "balance_amount": 2550,
+      "refunded_amount": 0,
+      "status": "Partial",
+      "payment_method": "UPI",
+      "date": "2026-11-16",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 1005,
+      "gym_id": "default_gym",
+      "invoice_number": "INV-2026-1005",
+      "member_id": 103,
+      "member_name": "Rohan Mehta",
+      "membership_id": "MS-103-01",
+      "package_id": 2,
+      "package_name": "Quarterly Transformation",
+      "subtotal": 4050,
+      "registration_fee": 0,
+      "coupon_code": null,
+      "discount_amount": 0,
+      "total_amount": 4050,
+      "paid_amount": 0,
+      "balance_amount": 4050,
+      "refunded_amount": 0,
+      "status": "Overdue",
+      "payment_method": "UPI",
+      "date": "2026-11-06",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    }
+  ],
+  "leads": [
+    {
+      "id": 1,
+      "gym_id": "default_gym",
+      "name": "Karan Joshi",
+      "phone": "9829100201",
+      "email": "karan.joshi@example.com",
+      "source": "Instagram",
+      "interested_package_id": 4,
+      "goal": "Muscle Gain",
+      "follow_up_date": "2026-11-21",
+      "status": "Trial",
+      "notes": "Completed evening trial workout, interested in Annual Value Pass.",
+      "converted_member_id": null,
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 2,
+      "gym_id": "default_gym",
+      "name": "Nidhi Agarwal",
+      "phone": "9829100202",
+      "email": "nidhi.agarwal@example.com",
+      "source": "Walk-in",
+      "interested_package_id": 2,
+      "goal": "Weight Loss",
+      "follow_up_date": "2026-11-22",
+      "status": "Contacted",
+      "notes": "Looking for morning trainer batch with Indian veg diet plan.",
+      "converted_member_id": null,
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 3,
+      "gym_id": "default_gym",
+      "name": "Siddharth Jain",
+      "phone": "9829100203",
+      "email": "sid.jain@example.com",
+      "source": "Referral",
+      "interested_package_id": 3,
+      "goal": "Fitness",
+      "follow_up_date": "2026-11-21",
+      "status": "New",
+      "notes": "Referred by Aarav Sharma.",
+      "converted_member_id": null,
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    }
+  ],
+  "staff": [
+    {
+      "id": 1,
+      "gym_id": "default_gym",
+      "name": "Kabir Malhotra",
+      "role": "Trainer",
+      "phone": "9829044110",
+      "email": "kabir@fitnessfuture.in",
+      "salary": 35000,
+      "shift": "06:00 AM - 02:00 PM",
+      "specialization": "Strength & Hypertrophy",
+      "status": "Active",
+      "rating": 4.9,
+      "active_clients": 18,
+      "attendance_today": "Present",
+      "payroll_status": "Paid",
+      "join_date": "2026-01-05",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 2,
+      "gym_id": "default_gym",
+      "name": "Ananya Sharma",
+      "role": "Manager",
+      "phone": "9829044111",
+      "email": "ananya@fitnessfuture.in",
+      "salary": 42000,
+      "shift": "08:00 AM - 05:00 PM",
+      "specialization": "Operations & Retention",
+      "status": "Active",
+      "rating": 4.8,
+      "active_clients": 0,
+      "attendance_today": "Present",
+      "payroll_status": "Paid",
+      "join_date": "2025-10-07",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 3,
+      "gym_id": "default_gym",
+      "name": "Dr. Meera Nair",
+      "role": "Dietitian",
+      "phone": "9829044112",
+      "email": "meera@fitnessfuture.in",
+      "salary": 38000,
+      "shift": "10:00 AM - 06:00 PM",
+      "specialization": "Clinical Sports Nutrition",
+      "status": "Active",
+      "rating": 4.9,
+      "active_clients": 24,
+      "attendance_today": "Present",
+      "payroll_status": "Paid",
+      "join_date": "2026-04-25",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": 4,
+      "gym_id": "default_gym",
+      "name": "Rohit Chauhan",
+      "role": "Receptionist",
+      "phone": "9829044113",
+      "email": "rohit@fitnessfuture.in",
+      "salary": 22000,
+      "shift": "02:00 PM - 10:00 PM",
+      "specialization": "Front Desk & Member Onboarding",
+      "status": "Active",
+      "rating": 4.7,
+      "active_clients": 0,
+      "attendance_today": "Present",
+      "payroll_status": "Pending",
+      "join_date": "2026-06-24",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    }
+  ],
+  "offers": [
+    {
+      "id": "OFF-101",
+      "gym_id": "default_gym",
+      "title": "Annual Transformation Offer",
+      "code": "FIT20",
+      "campaign_type": "Coupon",
+      "discount_type": "percentage",
+      "discount_value": 20,
+      "applicable_plan": "All Membership Plans",
+      "valid_from": "2026-11-06",
+      "valid_until": "2027-01-20",
+      "usage_limit": 50,
+      "redemptions": 4,
+      "status": "Active",
+      "description": "Save 20% on membership plans and unlock a free body composition check.",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": "OFF-102",
+      "gym_id": "default_gym",
+      "title": "Referral Flat Savings",
+      "code": "FRIEND500",
+      "campaign_type": "Referral",
+      "discount_type": "flat",
+      "discount_value": 500,
+      "applicable_plan": "All Membership Plans",
+      "valid_from": "2026-11-11",
+      "valid_until": "2027-02-19",
+      "usage_limit": 100,
+      "redemptions": 2,
+      "status": "Active",
+      "description": "Flat ₹500 off for member referrals on quarterly, half-yearly, or annual plans.",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    }
+  ],
+  "reviews": [
+    {
+      "id": "REV-101",
+      "gym_id": "default_gym",
+      "member_id": 101,
+      "member_name": "Aarav Sharma",
+      "rating": 5,
+      "category": "Equipment",
+      "comment": "Clean facility, well-maintained Olympic racks, and very helpful trainers.",
+      "reply": "Thank you Aarav! Proud to support your strength journey every day.",
+      "replied_at": "2026-11-17",
+      "status": "Replied",
+      "published_to_google": false,
+      "date": "2026-11-16",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    },
+    {
+      "id": "REV-102",
+      "gym_id": "default_gym",
+      "member_id": 102,
+      "member_name": "Priya Verma",
+      "rating": 4,
+      "category": "Trainers",
+      "comment": "Great coaching and structured diet plan. Would love one more rowing machine during peak evening hours.",
+      "status": "Pending",
+      "published_to_google": false,
+      "date": "2026-11-19",
+      "created_at": "2026-11-21T17:36:18.951Z",
+      "updated_at": "2026-11-21T17:36:18.951Z"
+    }
+  ],
+  "workout_plans": [
+    {
+      "id": 1,
+      "gym_id": "default_gym",
+      "name": "Hypertrophy Upper/Lower Split",
+      "category": "Muscle Gain",
+      "level": "Intermediate",
+      "duration": "60 mins",
+      "frequency": "4 Days / Week",
+      "assigned_trainer_id": 1,
+      "description": "Progressive overload compound-first split designed for lean muscle hypertrophy and strength progression.",
+      "scientific_note": "Targets 12-16 weekly working sets per primary muscle group with 75-85% 1RM intensity.",
+      "ai_generated": false,
+      "main_workout": [
+        {
+          "name": "Day 1 — Upper Body Push/Pull",
+          "duration": "60 mins",
+          "intensity": "High",
+          "exercises": [
+            {
+              "name": "Barbell Bench Press",
+              "sets": "4",
+              "reps": "8-10",
+              "rest": "90s",
+              "notes": "Controlled 2s eccentric"
+            },
+            {
+              "name": "Weighted Pull-Ups / Lat Pulldown",
+              "sets": "4",
+              "reps": "8-12",
+              "rest": "90s",
+              "notes": "Full scapular depression"
+            },
+            {
+              "name": "Overhead Dumbbell Press",
+              "sets": "3",
+              "reps": "10",
+              "rest": "75s",
+              "notes": "Brace core throughout"
+            },
+            {
+              "name": "Seated Cable Row",
+              "sets": "3",
+              "reps": "12",
+              "rest": "60s",
+              "notes": "Pause 1s at contraction"
+            }
+          ]
+        },
+        {
+          "name": "Day 2 — Lower Body Strength",
+          "duration": "60 mins",
+          "intensity": "High",
+          "exercises": [
+            {
+              "name": "Barbell Back Squat",
+              "sets": "4",
+              "reps": "6-8",
+              "rest": "120s",
+              "notes": "Below parallel depth"
+            },
+            {
+              "name": "Romanian Deadlift",
+              "sets": "4",
+              "reps": "8-10",
+              "rest": "90s",
+              "notes": "Neutral spine hinge"
+            },
+            {
+              "name": "Walking Lunges",
+              "sets": "3",
+              "reps": "12/leg",
+              "rest": "60s",
+              "notes": "Controlled knee tracking"
+            },
+            {
+              "name": "Standing Calf Raises",
+              "sets": "4",
+              "reps": "15",
+              "rest": "45s",
+              "notes": "Full stretch at bottom"
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-11-22T04:54:41.229Z",
+      "updated_at": "2026-11-22T04:54:41.229Z"
+    },
+    {
+      "id": 2,
+      "gym_id": "default_gym",
+      "name": "Fat Loss Metabolic Circuit",
+      "category": "Weight Loss",
+      "level": "Beginner",
+      "duration": "45 mins",
+      "frequency": "5 Days / Week",
+      "assigned_trainer_id": 1,
+      "description": "Joint-friendly metabolic resistance and zone-2 cardio conditioning for sustainable fat loss.",
+      "scientific_note": "Combines multi-joint resistance circuits with low-impact aerobic intervals to preserve lean mass.",
+      "ai_generated": false,
+      "main_workout": [
+        {
+          "name": "Day 1 — Full Body Metabolic Circuit",
+          "duration": "45 mins",
+          "intensity": "Medium",
+          "exercises": [
+            {
+              "name": "Goblet Squats",
+              "sets": "3",
+              "reps": "15",
+              "rest": "45s",
+              "notes": "Keep chest upright"
+            },
+            {
+              "name": "Incline Push-Ups",
+              "sets": "3",
+              "reps": "12-15",
+              "rest": "45s",
+              "notes": "Full range of motion"
+            },
+            {
+              "name": "Dumbbell Bent-Over Row",
+              "sets": "3",
+              "reps": "15",
+              "rest": "45s",
+              "notes": "Squeeze shoulder blades"
+            },
+            {
+              "name": "Incline Treadmill Brisk Walk",
+              "sets": "1",
+              "reps": "20 mins",
+              "rest": "0s",
+              "notes": "Zone 2 heart rate (65-70%)"
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-11-22T04:54:41.229Z",
+      "updated_at": "2026-11-22T04:54:41.229Z"
+    },
+    {
+      "id": 3,
+      "gym_id": "default_gym",
+      "name": "Athletic Functional Conditioning",
+      "category": "Fitness",
+      "level": "Advanced",
+      "duration": "55 mins",
+      "frequency": "5 Days / Week",
+      "assigned_trainer_id": 1,
+      "description": "High-output strength, mobility, and core stability programming for overall athleticism.",
+      "scientific_note": "Balances posterior chain power, rotational core strength, and anaerobic capacity.",
+      "ai_generated": false,
+      "main_workout": [
+        {
+          "name": "Day 1 — Power & Core Conditioning",
+          "duration": "55 mins",
+          "intensity": "High",
+          "exercises": [
+            {
+              "name": "Kettlebell Swings",
+              "sets": "4",
+              "reps": "15",
+              "rest": "60s",
+              "notes": "Explosive hip snap"
+            },
+            {
+              "name": "Trap Bar Deadlift",
+              "sets": "4",
+              "reps": "6",
+              "rest": "120s",
+              "notes": "Drive through midfoot"
+            },
+            {
+              "name": "Hanging Leg Raises",
+              "sets": "3",
+              "reps": "12",
+              "rest": "45s",
+              "notes": "Zero momentum swing"
+            },
+            {
+              "name": "Rowing Ergometer Intervals",
+              "sets": "5",
+              "reps": "250m",
+              "rest": "60s",
+              "notes": "Consistent split pace"
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-11-22T04:54:41.229Z",
+      "updated_at": "2026-11-22T04:54:41.229Z"
+    }
+  ],
+  "diet_plans": [
+    {
+      "id": 1,
+      "gym_id": "default_gym",
+      "name": "Indian Veg Fat Loss 1650 kcal",
+      "level": "Beginner",
+      "goal": "Weight Loss",
+      "diet_type": "Vegetarian",
+      "calories": 1650,
+      "macros": {
+        "protein": 112,
+        "carbs": 175,
+        "fats": 48
+      },
+      "allergies": "None",
+      "approved_by": "Dr. Meera Nair",
+      "approved_at": "2026-11-22",
+      "disclaimer": "Nutritional estimates only — not a substitute for professional medical or clinical dietary advice.",
+      "description": "High-protein vegetarian Indian meal plan using paneer, dal, curd, oats, and seasonal sabzi.",
+      "ai_generated": false,
+      "meals": [
+        {
+          "name": "Breakfast",
+          "time": "08:00 AM",
+          "totalCalories": 390,
+          "macros": {
+            "protein": 24,
+            "carbs": 46,
+            "fats": 11
+          },
+          "items": [
+            {
+              "food": "Moong Dal Chilla (2 medium) + Low-fat Curd",
+              "portion": "2 pcs + 150g",
+              "calories": 390,
+              "protein": 24,
+              "carbs": 46,
+              "fats": 11
+            }
+          ]
+        },
+        {
+          "name": "Lunch",
+          "time": "01:30 PM",
+          "totalCalories": 520,
+          "macros": {
+            "protein": 34,
+            "carbs": 58,
+            "fats": 15
+          },
+          "items": [
+            {
+              "food": "Grilled Paneer Bhurji + 2 Multigrain Roti + Cucumber Salad",
+              "portion": "120g paneer + 2 rotis",
+              "calories": 520,
+              "protein": 34,
+              "carbs": 58,
+              "fats": 15
+            }
+          ]
+        },
+        {
+          "name": "Post-Workout",
+          "time": "06:00 PM",
+          "totalCalories": 260,
+          "macros": {
+            "protein": 28,
+            "carbs": 26,
+            "fats": 4
+          },
+          "items": [
+            {
+              "food": "Whey Protein Isolate + 1 Banana",
+              "portion": "1 scoop + 1 medium",
+              "calories": 260,
+              "protein": 28,
+              "carbs": 26,
+              "fats": 4
+            }
+          ]
+        },
+        {
+          "name": "Dinner",
+          "time": "08:30 PM",
+          "totalCalories": 480,
+          "macros": {
+            "protein": 26,
+            "carbs": 45,
+            "fats": 18
+          },
+          "items": [
+            {
+              "food": "Tofu / Soya Chunk Stir-Fry + Yellow Dal + Steamed Rice",
+              "portion": "100g + 1 bowl",
+              "calories": 480,
+              "protein": 26,
+              "carbs": 45,
+              "fats": 18
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-11-22T04:54:41.229Z",
+      "updated_at": "2026-11-22T04:54:41.229Z"
+    },
+    {
+      "id": 2,
+      "gym_id": "default_gym",
+      "name": "Lean Muscle Gain 2600 kcal",
+      "level": "Intermediate",
+      "goal": "Muscle Gain",
+      "diet_type": "Non-Vegetarian",
+      "calories": 2600,
+      "macros": {
+        "protein": 175,
+        "carbs": 310,
+        "fats": 68
+      },
+      "allergies": "None",
+      "approved_by": "Dr. Meera Nair",
+      "approved_at": "2026-11-22",
+      "disclaimer": "Nutritional estimates only — not a substitute for professional medical or clinical dietary advice.",
+      "description": "High-protein Indian athletic meal template supporting hypertrophy and recovery.",
+      "ai_generated": false,
+      "meals": [
+        {
+          "name": "Breakfast",
+          "time": "08:00 AM",
+          "totalCalories": 620,
+          "macros": {
+            "protein": 42,
+            "carbs": 70,
+            "fats": 18
+          },
+          "items": [
+            {
+              "food": "4 Egg Whites + 2 Whole Eggs Omelette + Masala Oats",
+              "portion": "6 eggs + 60g oats",
+              "calories": 620,
+              "protein": 42,
+              "carbs": 70,
+              "fats": 18
+            }
+          ]
+        },
+        {
+          "name": "Lunch",
+          "time": "01:30 PM",
+          "totalCalories": 780,
+          "macros": {
+            "protein": 56,
+            "carbs": 92,
+            "fats": 18
+          },
+          "items": [
+            {
+              "food": "Tandoori Chicken Breast + Jeera Rice + Dal Tadka + Salad",
+              "portion": "200g chicken + 1.5 cup rice",
+              "calories": 780,
+              "protein": 56,
+              "carbs": 92,
+              "fats": 18
+            }
+          ]
+        },
+        {
+          "name": "Post-Workout",
+          "time": "06:00 PM",
+          "totalCalories": 460,
+          "macros": {
+            "protein": 35,
+            "carbs": 58,
+            "fats": 10
+          },
+          "items": [
+            {
+              "food": "Whey Protein Shake + Peanut Butter Toast + Banana",
+              "portion": "1 scoop + 2 slices",
+              "calories": 460,
+              "protein": 35,
+              "carbs": 58,
+              "fats": 10
+            }
+          ]
+        },
+        {
+          "name": "Dinner",
+          "time": "08:45 PM",
+          "totalCalories": 740,
+          "macros": {
+            "protein": 42,
+            "carbs": 90,
+            "fats": 22
+          },
+          "items": [
+            {
+              "food": "Grilled Fish / Chicken Curry + 3 Phulkas + Curd",
+              "portion": "180g + 3 rotis",
+              "calories": 740,
+              "protein": 42,
+              "carbs": 90,
+              "fats": 22
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-11-22T04:54:41.229Z",
+      "updated_at": "2026-11-22T04:54:41.229Z"
+    }
+  ],
+  "whatsapp_logs": [],
+  "audit_logs": [
+    {
+      "id": "AUD-AUTH-1795323535817",
+      "gym_id": "default_gym",
+      "actor": "owner@fitnessfuture.in",
+      "action": "USER_LOGIN",
+      "entity_type": "auth",
+      "entity_id": "USR-OWNER-01",
+      "details": "Vikram Singh (owner) signed in.",
+      "created_at": "2026-11-22T04:58:55.817Z"
+    },
+    {
+      "id": "AUD-INIT-1795282579151",
+      "gym_id": "default_gym",
+      "actor": "system",
+      "action": "DB_SEEDED",
+      "entity_type": "database",
+      "entity_id": "default_gym",
+      "details": "Initialized 8 core relational tables + normalized auxiliary tables idempotently.",
+      "created_at": "2026-11-21T17:36:18.951Z"
+    }
+  ]
+}

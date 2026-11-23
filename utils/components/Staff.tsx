@@ -1,3 +1,4 @@
+import { getCurrencySymbol } from '../store/useCurrencyStore';
 
 import React, { useState } from 'react';
 import { Staff as StaffType } from '../../types';
@@ -8,22 +9,61 @@ import { CalendarIcon } from './icons/CalendarIcon';
 import { DollarSignIcon } from './icons/DollarSignIcon';
 import { BotIcon } from './icons/BotIcon';
 import { SparkleIcon } from './icons/SparkleIcon';
-import { getComplexResponse } from '../../lib/gemini';
+import { getComplexResponse } from '../../lib/core_ai';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { useData } from '../context/DataProvider';
+import { useToast } from '../hooks/useToast';
 import { 
     ShieldCheck, Users, Briefcase, UserPlus, 
     Infinity, Activity, Search, RefreshCw, 
-    Clock, Award, Phone, Zap
+    Clock, Award, Phone, Zap, Upload, Camera, Trash2
 } from 'lucide-react';
 
 const Staff: React.FC = () => {
-    const [staff, setStaff] = useState<StaffType[]>(INITIAL_STAFF);
+    const { staff, setStaff } = useData();
+    const { addToast } = useToast();
     const [activeTab, setActiveTab] = useState<'team' | 'roster' | 'payroll'>('team');
     const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
     const [aiReview, setAiReview] = useState<string | null>(null);
     const [isGeneratingReview, setIsGeneratingReview] = useState(false);
+    const [isRecruiting, setIsRecruiting] = useState(false);
+    const [newStaff, setNewStaff] = useState<Partial<StaffType>>({
+        name: '', role: 'Trainer', phone: '', salary: 0, joinDate: new Date().toISOString().split('T')[0], photo: undefined
+    });
+    const [dragOver, setDragOver] = useState(false);
 
-    // Mock Roster Data
+    const handleFileSelect = (file: File) => {
+        if (file && file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const result = e.target?.result as string;
+                setNewStaff(prev => ({ ...prev, photo: result }));
+                addToast("Photo loaded successfully!", "success");
+            };
+            reader.readAsDataURL(file);
+        } else {
+            addToast("Please select a valid image file.", "error");
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setDragOver(true);
+    };
+
+    const handleDragLeave = () => {
+        setDragOver(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setDragOver(false);
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleFileSelect(e.dataTransfer.files[0]);
+        }
+    };
+
+    // Roster Data
     const shifts = ['06:00 - 14:00', '14:00 - 22:00', 'OFF'];
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -34,12 +74,12 @@ const Staff: React.FC = () => {
 
         try {
             const prompt = `
-                ACT AS 'ROYAL COMMANDER AI'. Write a high-tech performance review for a gym staff member.
+                ACT AS 'FUTURE COMMANDER AI'. Write a high-tech performance review for a gym staff member.
                 Name: ${member.name}
                 Role: ${member.role}
                 Tenure: Since ${member.joinDate}
                 
-                Generate a "Neural Performance Audit" in HTML format.
+                Generate a "Smart Performance Audit" in HTML format.
                 Include:
                 1. <b style="color:#818cf8">Efficiency Rating:</b> (90-99%)
                 2. <b style="color:#34d399">Tactical Strengths:</b> (2 bullet points)
@@ -56,6 +96,30 @@ const Staff: React.FC = () => {
         }
     };
 
+    const handleAddStaff = () => {
+        if (!newStaff.name) {
+            addToast("Full Name is required to recruit an agent.", "error");
+            return;
+        }
+        if (!newStaff.phone) {
+            addToast("Phone Number is required.", "error");
+            return;
+        }
+        const createdStaff: StaffType = {
+            id: Date.now(),
+            name: newStaff.name || '',
+            role: newStaff.role as ('Trainer' | 'Manager' | 'Cleaning' | 'Reception'),
+            phone: newStaff.phone || '',
+            joinDate: newStaff.joinDate || new Date().toISOString().split('T')[0],
+            salary: newStaff.salary || 0,
+            photo: newStaff.photo,
+        };
+        setStaff([...staff, createdStaff]);
+        setIsRecruiting(false);
+        setNewStaff({ name: '', role: 'Trainer', phone: '', salary: 0, joinDate: new Date().toISOString().split('T')[0], photo: undefined });
+        addToast(`Agent ${createdStaff.name} recruited successfully!`, "success");
+    };
+
     const renderTeamTab = () => (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-slide-up">
             {staff.map(member => (
@@ -65,9 +129,13 @@ const Staff: React.FC = () => {
                     </div>
 
                     <div className="relative z-10 flex items-start gap-5 mb-6">
-                        <div className="w-16 h-16 rounded-2xl bg-indigo-900/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-lg">
-                            <span className="text-xl font-black">{member.name[0]}</span>
-                        </div>
+                        {member.photo ? (
+                            <img src={member.photo} alt={member.name} className="w-16 h-16 rounded-2xl object-cover border border-white/10" />
+                        ) : (
+                            <div className="w-16 h-16 rounded-2xl bg-indigo-900/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-lg">
+                                <span className="text-xl font-black">{member.name[0]}</span>
+                            </div>
+                        )}
                         <div>
                             <h3 className="font-black text-white text-lg uppercase italic tracking-tight">{member.name}</h3>
                             <div className="flex items-center gap-2 mt-1">
@@ -99,14 +167,17 @@ const Staff: React.FC = () => {
                     <button 
                         onClick={() => handleGenerateReview(member)}
                         disabled={isGeneratingReview && selectedStaffId === member.id}
-                        className="w-full bg-indigo-600/10 hover:bg-indigo-600 hover:text-white text-indigo-400 border border-indigo-500/30 font-black py-4 rounded-xl transition-all flex items-center justify-center text-[10px] uppercase tracking-widest relative z-10 active:scale-95"
+                        className="w-full bg-gradient-to-r from-indigo-600/20 to-purple-600/20 hover:from-indigo-600 hover:to-purple-600 text-indigo-400 hover:text-white border border-indigo-500/50 border-dashed font-black py-4 rounded-xl transition-all flex items-center justify-center text-[10px] uppercase tracking-widest relative z-10 active:scale-95 shadow-[0_0_15px_rgba(99,102,241,0.2)] overflow-hidden group"
                     >
-                        {isGeneratingReview && selectedStaffId === member.id ? (
-                            <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-                        ) : (
-                            <BotIcon className="w-4 h-4 mr-2" />
-                        )}
-                        {isGeneratingReview && selectedStaffId === member.id ? 'ANALYZING METRICS...' : 'RUN NEURAL EVALUATION'}
+                        <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                        <span className="relative z-10 flex items-center justify-center">
+                            {isGeneratingReview && selectedStaffId === member.id ? (
+                                <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                            ) : (
+                                <BotIcon className="w-4 h-4 mr-2" />
+                            )}
+                            {isGeneratingReview && selectedStaffId === member.id ? 'ANALYZING METRICS...' : 'RUN NEURAL EVALUATION'}
+                        </span>
                     </button>
 
                     {selectedStaffId === member.id && aiReview && (
@@ -123,7 +194,9 @@ const Staff: React.FC = () => {
                 </div>
             ))}
             
-            <button className="flex flex-col items-center justify-center border-2 border-dashed border-gray-800 rounded-[2.5rem] p-6 hover:border-indigo-500/50 hover:bg-indigo-900/5 transition-all group min-h-[300px]">
+            <button 
+                onClick={() => setIsRecruiting(true)}
+                className="flex flex-col items-center justify-center border-2 border-dashed border-gray-800 rounded-[2.5rem] p-6 hover:border-indigo-500/50 hover:bg-indigo-900/5 transition-all group min-h-[300px]">
                 <div className="w-16 h-16 rounded-full bg-gray-900 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-xl border border-white/5">
                     <UserPlus className="w-6 h-6 text-gray-500 group-hover:text-indigo-400" />
                 </div>
@@ -190,7 +263,7 @@ const Staff: React.FC = () => {
                         <h3 className="text-gray-500 text-[10px] font-black uppercase tracking-widest">Total Payroll</h3>
                         <div className="p-2 bg-green-500/20 rounded-full text-green-400"><DollarSignIcon className="w-5 h-5" /></div>
                     </div>
-                    <p className="text-4xl font-black text-white italic tracking-tighter">₹{(staff.reduce((acc, s) => acc + s.salary, 0)).toLocaleString()}</p>
+                    <p className="text-4xl font-black text-white italic tracking-tighter">{getCurrencySymbol()}{(staff.reduce((acc, s) => acc + s.salary, 0)).toLocaleString()}</p>
                     <p className="text-[10px] text-green-400 mt-2 font-bold uppercase tracking-wide">Monthly Obligation</p>
                 </Card>
                 <Card className="bg-gradient-to-br from-amber-900/20 to-black border-amber-500/30 p-8 rounded-[2.5rem]">
@@ -211,7 +284,18 @@ const Staff: React.FC = () => {
                 </Card>
             </div>
 
-            <Card title="Ledger Breakdown" className="bg-[#0c0c0c] border-white/5 p-8 rounded-[3rem]">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase">Ledger Breakdown</h2>
+                <button 
+                    className="bg-green-600 hover:bg-green-500 text-white font-black px-6 py-3 rounded-xl uppercase tracking-widest text-[#10px] flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(34,197,94,0.3)] active:scale-95"
+                    onClick={() => {
+                        alert("Automated Payroll Distribution to Staff Bank Accounts Executed (Simulation). Ledger Updated.");
+                    }}
+                >
+                    <Zap className="w-4 h-4" /> Execute Auto-Payroll Sync
+                </button>
+            </div>
+            <Card className="bg-[#0c0c0c] border-white/5 p-8 rounded-[3rem]">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead className="bg-black/40 text-gray-500 font-black uppercase text-[10px] tracking-widest border-b border-white/5">
@@ -227,14 +311,21 @@ const Staff: React.FC = () => {
                         <tbody className="text-gray-300 divide-y divide-white/5 text-sm">
                             {staff.map(member => (
                                 <tr key={member.id} className="hover:bg-white/5 transition-colors group">
-                                    <td className="p-4 font-bold text-white">{member.name}</td>
+                                    <td className="p-4 font-bold text-white flex items-center gap-3">
+                                        {member.photo ? (
+                                            <img src={member.photo} alt={member.name} className="w-10 h-10 rounded-xl object-cover border border-white/10" />
+                                        ) : (
+                                            <div className="w-8 h-8 rounded-lg bg-indigo-900/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-bold text-xs">{member.name[0]}</div>
+                                        )}
+                                        <span>{member.name}</span>
+                                    </td>
                                     <td className="p-4">
                                         <span className="bg-white/5 border border-white/10 px-2 py-1 rounded text-[10px] font-bold uppercase">{member.role}</span>
                                     </td>
                                     <td className="p-4"><span className="text-green-400 text-[10px] font-black uppercase tracking-widest bg-green-900/20 px-2 py-1 rounded border border-green-500/20">Active</span></td>
-                                    <td className="p-4 text-right font-mono text-gray-400">₹{member.salary.toLocaleString()}</td>
-                                    <td className="p-4 text-right font-mono text-green-400">+ ₹0</td>
-                                    <td className="p-4 text-right font-black text-white italic text-lg">₹{member.salary.toLocaleString()}</td>
+                                    <td className="p-4 text-right font-mono text-gray-400">{getCurrencySymbol()}{member.salary.toLocaleString()}</td>
+                                    <td className="p-4 text-right font-mono text-green-400`>+ ${getCurrencySymbol()}0</td>
+                                    <td className=`p-4 text-right font-black text-white italic text-lg">{getCurrencySymbol()}{member.salary.toLocaleString()}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -246,25 +337,25 @@ const Staff: React.FC = () => {
 
     return (
         <div className="space-y-8 animate-fade-in pb-24">
-             {/* 1. APEX-CONTINUUM HEADER */}
-             <div className="bg-[#020202] p-10 rounded-[3.5rem] border border-indigo-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(99,102,241,0.15)] group">
+             {/* 1. FitnessFuture-CONTINUUM HEADER */}
+             <div className="bg-[#020202] p-10 rounded-[3.5rem] border border-cyan-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(6,182,212,0.15)] group">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[150px] animate-pulse"></div>
+                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[150px] animate-pulse"></div>
                 
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-10">
                     <div className="flex items-center gap-8">
-                        <div className="p-8 bg-indigo-600 text-white rounded-[3rem] shadow-[0_0_60px_rgba(99,102,241,0.5)] border border-indigo-400 group-hover:rotate-12 transition-transform duration-700">
+                        <div className="p-8 bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-[3rem] shadow-[0_0_60px_rgba(6,182,212,0.5)] border border-cyan-400 group-hover:rotate-12 transition-transform duration-700">
                             <Briefcase className="w-16 h-16" />
                         </div>
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="px-4 py-1.5 bg-indigo-500 text-white rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
-                                    <Infinity className="w-3 h-3" /> Singularity v31.0
+                                <div className="px-4 py-1.5 bg-cyan-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
+                                    <Infinity className="w-3 h-3" /> FitnessFutureMatrix Fitness Future
                                 </div>
-                                <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">ACCESS: COMMANDER</span>
+                                <span className="text-[10px] font-mono text-cyan-500/70 tracking-[0.4em] uppercase">ACCESS: COMMANDER</span>
                             </div>
                             <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none">
-                                Personnel <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-600">Command</span>
+                                Personnel <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-fuchsia-400">Command</span>
                             </h1>
                         </div>
                     </div>
@@ -286,24 +377,33 @@ const Staff: React.FC = () => {
             </div>
 
             {/* 2. CONTROL DECK */}
-            <div className="flex bg-gray-950 p-2 rounded-[2rem] border border-white/5 w-fit shadow-xl">
-                {[
-                    { id: 'team', label: 'Squadron', icon: <Users className="w-4 h-4"/> },
-                    { id: 'roster', label: 'Shift Matrix', icon: <CalendarIcon className="w-4 h-4"/> },
-                    { id: 'payroll', label: 'Fiscal Ledger', icon: <DollarSignIcon className="w-4 h-4"/> }
-                ].map((tab) => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
-                        className={`px-8 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 ${
-                            activeTab === tab.id 
-                            ? 'bg-indigo-600 text-white shadow-lg' 
-                            : 'text-gray-500 hover:text-white'
-                        }`}
-                    >
-                        {tab.icon} {tab.label}
-                    </button>
-                ))}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="flex bg-gray-950 p-2 rounded-[2rem] border border-white/5 w-fit shadow-xl">
+                    {[
+                        { id: 'team', label: 'Squadron', icon: <Users className="w-4 h-4"/> },
+                        { id: 'roster', label: 'Shift Matrix', icon: <CalendarIcon className="w-4 h-4"/> },
+                        { id: 'payroll', label: 'Fiscal Ledger', icon: <DollarSignIcon className="w-4 h-4"/> }
+                    ].map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`px-8 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 relative overflow-hidden group ${
+                                activeTab === tab.id 
+                                ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-[0_0_20px_rgba(99,102,241,0.4)] border border-indigo-400/50 border-dashed' 
+                                : 'text-gray-500 hover:text-white border border-transparent'
+                            }`}
+                        >
+                            {activeTab === tab.id && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>}
+                            <span className="relative z-10 flex items-center gap-3">{tab.icon} {tab.label}</span>
+                        </button>
+                    ))}
+                </div>
+                <button
+                    onClick={() => setIsRecruiting(true)}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-[0_0_15px_rgba(79,70,229,0.3)] transition-all"
+                >
+                    <UserPlus className="w-4 h-4" /> Recruit Agent
+                </button>
             </div>
 
             {/* Content Area */}
@@ -312,6 +412,160 @@ const Staff: React.FC = () => {
                 {activeTab === 'roster' && renderRosterTab()}
                 {activeTab === 'payroll' && renderPayrollTab()}
             </div>
+
+             {/* Recruit Agent Modal */}
+             {isRecruiting && (
+                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                     <div className="bg-[#0a0a0a] border border-white/10 p-8 rounded-[3rem] w-full max-w-md animate-fade-in relative max-h-[90vh] overflow-y-auto">
+                         <div className="sticky top-0 bg-[#0a0a0a] pb-4 mb-4 border-b border-white/5 flex justify-between items-center z-10">
+                             <h2 className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+                                 <UserPlus className="w-6 h-6 text-indigo-400" /> New Agent Profile
+                             </h2>
+                             <button onClick={() => setIsRecruiting(false)} className="text-gray-500 hover:text-white" title="Close">
+                                 <Search className="w-5 h-5 rotate-45" /> {/* Close icon lookalike */}
+                             </button>
+                         </div>
+
+                         <div className="space-y-4">
+                             {/* Drag & Drop Photo Zone and Presets */}
+                             <div>
+                                 <label className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-2 block">Agent Photo</label>
+                                 <div className="flex flex-col items-center justify-center p-5 bg-white/5 border border-white/5 rounded-3xl gap-4">
+                                     <div className="relative group">
+                                         {newStaff.photo ? (
+                                             <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.4)]">
+                                                 <img src={newStaff.photo} alt={newStaff.name || "New Staff"} className="w-full h-full object-cover" />
+                                                 <button 
+                                                     id="remove-photo-button"
+                                                     type="button"
+                                                     onClick={() => setNewStaff(prev => ({ ...prev, photo: undefined }))}
+                                                     className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-red-400 font-bold text-xs"
+                                                     title="Remove Photo"
+                                                 >
+                                                     <Trash2 className="w-5 h-5" />
+                                                 </button>
+                                             </div>
+                                         ) : (
+                                             <div className="w-24 h-24 rounded-full bg-indigo-900/20 border-2 border-dashed border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                                                 <Camera className="w-8 h-8 opacity-60" />
+                                             </div>
+                                         )}
+                                     </div>
+
+                                     {/* Drag & Drop zone */}
+                                     <div 
+                                         id="photo-drag-drop-zone"
+                                         onDragOver={handleDragOver}
+                                         onDragLeave={handleDragLeave}
+                                         onDrop={handleDrop}
+                                         onClick={() => document.getElementById('custom-photo-input')?.click()}
+                                         className={`w-full py-4 px-2 border border-dashed rounded-2xl text-center cursor-pointer transition-all ${
+                                             dragOver ? 'border-cyan-400 bg-cyan-950/20 text-cyan-400' : 'border-white/10 hover:border-indigo-500/50 hover:bg-white/5 text-gray-500 hover:text-gray-300'
+                                         }`}
+                                     >
+                                         <input 
+                                             type="file" 
+                                             id="custom-photo-input" 
+                                             accept="image/*" 
+                                             className="hidden" 
+                                             onChange={(e) => {
+                                                 if (e.target.files && e.target.files.length > 0) {
+                                                     handleFileSelect(e.target.files[0]);
+                                                 }
+                                             }}
+                                         />
+                                         <Upload className="w-4 h-4 mx-auto mb-1 opacity-70" />
+                                         <p className="text-[10px] font-bold uppercase tracking-wider">Drag & drop photo or click to browse</p>
+                                     </div>
+
+                                     {/* Quick Presets */}
+                                     <div className="w-full">
+                                         <p className="text-[8px] text-gray-500 uppercase font-black tracking-widest text-center mb-2">Or click to select a preset portfolio image</p>
+                                         <div className="flex gap-2.5 justify-center">
+                                             {[
+                                                 { name: 'Coach Rahul', url: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?auto=format&fit=crop&q=80&w=200&h=200' },
+                                                 { name: 'Trainer Priya', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200&h=200' },
+                                                 { name: 'Coach Dev', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200&h=200' },
+                                                 { name: 'Admin Sameer', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200&h=200' },
+                                             ].map((preset, idx) => (
+                                                 <button
+                                                     key={idx}
+                                                     id={`preset-photo-btn-${idx}`}
+                                                     type="button"
+                                                     onClick={() => setNewStaff(prev => ({ ...prev, photo: preset.url }))}
+                                                     className={`w-10 h-10 rounded-xl overflow-hidden border-2 transition-all hover:scale-110 active:scale-95 ${
+                                                         newStaff.photo === preset.url ? 'border-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.4)]' : 'border-transparent hover:border-white/20'
+                                                     }`}
+                                                     title={`Use preset for ${preset.name}`}
+                                                 >
+                                                     <img src={preset.url} alt={preset.name} className="w-full h-full object-cover" />
+                                                 </button>
+                                             ))}
+                                         </div>
+                                     </div>
+                                 </div>
+                             </div>
+
+                             <div>
+                                 <label className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 block">Full Name</label>
+                                 <input 
+                                     id="staff-name-input"
+                                     type="text" 
+                                     value={newStaff.name} 
+                                     onChange={(e) => setNewStaff({...newStaff, name: e.target.value})} 
+                                     className="w-full bg-black/50 border border-white/10 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 text-white"
+                                     placeholder="e.g. Rahul Sharma"
+                                 />
+                             </div>
+                             <div>
+                                 <label className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 block">Role</label>
+                                 <select 
+                                     id="staff-role-select"
+                                     value={newStaff.role} 
+                                     onChange={(e) => setNewStaff({...newStaff, role: e.target.value as any})} 
+                                     className="w-full bg-black/50 border border-white/10 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 text-white"
+                                 >
+                                     <option>Trainer</option>
+                                     <option>Manager</option>
+                                     <option>Reception</option>
+                                     <option>Cleaning</option>
+                                 </select>
+                             </div>
+                             <div>
+                                 <label className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 block">Phone Number</label>
+                                 <input 
+                                     id="staff-phone-input"
+                                     type="text" 
+                                     value={newStaff.phone} 
+                                     onChange={(e) => setNewStaff({...newStaff, phone: e.target.value})} 
+                                     className="w-full bg-black/50 border border-white/10 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 text-white"
+                                     placeholder="e.g. +91 9876543210"
+                                 />
+                             </div>
+                             <div>
+                                 <label className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 block">Monthly Salary / Package</label>
+                                 <input 
+                                     id="staff-salary-input"
+                                     type="number" 
+                                     value={newStaff.salary || ''} 
+                                     onChange={(e) => setNewStaff({...newStaff, salary: Number(e.target.value)})} 
+                                     className="w-full bg-black/50 border border-white/10 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 text-white"
+                                     placeholder="e.g. 25000"
+                                 />
+                             </div>
+                         </div>
+
+                         <div className="mt-8 flex gap-4 sticky bottom-0 bg-[#0a0a0a] pt-4 border-t border-white/5">
+                             <button id="cancel-recruit-btn" onClick={() => setIsRecruiting(false)} className="flex-1 bg-white/5 hover:bg-white/10 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-colors text-white">
+                                 Cancel
+                             </button>
+                             <button id="save-recruit-btn" onClick={handleAddStaff} className="flex-1 bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-colors shadow-[0_0_15px_rgba(79,70,229,0.3)] text-white">
+                                 Save Profile
+                             </button>
+                         </div>
+                     </div>
+                 </div>
+             )}
         </div>
     );
 };

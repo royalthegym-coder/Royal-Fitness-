@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline Mode — Fitness Future</title>
+    <style>
+        body {
+            background-color: #050608;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+            box-sizing: border-box;
+        }
+        .card {
+            background: #0d1117;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 24px;
+            padding: 32px 24px;
+            max-width: 420px;
+            box-shadow: 0 0 40px rgba(16, 185, 129, 0.15);
+        }
+        .badge {
+            display: inline-block;
+            background: rgba(245, 158, 11, 0.2);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            border-radius: 9999px;
+            padding: 4px 12px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 16px;
+        }
+        h1 {
+            color: #10b981;
+            font-size: 24px;
+            margin: 0 0 12px 0;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+        p {
+            color: #9ca3af;
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 0 0 20px 0;
+        }
+        .btn {
+            background: #10b981;
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 800;
+            font-size: 13px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="badge">Offline Auto-Sync Active</div>
+        <h1>Offline Mode</h1>
+        <p>
+            Internet connection is currently unavailable. Your attendance and workout data are securely saved in local IndexedDB and will automatically sync with Supabase once connectivity is restored.
+        </p>
+        <button class="btn" onclick="window.location.reload()">Retry Connection</button>
+    </div>
+</body>
+</html>

@@ -1,49 +1,67 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataProvider';
 import { useToast } from '../hooks/useToast';
-import { ShieldCheck, Activity, Dna, HeartPulse, Brain, Zap, Download, Share2, Lock, FileText, Fingerprint, QrCode } from 'lucide-react';
+import { ShieldCheck, Activity, Dna, HeartPulse, Brain, Zap, Download, Share2, Lock, FileText, Fingerprint, QrCode, Cpu } from 'lucide-react';
 import { motion } from 'motion/react';
+import { generateBioHealthPass } from '../../lib/core_ai';
 
 export const DigitalBioHealthPass: React.FC = () => {
     const { members } = useData();
     const { addToast } = useToast();
     
-    // For admin view, select a member. For member view, this would be auto-selected.
     const [selectedMemberId, setSelectedMemberId] = useState<number | ''>('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [passReady, setPassReady] = useState(false);
+    const [passData, setPassData] = useState<any>(null);
 
     const selectedMember = members.find(m => m.id === Number(selectedMemberId));
 
-    const handleGeneratePass = () => {
+    const handleGeneratePass = async () => {
         if (!selectedMemberId) {
             addToast("Please select a member to generate their Bio-Health Pass.", "error");
             return;
         }
         
         setIsGenerating(true);
+        setPassReady(false);
+        setPassData(null);
         addToast("Encrypting Bio-Data (HIPAA/GDPR Compliant)...", "info");
         
-        setTimeout(() => {
+        try {
+            const data = await generateBioHealthPass(selectedMember);
+            setPassData(data);
             setIsGenerating(false);
             setPassReady(true);
             addToast("Digital Bio-Health Pass Generated Successfully.", "success");
-        }, 1500);
+        } catch (error) {
+            setIsGenerating(false);
+            addToast("Failed to generate Bio-Health Pass.", "error");
+        }
     };
 
     return (
         <div className="max-w-5xl mx-auto p-6 space-y-8 animate-fade-in">
             {/* Header */}
-            <div className="bg-gradient-to-r from-emerald-900 to-black p-8 rounded-[3rem] border border-emerald-500/20 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-[100px]"></div>
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div>
-                        <div className="flex items-center gap-2 mb-2">
-                            <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                            <span className="text-xs font-mono text-emerald-400 uppercase tracking-widest">Medical Compliance Level: Maximum</span>
+            <div className="mb-6 bg-[#020202] p-8 rounded-[3rem] border border-cyan-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(6,182,212,0.15)] group">
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[150px] animate-pulse"></div>
+                
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+                    <div className="flex items-center gap-6">
+                        <div className="p-4 bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-[2rem] shadow-[0_0_60px_rgba(6,182,212,0.5)] border border-cyan-400 group-hover:rotate-12 transition-transform duration-700">
+                             <ShieldCheck className="w-12 h-12" />
                         </div>
-                        <h1 className="text-4xl font-black text-white italic uppercase tracking-tighter">Digital Bio-Health Pass</h1>
-                        <p className="text-emerald-100/70 mt-2 text-sm max-w-xl">The Bio-Aether Oracle's encrypted medical passport. Shareable with doctors, 100% secure.</p>
+                        <div>
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="px-4 py-1.5 bg-cyan-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
+                                    <Cpu className="w-3 h-3" /> Fitness Future
+                                </div>
+                                <span className="text-[10px] font-mono text-cyan-500/70 tracking-[0.4em] uppercase">MEDICAL COMPLIANCE LEVEL: MAXIMUM</span>
+                            </div>
+                            <h1 className="text-4xl md:text-6xl font-black text-white italic uppercase tracking-tighter leading-none">
+                                Bio-Health <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-fuchsia-400">Pass</span>
+                            </h1>
+                        </div>
                     </div>
                     
                     <select 
@@ -51,8 +69,9 @@ export const DigitalBioHealthPass: React.FC = () => {
                         onChange={(e) => {
                             setSelectedMemberId(Number(e.target.value));
                             setPassReady(false);
+                            setPassData(null);
                         }}
-                        className="bg-black border border-emerald-500/50 rounded-2xl p-4 text-white font-bold outline-none focus:border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.2)] min-w-[250px]"
+                        className="bg-black border border-cyan-500/50 rounded-2xl p-4 text-white font-bold outline-none focus:border-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.2)] min-w-[250px]"
                     >
                         <option value="">Select Subject</option>
                         {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -103,7 +122,7 @@ export const DigitalBioHealthPass: React.FC = () => {
                             </div>
                             <div className="text-right">
                                 <QrCode className="w-16 h-16 text-white opacity-80" />
-                                <p className="text-[8px] text-zinc-500 font-mono mt-1 uppercase">Scan for Doctor</p>
+                                <p className="text-[8px] text-zinc-500 font-mono mt-1 uppercase">Scan for Bio-Analyst</p>
                             </div>
                         </div>
 
@@ -111,19 +130,19 @@ export const DigitalBioHealthPass: React.FC = () => {
                         <div className="grid grid-cols-2 gap-4 mb-8 relative z-10">
                             <div className="bg-black/50 p-4 rounded-xl border border-white/5">
                                 <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Biological Age</p>
-                                <p className="text-2xl font-black text-white font-mono">{selectedMember?.bio_age} <span className="text-xs text-emerald-400">-2.4 yrs</span></p>
+                                <p className="text-2xl font-black text-white font-mono">{selectedMember?.bio_age || 30} <span className="text-xs text-emerald-400">{passData?.biologicalAgeOffset > 0 ? '+' : ''}{passData?.biologicalAgeOffset || '-2.4'} yrs</span></p>
                             </div>
                             <div className="bg-black/50 p-4 rounded-xl border border-white/5">
                                 <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Metabolic Rate</p>
-                                <p className="text-2xl font-black text-white font-mono">2450 <span className="text-xs text-zinc-500">kcal</span></p>
+                                <p className="text-2xl font-black text-white font-mono">{passData?.metabolicRate || 2450} <span className="text-xs text-zinc-500">kcal</span></p>
                             </div>
                             <div className="bg-black/50 p-4 rounded-xl border border-white/5">
                                 <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Inflammation Index</p>
-                                <p className="text-2xl font-black text-emerald-400 font-mono">Low</p>
+                                <p className="text-2xl font-black text-emerald-400 font-mono">{passData?.inflammationIndex || 'Low'}</p>
                             </div>
                             <div className="bg-black/50 p-4 rounded-xl border border-white/5">
                                 <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Hormonal Balance</p>
-                                <p className="text-2xl font-black text-emerald-400 font-mono">Optimal</p>
+                                <p className="text-2xl font-black text-emerald-400 font-mono">{passData?.hormonalBalance || 'Optimal'}</p>
                             </div>
                         </div>
 
@@ -134,14 +153,14 @@ export const DigitalBioHealthPass: React.FC = () => {
                                 <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Med-PaLM 3 Oracle Summary</h4>
                             </div>
                             <p className="text-emerald-100/80 text-sm leading-relaxed">
-                                Patient exhibits exceptional recovery metrics. Slight L4-L5 compression noted in history, currently managed via targeted rehab. No immediate deficiencies detected. Nutrigenomic profile aligns with current dietary protocol.
+                                {passData?.oracleSummary || 'Patient exhibits exceptional recovery metrics. Slight L4-L5 compression noted in history, currently managed via targeted rehab. No immediate deficiencies detected. Nutrigenomic profile aligns with current dietary protocol.'}
                             </p>
                         </div>
 
                         {/* Footer / Actions */}
                         <div className="flex items-center justify-between pt-4 border-t border-white/10 relative z-10">
                             <div className="flex items-center gap-2 text-xs text-zinc-500 font-mono">
-                                <Lock className="w-3 h-3" /> 256-bit Quantum Encrypted
+                                <Lock className="w-3 h-3" /> 256-bit FitnessFutureEncrypted
                             </div>
                             <div className="flex gap-3">
                                 <button className="p-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-white transition-colors">

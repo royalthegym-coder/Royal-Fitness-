@@ -1,51 +1,22 @@
+import { getComplexResponse } from './gemini';
 
-import OpenAI from 'openai';
-import { getRuntimeSecret } from './runtimeSecrets';
+export const getCloudLogicClient = () => { return { isMockedWithGemini: true }; };
 
-export const getOpenAIClient = () => {
-    const key = getRuntimeSecret('openai_api_key');
-    if (!key) return null;
-    return new OpenAI({
-        apiKey: key,
-        dangerouslyAllowBrowser: true
-    });
-};
-
-export async function getOpenAIChatResponse(
-    history: { role: string; text: string }[], 
-    message: string, 
-    systemInstruction?: string
-): Promise<string> {
-    const client = getOpenAIClient();
-    if (!client) return "OpenAI API Key is missing. Please configure it in Settings > Integrations.";
-
+export async function getCloudLogicChatResponse(history: any[], message: string, systemInstruction?: string): Promise<string> {
     try {
-        const messages: any[] = [
-            { role: 'system', content: systemInstruction || 'You are a helpful fitness assistant.' },
-            ...history.map(m => ({ role: m.role === 'model' ? 'assistant' : 'user', content: m.text })),
-            { role: 'user', content: message }
-        ];
-
-        const completion = await client.chat.completions.create({
-            messages: messages,
-            model: 'gpt-4o',
-        });
-
-        return completion.choices[0].message.content || "";
-    } catch (error: any) {
-        console.error("OpenAI Error:", error);
-        return `OpenAI Error: ${error.message}`;
+        const response = await getComplexResponse('System: ' + (systemInstruction || '') + ' Message: ' + message);
+        return response || 'Cloud Logic AI generated a blank response.';
+    } catch (e: any) {
+        console.error(e);
+        return 'Please configure Core AI (Gemini) API Key in Settings to use this free feature.';
     }
 }
 
-export async function generateOpenAIContent(prompt: string): Promise<string> {
-    const client = getOpenAIClient();
-    if (!client) throw new Error("OpenAI API Key missing");
-
-    const completion = await client.chat.completions.create({
-        messages: [{ role: 'user', content: prompt }],
-        model: 'gpt-4o',
-    });
-
-    return completion.choices[0].message.content || "";
+export async function generateCloudLogicContent(prompt: string): Promise<string> {
+    try {
+        const response = await getComplexResponse(prompt);
+        return response || '';
+    } catch (e: any) {
+        throw new Error('Core AI API Key missing. Configure in Settings.');
+    }
 }

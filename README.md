@@ -1,46 +1,64 @@
-# Royal The Gym
+# Fitness Future Neural OS
 
-A gym-management and fitness application built with React, TypeScript, and Vite.
+Welcome to the fully automated, ₹0 cost Gym Management System.
 
-[![CI](https://github.com/royalthegym-coder/Royal-Fitness-/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/royalthegym-coder/Royal-Fitness-/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/royalthegym-coder/Royal-Fitness-/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/royalthegym-coder/Royal-Fitness-/actions/workflows/codeql.yml)
+## Architecture
+- **Backend**: NestJS + PostgreSQL
+- **AI Engine**: Python + FastAPI + Groq (Llama 3)
+- **WhatsApp Bot**: Baileys (Node.js)
+- **Churn Prediction**: Python + Scikit-Learn
+- **Workflows**: n8n
+- **Frontend**: React + Vite
 
-## What this repository contains
+## Prerequisites
+- Docker & Docker Compose
+- Node.js (for local CLI)
+- Python 3.11+
 
-- Member, membership, package, staff, billing, and payment modules
-- Lead/CRM, expense, attendance, and scheduling modules
-- Workout, diet-planning, and fitness/health modules, including AI-assisted features
-- Automation and integration modules for services such as Google Business, Maps, and WhatsApp
+## Getting Started
 
-These are modules present in the codebase; integrations and individual features may require separate provider accounts, server configuration, and testing before production use.
+1. **Environment Variables**
+   Create a `.env` file in the root directory and add the following keys:
+   ```env
+   GROQ_API_KEY=your_groq_api_key
+   N8N_API_KEY=your_n8n_api_key
+   JWT_SECRET=your_jwt_secret
+   POSTGRES_USER=postgres
+   POSTGRES_PASSWORD=postgres
+   POSTGRES_DB=fitness_future
+   ```
 
-## Technology
+2. **Install CLI Tool**
+   ```bash
+   cd cli/fitness-os
+   npm install -g .
+   ```
 
-React 18 · TypeScript · Vite · Supabase · Firebase · Google GenAI and OpenAI client libraries
+3. **Start the System**
+   ```bash
+   fitness-os up
+   ```
 
-## Run locally
+4. **Import n8n Workflows**
+   ```bash
+   cd infra/n8n/workflows
+   bash import-all.sh
+   ```
 
-Requirements: Node.js and npm.
+5. **Connect WhatsApp**
+   Check the logs of the WhatsApp bot to scan the QR code:
+   ```bash
+   fitness-os logs whatsapp-bot
+   ```
 
-```bash
-npm ci
-cp .env.example .env.local
-npm run dev
-```
+6. **Access Services**
+   - Frontend: http://localhost:5173 (Run `npm run dev` in `apps/web-client`)
+   - Backend API: http://localhost:3001
+   - AI Engine: http://localhost:8000
+   - n8n: http://localhost:5678
+   - Flowise: http://localhost:3002
 
-Add only the environment values needed for the modules you intend to use. For code checks:
-
-```bash
-npm run lint
-npm run build
-```
-
-## Security
-
-- Keep local environment files out of Git; `.env.example` is the safe template.
-- Treat values included in a browser build as public. Never put service-role, database, payment, or other privileged credentials in client-side code; use a server-side service for private keys.
-- See [SECURITY.md](SECURITY.md) for vulnerability reporting guidance.
-
-## Project site
-
-Configured URL: https://royal-fitness-rho.vercel.app
+## Zero Cost Strategy
+- **Groq**: Free tier provides 14,400 requests/day.
+- **Self-Hosting**: All components (n8n, Flowise, ChromaDB, Postgres) run locally via Docker.
+- **WhatsApp**: Unofficial Baileys library bypasses official API costs.

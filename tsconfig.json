@@ -12,7 +12,8 @@
     "skipLibCheck": true,
     "types": [
       "node",
-      "vite/client"
+      "vite/client",
+      "vite-plugin-pwa/client"
     ],
     "moduleResolution": "bundler",
     "isolatedModules": true,
@@ -30,5 +31,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["utils", "lib", "vite.config.ts"]
+  "include": ["utils", "lib", "src", "vite.config.ts"]
 }

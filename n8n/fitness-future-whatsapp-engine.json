@@ -1,0 +1,190 @@
+{
+  "name": "Fitness Future — Master 6-Node Automation Pipeline (Claude Code + ChatGPT + Supabase + GitHub + n8n + WhatsApp)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "master-pipeline",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "node-webhook-trigger",
+      "name": "1. Real-Time Webhook & Dashboard Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 320],
+      "webhookId": "fitness-future-master-pipeline"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": "public",
+        "table": "members",
+        "columns": "id, full_name, phone_number, plan_tier, status, updated_at"
+      },
+      "id": "node-supabase-sync",
+      "name": "2. Supabase PostgreSQL + pgvector Sync",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [460, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.CLAUDE_CODE_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-3-7-sonnet-latest\",\n  \"max_tokens\": 1024,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Audit gym operational payload and generate GitHub commit manifest for member {{ $json.full_name }}\"\n    }\n  ]\n}"
+      },
+      "id": "node-claude-code",
+      "name": "3. Claude Code Autonomous Auditor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 180]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the Fitness Future AI Concierge & Nutritionist (UPI: your-upi@bank, Phone: +91 98XXXXXXXX).\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate personalized WhatsApp workflow response ({{ $json.workflowType || 'ai_auto_reply' }}) for {{ $json.full_name }}.\"\n    }\n  ]\n}"
+      },
+      "id": "node-chatgpt-engine",
+      "name": "4. ChatGPT Operations & Diet Coach",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 460]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/repos/fitness-future/fitness-future-neural-os/dispatches",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.GITHUB_TOKEN }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"event_type\": \"gym_ops_sync\",\n  \"client_payload\": {\n    \"member_id\": \"{{ $json.member_id }}\",\n    \"audit\": \"claude_code_verified\"\n  }\n}"
+      },
+      "id": "node-github-sync",
+      "name": "5. GitHub Repository & Actions Sync",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 180]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v22.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"recipient_type\": \"individual\",\n  \"to\": \"91{{ ($json.phone_number || '9800000000').replace(/^\\+?91/, '') }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"{{ $json.generatedMessage || '⚡ FITNESS FUTURE — Automated Update Verified (UPI: your-upi@bank)' }}\"\n  }\n}"
+      },
+      "id": "node-whatsapp-cloud-api",
+      "name": "6. Meta WhatsApp Business Cloud API Router (All 4 Workflows)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 460]
+    }
+  ],
+  "connections": {
+    "1. Real-Time Webhook & Dashboard Trigger": {
+      "main": [
+        [
+          {
+            "node": "2. Supabase PostgreSQL + pgvector Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Supabase PostgreSQL + pgvector Sync": {
+      "main": [
+        [
+          {
+            "node": "3. Claude Code Autonomous Auditor",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "4. ChatGPT Operations & Diet Coach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Claude Code Autonomous Auditor": {
+      "main": [
+        [
+          {
+            "node": "5. GitHub Repository & Actions Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. ChatGPT Operations & Diet Coach": {
+      "main": [
+        [
+          {
+            "node": "6. Meta WhatsApp Business Cloud API Router (All 4 Workflows)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

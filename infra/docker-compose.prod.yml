@@ -1,0 +1,82 @@
+version: '3.9'
+
+networks:
+  fitness-prod-net:
+    driver: overlay # For Docker Swarm (Zero Downtime Deployments)
+
+volumes:
+  traefik-certs: # Persistent volume for SSL Certificates
+
+services:
+  # ── REVERSE PROXY & AUTO-SSL (TRAEFIK) ──────────────────────────
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik-proxy
+    restart: always
+    command:
+      - "--api.insecure=false"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      # Global HTTP to HTTPS Redirect
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      # Let's Encrypt Auto-SSL Configuration
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=admin@fitnessgym.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "traefik-certs:/letsencrypt"
+    networks:
+      - fitness-prod-net
+
+  # ── PYTHON AI BACKEND (FastAPI) ─────────────────────────────────
+  python-ai-backend:
+    image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:python-backend-${IMAGE_TAG:-latest}
+    restart: always
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+    networks:
+      - fitness-prod-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.python-api.rule=Host(`api.fitnessgym.com`) && PathPrefix(`/api/ai`)"
+      - "traefik.http.routers.python-api.entrypoints=websecure"
+      - "traefik.http.routers.python-api.tls.certresolver=myresolver"
+      - "traefik.http.services.python-api.loadbalancer.server.port=8000"
+    deploy:
+      replicas: 2 # High Availability: Run 2 instances
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first # Zero Downtime Deployment
+
+  # ── NODE.JS AUTOMATION (Express/NestJS) ─────────────────────────
+  node-automation:
+    image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:node-automation-${IMAGE_TAG:-latest}
+    restart: always
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - PYTHON_BACKEND_URL=http://python-ai-backend:8000
+    networks:
+      - fitness-prod-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.node-api.rule=Host(`api.fitnessgym.com`) && PathPrefix(`/webhook`)"
+      - "traefik.http.routers.node-api.entrypoints=websecure"
+      - "traefik.http.routers.node-api.tls.certresolver=myresolver"
+      - "traefik.http.services.node-api.loadbalancer.server.port=3000"
+    deploy:
+      replicas: 2 # High Availability
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first

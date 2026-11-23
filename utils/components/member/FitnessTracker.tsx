@@ -15,7 +15,7 @@ import { HeartRateIcon, SleepIcon, CaloriesIcon } from '../icons/HealthIcons';
 import { useData } from '../../context/DataProvider'; // Live Data Context
 import { BotIcon } from '../icons/BotIcon';
 import { SpeedIcon } from '../icons/SpeedIcon';
-import { getComplexResponse } from '../../../lib/gemini';
+import { getComplexResponse } from '../../../lib/core_ai';
 import { useToast } from '../../hooks/useToast';
 
 interface FitnessTrackerProps {
@@ -69,8 +69,8 @@ const MuscleHeatmap: React.FC<{ logs: WorkoutLog[] }> = ({ logs }) => {
         'Chest': 0, 'Back': 0, 'Legs': 0, 'Shoulders': 0, 'Arms': 0, 'Core': 0
     };
 
-    // Mock analysis of logs (In a real app, mapping exercises to muscles is complex)
-    // Here we simulate "Freshness" (100 = Fresh, 0 = Exhausted)
+    // analysis of logs (In a real app, mapping exercises to muscles is complex)
+    // Here we Process "Freshness" (100 = Fresh, 0 = Exhausted)
     const [freshness, setFreshness] = useState<Record<string, number>>({
         'Chest': 90, 'Back': 45, 'Legs': 10, 'Shoulders': 80, 'Arms': 60, 'Core': 100
     });
@@ -103,7 +103,7 @@ const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, 
     // Derived Data
     const memberData = useMemo(() => fitnessData[memberId] || { logs: [], metrics: [] }, [fitnessData, memberId]);
     
-    // Recovery Algorithm (Mock Logic combining Live Data + Logs)
+    // Recovery Algorithm (Logic combining Live Data + Logs)
     const recoveryScore = useMemo(() => {
         // Base: 100
         // Minus fatigue from steps (max 20k steps = -30 points)
@@ -176,9 +176,10 @@ const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, 
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab as any)}
-                            className={`px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                            className={`relative px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all group overflow-hidden ${activeTab === tab ? 'bg-gradient-to-r from-indigo-900/40 to-indigo-800/40 backdrop-blur-xl border border-dashed border-indigo-500/50 text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.4)]' : 'bg-transparent border border-transparent text-gray-400 hover:text-white hover:border-gray-600/50 hover:bg-gray-800/40'}`}
                         >
-                            {tab}
+                            <div className={`absolute inset-0 bg-white/5 translate-y-full transition-transform duration-300 ease-in-out ${activeTab !== tab ? 'group-hover:translate-y-0' : ''}`}></div>
+                            <span className="relative z-10">{tab}</span>
                         </button>
                     ))}
                 </div>
@@ -258,10 +259,13 @@ const FitnessTracker: React.FC<FitnessTrackerProps> = ({ memberId, fitnessData, 
                             <button 
                                 onClick={handleAiPrediction}
                                 disabled={isAnalyzing}
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-transform hover:scale-105 disabled:opacity-50 flex items-center mx-auto"
+                                className="relative bg-gradient-to-r from-indigo-900/40 to-indigo-800/40 hover:from-indigo-800/60 hover:to-indigo-700/60 backdrop-blur-xl border border-dashed border-indigo-500/50 hover:border-indigo-400 text-indigo-400 font-bold py-3 px-8 rounded-full transition-all disabled:opacity-50 flex items-center mx-auto shadow-[0_0_20px_rgba(99,102,241,0.2)] hover:shadow-[0_0_30px_rgba(99,102,241,0.4)] group overflow-hidden"
                             >
-                                {isAnalyzing ? <SparkleIcon className="w-5 h-5 mr-2 animate-spin"/> : <SparkleIcon className="w-5 h-5 mr-2"/>}
-                                {isAnalyzing ? 'Running Simulation...' : 'Generate Future Report'}
+                                <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                <div className="relative z-10 flex items-center gap-2 group-hover:scale-105 transition-transform duration-500">
+                                    {isAnalyzing ? <SparkleIcon className="w-5 h-5 animate-spin"/> : <SparkleIcon className="w-5 h-5"/>}
+                                    <span>{isAnalyzing ? 'Running Simulation...' : 'Generate Future Report'}</span>
+                                </div>
                             </button>
                         </div>
                         

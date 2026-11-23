@@ -36,7 +36,7 @@ const SynapseIoTHub: React.FC = () => {
                         <div>
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="px-4 py-1.5 bg-blue-500 text-white rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
-                                    <Cpu className="w-3 h-3" /> Synapse Core v31.0
+                                    <Cpu className="w-3 h-3" /> Synapse Core Fitness Future
                                 </div>
                                 <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">NETWORK: MESH_STABLE</span>
                             </div>
@@ -97,7 +97,7 @@ const NFCAccessPanel: React.FC = () => {
         setBiometricScan(0);
         setLog(prev => ["Initializing NFC Handshake...", ...prev]);
         
-        // Simulating Biometric Scan
+        // processing Biometric Scan
         const scanInterval = setInterval(() => {
             setBiometricScan(prev => Math.min(100, prev + 10));
         }, 100);
@@ -485,7 +485,7 @@ const AtmosphereControl: React.FC = () => {
 
 // --- SUB-COMPONENT: Equipment Fleet ---
 const EquipmentFleet: React.FC = () => {
-    const { addToast } = useData(); // Assuming context allows toasts, or import hook
+    const { addToast } = useToast(); // Assuming context allows toasts, or import hook
     const machines = [
         { id: 'TRD-01', name: 'Treadmill Alpha', status: 'Online', health: 98, load: 45 },
         { id: 'TRD-02', name: 'Treadmill Beta', status: 'Maintenance', health: 45, load: 0 },

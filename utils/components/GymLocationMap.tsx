@@ -96,7 +96,7 @@ const mapStyles = [
 ];
 
 const GymLocationMap: React.FC = () => {
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  const apiKey = process.env.API_KEY; // This should ideally be a MAPS key, but for demo we assume logic exists
   const [mapId] = useState("4504f8b37365c3d0"); 
 
   // Guard against missing key
@@ -141,7 +141,7 @@ const GymLocationMap: React.FC = () => {
             width: 40px;
             height: 40px;
           ">
-            <img src="${GYM_INFO.logo}" style="width: 24px; height: 24px; object-fit: contain;" alt="Gym Logo" />
+            <img src="https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&w=1200&q=80" alt="Gym Map View" className="w-full h-full object-cover opacity-40" />
           </div>
           <div style="
             position: absolute;
@@ -182,7 +182,7 @@ const GymLocationMap: React.FC = () => {
         <div className="flex flex-col items-center z-10 p-6 text-center max-w-sm relative">
             <div className="w-20 h-20 bg-gray-800/80 backdrop-blur-md rounded-full flex items-center justify-center mb-6 border border-white/10 shadow-2xl overflow-hidden p-4 relative">
                 <div className="absolute inset-0 bg-cyan-500/10 animate-pulse"></div>
-                <img src={GYM_INFO.logo} alt="Logo" className="w-full h-full object-contain relative z-10" />
+                <img src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=300&q=80" alt="Gym Location Pin" className="w-12 h-12 rounded-xl object-cover border border-amber-500/40" />
             </div>
             
             <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter mb-2">Satellite Link Offline</h3>

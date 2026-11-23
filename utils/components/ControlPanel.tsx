@@ -47,7 +47,7 @@ const ControlPanel: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card className="border-t-4 border-cyan-500 bg-black/40">
-                    <h4 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4">Core Neural Load</h4>
+                    <h4 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4">Core Smart Load</h4>
                     <div className="text-5xl font-black text-white tracking-tighter italic">{sysLoad.toFixed(1)}%</div>
                     <div className="w-full bg-gray-800 h-2 rounded-full mt-6 overflow-hidden">
                         <div className="h-full bg-cyan-500 transition-all duration-1000" style={{ width: `${sysLoad}%` }}></div>
@@ -82,7 +82,7 @@ const ControlPanel: React.FC = () => {
                 </div>
                 <div className="mt-6 flex justify-between items-center text-[10px] font-mono text-gray-600 uppercase tracking-[0.2em]">
                     <span className="flex items-center gap-2"><AutoUpdateIcon className="w-3 h-3 animate-spin"/> Uptime: 99.999%</span>
-                    <span>Region: Jhunjhunu-Core-1</span>
+                    <span>Region: FitnessFuture-Core-1</span>
                 </div>
             </Card>
         </div>

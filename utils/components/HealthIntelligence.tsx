@@ -1,9 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import Card from './common/Card';
-import SafeText from './common/SafeText';
-import { INITIAL_MEMBERS, INITIAL_HEALTH_DATA, INITIAL_MEMBER_FITNESS_DATA } from '../../constants';
-import { analyzeMedicalRecord, getHealthAssistantResponse, getComplexResponse, getGoogleSearchResponse } from '../../lib/gemini';
+import { INITIAL_HEALTH_DATA, INITIAL_MEMBER_FITNESS_DATA } from '../../constants';
+import { useData } from '../context/DataProvider';
+import { analyzeMedicalRecord, getHealthAssistantResponse, getComplexResponse, getGoogleSearchResponse } from '../../lib/core_ai';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { ChatIcon } from './icons/ChatIcon';
 import { LockIcon } from './icons/LockIcon';
@@ -34,7 +34,8 @@ const DocumentIcon = () => (
 );
 
 const HealthIntelligence: React.FC = () => {
-    const [activeMemberId, setActiveMemberId] = useState<number>(INITIAL_MEMBERS[0].id);
+    const { members } = useData();
+    const [activeMemberId] = useState<number>(members[0]?.id || 0);
     const [activeTab, setActiveTab] = useState<'chat' | 'research' | 'logic' | 'records'>('chat');
     
     // Member Data
@@ -135,7 +136,15 @@ const HealthIntelligence: React.FC = () => {
                 try {
                     // Pass file type to analysis function!
                     const result = await analyzeMedicalRecord(base64, file.type);
-                    setAnalysisResult(result);
+                    let formattedResult = "";
+                    if (typeof result === 'object') {
+                        formattedResult += "<h3>Key Findings</h3><ul>" + (result.findings || []).map((f: string) => `<li>${f}</li>`).join('') + "</ul>";
+                        formattedResult += "<h3>Precautions</h3><ul>" + (result.precautions || []).map((p: string) => `<li>${p}</li>`).join('') + "</ul>";
+                        formattedResult += "<h3>Recommended Exercises</h3><ul>" + (result.recommended_exercises || []).map((e: string) => `<li>${e}</li>`).join('') + "</ul>";
+                    } else {
+                        formattedResult = String(result);
+                    }
+                    setAnalysisResult(formattedResult);
                 } catch (err: any) {
                     setAnalysisResult(`Analysis Error: ${err.message || "Failed to process document."}`);
                 } finally {
@@ -152,7 +161,7 @@ const HealthIntelligence: React.FC = () => {
                 <div>
                     <h1 className="text-3xl font-bold text-teal-400 flex items-center">
                         <MedicalIcon />
-                        <span className="ml-3">Royal Health Intelligence</span>
+                        <span className="ml-3">Future Health Intelligence</span>
                     </h1>
                     <p className="text-teal-200/70 mt-1 flex items-center text-sm">
                         <LockIcon className="w-3 h-3 mr-1" />
@@ -203,7 +212,7 @@ const HealthIntelligence: React.FC = () => {
                                 {chatHistory.map((msg, idx) => (
                                     <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`max-w-[80%] p-4 rounded-xl ${msg.role === 'user' ? 'bg-teal-600 text-white rounded-br-none' : 'bg-gray-700 text-gray-100 rounded-bl-none'}`}>
-                                            <div className="prose prose-invert prose-sm whitespace-pre-wrap"><SafeText text={msg.text} /></div>
+                                            <div className="prose prose-invert prose-sm" dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br/>') }} />
                                         </div>
                                     </div>
                                 ))}
@@ -272,7 +281,7 @@ const HealthIntelligence: React.FC = () => {
                                         
                                         {/* Answer Section */}
                                         <div className="prose prose-invert max-w-none">
-                                            <div className="whitespace-pre-wrap"><SafeText text={searchResults.text} /></div>
+                                            <div dangerouslySetInnerHTML={{ __html: searchResults.text.replace(/\n/g, '<br/>') }} />
                                         </div>
                                     </div>
                                 ) : (
@@ -315,7 +324,7 @@ const HealthIntelligence: React.FC = () => {
                                 )}
                                 {logicResult && (
                                     <div className="prose prose-invert prose-sm max-w-none animate-fade-in">
-                                        <div className="whitespace-pre-wrap"><SafeText text={logicResult} /></div>
+                                        <div dangerouslySetInnerHTML={{ __html: logicResult.replace(/\n/g, '<br/>') }} />
                                     </div>
                                 )}
                             </div>
@@ -353,7 +362,7 @@ const HealthIntelligence: React.FC = () => {
                             {analysisResult && (
                                 <div className="animate-fade-in">
                                     <div className="bg-gray-900 rounded-lg border border-gray-700 p-6 mb-6">
-                                        <div className="prose prose-invert max-w-none whitespace-pre-wrap"><SafeText text={analysisResult} /></div>
+                                        <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: analysisResult.replace(/\n/g, '<br/>') }} />
                                     </div>
                                     <div className="flex gap-4">
                                         <button onClick={() => { setAnalysisResult(null); setIsAnalyzing(false); }} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white">Analyze Another</button>

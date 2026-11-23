@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { BotIcon } from '../icons/BotIcon';
 import { useToast } from '../../hooks/useToast';
-import { getComplexResponse } from '../../../lib/gemini';
+import { getComplexResponse } from '../../../lib/core_ai';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Tooltip } from 'recharts';
 
 // --- HOLOGRAPHIC HELIX ENGINE ---
@@ -87,7 +87,7 @@ const BiomarkerVault: React.FC<{ memberId: number }> = ({ memberId }) => {
     const [genes, setGenes] = useState([
         { id: 'mTOR', label: 'Muscle Growth', status: healthScore > 80, desc: 'High anabolic signal detected.' },
         { id: 'SIRT1', label: 'Longevity/Repair', status: true, desc: 'Cellular repair protocol active.' },
-        { id: 'BDNF', label: 'Neural Plasticity', status: healthScore > 90, desc: 'Synaptic growth phase.' },
+        { id: 'BDNF', label: 'Smart Plasticity', status: healthScore > 90, desc: 'Synaptic growth phase.' },
         { id: 'PGC-1α', label: 'Mito-Genesis', status: false, desc: 'Endurance threshold low.' }
     ]);
 
@@ -157,7 +157,7 @@ const BiomarkerVault: React.FC<{ memberId: number }> = ({ memberId }) => {
             setAiStrategy(res);
             addToast("Genetic Strategy Synthesized.", "success");
         } catch (e) {
-            addToast("Neural Link Failed.", "error");
+            addToast("Smart Link Failed.", "error");
         } finally {
             setIsThinking(false);
         }
@@ -180,7 +180,7 @@ const BiomarkerVault: React.FC<{ memberId: number }> = ({ memberId }) => {
                         <div>
                             <div className="flex items-center gap-4 mb-3">
                                 <div className="px-5 py-2 bg-indigo-500 text-black rounded-full flex items-center gap-3 shadow-lg font-black uppercase tracking-[0.2em] text-[10px]">
-                                    Helix v31.0
+                                    Helix Fitness Future
                                 </div>
                                 <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">DNA_SEQUENCE: LOCKED</span>
                             </div>
@@ -236,10 +236,13 @@ const BiomarkerVault: React.FC<{ memberId: number }> = ({ memberId }) => {
                         <button 
                             onClick={handleImportData}
                             disabled={isImporting}
-                            className="w-full py-4 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/5 transition-all flex items-center justify-center gap-2"
+                            className="relative w-full py-4 bg-gradient-to-r from-gray-900/40 to-gray-800/40 hover:from-gray-800/60 hover:to-gray-700/60 backdrop-blur-xl border border-dashed border-white/10 hover:border-white/30 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(0,0,0,0.5)] hover:shadow-[0_0_25px_rgba(255,255,255,0.1)] group overflow-hidden"
                         >
-                            {isImporting ? <RefreshCw className="w-3 h-3 animate-spin"/> : <Upload className="w-3 h-3"/>}
-                            {isImporting ? 'PARSING FILE...' : 'UPLOAD RAW DATA'}
+                            <div className="absolute inset-0 bg-white/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                            <div className="relative z-10 flex items-center gap-2 group-hover:scale-105 transition-transform duration-500">
+                                {isImporting ? <RefreshCw className="w-3 h-3 animate-spin"/> : <Upload className="w-3 h-3"/>}
+                                <span>{isImporting ? 'PARSING FILE...' : 'UPLOAD RAW DATA'}</span>
+                            </div>
                         </button>
                     </div>
                 </div>
@@ -275,10 +278,13 @@ const BiomarkerVault: React.FC<{ memberId: number }> = ({ memberId }) => {
                         <button 
                             onClick={triggerDeepScan}
                             disabled={isSequencing}
-                            className="w-full mt-8 bg-indigo-600 text-white font-black py-5 rounded-[2rem] shadow-2xl hover:bg-indigo-500 transition-all uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 relative z-10"
+                            className="relative w-full mt-8 bg-gradient-to-r from-indigo-900/40 to-indigo-800/40 hover:from-indigo-800/60 hover:to-indigo-700/60 backdrop-blur-xl border border-dashed border-indigo-500/50 hover:border-indigo-400 text-indigo-400 font-black py-5 rounded-[2rem] shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)] transition-all uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 z-10 group overflow-hidden"
                         >
-                            {isSequencing ? <RefreshCw className="animate-spin w-4 h-4"/> : <Activity className="w-4 h-4" />}
-                            {isSequencing ? 'SEQUENCING...' : 'REFRESH EXPRESSION MATRIX'}
+                            <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                            <div className="relative z-10 flex items-center gap-3 group-hover:scale-105 transition-transform duration-500">
+                                {isSequencing ? <RefreshCw className="animate-spin w-4 h-4"/> : <Activity className="w-4 h-4" />}
+                                <span>{isSequencing ? 'SEQUENCING...' : 'REFRESH EXPRESSION MATRIX'}</span>
+                            </div>
                         </button>
                     </Card>
 
@@ -289,9 +295,10 @@ const BiomarkerVault: React.FC<{ memberId: number }> = ({ memberId }) => {
                                 <button
                                     key={tab}
                                     onClick={() => setActiveTraitTab(tab)}
-                                    className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTraitTab === tab ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                                    className={`relative px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all group overflow-hidden ${activeTraitTab === tab ? 'bg-gradient-to-r from-indigo-900/40 to-indigo-800/40 backdrop-blur-xl border border-dashed border-indigo-500/50 text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.4)]' : 'bg-transparent border border-transparent text-gray-500 hover:text-white hover:border-gray-600/50 hover:bg-gray-800/40'}`}
                                 >
-                                    {tab}
+                                    <div className={`absolute inset-0 bg-white/5 translate-y-full transition-transform duration-300 ease-in-out ${activeTraitTab !== tab ? 'group-hover:translate-y-0' : ''}`}></div>
+                                    <span className="relative z-10">{tab}</span>
                                 </button>
                             ))}
                         </div>
@@ -324,10 +331,13 @@ const BiomarkerVault: React.FC<{ memberId: number }> = ({ memberId }) => {
                             <button 
                                 onClick={generateGeneticStrategy}
                                 disabled={isThinking}
-                                className="w-full bg-white text-black font-black py-5 rounded-[2rem] shadow-[0_0_50px_rgba(255,255,255,0.2)] hover:bg-indigo-400 transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
+                                className="relative w-full bg-gradient-to-r from-gray-900/40 to-gray-800/40 hover:from-gray-800/60 hover:to-gray-700/60 backdrop-blur-xl border border-dashed border-white/10 hover:border-white/30 text-white font-black py-5 rounded-[2rem] shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(255,255,255,0.1)] transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 group overflow-hidden"
                             >
-                                {isThinking ? <RefreshCw className="animate-spin w-4 h-4"/> : <BotIcon className="w-4 h-4"/>}
-                                {isThinking ? 'ANALYZING DNA STRANDS...' : 'GENERATE ACTION PLAN'}
+                                <div className="absolute inset-0 bg-white/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                <div className="relative z-10 flex items-center gap-3 group-hover:scale-105 transition-transform duration-500">
+                                    {isThinking ? <RefreshCw className="animate-spin w-4 h-4"/> : <BotIcon className="w-4 h-4"/>}
+                                    <span>{isThinking ? 'ANALYZING DNA STRANDS...' : 'GENERATE ACTION PLAN'}</span>
+                                </div>
                             </button>
 
                             {aiStrategy && (

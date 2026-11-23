@@ -7,13 +7,13 @@ import {
     Timer, Play, Pause, Thermometer, Gauge, Flame, Scale, Infinity
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, YAxis, Tooltip } from 'recharts';
-import { generateTextToSpeech, getComplexResponse } from '../../../lib/gemini';
+import { generateTextToSpeech, getComplexResponse } from '../../../lib/core_ai';
 import { decode, decodeAudioData } from '../../audio';
 import { useToast } from '../../hooks/useToast';
 import { BotIcon } from '../icons/BotIcon';
 import { useData } from '../../context/DataProvider';
 
-// --- CELLULAR RESPIRATION VISUALIZER (v31.0 Engine - Reactive) ---
+// --- CELLULAR RESPIRATION VISUALIZER (Fitness Future Engine - Reactive) ---
 const CellularVisualizer: React.FC<{ active: boolean; volume: number }> = ({ active, volume }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const particlesRef = useRef<any[]>([]);
@@ -160,7 +160,7 @@ const MetabolicTracker: React.FC<{ memberId?: number }> = ({ memberId }) => {
             setIsScanning(true);
             analyzeAudio(); 
             
-            addToast("Aether Node: Respiratory Sync Active.", "success");
+            addToast("Cloud Node: Respiratory Sync Active.", "success");
             speak("Metabolic link established. Breathe normally into the sensor.");
         } catch (e) {
             addToast("Mic Access Denied.", "error");
@@ -249,7 +249,7 @@ const MetabolicTracker: React.FC<{ memberId?: number }> = ({ memberId }) => {
                 : { boltScore, type: 'CO2 Tolerance (BOLT)', bmr, tdee, device: connectedDevice?.name };
 
             const prompt = `
-                ACT AS "MITOCHONDRIA AI" (ROYAL GYM SINGULARITY).
+                ACT AS "MITOCHONDRIA AI" (FITNESS FUTURE FitnessFutureMatrix).
                 ANALYZE: ${JSON.stringify(context)}.
                 
                 PROVIDE A METABOLIC AUDIT IN STRICT JSON FORMAT:
@@ -271,7 +271,7 @@ const MetabolicTracker: React.FC<{ memberId?: number }> = ({ memberId }) => {
 
         } catch (e) {
             console.error(e);
-            addToast("Audit Interrupted. Neural Link Unstable.", "error");
+            addToast("Audit Interrupted. Smart Link Unstable.", "error");
         } finally {
             setIsAnalyzing(false);
         }
@@ -289,21 +289,23 @@ const MetabolicTracker: React.FC<{ memberId?: number }> = ({ memberId }) => {
                         <div className="flex items-center gap-4 mb-4">
                             <div className="px-5 py-2 bg-green-600 text-white rounded-full flex items-center gap-3 shadow-[0_0_30px_rgba(34,197,94,0.5)] border border-green-400">
                                 <Infinity className="w-5 h-5 animate-spin-slow" />
-                                <span className="text-xs font-black uppercase tracking-[0.2em]">Mitochondrial Core v31.0</span>
+                                <span className="text-xs font-black uppercase tracking-[0.2em]">Mitochondrial Core Fitness Future</span>
                             </div>
                             <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">STATUS: {mode}</span>
                         </div>
                         <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none">
-                            Metabolic <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600">Sync</span>
+                            Metabolic <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600">Metrix</span>
                         </h1>
                     </div>
                     
                     <div className="flex gap-2 bg-gray-900/60 p-2 rounded-3xl border border-white/10 backdrop-blur-md">
-                        <button onClick={() => setMode('RER_SCAN')} className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${mode === 'RER_SCAN' ? 'bg-green-500 text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}>
-                            Fuel Scanner
+                        <button onClick={() => setMode('RER_SCAN')} className={`relative px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all group overflow-hidden ${mode === 'RER_SCAN' ? 'bg-gradient-to-r from-green-900/40 to-green-800/40 backdrop-blur-xl border border-dashed border-green-500/50 text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.4)]' : 'bg-transparent border border-transparent text-gray-500 hover:text-white hover:border-gray-600/50 hover:bg-gray-800/40'}`}>
+                            <div className={`absolute inset-0 bg-white/5 translate-y-full transition-transform duration-300 ease-in-out ${mode !== 'RER_SCAN' ? 'group-hover:translate-y-0' : ''}`}></div>
+                            <span className="relative z-10">Fuel Scanner</span>
                         </button>
-                        <button onClick={() => setMode('BOLT_TEST')} className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${mode === 'BOLT_TEST' ? 'bg-cyan-500 text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}>
-                            CO2 Tolerance
+                        <button onClick={() => setMode('BOLT_TEST')} className={`relative px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all group overflow-hidden ${mode === 'BOLT_TEST' ? 'bg-gradient-to-r from-cyan-900/40 to-cyan-800/40 backdrop-blur-xl border border-dashed border-cyan-500/50 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.4)]' : 'bg-transparent border border-transparent text-gray-500 hover:text-white hover:border-gray-600/50 hover:bg-gray-800/40'}`}>
+                            <div className={`absolute inset-0 bg-white/5 translate-y-full transition-transform duration-300 ease-in-out ${mode !== 'BOLT_TEST' ? 'group-hover:translate-y-0' : ''}`}></div>
+                            <span className="relative z-10">CO2 Tolerance</span>
                         </button>
                     </div>
                 </div>
@@ -349,8 +351,12 @@ const MetabolicTracker: React.FC<{ memberId?: number }> = ({ memberId }) => {
                                                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">RESP / MIN</span>
                                              </div>
                                          </div>
-                                         <button onClick={stopMic} className="bg-red-600/20 text-red-500 border border-red-500 font-black px-10 py-4 rounded-2xl uppercase tracking-widest text-[10px] hover:bg-red-600 hover:text-white transition-all">
-                                             <Square className="w-4 h-4 inline mr-2" /> Stop Sync
+                                         <button onClick={stopMic} className="relative bg-gradient-to-r from-red-900/40 to-red-800/40 hover:from-red-800/60 hover:to-red-700/60 backdrop-blur-xl text-red-500 border border-dashed border-red-500/50 hover:border-red-400 font-black px-10 py-4 rounded-2xl uppercase tracking-widest text-[10px] hover:text-white transition-all shadow-[0_0_15px_rgba(239,68,68,0.2)] hover:shadow-[0_0_25px_rgba(239,68,68,0.4)] group overflow-hidden">
+                                             <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                             <div className="relative z-10 flex items-center gap-2">
+                                                <Square className="w-4 h-4 group-hover:scale-110 transition-transform duration-500" /> 
+                                                <span>Stop Sync</span>
+                                             </div>
                                          </button>
                                      </div>
                                  )}
@@ -374,23 +380,27 @@ const MetabolicTracker: React.FC<{ memberId?: number }> = ({ memberId }) => {
                                  </h3>
                                  <button 
                                     onClick={handleBoltAction}
-                                    className={`w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-xs shadow-xl transition-all active:scale-95 ${boltState === 'Holding' ? 'bg-red-600 text-white' : 'bg-cyan-600 text-black'}`}
+                                    className={`relative w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all active:scale-95 group overflow-hidden ${boltState === 'Holding' ? 'bg-gradient-to-r from-red-900/40 to-red-800/40 hover:from-red-800/60 hover:to-red-700/60 backdrop-blur-xl border border-dashed border-red-500/50 hover:border-red-400 text-red-400 shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:shadow-[0_0_30px_rgba(239,68,68,0.5)]' : 'bg-gradient-to-r from-cyan-900/40 to-cyan-800/40 hover:from-cyan-800/60 hover:to-cyan-700/60 backdrop-blur-xl border border-dashed border-cyan-500/50 hover:border-cyan-400 text-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)]'}`}
                                  >
-                                     {boltState === 'Idle' ? 'Start Protocol' : boltState === 'Prepare' ? 'I Have Exhaled' : boltState === 'Holding' ? 'Stop Timer' : 'Reset'}
+                                     <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                     <span className="relative z-10">{boltState === 'Idle' ? 'Start Protocol' : boltState === 'Prepare' ? 'I Have Exhaled' : boltState === 'Holding' ? 'Stop Timer' : 'Reset'}</span>
                                  </button>
                              </div>
                          )}
 
                          <div className="absolute bottom-0 w-full p-6 bg-black/80 border-t border-white/5 flex justify-between items-center backdrop-blur-3xl">
                              <div className="flex items-center gap-6">
-                                 <span className="text-[10px] font-mono text-gray-500 flex items-center gap-2"><Cpu className="w-4 h-4"/> KRNL: v31.0_STABLE</span>
+                                 <span className="text-[10px] font-mono text-gray-500 flex items-center gap-2"><Cpu className="w-4 h-4"/> KRNL: FitnessFuture_STABLE</span>
                                  <div className="h-4 w-px bg-white/10"></div>
                                  <span className={`text-[10px] font-mono flex items-center gap-2 ${connectedDevice ? 'text-green-500 animate-pulse' : 'text-gray-600'}`}>
                                     <TrendingUp className="w-4 h-4"/> {connectedDevice ? `${connectedDevice.name} LINKED` : 'SENSOR_OFFLINE'}
                                  </span>
                              </div>
-                             <button onClick={() => setIsMuted(!isMuted)} className={`p-2 rounded-lg border ${isMuted ? 'text-red-500 border-red-500/30' : 'text-gray-500 border-white/10'}`}>
-                                 {isMuted ? <MicOff className="w-4 h-4"/> : <Volume2 className="w-4 h-4"/>}
+                             <button onClick={() => setIsMuted(!isMuted)} className={`relative p-2 rounded-lg backdrop-blur-xl border border-dashed transition-all group overflow-hidden ${isMuted ? 'bg-gradient-to-r from-red-900/40 to-red-800/40 hover:from-red-800/60 hover:to-red-700/60 text-red-500 border-red-500/50 hover:border-red-400 shadow-[0_0_10px_rgba(239,68,68,0.2)]' : 'bg-gradient-to-r from-gray-900/40 to-gray-800/40 hover:from-gray-800/60 hover:to-gray-700/60 text-gray-500 hover:text-white border-white/10 hover:border-white/30 shadow-[0_0_10px_rgba(0,0,0,0.5)]'}`}>
+                                 <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                 <div className="relative z-10 group-hover:scale-110 transition-transform duration-500">
+                                     {isMuted ? <MicOff className="w-4 h-4"/> : <Volume2 className="w-4 h-4"/>}
+                                 </div>
                              </button>
                          </div>
                     </Card>
@@ -478,8 +488,10 @@ const MetabolicTracker: React.FC<{ memberId?: number }> = ({ memberId }) => {
                         </div>
 
                         {((mode === 'RER_SCAN' && breathRate > 0) || (mode === 'BOLT_TEST' && boltScore > 0)) && !isAnalyzing && (
-                            <button onClick={handleAudit} className="w-full bg-white text-black font-black py-4 rounded-2xl mt-6 uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2">
-                                <BotIcon className="w-4 h-4"/> Run Metabolic Audit
+                            <button onClick={handleAudit} className="relative w-full bg-gradient-to-r from-gray-900/40 to-gray-800/40 hover:from-gray-800/60 hover:to-gray-700/60 backdrop-blur-xl border border-dashed border-white/10 hover:border-white/30 text-white font-black py-4 rounded-2xl mt-6 uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_30px_rgba(255,255,255,0.1)] group overflow-hidden">
+                                <div className="absolute inset-0 bg-white/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                <BotIcon className="w-4 h-4 relative z-10 group-hover:scale-110 transition-transform duration-500"/> 
+                                <span className="relative z-10">Run Metabolic Audit</span>
                             </button>
                         )}
                     </Card>

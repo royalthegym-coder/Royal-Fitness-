@@ -1,0 +1,11 @@
+{
+  "name": "fitness-os",
+  "version": "1.0.0",
+  "description": "CLI for Fitness Future Neural OS",
+  "bin": {
+    "fitness-os": "./index.js"
+  },
+  "dependencies": {
+    "yargs": "^17.7.2"
+  }
+}

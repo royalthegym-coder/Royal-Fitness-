@@ -32,15 +32,15 @@ export const performanceCache = {
 export const toggleTurboMode = (enable: boolean) => {
   if (enable) {
     document.body.classList.add('turbo-mode');
-    localStorage.setItem('royal_perf_mode', 'turbo');
+    localStorage.setItem('fitness_perf_mode', 'turbo');
   } else {
     document.body.classList.remove('turbo-mode');
-    localStorage.setItem('royal_perf_mode', 'quality');
+    localStorage.setItem('fitness_perf_mode', 'quality');
   }
 };
 
 export const initPerformanceSettings = () => {
-  const mode = localStorage.getItem('royal_perf_mode');
+  const mode = localStorage.getItem('fitness_perf_mode');
   if (mode === 'turbo') {
     document.body.classList.add('turbo-mode');
   }

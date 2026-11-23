@@ -19,15 +19,15 @@ export const ProjectHandover: React.FC = () => {
                         <div className="flex items-center gap-3 mb-2">
                             <div className="px-3 py-1 bg-indigo-500/20 border border-indigo-500/50 rounded-full flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
-                                <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Final Blueprint</span>
+                                <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Final Engine</span>
                             </div>
-                            <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-[0.3em]">v32.0_Singularity</span>
+                            <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-[0.3em]">FitnessFuture_FitnessFutureMatrix</span>
                         </div>
                         <h1 className="text-4xl md:text-5xl font-black text-white italic uppercase tracking-tighter flex items-center gap-4">
                             Project <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">Handover</span>
                         </h1>
                         <p className="text-sm text-zinc-400 font-mono mt-2 max-w-2xl">
-                            Technical specifications, architecture guidelines, and sprint planning for the development team. This document serves as the absolute source of truth for "The Singularity".
+                            Technical specifications, architecture guidelines, and sprint planning for the development team. This document serves as the absolute source of truth for "The FitnessFutureMatrix".
                         </p>
                     </div>
 
@@ -83,7 +83,7 @@ export const ProjectHandover: React.FC = () => {
                                     <BrainCircuit className="w-4 h-4 text-zinc-400" /> AI & Machine Learning
                                 </h4>
                                 <ul className="space-y-2">
-                                    <li className="flex items-center gap-2 text-sm text-zinc-400"><CheckCircle2 className="w-3 h-3 text-fuchsia-500" /> Google Gemini Pro (LLM)</li>
+                                    <li className="flex items-center gap-2 text-sm text-zinc-400"><CheckCircle2 className="w-3 h-3 text-fuchsia-500" /> Google Core AI Pro (LLM)</li>
                                     <li className="flex items-center gap-2 text-sm text-zinc-400"><CheckCircle2 className="w-3 h-3 text-fuchsia-500" /> MediaPipe (Pose Tracking)</li>
                                     <li className="flex items-center gap-2 text-sm text-zinc-400"><CheckCircle2 className="w-3 h-3 text-fuchsia-500" /> TensorFlow Lite (Edge AI)</li>
                                     <li className="flex items-center gap-2 text-sm text-zinc-400"><CheckCircle2 className="w-3 h-3 text-fuchsia-500" /> Med-PaLM 3 (Medical)</li>
@@ -94,7 +94,7 @@ export const ProjectHandover: React.FC = () => {
                                     <Lock className="w-4 h-4 text-zinc-400" /> Security & Infra
                                 </h4>
                                 <ul className="space-y-2">
-                                    <li className="flex items-center gap-2 text-sm text-zinc-400"><CheckCircle2 className="w-3 h-3 text-amber-500" /> CRYSTALS-Kyber (Quantum-Safe)</li>
+                                    <li className="flex items-center gap-2 text-sm text-zinc-400"><CheckCircle2 className="w-3 h-3 text-amber-500" /> CRYSTALS-Kyber (Fitness Future-Safe)</li>
                                     <li className="flex items-center gap-2 text-sm text-zinc-400"><CheckCircle2 className="w-3 h-3 text-amber-500" /> Docker & Kubernetes</li>
                                     <li className="flex items-center gap-2 text-sm text-zinc-400"><CheckCircle2 className="w-3 h-3 text-amber-500" /> Cloudflare (DDoS Protection)</li>
                                 </ul>
@@ -102,27 +102,27 @@ export const ProjectHandover: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Core Neural Sync Logic */}
+                    {/* Core Smart Sync Logic */}
                     <div className="bg-[#050505] border border-white/10 rounded-[2rem] p-6 relative overflow-hidden group hover:border-indigo-500/30 transition-colors">
                         <div className="flex items-center gap-3 mb-6">
                             <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400"><FileCode2 className="w-6 h-6" /></div>
                             <div>
-                                <h3 className="text-lg font-black text-white uppercase tracking-widest">Core Neural Sync Logic</h3>
+                                <h3 className="text-lg font-black text-white uppercase tracking-widest">Core Smart Sync Logic</h3>
                                 <p className="text-[10px] font-mono text-indigo-400/70 uppercase">System Initialization Protocol</p>
                             </div>
                         </div>
 
                         <div className="bg-[#0a0a0a] rounded-xl border border-white/5 p-4 overflow-x-auto">
                             <pre className="text-xs font-mono text-zinc-300">
-<span className="text-pink-400">class</span> <span className="text-emerald-400">RoyalSingularity</span> {'{'}
-  <span className="text-pink-400">static final String</span> admin = <span className="text-amber-300">"Mahesh Saini"</span>;
-  <span className="text-pink-400">static final String</span> location = <span className="text-amber-300">"Jhunjhunu, Rajasthan"</span>;
+<span className="text-pink-400">class</span> <span className="text-emerald-400">FutureFitnessFutureMatrix</span> {'{'}
+  <span className="text-pink-400">static final String</span> admin = <span className="text-amber-300">"Fitness Future Owner"</span>;
+  <span className="text-pink-400">static final String</span> location = <span className="text-amber-300">"India"</span>;
   
   <span className="text-pink-400">void</span> <span className="text-blue-400">executeAutoPilot</span>() {'{'}
-    TitanVision.<span className="text-blue-400">startScanning</span>();      <span className="text-zinc-500">// विज़न सक्रिय (Vision Active)</span>
-    KitchenChief.<span className="text-blue-400">syncMetabolism</span>();    <span className="text-zinc-500">// डाइट सक्रिय (Diet Active)</span>
-    RoyalNexus.<span className="text-blue-400">automateBusiness</span>();    <span className="text-zinc-500">// मैनेजमेंट सक्रिय (Management Active)</span>
-    SovereignOverride.<span className="text-blue-400">arm</span>();          <span className="text-zinc-500">// सुरक्षा कवच सक्रिय (Security Armed)</span>
+    TitanVision.<span className="text-blue-400">startScanning</span>();      <span className="text-zinc-500">// Vision Active</span>
+    KitchenChief.<span className="text-blue-400">syncMetabolism</span>();    <span className="text-zinc-500">// Diet Active</span>
+    FutureNexus.<span className="text-blue-400">automateBusiness</span>();    <span className="text-zinc-500">// Business Management Active</span>
+    SovereignOverride.<span className="text-blue-400">arm</span>();          <span className="text-zinc-500">// Security Shield Armed</span>
   {'}'}
 {'}'}
                             </pre>
@@ -224,11 +224,11 @@ export const ProjectHandover: React.FC = () => {
                                 <h4 className="text-xs font-bold text-red-400 uppercase tracking-widest mb-2 flex items-center gap-2">
                                     <Activity className="w-4 h-4" /> Vocal Frequency Lock
                                 </h4>
-                                <p className="text-xs text-zinc-300">Biometric voice recognition tied exclusively to "Mahesh Saini". Initiates immediate system-wide lockdown and data encryption upon command.</p>
+                                <p className="text-xs text-zinc-300">Biometric voice recognition tied exclusively to "Fitness Future Owner". Initiates immediate system-wide lockdown and data encryption upon command.</p>
                             </div>
                             <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-4">
                                 <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                    <Lock className="w-4 h-4" /> Quantum-Resistant Encryption
+                                    <Lock className="w-4 h-4" /> Fitness Future-Resistant Encryption
                                 </h4>
                                 <p className="text-xs text-zinc-400">All member health data and financial records are encrypted using CRYSTALS-Kyber, securing them against future quantum computer attacks.</p>
                             </div>

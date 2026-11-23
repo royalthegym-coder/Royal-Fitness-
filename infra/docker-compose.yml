@@ -1,0 +1,172 @@
+version: '3.9'
+
+networks:
+  fitness-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  chromadata:
+  n8ndata:
+  flowisedata:
+  whatsapp-auth:
+
+services:
+
+  # ── DATABASE ────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: fitness-postgres
+    restart: unless-stopped
+    networks: [fitness-net]
+    environment:
+      POSTGRES_DB:       fitness_future
+      POSTGRES_USER:     fitness_user
+      POSTGRES_PASSWORD: fitness_pass_2026
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fitness_user -d fitness_future"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: fitness-redis
+    restart: unless-stopped
+    networks: [fitness-net]
+    volumes: [redisdata:/data]
+    ports: ["6379:6379"]
+    command: redis-server --appendonly yes
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: fitness-chroma
+    restart: unless-stopped
+    networks: [fitness-net]
+    volumes: [chromadata:/chroma/chroma]
+    ports: ["8000:8000"]
+    environment:
+      ANONYMIZED_TELEMETRY: "False"
+
+  # ── CORE SERVICES ───────────────────────────────────────────────
+  backend-api:
+    build:
+      context: ../apps/backend-api
+      dockerfile: Dockerfile
+    container_name: fitness-backend
+    restart: unless-stopped
+    networks: [fitness-net]
+    ports: ["3001:3001"]
+    environment:
+      NODE_ENV:          production
+      DB_HOST:           postgres
+      DB_PORT:           5432
+      DB_USER:           fitness_user
+      DB_PASS:           fitness_pass_2026
+      DB_NAME:           fitness_future
+      REDIS_HOST:        redis
+      REDIS_PORT:        6379
+      JWT_SECRET:        fitness_jwt_super_secret_2026
+      AI_ENGINE_URL:     http://ai-engine:8001
+      N8N_WEBHOOK_URL:   http://n8n:5678/webhook
+      N8N_API_KEY:       fitness_n8n_key_2026
+      PORT:              3001
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+
+  ai-engine:
+    build:
+      context: ../apps/ai-engine
+      dockerfile: Dockerfile
+    container_name: fitness-ai-engine
+    restart: unless-stopped
+    networks: [fitness-net]
+    ports: ["8001:8001"]
+    environment:
+      GROQ_API_KEY:    ${GROQ_API_KEY}
+      CHROMA_HOST:     chromadb
+      CHROMA_PORT:     8000
+      USDA_API_KEY:    ${USDA_API_KEY}
+      BACKEND_URL:     http://backend-api:3001
+    depends_on: [chromadb]
+
+  churn-service:
+    build:
+      context: ../apps/churn-service
+      dockerfile: Dockerfile
+    container_name: fitness-churn
+    restart: unless-stopped
+    networks: [fitness-net]
+    ports: ["8002:8002"]
+    environment:
+      BACKEND_URL:       http://backend-api:3001
+      N8N_WEBHOOK_URL:   http://n8n:5678/webhook
+      BACKEND_API_KEY:   fitness_jwt_super_secret_2026
+
+  whatsapp-bot:
+    build:
+      context: ../apps/whatsapp-bot
+      dockerfile: Dockerfile
+    container_name: fitness-whatsapp
+    restart: unless-stopped
+    networks: [fitness-net]
+    ports: ["3002:3002"]
+    environment:
+      BACKEND_URL:       http://backend-api:3001
+      FLOWISE_URL:       http://flowise:3000
+      N8N_WEBHOOK_URL:   http://n8n:5678/webhook
+      FLOWISE_CHAT_ID:   ${FLOWISE_GENERAL_CHATFLOW_ID}
+      UPI_ID:            ${GYM_UPI_ID}
+      GYM_NAME:          "Fitness Future"
+    volumes:
+      - whatsapp-auth:/app/auth_info
+    depends_on: [backend-api, flowise]
+
+  # ── AI TOOLS ────────────────────────────────────────────────────
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: fitness-n8n
+    restart: unless-stopped
+    networks: [fitness-net]
+    ports: ["5678:5678"]
+    environment:
+      N8N_BASIC_AUTH_ACTIVE:   true
+      N8N_BASIC_AUTH_USER:     admin
+      N8N_BASIC_AUTH_PASSWORD: fitness2026
+      WEBHOOK_URL:             http://localhost:5678
+      N8N_ENCRYPTION_KEY:      fitness_n8n_encryption_2026
+      GENERIC_TIMEZONE:        Asia/Kolkata
+      N8N_API_KEY:             fitness_n8n_key_2026
+      DB_TYPE:                 postgresdb
+      DB_POSTGRESDB_HOST:      postgres
+      DB_POSTGRESDB_PORT:      5432
+      DB_POSTGRESDB_DATABASE:  n8n_db
+      DB_POSTGRESDB_USER:      fitness_user
+      DB_POSTGRESDB_PASSWORD:  fitness_pass_2026
+    volumes:
+      - n8ndata:/home/node/.n8n
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  flowise:
+    image: flowiseai/flowise:latest
+    container_name: fitness-flowise
+    restart: unless-stopped
+    networks: [fitness-net]
+    ports: ["3000:3000"]
+    environment:
+      PORT:              3000
+      FLOWISE_USERNAME:  admin
+      FLOWISE_PASSWORD:  fitness2026
+      APIKEY_PATH:       /root/.flowise
+      SECRETKEY_PATH:    /root/.flowise
+      DATABASE_PATH:     /root/.flowise
+      GROQ_API_KEY:      ${GROQ_API_KEY}
+    volumes:
+      - flowisedata:/root/.flowise

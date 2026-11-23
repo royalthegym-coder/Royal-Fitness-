@@ -1,0 +1,317 @@
+rules_version = '2';
+
+// =============================================================================
+// Fitness Future — Firestore Security Rules (Phase 1, Spark plan)
+//
+// Roles
+//   super_admin : ONLY royalthegym@gmail.com, email_verified, signed in with TOTP 2FA.
+//                 Derived from the ID token — no Firestore doc can grant it.
+//   admin       : gym owner. Created only from a super_admin invite.
+//   trainer     : created only from an admin invite, scoped to that admin's gymId.
+//   member      : created from an admin invite, or self-signup (status "pending"
+//                 until an admin approves).
+//
+// Tenant isolation: every per-gym document carries `gymId` and its document id
+// starts with `${gymId}_`. Non-super-admins can only read/write their own gymId.
+// Trainers only see members assigned to them; members only see their own records.
+// Users can never change their own role, gymId, status or memberId.
+// Default: deny.
+// =============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------- helpers
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+
+    // Set to false ONLY if TOTP cannot be enabled on the project (see DEPLOY.md).
+    // Must match VITE_SUPER_ADMIN_REQUIRES_MFA in the web app.
+    function superAdminRequiresMfa() { return true; }
+
+    function isSuperAdmin() {
+      return signedIn()
+        && request.auth.token.email == 'royalthegym@gmail.com'
+        && request.auth.token.email_verified == true
+        && (!superAdminRequiresMfa()
+            || request.auth.token.firebase.sign_in_second_factor == 'totp');
+    }
+
+    function userPath(id) { return /databases/$(database)/documents/users/$(id); }
+    function hasProfile() { return signedIn() && exists(userPath(uid())); }
+    function me() { return get(userPath(uid())).data; }
+    function active() { return hasProfile() && me().status == 'active'; }
+    function myGym() { return me().gymId; }
+    function myRole() { return me().role; }
+
+    function isAdminOf(g)   { return active() && myRole() == 'admin'   && myGym() == g; }
+    function isTrainerOf(g) { return active() && myRole() == 'trainer' && myGym() == g; }
+    function isMemberOf(g)  { return active() && myRole() == 'member'  && myGym() == g; }
+    function isStaffOf(g)   { return active() && myRole() in ['admin', 'trainer'] && myGym() == g; }
+    function isActiveIn(g)  { return active() && myGym() == g; }
+    function manages(g)     { return isSuperAdmin() || isAdminOf(g); }
+
+    // A new tenant document: gymId set, id prefixed with the gymId, no plaintext secrets.
+    function newDocIn(g, docId) {
+      return request.resource.data.gymId == g
+        && docId.matches('^' + g + '_.+$')
+        && !('password' in request.resource.data)
+        && !('secretKey' in request.resource.data);
+    }
+    function gymUnchanged() { return request.resource.data.gymId == resource.data.gymId; }
+    function onlyChanges(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+    function isStr(v, max) { return v is string && v.size() <= max; }
+    function isNonNegNum(v) { return (v is int || v is float) && v >= 0; }
+    function myMemberId() { return me().memberId; }
+
+    // Generic admin-managed per-gym collection.
+    function canCreateGymDoc(docId) {
+      return manages(request.resource.data.gymId) && newDocIn(request.resource.data.gymId, docId);
+    }
+    function canUpdateGymDoc() {
+      return manages(resource.data.gymId) && gymUnchanged()
+        && !('password' in request.resource.data);
+    }
+
+    // ------------------------------------------------------------------ users
+    match /users/{userId} {
+      allow read: if isSuperAdmin()
+        || (signedIn() && uid() == userId)
+        || (signedIn() && hasProfile() && isAdminOf(resource.data.gymId));
+
+      // (a) claim an invite (email must be verified & match the invite exactly)
+      // (b) self-signup as a pending member of an existing gym
+      allow create: if signedIn() && uid() == userId && (
+          (
+            request.auth.token.email_verified == true
+            && request.auth.token.email.lower() == request.resource.data.email
+            && exists(/databases/$(database)/documents/invites/$(request.auth.token.email.lower()))
+            && request.resource.data.role == get(/databases/$(database)/documents/invites/$(request.auth.token.email.lower())).data.role
+            && request.resource.data.gymId == get(/databases/$(database)/documents/invites/$(request.auth.token.email.lower())).data.gymId
+            && request.resource.data.memberId == get(/databases/$(database)/documents/invites/$(request.auth.token.email.lower())).data.memberId
+            && request.resource.data.status == 'active'
+            && request.resource.data.uid == userId
+          ) || (
+            request.resource.data.role == 'member'
+            && request.resource.data.status == 'pending'
+            && request.resource.data.memberId == null
+            && request.resource.data.uid == userId
+            && exists(/databases/$(database)/documents/gymDirectory/$(request.resource.data.gymId))
+          )
+        ) && request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'gymId', 'status', 'memberId', 'staffId', 'createdBy', 'createdAt']);
+
+      allow update: if
+          // self: profile cosmetics only — never role / gymId / status / memberId
+          (signedIn() && uid() == userId && onlyChanges(['displayName', 'photoURL', 'phone']))
+          // gym admin: manage trainers & members of own gym (approve, disable, link member record)
+          || (isAdminOf(resource.data.gymId)
+              && resource.data.role in ['trainer', 'member']
+              && request.resource.data.role in ['trainer', 'member']
+              && gymUnchanged()
+              && request.resource.data.status in ['active', 'pending', 'disabled']
+              && onlyChanges(['role', 'status', 'memberId', 'staffId', 'displayName']))
+          || isSuperAdmin();
+
+      allow delete: if isSuperAdmin()
+        || (isAdminOf(resource.data.gymId) && resource.data.role in ['trainer', 'member']);
+    }
+
+    // ---------------------------------------------------------------- invites
+    // Document id = lower-cased email.
+    match /invites/{email} {
+      allow read: if isSuperAdmin()
+        || (signedIn() && request.auth.token.email != null && request.auth.token.email.lower() == email)
+        || (hasProfile() && isAdminOf(resource.data.gymId));
+      allow create, update: if request.resource.data.email == email
+        && request.resource.data.role in ['admin', 'trainer', 'member']
+        && (
+          isSuperAdmin()
+          || (isAdminOf(request.resource.data.gymId)
+              && request.resource.data.role in ['trainer', 'member']
+              && request.resource.data.createdBy == uid())
+        );
+      allow delete: if isSuperAdmin()
+        || (hasProfile() && isAdminOf(resource.data.gymId))
+        || (signedIn() && request.auth.token.email != null && request.auth.token.email.lower() == email);
+    }
+
+    // ------------------------------------------------------------------- gyms
+    match /gyms/{gymId} {
+      allow read: if isSuperAdmin() || isActiveIn(gymId)
+        || (hasProfile() && myGym() == gymId);
+      allow create, delete: if isSuperAdmin();
+      allow update: if isSuperAdmin()
+        || (isAdminOf(gymId)
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                 .hasAny(['gymId', 'ownerEmail', 'status', 'plan', 'createdBy', 'createdAtMs', 'secretKey']));
+    }
+
+    // Public-ish directory used by the self-signup "choose your gym" screen.
+    match /gymDirectory/{gymId} {
+      allow read: if signedIn();
+      allow create, delete: if isSuperAdmin();
+      allow update: if isSuperAdmin()
+        || (isAdminOf(gymId) && request.resource.data.gymId == gymId
+            && request.resource.data.keys().hasOnly(['gymId', 'gymName', 'city']));
+    }
+
+    // ---------------------------------------------------------------- members
+    match /members/{docId} {
+      allow read: if isSuperAdmin()
+        || isAdminOf(resource.data.gymId)
+        || (isTrainerOf(resource.data.gymId) && resource.data.assignedTrainerUid == uid())
+        || (isMemberOf(resource.data.gymId) && resource.data.id == myMemberId());
+      allow create: if canCreateGymDoc(docId)
+        && isStr(request.resource.data.name, 120)
+        && request.resource.data.id is int;
+      allow update: if (canUpdateGymDoc() && request.resource.data.id == resource.data.id)
+        // trainer: coaching fields only, and only for their own assigned members
+        || (isTrainerOf(resource.data.gymId)
+            && resource.data.assignedTrainerUid == uid()
+            && onlyChanges(['assignedWorkoutId', 'assignedDietId', 'approvedAiPlan', 'trainerNotes', 'updatedAtMs']));
+      allow delete: if manages(resource.data.gymId);
+    }
+
+    // ---------------------------------------------- member-visible own records
+    match /invoices/{docId} {
+      allow read: if manages(resource.data.gymId)
+        || (isMemberOf(resource.data.gymId) && resource.data.memberId == myMemberId());
+      allow create: if canCreateGymDoc(docId) && isNonNegNum(request.resource.data.amount);
+      allow update: if canUpdateGymDoc() && isNonNegNum(request.resource.data.amount);
+      allow delete: if manages(resource.data.gymId);
+    }
+    match /payments/{docId} {
+      allow read: if manages(resource.data.gymId)
+        || (isMemberOf(resource.data.gymId) && resource.data.memberId == myMemberId());
+      allow create: if canCreateGymDoc(docId) && isNonNegNum(request.resource.data.amount);
+      allow update: if canUpdateGymDoc() && isNonNegNum(request.resource.data.amount);
+      allow delete: if isSuperAdmin();   // payments are an accounting record
+    }
+    match /attendance/{docId} {
+      allow read: if manages(resource.data.gymId)
+        || (isMemberOf(resource.data.gymId) && resource.data.memberId == myMemberId());
+      allow create: if canCreateGymDoc(docId) && request.resource.data.memberId is int;
+      allow update: if canUpdateGymDoc();
+      allow delete: if manages(resource.data.gymId);
+    }
+
+    // ------------------------------------------ gym-wide reference data (read by all roles)
+    match /packages/{docId} {
+      allow read: if isSuperAdmin() || isActiveIn(resource.data.gymId);
+      allow create: if canCreateGymDoc(docId) && isNonNegNum(request.resource.data.price);
+      allow update: if canUpdateGymDoc() && isNonNegNum(request.resource.data.price);
+      allow delete: if manages(resource.data.gymId);
+    }
+    match /workoutTemplates/{docId} {
+      allow read: if isSuperAdmin() || isActiveIn(resource.data.gymId);
+      allow create: if canCreateGymDoc(docId)
+        || (isTrainerOf(request.resource.data.gymId) && newDocIn(request.resource.data.gymId, docId)
+            && request.resource.data.createdBy == uid());
+      allow update: if canUpdateGymDoc()
+        || (isTrainerOf(resource.data.gymId) && resource.data.createdBy == uid() && gymUnchanged()
+            && request.resource.data.createdBy == uid());
+      allow delete: if manages(resource.data.gymId)
+        || (isTrainerOf(resource.data.gymId) && resource.data.createdBy == uid());
+    }
+    match /dietPlans/{docId} {
+      allow read: if isSuperAdmin() || isActiveIn(resource.data.gymId);
+      allow create: if canCreateGymDoc(docId)
+        || (isTrainerOf(request.resource.data.gymId) && newDocIn(request.resource.data.gymId, docId)
+            && request.resource.data.createdBy == uid());
+      allow update: if canUpdateGymDoc()
+        || (isTrainerOf(resource.data.gymId) && resource.data.createdBy == uid() && gymUnchanged()
+            && request.resource.data.createdBy == uid());
+      allow delete: if manages(resource.data.gymId)
+        || (isTrainerOf(resource.data.gymId) && resource.data.createdBy == uid());
+    }
+
+    // ---------------------------------------------------------- trainer sessions
+    match /trainerSessions/{docId} {
+      allow read: if manages(resource.data.gymId)
+        || (isTrainerOf(resource.data.gymId) && resource.data.trainerUid == uid())
+        || (isMemberOf(resource.data.gymId) && resource.data.memberId == myMemberId());
+      allow create: if isTrainerOf(request.resource.data.gymId)
+        && newDocIn(request.resource.data.gymId, docId)
+        && request.resource.data.trainerUid == uid()
+        && request.resource.data.memberId is int
+        && get(/databases/$(database)/documents/members/$(request.resource.data.gymId + '_' + string(request.resource.data.memberId))).data.assignedTrainerUid == uid()
+        && isStr(request.resource.data.notes, 1000)
+        && request.resource.data.rpe is int && request.resource.data.rpe >= 1 && request.resource.data.rpe <= 10;
+      allow update: if (isTrainerOf(resource.data.gymId) && resource.data.trainerUid == uid()
+                        && gymUnchanged() && onlyChanges(['notes', 'focus', 'durationMinutes', 'rpe', 'date']))
+        || manages(resource.data.gymId);
+      allow delete: if manages(resource.data.gymId)
+        || (isTrainerOf(resource.data.gymId) && resource.data.trainerUid == uid());
+    }
+
+    // --------------------------------------------------------- self-signup requests
+    match /joinRequests/{requestUid} {
+      allow read: if (signedIn() && uid() == requestUid) || manages(resource.data.gymId);
+      allow create: if signedIn() && uid() == requestUid
+        && request.resource.data.uid == requestUid
+        && exists(/databases/$(database)/documents/gymDirectory/$(request.resource.data.gymId))
+        && request.resource.data.keys().hasOnly(['uid', 'gymId', 'email', 'phone', 'displayName', 'createdAt']);
+      allow update: if false;
+      allow delete: if manages(resource.data.gymId) || (signedIn() && uid() == requestUid);
+    }
+
+    // ------------------------------------------------------ admin-only collections
+    match /staff/{docId} {
+      allow read: if manages(resource.data.gymId);
+      allow create: if canCreateGymDoc(docId);
+      allow update: if canUpdateGymDoc();
+      allow delete: if manages(resource.data.gymId);
+    }
+    match /expenses/{docId} {
+      allow read: if manages(resource.data.gymId);
+      allow create: if canCreateGymDoc(docId) && isNonNegNum(request.resource.data.amount);
+      allow update: if canUpdateGymDoc() && isNonNegNum(request.resource.data.amount);
+      allow delete: if manages(resource.data.gymId);
+    }
+    match /leads/{docId} {
+      allow read: if manages(resource.data.gymId);
+      allow create: if canCreateGymDoc(docId);
+      allow update: if canUpdateGymDoc();
+      allow delete: if manages(resource.data.gymId);
+    }
+    match /offers/{docId} {
+      allow read: if manages(resource.data.gymId);
+      allow create: if canCreateGymDoc(docId);
+      allow update: if canUpdateGymDoc();
+      allow delete: if manages(resource.data.gymId);
+    }
+    match /reviews/{docId} {
+      allow read: if manages(resource.data.gymId);
+      allow create: if canCreateGymDoc(docId) && request.resource.data.rating is int
+        && request.resource.data.rating >= 1 && request.resource.data.rating <= 5;
+      allow update: if canUpdateGymDoc();
+      allow delete: if manages(resource.data.gymId);
+    }
+    match /whatsappLogs/{docId} {
+      allow read: if manages(resource.data.gymId);
+      allow create: if canCreateGymDoc(docId);
+      allow update, delete: if isSuperAdmin();
+    }
+    match /injuries/{docId} {
+      allow read: if isSuperAdmin() || isStaffOf(resource.data.gymId);
+      allow create: if (isSuperAdmin() || isStaffOf(request.resource.data.gymId))
+        && newDocIn(request.resource.data.gymId, docId);
+      allow update: if (isSuperAdmin() || isStaffOf(resource.data.gymId)) && gymUnchanged();
+      allow delete: if manages(resource.data.gymId);
+    }
+
+    // Append-only audit trail.
+    match /auditLogs/{docId} {
+      allow read: if manages(resource.data.gymId);
+      allow create: if (isSuperAdmin() || isStaffOf(request.resource.data.gymId))
+        && newDocIn(request.resource.data.gymId, docId)
+        && request.resource.data.actorUid == uid();
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // Everything else (legacy experimental collections, test docs, ...): denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

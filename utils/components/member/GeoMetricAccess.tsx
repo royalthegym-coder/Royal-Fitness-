@@ -17,7 +17,7 @@ import {
 
 // --- CONSTANTS ---
 const GEOFENCE_RADIUS = 500; // meters
-const ROYAL_BEACON_SERVICE_UUID = '0000feaa-0000-1000-8000-00805f9b34fb'; // Standard Eddystone Service
+const FUTURE_BEACON_SERVICE_UUID = '0000feaa-0000-1000-8000-00805f9b34fb'; // Standard Eddystone Service
 
 // --- HELPER ---
 const getDistanceFromLatLonInMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -105,7 +105,7 @@ const GeoMetricAccess: React.FC = () => {
             const device = await nav.bluetooth.requestDevice({
                 // We accept all devices for demo purposes or filter by service if hardware is known
                 acceptAllDevices: true,
-                optionalServices: [ROYAL_BEACON_SERVICE_UUID, 'battery_service', 'device_information']
+                optionalServices: [FUTURE_BEACON_SERVICE_UUID, 'battery_service', 'device_information']
             });
 
             if (device) {
@@ -207,11 +207,11 @@ const GeoMetricAccess: React.FC = () => {
             scanGPS(); // Async, continues in background
         }
 
-        // 3. Simulated WiFi/Neural Fallback (For Demo/Dev)
+        // 3. WiFi/Smart Fallback (For Demo/Dev)
         setTimeout(() => {
             if (!isCheckedIn && gpsStatus !== 'found' && bleStatus !== 'found') {
                 setWifiStatus('scanning');
-                addLog("NET: Scanning Royal_Member_Mesh...");
+                addLog("NET: Scanning Future_Member_Mesh...");
                 setTimeout(() => {
                     addLog("NEURAL: Fallback Pattern Recognized.");
                     setWifiStatus('found');
@@ -236,7 +236,7 @@ const GeoMetricAccess: React.FC = () => {
                         <AnimatedCheckmark />
                     </div>
                     <h2 className="text-4xl font-black text-white tracking-tight uppercase italic mb-2">Access Granted</h2>
-                    <p className="text-green-300 font-medium mb-8">Welcome to Royal The Gym</p>
+                    <p className="text-green-300 font-medium mb-8">Welcome to Fitness Future</p>
                     
                     <div className="grid grid-cols-2 gap-4 w-full max-w-sm mx-auto">
                         <div className="bg-black/40 p-4 rounded-xl border border-green-500/30">
@@ -319,7 +319,7 @@ const GeoMetricAccess: React.FC = () => {
                         onClick={() => handleCheckInSuccess('neural')}
                         className="w-full mb-4 bg-gray-800 hover:bg-gray-700 text-cyan-400 text-xs font-black py-4 rounded-2xl border border-gray-700 transition-all uppercase tracking-widest italic shadow-lg active:scale-95"
                     >
-                        Confirm Neural Identity (Fallback)
+                        Confirm Smart Identity (Fallback)
                     </button>
                 )}
 

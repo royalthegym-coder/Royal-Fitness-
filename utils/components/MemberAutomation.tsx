@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Card from './common/Card';
-import { INITIAL_MEMBERS, INITIAL_PACKAGES, GYM_INFO, INITIAL_MEMBER_FITNESS_DATA, INITIAL_LEADS } from '../../constants';
-import { getComplexResponse } from '../../lib/gemini';
+import { INITIAL_PACKAGES } from '../../constants';
+import { getComplexResponse } from '../../lib/core_ai';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { BotIcon } from './icons/BotIcon';
@@ -35,7 +35,7 @@ interface AgentConfig {
 }
 
 const SmartAutomationCenter: React.FC = () => {
-    const { leads, setLeads } = useData();
+    const { leads, setLeads, members } = useData();
     const [agents, setAgents] = useState<AgentConfig[]>([
         {
             id: 'lead-qualifier',
@@ -89,12 +89,12 @@ const SmartAutomationCenter: React.FC = () => {
 
         let prompt = "";
         if (agentId === 'lead-qualifier') {
-            prompt = `Analyze this lead data for Royal Gym: ${JSON.stringify(leads)}. 
+            prompt = `Analyze this lead data for Fitness Future: ${JSON.stringify(leads)}. 
             For each lead name, return a numeric score (0-100) representing conversion probability. 
             Consider Instagram leads as high aesthetics-intent, Facebook as community-intent, and Walk-ins as price-intent. 
             Format strictly as a JSON array of objects: [{"name": "string", "score": number, "priority": "string"}].`;
         } else if (agentId === 'retention') {
-            prompt = `Analyze this member list: ${JSON.stringify(INITIAL_MEMBERS.map(m => ({name: m.name, status: m.status})))}. Identify inactive members and suggest a specific 1-sentence WhatsApp message to win them back.`;
+            prompt = `Analyze this member list: ${JSON.stringify(members.map(m => ({name: m.name, status: m.status})))}. Identify inactive members and suggest a specific 1-sentence WhatsApp message to win them back.`;
         } else if (agentId === 'revenue') {
             prompt = `Analyze these packages: ${JSON.stringify(INITIAL_PACKAGES.map(p => p.name))}. Suggest a "Flash Sale" strategy to boost revenue this weekend.`;
         } else {
@@ -119,7 +119,7 @@ const SmartAutomationCenter: React.FC = () => {
                     id: Date.now(),
                     agent: agent.name,
                     action: 'Batch Intelligence Sync',
-                    details: `Successfully scored ${leads.length} lead vectors using Gemini 3 Pro. Kernel updated.`,
+                    details: `Successfully scored ${leads.length} lead vectors using Core AI 3 Pro. Kernel updated.`,
                     timestamp: new Date().toLocaleTimeString(),
                     status: 'Success'
                 }, ...prev]);
@@ -127,7 +127,7 @@ const SmartAutomationCenter: React.FC = () => {
                 const logEntry: AutomationLog = {
                     id: Date.now(),
                     agent: agent.name,
-                    action: 'Neural Deep Scan',
+                    action: 'Smart Deep Scan',
                     details: aiResponse.slice(0, 150) + (aiResponse.length > 150 ? '...' : ''),
                     timestamp: new Date().toLocaleTimeString(),
                     status: 'Success'
@@ -139,8 +139,8 @@ const SmartAutomationCenter: React.FC = () => {
             setLogs(prev => [{
                 id: Date.now(),
                 agent: agent.name,
-                action: 'Neural Fault',
-                details: 'Uplink to Gemini Core severed. Retrying handshake...',
+                action: 'Smart Fault',
+                details: 'Uplink to Core AI Core severed. Retrying handshake...',
                 timestamp: new Date().toLocaleTimeString(),
                 status: 'Failed'
             }, ...prev]);
@@ -161,7 +161,7 @@ const SmartAutomationCenter: React.FC = () => {
                         <BotIcon />
                         <span className="ml-3 italic uppercase tracking-tighter">Gym Autopilot <span className="text-xs text-gray-500 font-mono tracking-widest">v23.0</span></span>
                     </h1>
-                    <p className="text-gray-400 text-sm mt-1">Multi-Agent Neural Infrastructure running 24/7.</p>
+                    <p className="text-gray-400 text-sm mt-1">Multi-Agent Smart Infrastructure running 24/7.</p>
                 </div>
                 <div className="flex items-center gap-2 px-4 py-2 bg-gray-900/50 rounded-full border border-gray-700 shadow-inner">
                     <div className={`w-2 h-2 rounded-full ${processingAgent ? 'bg-amber-400 animate-ping' : 'bg-green-500'}`}></div>

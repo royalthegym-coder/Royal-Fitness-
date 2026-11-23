@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import Card from './common/Card';
 import { useData } from '../context/DataProvider';
-import { generateClinicalFitnessProtocol } from '../../lib/gemini';
+import { generateClinicalFitnessProtocol } from '../../lib/core_ai';
 import { 
     Microscope, Shield, Upload, RefreshCw, Send, FileText, 
     User, Edit3, Heart, Zap, Activity, CheckCircle, 
@@ -31,7 +31,7 @@ const HealthEngine: React.FC = () => {
 
     const member = members.find(m => m.id === selectedId);
 
-    // --- MOCK DATA GENERATORS (Apex Features) ---
+    // --- data GENERATORS (FitnessFutureFeatures) ---
     
     // 1. Predictive Chrono-Health (Future Projection)
     const predictionData = useMemo(() => {
@@ -152,7 +152,7 @@ const HealthEngine: React.FC = () => {
                     supplement_stack: parsed.supplement_stack || [],
                     diet_modifications: parsed.diet_modifications || [],
                     workout_adjust: parsed.workout_adjust || 'Focus on isometric control.',
-                    prediction: parsed.prediction || 'Neural drift stabilizing.',
+                    prediction: parsed.prediction || 'Smart drift stabilizing.',
                     admin_approval: false
                 };
 
@@ -186,7 +186,7 @@ const HealthEngine: React.FC = () => {
                 biologicalAge: aiDraft.bio_age,
                 approvedAiPlan: aiDraft.workout_adjust,
                 // Add reference to recommendation in member if needed for persistence
-            });
+            } as any);
         }
 
         addToast("Protocol Approved. Pushed to Member Mobile Hub.", "success");
@@ -209,14 +209,14 @@ const HealthEngine: React.FC = () => {
                         <div>
                              <div className="flex items-center gap-3 mb-2">
                                 <div className="px-5 py-2 bg-cyan-500 text-black rounded-full flex items-center gap-3 shadow-lg font-black uppercase tracking-[0.2em] text-[10px]">
-                                    <Infinity className="w-3 h-3 animate-spin-slow" /> Bio-Scanner v31.0
+                                    <Infinity className="w-3 h-3 animate-spin-slow" /> Bio-Scanner Fitness Future
                                 </div>
                             </div>
                             <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none">
                                 Bio <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400">Scanner</span>
                             </h1>
                             <p className="text-gray-500 text-[11px] font-mono tracking-[0.8em] mt-4 uppercase italic font-bold">
-                                Molecular Diagnostic Command v31.0
+                                Molecular Diagnostic Command Fitness Future
                             </p>
                         </div>
                     </div>
@@ -226,7 +226,7 @@ const HealthEngine: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 {/* LEFT: MEMBER LIST & UPLOAD */}
                 <div className="lg:col-span-4 space-y-6">
-                    <Card title="Locate Neural Subject" className="bg-gray-950 border-white/5 p-8 rounded-[3rem] shadow-2xl">
+                    <Card title="Locate Smart Subject" className="bg-gray-950 border-white/5 p-8 rounded-[3rem] shadow-2xl">
                         <div className="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
                             {members.map(m => (
                                 <button 
@@ -234,7 +234,7 @@ const HealthEngine: React.FC = () => {
                                     onClick={() => { setSelectedId(m.id); setActiveStage('hub'); }}
                                     className={`w-full p-5 rounded-[2rem] border flex items-center gap-5 transition-all ${selectedId === m.id ? 'bg-cyan-500/10 border-cyan-500 shadow-xl' : 'bg-black/40 border-white/5 hover:border-white/20'}`}
                                 >
-                                    <img src={m.avatar} className="w-12 h-12 rounded-2xl object-cover border border-white/10" alt="avatar"/>
+                                    <img src={m.avatar || "https://i.pravatar.cc/150?u=" + m.id} alt={m.name} className="w-12 h-12 rounded-2xl object-cover border border-white/10" />
                                     <div className="text-left flex-1">
                                         <p className="font-bold text-white uppercase italic text-sm">{m.name}</p>
                                         <p className="text-[9px] text-gray-500 font-mono tracking-widest uppercase">ID: #{m.id} // UPLINK</p>
@@ -337,8 +337,8 @@ const HealthEngine: React.FC = () => {
                                  </div>
                             </Card>
                             
-                            {/* Neural Prescription */}
-                            <Card title="Neural Protocol Draft" className="bg-gray-900 border-white/10 p-10 rounded-[3.5rem] flex flex-col h-full shadow-2xl">
+                            {/* Smart Prescription */}
+                            <Card title="Smart Protocol Draft" className="bg-gray-900 border-white/10 p-10 rounded-[3.5rem] flex flex-col h-full shadow-2xl">
                                 <div className="flex-1 overflow-y-auto custom-scrollbar space-y-10 pr-2">
                                     
                                     {/* Hormonal Analysis Block */}
@@ -357,7 +357,7 @@ const HealthEngine: React.FC = () => {
                                             <Beaker className="w-4 h-4" /> Chemical Synthesis
                                         </h4>
                                         <div className="space-y-4">
-                                            {aiDraft.supplement_stack.map((s, i) => (
+                                            {aiDraft.supplement_stack.map((s: any, i) => (
                                                 <div key={i} className="p-5 bg-black/60 rounded-3xl border border-white/5 group hover:border-amber-500/30 transition-all flex justify-between items-center">
                                                     <div>
                                                         <p className="text-white font-black uppercase text-lg italic leading-none">{s.name}</p>

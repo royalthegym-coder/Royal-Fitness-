@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import Card from './common/Card';
-import { generateBodyTransformationAnalysis, generateFutureSelfImage } from '../../lib/gemini';
+import { generateBodyTransformationAnalysis, generateFutureSelfImage } from '../../lib/core_ai';
 import { SparkleIcon } from './icons/SparkleIcon';
 import { BodyScanIcon } from './icons/BodyScanIcon';
 import { BotIcon } from './icons/BotIcon';
@@ -85,6 +85,14 @@ const BodySimulator: React.FC = () => {
         setIsCameraActive(false);
         setIsScanning(false);
     };
+
+    useEffect(() => {
+        return () => {
+            if (videoRef.current && videoRef.current.srcObject) {
+                (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+            }
+        };
+    }, []);
 
     const performBioScan = () => {
         if (!isCameraActive) return;
@@ -259,7 +267,7 @@ const BodySimulator: React.FC = () => {
             const report = await generateBodyTransformationAnalysis(currentStats, targetStats, "Optimal Hypertrophy");
             setAiReport(report);
         } catch (e) {
-            setAiReport("<h3>Neural Connection Lost</h3>");
+            setAiReport("<h3>Smart Connection Lost</h3>");
         } finally {
             setIsAiLoading(false);
         }
@@ -329,7 +337,7 @@ const BodySimulator: React.FC = () => {
                          </div>
                      ) : futureImage ? (
                          <div className="relative w-full h-full rounded-[2.5rem] overflow-hidden border border-white/10 group">
-                             <img src={futureImage} alt="Future Self" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-700" />
+                             <img src={futureImage} alt="Body Scan" className="w-full h-full object-cover" />
                              <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
                              <div className="absolute bottom-10 left-10">
                                  <p className="text-cyan-400 font-black uppercase text-xs tracking-[0.5em] mb-2">AI Projection</p>
@@ -390,7 +398,7 @@ const BodySimulator: React.FC = () => {
                 <div className="absolute inset-0 bg-[#050505] z-30 p-12 overflow-y-auto animate-fade-in custom-scrollbar">
                     <div className="max-w-3xl mx-auto space-y-12">
                          <div className="flex justify-between items-center border-b border-white/5 pb-8">
-                             <h3 className="text-4xl font-black text-white italic uppercase tracking-widest">Neural Forecast</h3>
+                             <h3 className="text-4xl font-black text-white italic uppercase tracking-widest">Smart Forecast</h3>
                              <button onClick={() => setMode('hologram')} className="p-4 bg-gray-900 rounded-2xl hover:bg-gray-800 transition-all text-cyan-400"><RotateCcw/></button>
                          </div>
                          <div className="prose prose-invert prose-lg text-gray-300 leading-relaxed" dangerouslySetInnerHTML={{ __html: aiReport }} />

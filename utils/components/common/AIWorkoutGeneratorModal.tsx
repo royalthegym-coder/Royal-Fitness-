@@ -1,14 +1,106 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Modal from './Modal';
-import { getComplexResponse } from '../../../lib/gemini';
+import { getComplexResponse } from '../../../lib/core_ai';
 import { SparkleIcon } from '../icons/SparkleIcon';
 import { AutoUpdateIcon } from '../icons/AutoUpdateIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { BotIcon } from '../icons/BotIcon';
 import { getMediaForExercise } from './ExerciseDemoModal';
 import { VideoCameraIcon } from '../icons/VideoCameraIcon';
-import { WorkoutExercise, WorkoutSection } from '../../../types';
+import { WorkoutExercise, WorkoutSection, Member } from '../../../types';
+import { useData } from '../../context/DataProvider';
+
+const useCleanupMonitor = (componentName: string) => {
+    useEffect(() => {
+        const activeTimers: number[] = [];
+        const activeListeners: { type: string, listener: EventListenerOrEventListenerObject }[] = [];
+        
+        const originalSetTimeout = window.setTimeout;
+        const originalSetInterval = window.setInterval;
+        const originalAddEventListener = window.addEventListener;
+        const originalRemoveEventListener = window.removeEventListener;
+
+        window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: any[]) => {
+            const id = originalSetTimeout(handler, timeout, ...args);
+            activeTimers.push(id as unknown as number);
+            return id;
+        }) as typeof window.setTimeout;
+
+        window.setInterval = ((handler: TimerHandler, timeout?: number, ...args: any[]) => {
+            const id = originalSetInterval(handler, timeout, ...args);
+            activeTimers.push(id as unknown as number);
+            return id;
+        }) as typeof window.setInterval;
+
+        window.addEventListener = (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) => {
+            activeListeners.push({ type, listener });
+            originalAddEventListener(type, listener, options);
+        };
+
+        window.removeEventListener = (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions) => {
+            const idx = activeListeners.findIndex(l => l.type === type && l.listener === listener);
+            if (idx > -1) activeListeners.splice(idx, 1);
+            originalRemoveEventListener(type, listener, options);
+        };
+
+        return () => {
+             console.log(`[Cleanup Monitor] ${componentName} unmounted. Active timers/intervals: ${activeTimers.length}. Unclosed event listeners: ${activeListeners.length}.`);
+             window.setTimeout = originalSetTimeout;
+             window.setInterval = originalSetInterval;
+             window.addEventListener = originalAddEventListener;
+             window.removeEventListener = originalRemoveEventListener;
+        };
+    }, [componentName]);
+};
+
+// Component Hierarchy Logger & Memoized Content Wrapper
+const ReviewScreenContent = React.memo(({ generatedPlan, structure, renderExerciseSection }: any) => {
+    // 1. Component Hierarchy Logger setup
+    useEffect(() => {
+        console.log('[Hierarchy Logger] ReviewScreenContent Mounted');
+        return () => {
+            console.log('[Hierarchy Logger] ReviewScreenContent Unmounted prematurely or explicitly');
+        };
+    }, []);
+
+    // Also track re-renders
+    const renderCount = useRef(0);
+    useEffect(() => {
+        renderCount.current += 1;
+        console.log(`[Hierarchy Logger] ReviewScreenContent Render Count: ${renderCount.current} (Check if re-rendering unnecessarily)`);
+    });
+
+    // 2. Add Cleanup Monitor utility 
+    useCleanupMonitor('ReviewScreenContent');
+
+    // 3. Replace inline object declarations with 'useMemo' hook
+    const containerStyle = useMemo(() => ({ display: 'flex', flexDirection: 'column' as const, height: '100%', overflow: 'hidden' }), []);
+
+    return (
+        <div style={containerStyle}>
+            <div className="bg-gray-800 p-3 rounded-t-lg border-b border-gray-700 flex flex-col">
+                <div className="flex justify-between items-center mb-1">
+                    <h4 className="font-bold text-white truncate pr-2 text-lg">{generatedPlan.name}</h4>
+                    <span className="text-xs bg-gray-700 px-2 py-1 rounded text-gray-300">{structure}</span>
+                </div>
+                <p className="text-sm text-gray-400 italic">{generatedPlan.description}</p>
+            </div>
+            
+            <div className="flex-grow overflow-y-auto bg-gray-900 p-4 border border-gray-700 border-t-0 custom-scrollbar">
+                {generatedPlan.preWorkout && renderExerciseSection(generatedPlan.preWorkout.name || 'Pre-Workout', generatedPlan.preWorkout.exercises, 'text-cyan-400')}
+                
+                {generatedPlan.mainWorkout.map((section: any, idx: number) => (
+                    <div key={idx}>
+                        {renderExerciseSection(section.name || 'Main Routine', section.exercises, 'text-amber-400')}
+                    </div>
+                ))}
+
+                {generatedPlan.finisher && renderExerciseSection(generatedPlan.finisher.name || 'Finisher', generatedPlan.finisher.exercises, 'text-red-400')}
+            </div>
+        </div>
+    );
+});
 
 interface AIWorkoutGeneratorModalProps {
     isOpen: boolean;
@@ -20,7 +112,7 @@ interface AIWorkoutGeneratorModalProps {
         preWorkout?: WorkoutSection;
         mainWorkout?: WorkoutSection[];
         finisher?: WorkoutSection;
-    }) => void;
+    }, memberId?: number) => void;
 }
 
 interface GeneratedPlan {
@@ -32,13 +124,33 @@ interface GeneratedPlan {
 }
 
 const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpen, onClose, onSave }) => {
+    const { members } = useData();
+    
     // Form State
+    const [selectedMemberId, setSelectedMemberId] = useState<number | ''>('');
     const [name, setName] = useState('');
     const [level, setLevel] = useState<'Beginner' | 'Intermediate' | 'Advanced' | 'Pro Advance'>('Intermediate');
     const [goal, setGoal] = useState<'Muscle Gain' | 'Fat Loss' | 'Strength' | 'General Fitness' | 'Endurance' | 'Flexibility'>('General Fitness');
     const [structure, setStructure] = useState<'Full Body' | 'Push/Pull/Legs' | 'Upper/Lower Split' | 'Cardio Focus' | 'Core & Abs' | 'HIIT'>('Push/Pull/Legs');
     const [daysPerWeek, setDaysPerWeek] = useState(3);
     const [notes, setNotes] = useState('');
+
+    // Update form when member is selected
+    useEffect(() => {
+        if (selectedMemberId) {
+            const member = members.find(m => m.id === Number(selectedMemberId));
+            if (member) {
+                setName(`${member.name}'s Custom Protocol`);
+                setLevel(member.level as any || 'Intermediate');
+                setGoal(member.fitnessGoal as any || 'General Fitness');
+                const metrics = member.physical_metrics;
+                setNotes(`Member Profile: Age ${member.bio_age || 'N/A'}, Weight ${metrics?.weight || 'N/A'}kg, Height ${metrics?.height || 'N/A'}cm. ${member.medical_history?.conditions?.length ? 'Medical Conditions: ' + member.medical_history.conditions.join(', ') : ''}`);
+            }
+        } else {
+            setName('');
+            setNotes('');
+        }
+    }, [selectedMemberId, members]);
 
     // Processing State
     const [status, setStatus] = useState<'idle' | 'generating' | 'review' | 'refining' | 'error'>('idle');
@@ -76,26 +188,40 @@ const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpe
         
         try {
             const prompt = `
-                Create a detailed, scientific gym workout plan.
-                Name: ${name}
-                Level: ${level}
-                Goal: ${goal}
-                Split: ${structure}
-                Freq: ${daysPerWeek} days/week
-                Notes: ${notes}
+                ACT AS AN ELITE STRENGTH & CONDITIONING COACH AND SPORTS SCIENTIST.
+                Create a highly detailed, scientific, and personalized gym workout plan based on the following parameters:
+                
+                - Client Profile/Plan Name: ${name}
+                - Experience Level: ${level} (Adjust volume, intensity, and exercise complexity accordingly)
+                - Primary Goal: ${goal} (Optimize rep ranges, rest periods, and exercise selection for this specific goal)
+                - Preferred Split/Structure: ${structure}
+                - Training Frequency: ${daysPerWeek} days/week
+                - Additional Context/Limitations: ${notes || 'None provided'}
 
-                Format strictly as JSON matching this schema:
+                The plan MUST incorporate principles of progressive overload, optimal biomechanics, and targeted energy system development.
+                CRITICAL: For each exercise, provide specific variations (e.g., regressions for beginners, advanced variations for pros) and progression strategies based on historical performance improvements.
+                
+                Format the response STRICTLY as a valid JSON object matching this exact schema. Do not include markdown formatting like \`\`\`json.
                 {
-                    "name": "string",
-                    "description": "string (Explain the science/periodization)",
-                    "preWorkout": { "name": "Warmup", "exercises": [{ "name": "string", "sets": "string", "reps": "string" }] },
+                    "name": "string (A compelling, professional name for the protocol)",
+                    "description": "string (A concise 2-3 sentence explanation of the physiological mechanisms, periodization strategy, and expected adaptations of this specific routine)",
+                    "preWorkout": { 
+                        "name": "Dynamic Activation & Mobility", 
+                        "exercises": [{ "name": "string (Specific mobility/activation drill)", "sets": "string", "reps": "string (e.g., '30 sec/side' or '10 reps')" }] 
+                    },
                     "mainWorkout": [
-                        { "name": "Section Name (e.g. Compound Lifts)", "exercises": [{ "name": "string", "sets": "string", "reps": "string" }] }
+                        { 
+                            "name": "string (e.g., 'Primary Neuromuscular Activation', 'Hypertrophy Block A')", 
+                            "exercises": [{ "name": "string (Specific exercise name)", "sets": "string (e.g., '3-4')", "reps": "string (e.g., '6-8', 'RIR 2')", "notes": "string (Include specific variations and progression strategies here)" }] 
+                        }
                     ],
-                    "finisher": { "name": "Finisher", "exercises": [{ "name": "string", "sets": "string", "reps": "string" }] }
+                    "finisher": { 
+                        "name": "Metabolic Conditioning / Finisher", 
+                        "exercises": [{ "name": "string", "sets": "string", "reps": "string" }] 
+                    }
                 }
                 
-                Ensure exercises are standard gym movements.
+                Ensure all exercises are standard, recognizable gym movements but selected optimally for the stated goal and level.
             `;
             
             const rawResponse = await getComplexResponse(prompt);
@@ -126,28 +252,35 @@ const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpe
             preWorkout: generatedPlan.preWorkout,
             mainWorkout: generatedPlan.mainWorkout,
             finisher: generatedPlan.finisher
-        });
+        }, selectedMemberId ? Number(selectedMemberId) : undefined);
         onClose();
     };
 
-    const renderExerciseSection = (title: string, exercises: WorkoutExercise[], colorClass: string) => (
+    const renderExerciseSection = useCallback((title: string, exercises: WorkoutExercise[], colorClass: string) => (
         <div className="mb-4">
             <h5 className={`font-bold text-xs uppercase tracking-widest mb-2 ${colorClass}`}>{title}</h5>
             <div className="space-y-2">
                 {exercises.map((ex, idx) => (
-                    <div key={idx} className="flex items-center gap-3 bg-gray-800/50 p-2 rounded-xl border border-gray-700">
-                        <div className="flex-grow">
-                            <h5 className="font-bold text-white text-xs">{ex.name}</h5>
-                            <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400">
-                                <span className="bg-gray-700 px-1.5 py-0.5 rounded text-gray-300 font-mono">{ex.sets} Sets</span>
-                                <span className="bg-gray-700 px-1.5 py-0.5 rounded text-gray-300 font-mono">{ex.reps} Reps</span>
+                    <div key={idx} className="flex flex-col gap-1 bg-gray-800/50 p-2 rounded-xl border border-gray-700">
+                        <div className="flex items-center gap-3">
+                            <div className="flex-grow">
+                                <h5 className="font-bold text-white text-xs">{ex.name}</h5>
+                                <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400">
+                                    <span className="bg-gray-700 px-1.5 py-0.5 rounded text-gray-300 font-mono">{ex.sets} Sets</span>
+                                    <span className="bg-gray-700 px-1.5 py-0.5 rounded text-gray-300 font-mono">{ex.reps} Reps</span>
+                                </div>
                             </div>
                         </div>
+                        {ex.notes && (
+                            <div className="mt-1 text-[10px] text-amber-200/70 italic border-t border-gray-700/50 pt-1">
+                                {ex.notes}
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>
         </div>
-    );
+    ), []);
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="AI Workout Architect">
@@ -185,6 +318,20 @@ const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpe
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Select Member (Optional)</label>
+                                <select 
+                                    value={selectedMemberId} 
+                                    onChange={e => setSelectedMemberId(e.target.value ? Number(e.target.value) : '')} 
+                                    className="w-full bg-gray-700 border border-gray-600 rounded-md p-2.5 text-white focus:ring-amber-500 focus:border-amber-500"
+                                >
+                                    <option value="">-- Custom Template (No Member) --</option>
+                                    {members.map(m => (
+                                        <option key={m.id} value={m.id}>{m.name} ({m.loginId || m.email})</option>
+                                    ))}
+                                </select>
+                            </div>
+
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-gray-300 mb-1">Plan Name</label>
                                 <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-700 border border-gray-600 rounded-md p-2.5 text-white focus:ring-amber-500 focus:border-amber-500" placeholder="e.g., Summer Shred Phase 1" />
@@ -246,34 +393,28 @@ const AIWorkoutGeneratorModal: React.FC<AIWorkoutGeneratorModalProps> = ({ isOpe
                         <h3 className="text-xl font-bold text-white mb-2">
                             {status === 'generating' ? 'Designing Scientific Protocol...' : 'Refining Plan based on Feedback...'}
                         </h3>
-                        <p className="text-gray-400 text-sm">
+                        <p className="text-gray-400 text-sm mb-8">
                             Analyzing {goal} strategies for {level} level intensity. Calculating RPE & Volume.
                         </p>
+                        
+                        {/* Skeleton Loader */}
+                        <div className="w-full max-w-md space-y-4 animate-pulse">
+                            <div className="h-6 bg-gray-700/50 rounded w-1/3 mx-auto"></div>
+                            <div className="space-y-2">
+                                <div className="h-12 bg-gray-800/50 rounded-xl w-full"></div>
+                                <div className="h-12 bg-gray-800/50 rounded-xl w-full"></div>
+                                <div className="h-12 bg-gray-800/50 rounded-xl w-full"></div>
+                            </div>
+                        </div>
                     </div>
                 )}
 
                 {status === 'review' && generatedPlan && (
-                    <div className="flex flex-col h-full overflow-hidden">
-                        <div className="bg-gray-800 p-3 rounded-t-lg border-b border-gray-700 flex flex-col">
-                            <div className="flex justify-between items-center mb-1">
-                                <h4 className="font-bold text-white truncate pr-2 text-lg">{generatedPlan.name}</h4>
-                                <span className="text-xs bg-gray-700 px-2 py-1 rounded text-gray-300">{structure}</span>
-                            </div>
-                            <p className="text-sm text-gray-400 italic">{generatedPlan.description}</p>
-                        </div>
-                        
-                        <div className="flex-grow overflow-y-auto bg-gray-900 p-4 border border-gray-700 border-t-0 custom-scrollbar">
-                            {generatedPlan.preWorkout && renderExerciseSection(generatedPlan.preWorkout.name || 'Pre-Workout', generatedPlan.preWorkout.exercises, 'text-cyan-400')}
-                            
-                            {generatedPlan.mainWorkout.map((section, idx) => (
-                                <div key={idx}>
-                                    {renderExerciseSection(section.name || 'Main Routine', section.exercises, 'text-amber-400')}
-                                </div>
-                            ))}
-
-                            {generatedPlan.finisher && renderExerciseSection(generatedPlan.finisher.name || 'Finisher', generatedPlan.finisher.exercises, 'text-red-400')}
-                        </div>
-                    </div>
+                    <ReviewScreenContent 
+                        generatedPlan={generatedPlan} 
+                        structure={structure} 
+                        renderExerciseSection={renderExerciseSection} 
+                    />
                 )}
 
                 <div className="flex justify-end gap-3 pt-4 mt-auto border-t border-gray-700">

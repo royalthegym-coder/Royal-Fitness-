@@ -1,0 +1,83 @@
+name: Autonomous App Publisher (Zero-Human DevOps)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-publish:
+    name: Build Flutter App & Publish to Play Store
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.24.0'
+        channel: 'stable'
+
+    - name: Get Dependencies
+      run: flutter pub get
+      working-directory: ./integration-guide/flutter_app
+
+    - name: Build Android App Bundle (AAB)
+      id: build_aab
+      run: |
+        flutter build appbundle --release \
+          --build-name=1.0.${{ github.run_number }} \
+          --build-number=${{ github.run_number }}
+      working-directory: ./integration-guide/flutter_app
+      continue-on-error: true # Crucial: Don't stop the pipeline if it fails!
+
+    # ==============================================================================
+    # THE AI AUTO-HEALER (If the build fails, the AI fixes it automatically)
+    # ==============================================================================
+    - name: Trigger AI Auto-Healer on Failure
+      if: steps.build_aab.outcome == 'failure'
+      env:
+        GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      run: |
+        echo "Build failed! Triggering AI Auto-Healer..."
+        # Save the build error log
+        flutter build appbundle --release 2> build_error.log
+        # Run the Python AI script to fix the code and push the commit
+        pip install groq
+        python scripts/auto_healer.py build_error.log
+        # The script pushes a new commit, which will trigger this workflow again!
+        exit 1 # Stop this current run since the AI just pushed a fix
+
+    # ==============================================================================
+    # AUTOMATIC PLAY STORE PUBLISHING (Fastlane)
+    # ==============================================================================
+    - name: Setup Fastlane
+      if: steps.build_aab.outcome == 'success'
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.0'
+        bundler-cache: true
+
+    - name: Publish to Google Play Store (Internal Testing / Production)
+      if: steps.build_aab.outcome == 'success'
+      env:
+        SUPPLY_JSON_KEY_DATA: ${{ secrets.PLAY_STORE_JSON_KEY }}
+      run: |
+        cd integration-guide/flutter_app/android
+        bundle install
+        bundle exec fastlane deploy_to_playstore
+      
+    - name: Notify WhatsApp Bot (Success)
+      if: steps.build_aab.outcome == 'success'
+      run: |
+        curl -X POST https://api.fitnessgym.com/webhook/ci-notify \
+        -H "Content-Type: application/json" \
+        -d '{"status": "success", "message": "New version published to Play Store!"}'

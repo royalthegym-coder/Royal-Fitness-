@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Card from './common/Card';
 import { CameraIcon } from './icons/CameraIcon';
 import { SparkleIcon } from './icons/SparkleIcon';
-import { analyzeExerciseForm, getRecoveryBasedWorkout, getAIChefRecipe, generateFutureSelfImage, generateTextToSpeech } from '../../lib/gemini';
+import { analyzeExerciseForm, getRecoveryBasedWorkout, getAIChefRecipe, generateFutureSelfImage, generateTextToSpeech } from '../../lib/core_ai';
 import { decode, decodeAudioData } from '../audio';
 import { BotIcon } from './icons/BotIcon';
 import { SpeakerIcon } from './icons/SpeakerIcon';
@@ -224,7 +224,7 @@ const AIPostureCorrection = () => {
             ctx.fill();
         });
 
-        // Draw Angles (Simulated)
+        // Draw Angles 
         if (currentStatus === 'Correction Needed' || debugMode) {
             ctx.fillStyle = '#fbbf24';
             ctx.font = 'bold 12px monospace';
@@ -267,6 +267,7 @@ const AIPostureCorrection = () => {
         if (isVoiceEnabled && result.feedback && result.status !== 'Idle') {
             playVoiceFeedback(result.feedback);
         }
+        stopCamera();
     };
 
     return (
@@ -482,27 +483,17 @@ const FutureSelfSim = () => {
     const [goal, setGoal] = useState('');
     const [image, setImage] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
-    const [generationError, setGenerationError] = useState('');
 
-    const handleSimulate = async () => {
+    const handleProcess = async () => {
         if(!current || !goal) return;
         setLoading(true);
-        setGenerationError('');
         try {
             const img = await generateFutureSelfImage(current, goal);
-            if (/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(img)) {
-                setImage(img);
-            } else {
-                setImage(null);
-                setGenerationError('Image generation did not return an image. Please try again.');
-            }
+            setImage(img);
         } catch(e) {
-            console.error('Future self image generation failed.');
-            setImage(null);
-            setGenerationError('Image generation failed. Please try again.');
-        } finally {
-            setLoading(false);
+            console.error(e);
         }
+        setLoading(false);
     };
 
     return (
@@ -514,15 +505,13 @@ const FutureSelfSim = () => {
                 <input value={goal} onChange={e => setGoal(e.target.value)} placeholder="Goal: 75kg, shredded, 6-pack" className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white" />
             </div>
 
-            <button onClick={handleSimulate} disabled={loading} className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold py-2 rounded-lg transition-colors disabled:opacity-50">
-                {loading ? 'RENDERING TIMELINE...' : generationError ? 'RETRY IMAGE GENERATION' : 'VISUALIZE 3 MONTHS LATER'}
+            <button onClick={handleProcess} disabled={loading} className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold py-2 rounded-lg transition-colors disabled:opacity-50">
+                {loading ? 'RENDERING TIMELINE...' : 'VISUALIZE 3 MONTHS LATER'}
             </button>
-
-            {generationError && <p role="alert" className="mt-3 text-sm text-red-300">{generationError}</p>}
 
             {image && (
                 <div className="mt-4 rounded-lg overflow-hidden border border-amber-500/30">
-                    <img src={image} alt="Future Self" className="w-full h-auto" />
+                    <img src={image} alt="Biometric Scan" className="w-full h-48 object-cover rounded-2xl border border-white/10" />
                     <p className="text-center text-xs text-amber-500/70 mt-1">AI Projection (Estimated Results)</p>
                 </div>
             )}
@@ -557,7 +546,7 @@ const FuturisticFeatures: React.FC = () => {
         <div className="min-h-screen bg-gray-900 p-6 space-y-8">
             <div className="text-center mb-8">
                 <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 tracking-wider uppercase drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]">
-                    Royal Future Ops
+                    Future Future Ops
                 </h1>
                 <p className="text-gray-400 mt-2 font-mono text-xs tracking-[0.3em]">AI INTEGRATED // VERSION 4.0 (MEDIAPIPE)</p>
             </div>

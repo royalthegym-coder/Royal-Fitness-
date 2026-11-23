@@ -1,0 +1,20 @@
+name = "fitness-future-api"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+# Non-secret configuration. Secrets go in via `wrangler secret put` (see ../DEPLOY.md).
+[vars]
+FIREBASE_PROJECT_ID = "project-74356317-8adc-420c-9be"
+FIRESTORE_DATABASE_ID = "(default)"
+SUPER_ADMIN_EMAIL = "royalthegym@gmail.com"
+SUPER_ADMIN_REQUIRES_MFA = "true"
+ALLOWED_ORIGINS = "https://project-74356317-8adc-420c-9be.web.app,https://project-74356317-8adc-420c-9be.firebaseapp.com,http://localhost:3000"
+GEMINI_MODEL = "gemini-2.5-flash"
+AI_DAILY_LIMIT_PER_USER = "50"
+WHATSAPP_ALLOWED_GYMS = ""
+
+# Optional durable daily quotas (Workers KV free tier: 100k reads / 1k writes per day).
+# 1) npx wrangler kv namespace create RATE_KV   2) paste the id below and uncomment.
+# [[kv_namespaces]]
+# binding = "RATE_KV"
+# id = "<your-kv-namespace-id>"

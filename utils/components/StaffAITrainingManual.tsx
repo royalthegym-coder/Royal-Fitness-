@@ -18,12 +18,12 @@ export const StaffAITrainingManual: React.FC = () => {
 
     const chapters = [
         {
-            title: "1. Introduction to 'The Singularity'",
+            title: "1. Introduction to 'The FitnessFutureMatrix'",
             icon: <Cpu className="w-5 h-5 text-indigo-400" />,
             content: (
                 <div className="space-y-4 text-sm text-zinc-300">
-                    <p>Welcome to <strong>Royal The Gym: The Singularity</strong>. You are no longer just a gym trainer or staff member; you are an <em>AI-Assisted Human Optimizer</em>.</p>
-                    <p>This facility is governed by <strong>The Royal Nexus</strong>, an advanced AI that handles 90% of administrative, dietary, and analytical tasks. Your primary job is to provide the <strong>human touch, motivation, and physical spotting</strong> that AI cannot provide.</p>
+                    <p>Welcome to <strong>Fitness Future: The FitnessFutureMatrix</strong>. You are no longer just a gym trainer or staff member; you are an <em>AI-Assisted Human Optimizer</em>.</p>
+                    <p>This facility is governed by <strong>The Future Nexus</strong>, an advanced AI that handles 90% of administrative, dietary, and analytical tasks. Your primary job is to provide the <strong>human touch, motivation, and physical spotting</strong> that AI cannot provide.</p>
                     <div className="bg-indigo-500/10 border border-indigo-500/20 p-4 rounded-xl mt-4">
                         <h4 className="font-bold text-indigo-400 mb-2 flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Golden Rule</h4>
                         <p className="text-xs text-indigo-200/70">Never argue with the Bio-Oracle's data, but always use your human empathy to deliver its message to the member.</p>
@@ -65,10 +65,10 @@ export const StaffAITrainingManual: React.FC = () => {
                 <div className="space-y-4 text-sm text-zinc-300">
                     <p>Safety is our highest priority. The AI is smart, but human judgment is final.</p>
                     <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl mt-2">
-                        <h4 className="font-bold text-red-400 mb-2 flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> The Inquisitor Bot</h4>
-                        <p className="text-xs text-red-200/70 mb-2">If the AI suggests a workout that you, as a certified trainer, believe is dangerous for a specific member, press the <strong>"Inquisitor Flag"</strong> on your tablet. This halts the AI's instruction and alerts Mahesh Ji.</p>
+                        <h4 className="font-bold text-red-400 mb-2 flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> Safety Override Protocol</h4>
+                        <p className="text-xs text-red-200/70 mb-2">If a suggested workout appears unsafe for a specific member, press the <strong>"Safety Flag"</strong> on your tablet. This halts the instruction and alerts the Fitness Future Super Admin.</p>
                     </div>
-                    <p className="text-xs mt-2"><strong>Protocol Zero:</strong> Only Mahesh Ji has the voice-print authority to completely shut down the AI. In case of a total system failure, revert to manual whiteboards and standard first-aid protocols.</p>
+                    <p className="text-xs mt-2"><strong>Protocol Zero:</strong> Only the Fitness Future Super Admin has master override authority. In case of a system outage, revert to manual protocols and standard first-aid procedures.</p>
                 </div>
             )
         },
@@ -79,8 +79,8 @@ export const StaffAITrainingManual: React.FC = () => {
                 <div className="space-y-4 text-sm text-zinc-300">
                     <p>Members might feel overwhelmed by the technology. Your job is to make them feel safe.</p>
                     <ul className="list-disc pl-5 space-y-2 text-xs">
-                        <li>Explain that their data (HRV, Sleep, Diet) is protected by <strong>Quantum-Resistant Encryption</strong>.</li>
-                        <li>Remind them that the AI Doctor is a guide, but for serious medical emergencies, they must consult a physical hospital.</li>
+                        <li>Explain that their data (HRV, Sleep, Diet) is protected by <strong>Fitness Future-Resistant Encryption</strong>.</li>
+                        <li>Remind them that the AI Bio-Analyst is a guide, but for serious medical emergencies, they must consult a physical hospital.</li>
                         <li>Always greet members by name—the AI will ping their name and current mood to your smartwatch as they enter.</li>
                     </ul>
                 </div>
@@ -103,7 +103,7 @@ export const StaffAITrainingManual: React.FC = () => {
                         </div>
                         <h1 className="text-4xl font-black text-white italic uppercase tracking-tighter">AI Training Manual</h1>
                         <p className="text-zinc-400 mt-2 text-sm max-w-2xl">
-                            Mandatory reading for all Royal The Gym trainers, nutritionists, and management staff. Learn how to operate alongside The Royal Nexus.
+                            Mandatory reading for all Fitness Future trainers, nutritionists, and management staff. Learn how to operate alongside The Future Nexus.
                         </p>
                     </div>
                     <div className="flex flex-col items-end gap-2">
@@ -155,7 +155,7 @@ export const StaffAITrainingManual: React.FC = () => {
                     <div className="mt-8 p-4 bg-zinc-900/50 border border-white/5 rounded-xl flex items-start gap-3">
                         <Lock className="w-4 h-4 text-zinc-500 shrink-0 mt-0.5" />
                         <p className="text-[10px] text-zinc-500 font-mono leading-relaxed">
-                            This document is strictly confidential. Unauthorized sharing of Royal The Gym's AI protocols will result in immediate termination.
+                            This document is strictly confidential. Unauthorized sharing of Fitness Future's AI protocols will result in immediate termination.
                         </p>
                     </div>
                 </div>

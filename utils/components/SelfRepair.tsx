@@ -7,7 +7,7 @@ import {
     GitMerge, FileCode, CheckCircle, AlertTriangle,
     Siren, Server, Globe, Infinity, Hexagon, Code
 } from 'lucide-react';
-import { getComplexResponse } from '../../lib/gemini';
+import { getComplexResponse } from '../../lib/core_ai';
 import { useToast } from '../hooks/useToast';
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts';
 
@@ -45,7 +45,7 @@ const SelfRepair: React.FC = () => {
     const [activeSector, setActiveSector] = useState<string | null>(null);
     
     // Visuals
-    const [terminalLogs, setTerminalLogs] = useState<string[]>(['Sentinel Core v31.0 initialized.', 'Defense Grid: ONLINE', 'Awaiting command.']);
+    const [terminalLogs, setTerminalLogs] = useState<string[]>(['Sentinel Core Fitness Future initialized.', 'Defense Grid: ONLINE', 'Awaiting command.']);
     const [graphData, setGraphData] = useState<{time: string, threat: number, defense: number}[]>([]);
     const [typingCode, setTypingCode] = useState('');
     
@@ -59,7 +59,7 @@ const SelfRepair: React.FC = () => {
             
             setGraphData(prev => {
                 const last = prev[prev.length - 1];
-                // Simulate threat spikes
+                // Process threat spikes
                 const spike = Math.random() > 0.92 ? 60 : 0;
                 const baseThreat = Math.random() * 15 + spike;
                 
@@ -174,7 +174,7 @@ const SelfRepair: React.FC = () => {
             const response = await getComplexResponse(prompt);
             const [analysisHtml, codeSnippet] = response.split('|||');
             
-            // Simulate AI Thinking/Coding time
+            // Process AI Thinking/Coding time
             setTimeout(() => {
                 setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, status: 'Patching', aiAnalysis: analysisHtml } : b));
                 if (!auto) setSelectedBug(prev => prev ? { ...prev, status: 'Patching', aiAnalysis: analysisHtml } : null);
@@ -188,7 +188,7 @@ const SelfRepair: React.FC = () => {
             }, 2000);
 
         } catch (e) {
-            addLog("ERR: Neural Uplink Failed. Using heuristic patch.", 'warn');
+            addLog("ERR: Smart Uplink Failed. Using heuristic patch.", 'warn');
             // Fallback for demo if API fails
             setTimeout(() => {
                  setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, status: 'Patching', aiAnalysis: "<span class='text-green-400'>Heuristic Analysis:</span> Standard vulnerability pattern matched." } : b));
@@ -210,7 +210,7 @@ const SelfRepair: React.FC = () => {
     return (
         <div className="space-y-8 animate-fade-in pb-24">
             
-            {/* 1. APEX HEADER */}
+            {/* 1. FitnessFutureHEADER */}
             <div className="bg-[#020202] p-10 rounded-[3.5rem] border border-red-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(239,68,68,0.15)] group">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
                 <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-red-600/10 rounded-full blur-[150px] animate-pulse"></div>
@@ -223,7 +223,7 @@ const SelfRepair: React.FC = () => {
                         <div>
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="px-4 py-1.5 bg-red-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
-                                    <Infinity className="w-3 h-3" /> Apex-Continuum v31.0
+                                    <Infinity className="w-3 h-3" /> Fitness Future-Continuum Fitness Future
                                 </div>
                                 <span className={`text-[10px] font-mono tracking-[0.4em] uppercase font-bold ${autonomousMode ? 'text-green-500' : 'text-amber-500'}`}>
                                     {autonomousMode ? 'SENTINEL: AUTO_PILOT' : 'SENTINEL: MANUAL_OPS'}
@@ -275,7 +275,7 @@ const SelfRepair: React.FC = () => {
                                                  {activeSector === sector ? 'UNDER ATTACK' : 'SECURE'}
                                              </span>
                                          </div>
-                                         {/* Connection Lines (Visual) */}
+                                         {/* Connection Lines (Ghost) */}
                                          <div className="absolute inset-0 border-2 border-transparent hover:border-cyan-500/20 clip-hexagon pointer-events-none"></div>
                                      </div>
                                  ))}

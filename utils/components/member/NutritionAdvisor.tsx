@@ -49,7 +49,7 @@ const NutritionAdvisor: React.FC<{ memberId: number }> = ({ memberId }) => {
     }, [adjustedMacros]);
     
     const microData = useMemo(() => {
-        // Mock data for display, in real app this would come from the plan
+        // data for display, in real app this would come from the plan
         return [
             { subject: 'Vit D', A: 80, fullMark: 100 },
             { subject: 'Iron', A: 60, fullMark: 100 },
@@ -72,7 +72,7 @@ const NutritionAdvisor: React.FC<{ memberId: number }> = ({ memberId }) => {
                         </div>
                         <div>
                             <div className="px-5 py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full flex items-center gap-3 shadow-lg font-black uppercase tracking-[0.2em] text-[10px] mb-3">
-                                <Cpu className="w-3 h-3" /> Nutri-Genix Core v31.0
+                                <Cpu className="w-3 h-3" /> Nutri-Genix Core Fitness Future
                             </div>
                             <h1 className="text-5xl font-black text-white italic uppercase tracking-tighter leading-none">
                                 Fuel Protocol
@@ -83,10 +83,19 @@ const NutritionAdvisor: React.FC<{ memberId: number }> = ({ memberId }) => {
             </div>
 
             {/* TABS */}
-            <div className="flex bg-gray-900 p-2 rounded-2xl border border-white/10 w-fit">
-                <button onClick={() => setActiveTab('plan')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 ${activeTab === 'plan' ? 'bg-white text-black' : 'text-gray-500'}`}><List className="w-4 h-4"/> Plan</button>
-                <button onClick={() => setActiveTab('analytics')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 ${activeTab === 'analytics' ? 'bg-white text-black' : 'text-gray-500'}`}><BarChart3 className="w-4 h-4"/> Analytics</button>
-                <button onClick={() => setActiveTab('shopping')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 ${activeTab === 'shopping' ? 'bg-white text-black' : 'text-gray-500'}`}><ShoppingCart className="w-4 h-4"/> List</button>
+            <div className="flex bg-gray-900/60 p-2 rounded-3xl border border-white/10 w-fit backdrop-blur-md">
+                <button onClick={() => setActiveTab('plan')} className={`relative px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all group overflow-hidden ${activeTab === 'plan' ? 'bg-gradient-to-r from-gray-200/40 to-white/40 backdrop-blur-xl border border-dashed border-white/50 text-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' : 'bg-transparent border border-transparent text-gray-500 hover:text-white hover:border-gray-600/50 hover:bg-gray-800/40'}`}>
+                    <div className={`absolute inset-0 bg-white/5 translate-y-full transition-transform duration-300 ease-in-out ${activeTab !== 'plan' ? 'group-hover:translate-y-0' : ''}`}></div>
+                    <span className="relative z-10 flex items-center gap-2"><List className="w-4 h-4"/> Plan</span>
+                </button>
+                <button onClick={() => setActiveTab('analytics')} className={`relative px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all group overflow-hidden ${activeTab === 'analytics' ? 'bg-gradient-to-r from-gray-200/40 to-white/40 backdrop-blur-xl border border-dashed border-white/50 text-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' : 'bg-transparent border border-transparent text-gray-500 hover:text-white hover:border-gray-600/50 hover:bg-gray-800/40'}`}>
+                    <div className={`absolute inset-0 bg-white/5 translate-y-full transition-transform duration-300 ease-in-out ${activeTab !== 'analytics' ? 'group-hover:translate-y-0' : ''}`}></div>
+                    <span className="relative z-10 flex items-center gap-2"><BarChart3 className="w-4 h-4"/> Analytics</span>
+                </button>
+                <button onClick={() => setActiveTab('shopping')} className={`relative px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all group overflow-hidden ${activeTab === 'shopping' ? 'bg-gradient-to-r from-gray-200/40 to-white/40 backdrop-blur-xl border border-dashed border-white/50 text-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' : 'bg-transparent border border-transparent text-gray-500 hover:text-white hover:border-gray-600/50 hover:bg-gray-800/40'}`}>
+                    <div className={`absolute inset-0 bg-white/5 translate-y-full transition-transform duration-300 ease-in-out ${activeTab !== 'shopping' ? 'group-hover:translate-y-0' : ''}`}></div>
+                    <span className="relative z-10 flex items-center gap-2"><ShoppingCart className="w-4 h-4"/> List</span>
+                </button>
             </div>
 
             {!activePlan ? (

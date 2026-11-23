@@ -50,8 +50,8 @@ const CameraModal: React.FC<CameraModalProps> = ({ isOpen, onClose, onCapture })
     startCamera();
 
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      if (videoRef.current && videoRef.current.srcObject) {
+        (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
       }
     };
   }, [isOpen]);

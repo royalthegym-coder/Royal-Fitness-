@@ -1,0 +1,268 @@
+{
+  "name": "GYM - WhatsApp Inbound Automation (Fitness Future Express Backend)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "messages"
+        ],
+        "options": {}
+      },
+      "id": "a1c6d2f0-1e11-4e70-9a01-000000000001",
+      "name": "WhatsApp Trigger",
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "gym-whatsapp-inbound"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize Meta WhatsApp Cloud webhook payload.\nconst root = $json.body ?? $json;\nconst entry = root.entry?.[0];\nconst change = entry?.changes?.[0];\nconst value = change?.value ?? root.value ?? root;\nconst messages = value.messages ?? [];\nconst contacts = value.contacts ?? [];\n\nreturn messages.map((message) => {\n  const contact = contacts.find((c) => c.wa_id === message.from) ?? contacts[0];\n  const type = message.type ?? 'unknown';\n\n  let text = '';\n  if (type === 'text') text = message.text?.body ?? '';\n  else if (type === 'button') text = message.button?.text ?? '';\n  else if (type === 'interactive') {\n    text = message.interactive?.button_reply?.title\n      ?? message.interactive?.list_reply?.title\n      ?? '';\n  }\n\n  return {\n    json: {\n      provider: 'whatsapp_cloud',\n      message_id: message.id ?? null,\n      from: message.from ?? null,\n      customer_name: contact?.profile?.name ?? 'Customer',\n      message_type: type,\n      text,\n      timestamp: message.timestamp ?? null,\n      phone_number_id: value.metadata?.phone_number_id ?? null,\n      waba_id: entry?.id ?? null,\n      raw_message: message\n    }\n  };\n}).filter(item => item.json.message_id && item.json.from);"
+      },
+      "id": "a1c6d2f0-1e11-4e70-9a01-000000000002",
+      "name": "Normalize Incoming Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ais-pre-hakfvy5pcvvusj25knx2eb-9972469637.asia-east1.run.app/api/v1/integrations/whatsapp/inbound",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $json.message_id }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": false
+            }
+          }
+        }
+      },
+      "id": "a1c6d2f0-1e11-4e70-9a01-000000000003",
+      "name": "Gym Backend - Process Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Gym Backend Webhook Secret"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "gym-should-reply-condition",
+              "leftValue": "={{ $json.shouldReply }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "gym-reply-text-condition",
+              "leftValue": "={{ $json.replyText }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "gym-recipient-condition",
+              "leftValue": "={{ $json.recipientPhoneNumber }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1c6d2f0-1e11-4e70-9a01-000000000004",
+      "name": "Should Send Reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "YOUR_WHATSAPP_PHONE_NUMBER_ID",
+        "recipientPhoneNumber": "={{ $json.recipientPhoneNumber }}",
+        "textBody": "={{ $json.replyText }}",
+        "additionalFields": {}
+      },
+      "id": "a1c6d2f0-1e11-4e70-9a01-000000000005",
+      "name": "WhatsApp - Send Reply",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        1260,
+        180
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "name": "WhatsApp Cloud API"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { status: 'processed_without_reply', backendResult: $json } }];"
+      },
+      "id": "a1c6d2f0-1e11-4e70-9a01-000000000006",
+      "name": "No Reply Needed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { status: 'backend_or_send_error', error: $json } }];"
+      },
+      "id": "a1c6d2f0-1e11-4e70-9a01-000000000007",
+      "name": "Error Output - Inspect Execution",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        520
+      ]
+    }
+  ],
+  "connections": {
+    "WhatsApp Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize Incoming Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Incoming Message": {
+      "main": [
+        [
+          {
+            "node": "Gym Backend - Process Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gym Backend - Process Message": {
+      "main": [
+        [
+          {
+            "node": "Should Send Reply?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Output - Inspect Execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Send Reply?": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp - Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Reply Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp - Send Reply": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Error Output - Inspect Execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "timezone": "Asia/Kolkata"
+  },
+  "versionId": "a1c6d2f0-1e11-4e70-9a01-000000000099",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

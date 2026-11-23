@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataProvider';
 import { useToast } from '../hooks/useToast';
 import { Activity, Droplets, Flame, HeartPulse, Brain, Thermometer, ChevronRight, CheckCircle, AlertTriangle, FileText, Upload, Dna, Sun, Wind, Zap, Microscope, Cpu, RefreshCw } from 'lucide-react';
-import { generateHyperPersonalizedDiet, cleanAndParseJSON, getComplexResponse } from '../../lib/gemini';
+import { ai, generateHyperPersonalizedDiet, cleanAndParseJSON, getComplexResponse } from '../../lib/core_ai';
 
 export const MedicalProfilingSystem: React.FC = () => {
     const { members, updateMember } = useData();
@@ -41,11 +41,11 @@ export const MedicalProfilingSystem: React.FC = () => {
         if (activeTab === 'digital_twin' && selectedMember) {
             const interval = setInterval(() => {
                 setTwinTime(prev => prev + 1);
-                // Simulated Math: (W * H * A) / S
+                // Math: (W * H * A) / S
                 const w = selectedMember.physical_metrics.weight;
                 const h = selectedMember.physical_metrics.height;
                 const a = selectedMember.bio_age;
-                const s = 1.2 + Math.sin(Date.now() / 1000) * 0.1; // Neural constant fluctuating
+                const s = 1.2 + Math.sin(Date.now() / 1000) * 0.1; // Smart constant fluctuating
                 const rate = (w * h * a) / (s * 10000);
                 setMuscleSynthesis(rate);
             }, 1000);
@@ -76,10 +76,8 @@ export const MedicalProfilingSystem: React.FC = () => {
         };
 
         try {
-            const res = await generateHyperPersonalizedDiet({
-                ...promptData,
-                systemInstruction: "You are an advanced AI Medical Doctor and Nutritionist. Analyze the user's questionnaire and physical metrics. Identify potential deficiencies (e.g., Vitamin D, B12, Magnesium) based on symptoms like low energy, poor sleep, or joint pain. Suggest specific Ayurvedic and modern nutritional interventions suitable for a hot/dry climate like Rajasthan. Return a JSON object with 'potentialDeficiencies' (array of strings), 'hormonalImbalanceRisk' (string), 'ayurvedicRecommendations' (array of strings), and 'immediateActionPlan' (string)."
-            });
+            const prompt = `Analyze the user's questionnaire and physical metrics. Identify potential deficiencies (e.g., Vitamin D, B12, Magnesium) based on symptoms like low energy, poor sleep, or joint pain. Suggest specific Ayurvedic and modern nutritional interventions suitable for a hot/dry climate like Rajasthan. Return a JSON object with 'potentialDeficiencies' (array of strings), 'hormonalImbalanceRisk' (string), 'ayurvedicRecommendations' (array of strings), and 'immediateActionPlan' (string). Data: ${JSON.stringify(promptData)}`;
+            const res = await getComplexResponse(prompt, "You are an advanced AI Bio-Metrics Analyst and Nutritionist.");
             
             const parsedResult = cleanAndParseJSON(res);
             setAnalysisResult(parsedResult);
@@ -99,44 +97,110 @@ export const MedicalProfilingSystem: React.FC = () => {
             addToast("Bio-Medical Scan Complete.", "success");
         } catch (error) {
             console.error(error);
-            addToast("Neural Link Failed during analysis.", "error");
+            addToast("Smart Link Failed during analysis.", "error");
         } finally {
             setIsAnalyzing(false);
         }
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file || !selectedMember) return;
+        const files = e.target.files;
+        if (!files || files.length === 0 || !selectedMember) return;
+
+        const MAX_SIZE = 10 * 1024 * 1024; // 10MB limit per file
+        const MAX_TOTAL_SIZE = 18 * 1024 * 1024; // 18MB total limit for Core AI inline data
+        let totalSize = 0;
+
+        const validFiles = (Array.from(files) as File[]).filter(file => {
+            if (file.size > MAX_SIZE) {
+                addToast(`Skipped ${file.name}: File too large (>10MB)`, "error");
+                return false;
+            }
+            if (totalSize + file.size > MAX_TOTAL_SIZE) {
+                addToast(`Skipped ${file.name}: Total size exceeds 18MB limit`, "error");
+                return false;
+            }
+            totalSize += file.size;
+            return true;
+        });
+
+        if (validFiles.length === 0) return;
+
+        const filesArray = validFiles.slice(0, 5); // Limit to 5 reports
 
         setIsScanningReport(true);
         setReportAnalysis(null);
-        addToast("LayoutLMv3 OCR Scanning Initiated...", "info");
+        addToast(`LayoutLMv3 OCR Scanning Initiated for ${filesArray.length} report(s)...`, "info");
 
-        // Simulate OCR delay
-        setTimeout(async () => {
+        try {
+            const fileParts: any[] = [];
+            for (const file of filesArray) {
+                const part = await new Promise<any>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        try {
+                            const result = event.target?.result;
+                            if (typeof result === 'string') {
+                                const base64 = result.split(',')[1];
+                                let mimeType = file.type || 'image/jpeg';
+                                if (file.name.endsWith('.pdf')) mimeType = 'application/pdf';
+                                resolve({
+                                    inlineData: { data: base64, mimeType: mimeType }
+                                });
+                            } else {
+                                reject(new Error("Failed to read file as base64"));
+                            }
+                        } catch (err) {
+                            reject(err);
+                        }
+                    };
+                    reader.onerror = (error) => reject(error);
+                    reader.readAsDataURL(file);
+                });
+                fileParts.push(part);
+            }
+
+            const prompt = `
+                ACT AS MED-PALM 2 AI ANALYST AND EXPERT FITNESS COACH.
+                Analyze these ${filesArray.length} uploaded medical/blood reports for ${selectedMember.name} (Age: ${selectedMember.bio_age}, Gender: ${selectedMember.gender || 'Male'}, Weight: ${selectedMember.physical_metrics?.weight || 'N/A'}kg, Height: ${selectedMember.physical_metrics?.height || 'N/A'}cm).
+                
+                Provide a highly technical, medical-grade analysis in HTML format (using Tailwind classes like text-emerald-400, bg-black/50, p-4, rounded-xl, mb-4, text-white, font-bold, text-xl, list-disc, pl-5).
+                
+                Based on a deep and thorough study of ALL these reports combined, you MUST include:
+                1. Comprehensive Biomarker Breakdown (extract key values and anomalies across all documents).
+                2. Catabolic/Anabolic State Warning based on the findings.
+                3. Deficiency Fixer (Suggest specific supplements and medical interventions based on the reports to fix all body issues).
+                4. 100% Perfect Muscle Development Workout Plan: A highly accurate, customized workout plan designed to fix their specific issues and optimize muscle growth.
+                5. Weekly/Monthly Diet Plan: A highly accurate, hyper-personalized diet plan (weekly or monthly) tailored to their medical profile to ensure 100% perfect body development.
+                
+                Ensure the response is structured, easy to read, and uses appropriate HTML tags for formatting. Do not use markdown backticks for the HTML output.
+            `;
+            
             try {
-                const prompt = `
-                    ACT AS MED-PALM 2 AI DOCTOR.
-                    Analyze this simulated blood report for ${selectedMember.name} (Age: ${selectedMember.bio_age}).
-                    Assume the report shows: High Cortisol, Low Vitamin D, Borderline B12, Normal Testosterone, Slightly elevated LDL.
-                    
-                    Provide a highly technical, medical-grade analysis in HTML format (using Tailwind classes like text-emerald-400, bg-black/50, p-4, rounded-xl).
-                    Include:
-                    1. Biomarker Breakdown (Cortisol, Vit D, B12, Lipid Profile).
-                    2. Catabolic State Warning (due to Cortisol).
-                    3. Deficiency Fixer (Suggest Ashwagandha, Magnesium, 60k IU Vit D).
-                    4. Workout Intensity Adjustment (Recommend reducing intensity by 20% to avoid muscle breakdown).
-                `;
-                const response = await getComplexResponse(prompt);
-                setReportAnalysis(response);
-                addToast("Blood Report Analysis Complete.", "success");
-            } catch (error) {
-                setReportAnalysis("<p class='text-red-500'>Med-PaLM 2 Link Offline. Analysis failed.</p>");
+                const response = await ai.models.generateContent({
+                    model: 'gemini-4-hydrogen',
+                    contents: {
+                        parts: [
+                            ...fileParts,
+                            { text: prompt }
+                        ]
+                    }
+                });
+                setReportAnalysis(response.text || "<p>Analysis failed to generate text.</p>");
+                addToast("Comprehensive Blood Report Analysis Complete.", "success");
+            } catch (err) {
+                console.error("Vision API Error:", err);
+                setReportAnalysis("<p class='text-red-500'>Med-PaLM 2 Link Offline or API Error. Analysis failed.</p>");
+                addToast("Analysis failed.", "error");
             } finally {
                 setIsScanningReport(false);
             }
-        }, 2000);
+        } catch (error) {
+            console.error("File reading error:", error);
+            setReportAnalysis("<p class='text-red-500'>File reading failed. Please try again.</p>");
+            setIsScanningReport(false);
+            addToast("Failed to read files.", "error");
+        }
     };
 
     const renderQuestion = (icon: React.ReactNode, label: string, field: string, options: string[]) => (
@@ -168,22 +232,32 @@ export const MedicalProfilingSystem: React.FC = () => {
     return (
         <div className="max-w-6xl mx-auto p-6 space-y-8 animate-fade-in">
             {/* Header */}
-            <div className="bg-gradient-to-r from-zinc-900 to-black p-8 rounded-[3rem] border border-white/10 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-[80px]"></div>
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div>
-                        <div className="flex items-center gap-2 mb-2">
-                            <Dna className="w-5 h-5 text-emerald-400" />
-                            <span className="text-xs font-mono text-emerald-400 uppercase tracking-widest">Bio-Digital Human Optimizer</span>
+            <div className="mb-6 bg-[#020202] p-8 rounded-[3rem] border border-cyan-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(6,182,212,0.15)] group">
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[150px] animate-pulse"></div>
+                
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+                    <div className="flex items-center gap-6">
+                        <div className="p-4 bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-[2rem] shadow-[0_0_60px_rgba(6,182,212,0.5)] border border-cyan-400 group-hover:rotate-12 transition-transform duration-700">
+                             <Dna className="w-12 h-12" />
                         </div>
-                        <h1 className="text-4xl font-black text-white italic uppercase tracking-tighter">Medical Profiling System</h1>
-                        <p className="text-zinc-400 mt-2 text-sm max-w-xl">Advanced AI-Medical Doctor analyzing blood reports, genetics, and metabolic rates for shocking results.</p>
+                        <div>
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="px-4 py-1.5 bg-cyan-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
+                                    <Cpu className="w-3 h-3" /> Fitness Future
+                                </div>
+                                <span className="text-[10px] font-mono text-cyan-500/70 tracking-[0.4em] uppercase">BIO-DIGITAL HUMAN OPTIMIZER</span>
+                            </div>
+                            <h1 className="text-4xl md:text-6xl font-black text-white italic uppercase tracking-tighter leading-none">
+                                Medical <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-fuchsia-400">Profiling</span>
+                            </h1>
+                        </div>
                     </div>
                     
                     <select 
                         value={selectedMemberId}
                         onChange={(e) => setSelectedMemberId(Number(e.target.value))}
-                        className="bg-black border border-emerald-500/50 rounded-2xl p-4 text-white font-bold outline-none focus:border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.2)] min-w-[250px]"
+                        className="bg-black border border-cyan-500/50 rounded-2xl p-4 text-white font-bold outline-none focus:border-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.2)] min-w-[250px]"
                     >
                         <option value="">Select Subject</option>
                         {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -349,6 +423,7 @@ export const MedicalProfilingSystem: React.FC = () => {
                                         ref={fileInputRef} 
                                         className="hidden" 
                                         accept="*/*"
+                                        multiple
                                         onChange={handleFileUpload}
                                     />
                                     <button 
@@ -395,7 +470,7 @@ export const MedicalProfilingSystem: React.FC = () => {
                                                 <div className="font-mono text-emerald-400 text-lg bg-zinc-900 p-4 rounded-xl mt-2 border border-white/5">
                                                     Rate = (W × H × A) / S
                                                 </div>
-                                                <p className="text-xs text-zinc-500 mt-2">W=Weight, H=Height, A=Age, S=Neural Constant (Updates every second)</p>
+                                                <p className="text-xs text-zinc-500 mt-2">W=Weight, H=Height, A=Age, S=Smart Constant (Updates every second)</p>
                                             </div>
                                         </div>
                                     </div>
@@ -435,7 +510,7 @@ export const MedicalProfilingSystem: React.FC = () => {
                                     <div className="bg-gradient-to-br from-orange-900/40 to-red-900/40 border border-orange-500/30 p-8 rounded-[2rem] col-span-1 md:col-span-1 flex flex-col items-center justify-center text-center">
                                         <Sun className="w-16 h-16 text-orange-400 mb-4 animate-pulse" />
                                         <h3 className="text-4xl font-black text-white font-mono">45°C</h3>
-                                        <p className="text-orange-300 text-sm font-bold uppercase tracking-widest mt-2">Jhunjhunu, Rajasthan</p>
+                                        <p className="text-orange-300 text-sm font-bold uppercase tracking-widest mt-2">India</p>
                                         <p className="text-orange-400/70 text-xs mt-1">Extreme Heat Warning</p>
                                     </div>
                                     
@@ -449,9 +524,9 @@ export const MedicalProfilingSystem: React.FC = () => {
                                         <div className="space-y-4">
                                             <div className="flex items-center justify-between p-4 bg-black rounded-xl border border-white/5">
                                                 <div className="flex items-center gap-3">
-                                                    <span className="text-red-400 line-through font-bold">Bajra (Pearl Millet)</span>
+                                                    <span className="text-red-400 line-through font-bold">Pearl Millet</span>
                                                     <ChevronRight className="w-4 h-4 text-zinc-600" />
-                                                    <span className="text-emerald-400 font-bold">Jau (Barley)</span>
+                                                    <span className="text-emerald-400 font-bold">Barley</span>
                                                 </div>
                                                 <span className="text-[10px] uppercase tracking-widest text-zinc-500">Cooling Effect</span>
                                             </div>
@@ -459,7 +534,7 @@ export const MedicalProfilingSystem: React.FC = () => {
                                                 <div className="flex items-center gap-3">
                                                     <span className="text-red-400 line-through font-bold">Whey with Milk</span>
                                                     <ChevronRight className="w-4 h-4 text-zinc-600" />
-                                                    <span className="text-emerald-400 font-bold">Whey with Chhaach (Buttermilk)</span>
+                                                    <span className="text-emerald-400 font-bold">Whey with Buttermilk</span>
                                                 </div>
                                                 <span className="text-[10px] uppercase tracking-widest text-zinc-500">Probiotic Hydration</span>
                                             </div>
@@ -474,7 +549,7 @@ export const MedicalProfilingSystem: React.FC = () => {
                                     <div>
                                         <h4 className="text-emerald-400 font-bold text-sm uppercase tracking-widest">Smart Bot WhatsApp Alert Queued</h4>
                                         <p className="text-emerald-100/70 text-sm mt-2 italic">
-                                            "Hello {selectedMember.name}, आज झुंझुनूं में लू चलने वाली है। सुबह के वर्कआउट से पहले नारियल पानी में चुटकी भर सेंधा नमक डालकर पिएं। Stay hydrated!"
+                                            "Hello {selectedMember.name}, a heatwave is expected at Fitness Future today. Please drink coconut water with a pinch of rock salt before your morning workout. Stay hydrated!"
                                         </p>
                                     </div>
                                 </div>

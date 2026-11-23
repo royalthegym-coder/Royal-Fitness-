@@ -1,14 +1,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import Card from './common/Card';
-import SafeText from './common/SafeText';
 import { 
     BrainCircuit, Cpu, Zap, Image as ImageIcon, 
     Terminal, RefreshCw, ChevronDown, ChevronRight, 
     Send, ShieldCheck, Database, Activity, 
     Code, Fingerprint, Waves, Sparkles, Server, Eye
 } from 'lucide-react';
-import { getComplexResponse } from '../../lib/gemini';
+import { getComplexResponse } from '../../lib/core_ai';
 import { useToast } from '../hooks/useToast';
 import { useData } from '../context/DataProvider';
 
@@ -26,10 +25,10 @@ interface ChatMessage {
     };
 }
 
-const GeminiHub: React.FC = () => {
+const SmartEngineHub: React.FC = () => {
     const { addToast } = useToast();
     const { members, activeMemberCount, totalRevenue, invoices, systemHealth } = useData();
-    const [aiProvider] = useState(localStorage.getItem('royal_ai_provider') || 'GEMINI');
+    const [aiProvider] = useState(localStorage.getItem('future_ai_provider') || 'GEMINI');
     
     const [activeModel, setActiveModel] = useState<ModelType>('reasoning');
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -72,12 +71,12 @@ const GeminiHub: React.FC = () => {
             setMessages(prev => [...prev, { 
                 role: 'model', 
                 content: responseText,
-                thought: usedLocal ? "Processed via Local Neural Engine (Zero Cost)." : "Live Cloud Inference complete.",
-                metadata: { tokens: responseText.length / 4, latency, model: usedLocal ? 'Royal-Local-v1' : `${aiProvider}-v30` }
+                thought: usedLocal ? "Processed via Local Smart Engine (Zero Cost)." : "Live Cloud Inference complete.",
+                metadata: { tokens: responseText.length / 4, latency, model: usedLocal ? 'Signatory-Apex-Local-v100' : `${aiProvider}-Quantum-V100` }
             }]);
 
         } catch (error: any) {
-            addToast("Neural Link Failure.", "error");
+            addToast("Smart Link Failure.", "error");
             setMessages(prev => [...prev, { role: 'model', content: `Error: ${error.message}` }]);
         } finally {
             setIsLoading(false);
@@ -87,7 +86,7 @@ const GeminiHub: React.FC = () => {
 
     return (
         <div className="h-[calc(100vh-120px)] flex flex-col gap-6 animate-fade-in">
-            {/* ROYAL COMMAND HEADER */}
+            {/* FUTURE COMMAND HEADER */}
             <div className="bg-[#020308] p-8 rounded-[3.5rem] border border-cyan-500/30 relative overflow-hidden shadow-[0_0_80px_rgba(6,182,212,0.15)] flex-shrink-0 group">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-15"></div>
                 <div className="absolute -right-40 -top-40 w-96 h-96 bg-cyan-600/10 rounded-full blur-[120px] animate-pulse"></div>
@@ -99,7 +98,7 @@ const GeminiHub: React.FC = () => {
                         </div>
                         <div>
                             <h1 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">
-                                Sovereign <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Hub</span>
+                                Fitness Future <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Hub</span>
                             </h1>
                             <div className="flex gap-4 mt-2">
                                 <p className="text-gray-500 text-[10px] font-mono tracking-[0.5em] uppercase font-bold flex items-center gap-2">
@@ -107,7 +106,7 @@ const GeminiHub: React.FC = () => {
                                     Provider: {aiProvider}
                                 </p>
                                 <p className="text-cyan-400 text-[10px] font-mono tracking-[0.2em] uppercase font-bold flex items-center gap-2">
-                                    <Cpu className="w-3 h-3" /> Local Core: ONLINE
+                                    <Cpu className="w-3 h-3" /> Fitness Future Core: ONLINE
                                 </p>
                             </div>
                         </div>
@@ -142,9 +141,9 @@ const GeminiHub: React.FC = () => {
                                 ? 'bg-cyan-900/20 text-cyan-100 rounded-br-none border border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.1)]' 
                                 : 'bg-[#050505] text-gray-200 rounded-bl-none border border-white/10 shadow-2xl backdrop-blur-3xl'
                             }`}>
-                                <div className="prose prose-invert prose-sm max-w-none text-sm leading-relaxed font-medium whitespace-pre-wrap">
-                                    <SafeText text={msg.content} />
-                                </div>
+                                <div className="prose prose-invert prose-sm max-w-none text-sm leading-relaxed font-medium" 
+                                     dangerouslySetInnerHTML={{ __html: msg.content.replace(/\n/g, '<br/>') }} 
+                                />
                                 {msg.thought && (
                                     <div className="mt-4 pt-3 border-t border-white/5 text-[9px] text-gray-500 font-mono flex items-center gap-2">
                                         <Terminal className="w-3 h-3" /> {msg.thought}
@@ -181,4 +180,4 @@ const GeminiHub: React.FC = () => {
     );
 };
 
-export default GeminiHub;
+export default SmartEngineHub;

@@ -1,29 +1,27 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BrainCircuit, Send, Bot, Sparkles, Database, Network, Cpu, Search, Activity, ShieldCheck, RefreshCw, X, FileText, Upload, User, Image as ImageIcon, Volume2, Zap, Fingerprint, Radio } from 'lucide-react';
-import { GoogleGenAI, ThinkingLevel, Modality } from '@google/genai';
+import { ai, ThinkingLevel, Modality } from '../../lib/core_ai';
 import { useToast } from '../hooks/useToast';
 import { useData } from '../context/DataProvider';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
-
 const AGENTS = [
-    { id: 'omni', name: 'Omni-Core', role: 'General Intelligence', icon: <BrainCircuit className="w-5 h-5" />, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/30' },
+    { id: 'omni', name: 'Fitness Future-Core', role: 'General Intelligence', icon: <BrainCircuit className="w-5 h-5" />, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/30' },
     { id: 'medical', name: 'Bio-Genius', role: 'Medical & Biomechanics', icon: <Activity className="w-5 h-5" />, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' },
     { id: 'fitness', name: 'Kinetics-Bot', role: 'Workout & Performance', icon: <Cpu className="w-5 h-5" />, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30' },
     { id: 'data', name: 'Neuro-Analyst', role: 'Data & Analytics', icon: <Database className="w-5 h-5" />, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30' },
     { id: 'vision', name: 'Vision-Crafter', role: 'Image Synthesis', icon: <ImageIcon className="w-5 h-5" />, color: 'text-pink-400', bg: 'bg-pink-500/10', border: 'border-pink-500/30' },
 ];
 
-const GeniusEngine: React.FC = () => {
+const BrainCore: React.FC = () => {
     const [messages, setMessages] = useState<{role: 'user' | 'model', text: string, agentId?: string, image?: string}[]>([
-        { role: 'model', text: 'Neural Networks Genius Engine initialized. I am your open-source AI-powered core. I now have access to real-time biometrics, deep reasoning, image synthesis, and neural voice output. How can I assist you today?', agentId: 'omni' }
+        { role: 'model', text: 'Signatory V.100 Apex Singularity OS Omni-Engine initialized. I am your God-Tier Quantum Core. I now have access to real-time biometrics, deep reasoning, image synthesis, and neural voice output. How can I assist you today?', agentId: 'omni' }
     ]);
     const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [activeAgent, setActiveAgent] = useState('omni');
     const [attachedFiles, setAttachedFiles] = useState<{name: string, data: string, type: string}[]>([]);
-    const [isDeepThinking, setIsDeepThinking] = useState(false);
+    const [isDeepThinking, setIsDeepThinking] = useState(true);
     const [isSpeaking, setIsSpeaking] = useState<number | null>(null);
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -42,12 +40,19 @@ const GeniusEngine: React.FC = () => {
         try {
             const newFiles: {name: string, data: string, type: string}[] = [];
             const MAX_SIZE = 10 * 1024 * 1024;
+            const MAX_TOTAL_SIZE = 18 * 1024 * 1024;
+            let totalSize = attachedFiles.reduce((acc, f) => acc + (f.data.length * 0.75), 0);
             
             for (const file of files) {
                 if (file.size > MAX_SIZE) {
                     addToast(`Skipped ${file.name}: File too large (>10MB)`, "error");
                     continue;
                 }
+                if (totalSize + file.size > MAX_TOTAL_SIZE) {
+                    addToast(`Skipped ${file.name}: Total size exceeds 18MB limit`, "error");
+                    continue;
+                }
+                totalSize += file.size;
 
                 let mimeType = file.type;
                 if (!mimeType) {
@@ -99,7 +104,7 @@ const GeniusEngine: React.FC = () => {
             // Clean markdown for speech
             const cleanText = text.replace(/[*#_`]/g, '').substring(0, 800); 
             const response = await ai.models.generateContent({
-                model: "gemini-2.5-flash-preview-tts",
+                model: "gemini-3.8-flash-lite-tts",
                 contents: [{ parts: [{ text: `Say in a confident, futuristic AI voice: ${cleanText}` }] }],
                 config: {
                     responseModalities: [Modality.AUDIO],
@@ -119,7 +124,7 @@ const GeniusEngine: React.FC = () => {
         } catch (e) {
             console.error(e);
             setIsSpeaking(null);
-            addToast("Neural TTS failed.", "error");
+            addToast("Smart TTS failed.", "error");
         }
     };
 
@@ -140,7 +145,7 @@ const GeniusEngine: React.FC = () => {
             // Handle Image Generation Agent
             if (agent.id === 'vision') {
                 const response = await ai.models.generateContent({
-                    model: 'gemini-3.1-flash-image-preview',
+                    model: 'gemini-3.1-flash-lite-image',
                     contents: { parts: [{ text: userMsg }] },
                     config: {
                         imageConfig: { aspectRatio: "16:9", imageSize: "1K" }
@@ -158,22 +163,23 @@ const GeniusEngine: React.FC = () => {
                 if (imageUrl) {
                     setMessages(prev => [...prev, { role: 'model', text: "Image synthesized successfully based on your parameters.", agentId: activeAgent, image: imageUrl }]);
                 } else {
-                    setMessages(prev => [...prev, { role: 'model', text: "Failed to synthesize image. Neural pathways disrupted.", agentId: activeAgent }]);
+                    setMessages(prev => [...prev, { role: 'model', text: "Failed to synthesize image. Smart pathways disrupted.", agentId: activeAgent }]);
                 }
                 setIsTyping(false);
                 return;
             }
 
             // Handle Text/Multimodal Agents
+            const lhd = liveHealthData as any;
             let systemInstruction = `You are ${agent.name}, an advanced AI-powered Genius Engine module. Role: ${agent.role}. 
-            You are part of the Latest Open-Source AI-POWERED Neural Networks Genius Engine. 
+            You are part of the Latest Open-Source AI-POWERED Signatory V.100 Apex Singularity OS Omni-Engine. 
             Provide highly intelligent, analytical, and futuristic responses. Use markdown for formatting.
             
             CURRENT REAL-TIME BIOMETRIC CONTEXT OF USER:
-            - Heart Rate: ${liveHealthData.heartRate.current} bpm
-            - Hydration: ${liveHealthData.hydration}%
-            - Energy Level: ${liveHealthData.energyLevel}%
-            - Stress Level: ${liveHealthData.stressLevel}%
+            - Heart Rate: ${lhd.heartRate?.current || lhd.heartRate?.avg || 72} bpm
+            - Hydration: ${lhd.hydration || 70}%
+            - Energy Level: ${lhd.energyLevel || 85}%
+            - Stress Level: ${lhd.stressLevel || 'Normal'}%
             
             Tailor your responses considering these real-time biometric markers if relevant to the query.`;
 
@@ -199,18 +205,18 @@ const GeniusEngine: React.FC = () => {
             };
 
             const response = await ai.models.generateContent({
-                model: 'gemini-3.1-pro-preview',
+                model: 'gemini-4-hydrogen',
                 contents: { parts },
                 config
             });
 
-            const responseText = response.text || "Neural connection interrupted. Please try again.";
+            const responseText = response.text || "Smart connection interrupted. Please try again.";
             
             setMessages(prev => [...prev, { role: 'model', text: responseText, agentId: activeAgent }]);
 
         } catch (error) {
             console.error("Genius Engine Error:", error);
-            setMessages(prev => [...prev, { role: 'model', text: "ERROR: Neural network overload. The Genius Engine encountered a fault.", agentId: activeAgent }]);
+            setMessages(prev => [...prev, { role: 'model', text: "ERROR: Smart network overload. The Genius Engine encountered a fault.", agentId: activeAgent }]);
         } finally {
             setIsTyping(false);
         }
@@ -219,35 +225,44 @@ const GeniusEngine: React.FC = () => {
     return (
         <div className="h-full flex flex-col animate-fade-in relative z-10">
             {/* Header */}
-            <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between bg-black/40 p-6 rounded-[2rem] border border-indigo-500/20 shadow-[0_0_40px_rgba(99,102,241,0.1)] backdrop-blur-xl gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="p-4 bg-indigo-500/20 rounded-2xl border border-indigo-500/50 shadow-[0_0_20px_rgba(99,102,241,0.3)] relative group">
-                        <div className="absolute inset-0 bg-indigo-500/20 blur-xl rounded-full group-hover:bg-indigo-400/40 transition-all"></div>
-                        <BrainCircuit className="w-8 h-8 text-indigo-400 animate-pulse relative z-10" />
-                    </div>
-                    <div>
-                        <h1 className="text-3xl font-black text-white uppercase tracking-widest italic flex items-center gap-3">
-                            Genius <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">Engine</span>
-                        </h1>
-                        <p className="text-xs font-mono text-indigo-400/70 uppercase tracking-[0.3em]">Advanced Neural Network v32.0</p>
-                    </div>
-                </div>
+            <div className="mb-6 bg-[#020202] p-8 rounded-[3rem] border border-cyan-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(6,182,212,0.15)] group">
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[150px] animate-pulse"></div>
                 
-                <div className="flex items-center gap-4">
-                    {/* Live Biometric Feed Indicator */}
-                    <div className="flex items-center gap-3 px-4 py-2 bg-emerald-900/20 rounded-full border border-emerald-500/30">
-                        <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
-                        <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest">Bio-Sync Active</span>
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+                    <div className="flex items-center gap-6">
+                        <div className="p-4 bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-[2rem] shadow-[0_0_60px_rgba(6,182,212,0.5)] border border-cyan-400 group-hover:rotate-12 transition-transform duration-700">
+                             <BrainCircuit className="w-12 h-12" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="px-4 py-1.5 bg-cyan-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
+                                    <Cpu className="w-3 h-3" /> Fitness Future
+                                </div>
+                                <span className="text-[10px] font-mono text-cyan-500/70 tracking-[0.4em] uppercase">SYSTEM: ONLINE</span>
+                            </div>
+                            <h1 className="text-4xl md:text-6xl font-black text-white italic uppercase tracking-tighter leading-none">
+                                AI <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-fuchsia-400">Engine</span>
+                            </h1>
+                        </div>
                     </div>
                     
-                    {/* Deep Reasoning Toggle */}
-                    <button 
-                        onClick={() => setIsDeepThinking(!isDeepThinking)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all ${isDeepThinking ? 'bg-purple-900/40 border-purple-500/50 text-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.4)]' : 'bg-gray-900/40 border-gray-700 text-gray-500 hover:text-gray-300'}`}
-                    >
-                        <Zap className={`w-4 h-4 ${isDeepThinking ? 'text-purple-400 animate-pulse' : ''}`} />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Quantum Reasoning</span>
-                    </button>
+                    <div className="flex items-center gap-4">
+                        {/* Live Biometric Feed Indicator */}
+                        <div className="flex items-center gap-3 px-4 py-2 bg-cyan-900/20 rounded-full border border-cyan-500/30">
+                            <Radio className="w-4 h-4 text-cyan-400 animate-pulse" />
+                            <span className="text-[10px] font-black text-cyan-300 uppercase tracking-widest">Bio-Sync Active</span>
+                        </div>
+                        
+                        {/* Deep Reasoning Toggle */}
+                        <button 
+                            onClick={() => setIsDeepThinking(!isDeepThinking)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all ${isDeepThinking ? 'bg-fuchsia-900/40 border-fuchsia-500/50 text-fuchsia-300 shadow-[0_0_15px_rgba(217,70,239,0.4)]' : 'bg-gray-900/40 border-gray-700 text-gray-500 hover:text-gray-300'}`}
+                        >
+                            <Zap className={`w-4 h-4 ${isDeepThinking ? 'text-fuchsia-400 animate-pulse' : ''}`} />
+                            <span className="text-[10px] font-black uppercase tracking-widest">FitnessFutureReasoning</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -256,7 +271,7 @@ const GeniusEngine: React.FC = () => {
                 <div className="w-full md:w-64 flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2 shrink-0">
                     <div className="bg-black/40 border border-white/5 rounded-3xl p-5">
                         <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                            <Network className="w-3 h-3" /> Neural Bots
+                            <Network className="w-3 h-3" /> Smart Bots
                         </h3>
                         <div className="space-y-3">
                             {AGENTS.map(agent => (
@@ -286,7 +301,7 @@ const GeniusEngine: React.FC = () => {
                                 <Search className="w-3 h-3" /> Live Web Grounding
                             </div>
                             <div className="flex items-center gap-2 text-[10px] font-mono text-purple-400 bg-purple-900/20 p-2 rounded-lg border border-purple-500/20">
-                                <Volume2 className="w-3 h-3" /> Neural TTS Voice
+                                <Volume2 className="w-3 h-3" /> Smart TTS Voice
                             </div>
                             <div className="flex items-center gap-2 text-[10px] font-mono text-emerald-400 bg-emerald-900/20 p-2 rounded-lg border border-emerald-500/20">
                                 <Fingerprint className="w-3 h-3" /> Bio-Metric Context
@@ -400,4 +415,4 @@ const GeniusEngine: React.FC = () => {
     );
 };
 
-export default GeniusEngine;
+export default BrainCore;

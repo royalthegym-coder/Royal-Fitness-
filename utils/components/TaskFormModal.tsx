@@ -25,6 +25,9 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
     const [priority, setPriority] = useState<'Low' | 'Medium' | 'High'>('Medium');
     const [dueDate, setDueDate] = useState('');
     const [dependencies, setDependencies] = useState<number[]>([]);
+    const [isRecurring, setIsRecurring] = useState(false);
+    const [recurrencePattern, setRecurrencePattern] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+    const [progress, setProgress] = useState(0);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     useEffect(() => {
@@ -34,19 +37,35 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
             setPriority(task.priority);
             setDueDate(task.dueDate);
             setDependencies(task.dependencies || []);
+            setIsRecurring(task.isRecurring || false);
+            setRecurrencePattern(task.recurrencePattern || 'daily');
+            setProgress(task.progress || 0);
         } else {
             setTitle('');
             setDescription('');
             setPriority('Medium');
             setDueDate(getLocalToday());
             setDependencies([]);
+            setIsRecurring(false);
+            setRecurrencePattern('daily');
+            setProgress(0);
         }
     }, [task, isOpen]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!title.trim() || !dueDate) return;
-        onSave({ id: task?.id, title, description, priority, dueDate, dependencies });
+        onSave({ 
+            id: task?.id, 
+            title, 
+            description, 
+            priority, 
+            dueDate, 
+            dependencies,
+            isRecurring,
+            recurrencePattern: isRecurring ? recurrencePattern : undefined,
+            progress
+        });
     };
 
     const toggleDependency = (id: number) => {
@@ -123,6 +142,44 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
                                 <Clock className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
                             </div>
                         </div>
+                    </div>
+
+                    <div className="bg-gray-900/50 p-6 rounded-[2rem] border border-white/5">
+                        <div className="flex items-center justify-between mb-4">
+                            <label className={labelClass} style={{ marginBottom: 0 }}>Recurring Task</label>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" className="sr-only peer" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} />
+                                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                            </label>
+                        </div>
+                        
+                        {isRecurring && (
+                            <div className="relative mt-4">
+                                <select
+                                    value={recurrencePattern} onChange={(e) => setRecurrencePattern(e.target.value as any)}
+                                    className={inputClass}
+                                >
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                </select>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="bg-gray-900/50 p-6 rounded-[2rem] border border-white/5">
+                        <div className="flex justify-between items-center mb-4">
+                            <label className={labelClass} style={{ marginBottom: 0 }}>Task Progress</label>
+                            <span className="text-amber-500 font-mono font-bold text-sm">{progress}%</span>
+                        </div>
+                        <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={progress}
+                            onChange={(e) => setProgress(Number(e.target.value))}
+                            className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                        />
                     </div>
 
                     <div className="bg-gray-900/50 p-6 rounded-[2rem] border border-white/5">

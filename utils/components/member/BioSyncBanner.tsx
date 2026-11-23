@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Thermometer, Zap } from 'lucide-react';
 
 const BioSyncBanner: React.FC = () => {
-    const [temp, setTemp] = useState(42); // Jhunjhunu Live Node Mock
+    const [temp, setTemp] = useState(42); // Fitness Future Live Node
     const [humidity, setHumidity] = useState(15);
     const [glucose, setGlucose] = useState(105);
 
@@ -23,7 +23,7 @@ const BioSyncBanner: React.FC = () => {
                     <div className="flex items-center gap-2">
                         <Thermometer className={`w-5 h-5 ${isHeatStress ? 'text-red-500 animate-pulse' : 'text-gray-400'}`} />
                         <div>
-                            <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest leading-none">Jhunjhunu Node</p>
+                            <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest leading-none">Fitness Future Node</p>
                             <p className={`text-sm font-bold ${isHeatStress ? 'text-red-500' : 'text-white'}`}>{temp}°C / {humidity}% HUM</p>
                         </div>
                     </div>

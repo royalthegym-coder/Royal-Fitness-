@@ -16,7 +16,7 @@ const OSUploads: React.FC = () => {
                 if (prev >= 100) {
                     clearInterval(interval);
                     setIsUploading(false);
-                    addToast("Upload successful. Neural integration complete.", "success");
+                    addToast("Upload successful. Smart integration complete.", "success");
                     return 100;
                 }
                 return prev + 10;
@@ -37,7 +37,7 @@ const OSUploads: React.FC = () => {
                     <div>
                         <div className="flex items-center gap-3 mb-2">
                             <div className="px-4 py-1.5 bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
-                                <Cpu className="w-3 h-3" /> Quantum OS v32.0
+                                <Cpu className="w-3 h-3" /> Fitness Future FitnessFutureOS
                             </div>
                         </div>
                         <h1 className="text-5xl md:text-7xl font-black text-white italic uppercase tracking-tighter leading-none">
@@ -60,7 +60,7 @@ const OSUploads: React.FC = () => {
                     </h2>
                     
                     <p className="text-gray-400 max-w-xl mx-auto text-sm">
-                        Upload your latest Open-Source AI-Powered Quantum Computer OS modules here. The system will automatically compile and integrate them into the neural network.
+                        Upload your latest Open-Source AI-Powered FitnessFutureComputer OS modules here. The system will automatically compile and integrate them into the neural network.
                     </p>
 
                     <div className="flex gap-4 mt-8">
@@ -80,11 +80,13 @@ const OSUploads: React.FC = () => {
                                 <span>Integrating Modules...</span>
                                 <span>{uploadProgress}%</span>
                             </div>
-                            <div className="w-full h-2 bg-gray-900 rounded-full overflow-hidden border border-white/10">
+                            <div className="w-full h-2 bg-gray-900 rounded-full overflow-hidden border border-white/10 relative">
                                 <div 
-                                    className="h-full bg-gradient-to-r from-fuchsia-600 to-fuchsia-400 transition-all duration-300 shadow-[0_0_10px_#d946ef]"
+                                    className="h-full bg-gradient-to-r from-fuchsia-600 to-fuchsia-400 transition-all duration-300 shadow-[0_0_10px_#d946ef] relative overflow-hidden"
                                     style={{ width: `${uploadProgress}%` }}
-                                ></div>
+                                >
+                                    <div className="absolute inset-0 bg-white/30 w-full animate-shimmer -skew-x-12"></div>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -105,7 +107,7 @@ const OSUploads: React.FC = () => {
                 </div>
                 <div className="bg-gray-950 border border-white/5 p-8 rounded-[2.5rem] hover:border-amber-500/30 transition-colors group">
                     <FileText className="w-10 h-10 text-amber-500 mb-6 group-hover:scale-110 transition-transform" />
-                    <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">Neural Tools</h3>
+                    <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">Smart Tools</h3>
                     <p className="text-sm text-gray-500">Analytics modules, data processors, and specialized algorithms.</p>
                 </div>
             </div>

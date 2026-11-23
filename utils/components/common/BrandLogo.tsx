@@ -36,100 +36,76 @@ const BrandLogo: React.FC<BrandLogoProps> = ({ size = 'md', showText = true, cla
 
   return (
     <div className={`flex items-center gap-3 select-none ${className}`}>
-      {/* 🦁 Custom SVG Logo */}
+      {/* 🚀 Custom SVG Logo */}
       <div className={`relative group ${sizeClasses[size] || sizeClasses.md}`}>
-        <div className={`absolute -inset-2 ${size === '2xl' ? 'bg-amber-500/40' : 'bg-yellow-500/20'} rounded-full blur-xl opacity-0 group-hover:opacity-100 transition duration-500`}></div>
+        <div className={`absolute -inset-2 ${size === '2xl' ? 'bg-cyan-500/40' : 'bg-blue-500/20'} rounded-xl blur-xl opacity-0 group-hover:opacity-100 transition duration-500 transform rotate-45`}></div>
         
-        <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-2xl filter transition-transform hover:scale-105 z-10 relative">
+        <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-2xl filter transition-transform duration-500 group-hover:scale-105 z-10 relative">
             <defs>
-                <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#FCD34D" />
-                    <stop offset="50%" stopColor="#F59E0B" />
-                    <stop offset="100%" stopColor="#B45309" />
+                <linearGradient id="primaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#00FF00" />
+                    <stop offset="50%" stopColor="#22c55e" />
+                    <stop offset="100%" stopColor="#10b981" />
                 </linearGradient>
-                <linearGradient id="blueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#0f172a" />
-                    <stop offset="100%" stopColor="#1e3a8a" />
+                <linearGradient id="neonGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#00FF00" />
+                    <stop offset="100%" stopColor="#4ade80" />
                 </linearGradient>
-                <filter id="glow">
-                    <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+                <linearGradient id="darkBgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#1e1b4b" />
+                    <stop offset="100%" stopColor="#020617" />
+                </linearGradient>
+                <filter id="hyperIntensity">
+                    <feGaussianBlur stdDeviation="5" result="blur" />
                     <feMerge>
-                        <feMergeNode in="coloredBlur"/>
-                        <feMergeNode in="SourceGraphic"/>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                </filter>
+                <filter id="subtleGlow">
+                    <feGaussianBlur stdDeviation="2" result="blur" />
+                    <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
                     </feMerge>
                 </filter>
             </defs>
 
-            {/* Outer Ring */}
-            <circle cx="100" cy="100" r="95" fill="url(#blueGradient)" stroke="url(#goldGradient)" strokeWidth="6" />
-            <circle cx="100" cy="100" r="88" fill="none" stroke="#000" strokeOpacity="0.5" strokeWidth="1" />
+            {/* Glowing Aura Background */}
+            <circle cx="100" cy="100" r="75" fill="url(#primaryGradient)" opacity="0.15" filter="url(#hyperIntensity)" />
+
+            {/* Futuristic Outer Ring Structure */}
+            <circle cx="100" cy="100" r="85" fill="none" stroke="url(#neonGlow)" strokeWidth="1.5" strokeDasharray="10 15" opacity="0.6" className="origin-center animate-[spin_20s_linear_infinite]" />
+            <circle cx="100" cy="100" r="95" fill="none" stroke="url(#primaryGradient)" strokeWidth="0.5" opacity="0.3" />
+
+            {/* Central Hexagon Core */}
+            <path d="M 100 20 L 170 60 L 170 140 L 100 180 L 30 140 L 30 60 Z" fill="url(#darkBgGradient)" stroke="url(#primaryGradient)" strokeWidth="3" strokeLinejoin="round" />
             
-            {/* Inner Decorative Ring */}
-            <circle cx="100" cy="100" r="72" fill="none" stroke="url(#goldGradient)" strokeWidth="2" strokeDasharray="3 3" />
-
-            {/* Text Paths */}
-            <path id="topCurve" d="M 25,100 A 75,75 0 0,1 175,100" fill="none" />
-            <path id="bottomCurve" d="M 35,100 A 65,65 0 0,0 165,100" fill="none" />
-
-            {/* Text */}
-            <text width="200" fontSize="26" fontWeight="900" fontFamily="serif" letterSpacing="4" fill="url(#goldGradient)" style={{ textShadow: '1px 1px 2px black' }}>
-                <textPath href="#topCurve" startOffset="50%" textAnchor="middle">ROYAL</textPath>
-            </text>
-            
-            {/* For bottom text, we need to reverse the path or adjust. Using a simpler method for bottom text often works better with separate path definition or just flipping. 
-                Let's use a path that goes left-to-right but follows the bottom arc.
-            */}
-            <path id="bottomCurveFixed" d="M 30,100 A 70,70 0 0,0 170,100" fill="none" />
-            {/* Actually, to make text upright on bottom, we need to draw path from right to left (170 to 30) */}
-            <path id="bottomCurveCorrect" d="M 165,100 A 65,65 0 0,1 35,100" fill="none" />
-            
-            <text width="200" fontSize="18" fontWeight="bold" fontFamily="serif" letterSpacing="3" fill="url(#goldGradient)" style={{ textShadow: '1px 1px 2px black' }}>
-                <textPath href="#bottomCurveCorrect" startOffset="50%" textAnchor="middle">THE GYM</textPath>
-            </text>
-
-            {/* Central Lion/Crown Composition */}
-            <g transform="translate(100, 105)">
-                 {/* Lion Face Base (Shield-like) */}
-                 <path d="M-25 -20 C -25 -20, -35 0, -25 25 C -15 45, 0 55, 0 55 C 0 55, 15 45, 25 25 C 35 0, 25 -20, 25 -20 Z" fill="url(#goldGradient)" stroke="#78350f" strokeWidth="1" />
-                 
-                 {/* Eyes */}
-                 <circle cx="-10" cy="0" r="3" fill="#000" />
-                 <circle cx="10" cy="0" r="3" fill="#000" />
-                 
-                 {/* Nose */}
-                 <path d="M-5 15 L5 15 L0 25 Z" fill="#000" />
-
-                 {/* Crown (On top of Lion) */}
-                 <g transform="translate(0, -35)">
-                    <path d="M-20 0 L-10 15 L0 -5 L10 15 L20 0 L20 20 L-20 20 Z" fill="url(#goldGradient)" stroke="#78350f" strokeWidth="1" />
-                    <circle cx="0" cy="-5" r="3" fill="url(#goldGradient)" />
-                    <circle cx="-20" cy="0" r="2" fill="url(#goldGradient)" />
-                    <circle cx="20" cy="0" r="2" fill="url(#goldGradient)" />
-                 </g>
-
-                 {/* Dumbbells (Behind) */}
-                 <g transform="translate(0, 0) rotate(45)" opacity="0.8">
-                    <rect x="-40" y="-4" width="80" height="8" fill="url(#goldGradient)" rx="2" />
-                    <rect x="-45" y="-10" width="10" height="20" fill="url(#goldGradient)" rx="2" />
-                    <rect x="35" y="-10" width="10" height="20" fill="url(#goldGradient)" rx="2" />
-                 </g>
-                 <g transform="translate(0, 0) rotate(-45)" opacity="0.8">
-                    <rect x="-40" y="-4" width="80" height="8" fill="url(#goldGradient)" rx="2" />
-                    <rect x="-45" y="-10" width="10" height="20" fill="url(#goldGradient)" rx="2" />
-                    <rect x="35" y="-10" width="10" height="20" fill="url(#goldGradient)" rx="2" />
-                 </g>
+            {/* Dynamic Abstract Fitness Motif (Double F forming a lightning/kettlebell hybrid) */}
+            <g transform="translate(100, 100)" filter="url(#hyperIntensity)">
+                {/* Slanted dynamic lines to represent motion and speed */}
+                <path d="M -30 -40 L -5 -40 L 10 -15 L 30 -15 L 10 20 L -10 20 L -25 -5 L -45 -5 Z" fill="url(#neonGlow)" />
+                {/* Second interrelated wave forming the second 'F' */}
+                <path d="M -10 -5 L 15 -5 L 35 25 L 15 25 L 5 45 L -20 45 L -5 15 L -25 15 Z" fill="#ffffff" opacity="0.9" />
+                
+                {/* Energy Sphere in the center */}
+                <circle cx="-5" cy="5" r="8" fill="#ffffff" filter="url(#subtleGlow)" />
             </g>
+
+            {/* Technical HUD accoutrements */}
+            <path d="M 30 60 L 45 60 M 170 60 L 155 60 M 100 20 L 100 35 M 100 180 L 100 165" stroke="url(#primaryGradient)" strokeWidth="2" strokeLinecap="round" />
         </svg>
       </div>
 
-      {/* 👑 Side Text (Optional - for when logo is small or needs label) */}
+      {/* 🔮 Side Text */}
       {showText && (
         <div className="flex flex-col justify-center">
-          <h1 className={`${textSizes[size] || textSizes.md} font-black tracking-wider uppercase text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-yellow-200 to-yellow-600 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] leading-none`}>
-            ROYAL
+          <h1 className={`${textSizes[size] || textSizes.md} font-black tracking-tighter uppercase text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)] leading-none italic`}>
+            FITNESS
           </h1>
-          <span className={`text-white/80 font-bold tracking-[0.2em] uppercase ${size === 'sm' ? 'text-[0.5rem]' : 'text-xs'}`}>
-            THE GYM
+          <span className={`text-amber-400 font-bold tracking-[0.3em] uppercase ${size === 'sm' ? 'text-[0.45rem]' : 'text-[0.65rem]'} mt-1`}>
+            FUTURE • PRO APP
           </span>
         </div>
       )}

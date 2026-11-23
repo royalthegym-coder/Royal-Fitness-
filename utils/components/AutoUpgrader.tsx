@@ -62,7 +62,7 @@ const AutoUpgrader: React.FC = () => {
     
     // Live Terminal
     const [cliLogs, setCliLogs] = useState<string[]>([
-        `Apex Kernel ${systemVersion} initialized.`,
+        `FitnessFutureKernel ${systemVersion} initialized.`,
         "Monitoring entropy levels...",
         "Self-Healing Core: Active",
         "Social Harmony Bridge: Connected"
@@ -101,8 +101,8 @@ const AutoUpgrader: React.FC = () => {
         setIsEvolving(true);
         setEvolutionProgress(0);
         
-        const mutationId = `SINGULARITY-${Date.now().toString().slice(-6)}`;
-        const optimizations = ['Social Harmony Patch', 'Zero Error Protocol', 'Neural Net Optimization', 'Quantum State Sync'];
+        const mutationId = `FitnessFutureMatrix-${Date.now().toString().slice(-6)}`;
+        const optimizations = ['Social Harmony Patch', 'Zero Error Protocol', 'Smart Net Optimization', 'FitnessFutureState Sync'];
         const chosenOpt = optimizations[Math.floor(Math.random() * optimizations.length)];
 
         // Select a random "Open Source" model to "pull"
@@ -117,7 +117,7 @@ const AutoUpgrader: React.FC = () => {
             status: 'evolving',
             steps: [
                 { id: 'pull', name: `Pulling ${targetModel}`, status: 'synthesizing', detail: 'Fetching weights from HuggingFace mirror...' },
-                { id: 'compile', name: 'Neural Rewrite', status: 'pending', detail: 'Compiling shards...' },
+                { id: 'compile', name: 'Smart Rewrite', status: 'pending', detail: 'Compiling shards...' },
                 { id: 'verify', name: 'Unit Testing', status: 'pending', detail: 'Verifying harmony...' },
                 { id: 'deploy', name: 'Hot Swap', status: 'pending', detail: 'Zero-downtime deployment...' },
             ]
@@ -156,7 +156,7 @@ const AutoUpgrader: React.FC = () => {
                     updateStep(2, 'synthesizing');
                     step++;
                     setPods(prev => prev.map((p, i) => i % 2 === 0 ? { ...p, status: 'Updating', load: 90 } : p));
-                    addLog("Neural Rewrite complete. Compiling binary...", 'info');
+                    addLog("Smart Rewrite complete. Compiling binary...", 'info');
                 }
                 if (next > 75 && step === 2) {
                     updateStep(2, 'success');
@@ -192,15 +192,15 @@ const AutoUpgrader: React.FC = () => {
         addLog(`Evolution Complete. Stabilizing System...`, "success");
         
         // --- REAL SYSTEM UPDATE TRIGGER ---
-        triggerSystemUpdate(selectedVersion || undefined);
+        (triggerSystemUpdate as any)(selectedVersion || undefined);
         
-        addToast("Singularity Self-Evolve Successful. Version Incremented.", "success");
+        addToast("FitnessFutureMatrix Self-Evolve Successful. Version Incremented.", "success");
     };
 
     return (
         <div className="space-y-8 animate-fade-in pb-24">
             
-            {/* 1. APEX HEADER */}
+            {/* 1. FitnessFutureHEADER */}
             <div className="bg-[#020308] p-10 rounded-[3.5rem] border border-blue-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(59,130,246,0.15)] group">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/circuit-board.png')] opacity-20"></div>
                 <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[150px] animate-pulse"></div>
@@ -281,7 +281,7 @@ const AutoUpgrader: React.FC = () => {
 
                                     {(workflow ? workflow.steps : [
                                         { name: 'Harmony Scan', status: 'pending', detail: 'Waiting for trigger...' },
-                                        { name: 'Neural Rewrite', status: 'pending', detail: 'Waiting...' },
+                                        { name: 'Smart Rewrite', status: 'pending', detail: 'Waiting...' },
                                         { name: 'Zero Error Check', status: 'pending', detail: 'Waiting...' },
                                         { name: 'Hot Swap', status: 'pending', detail: 'Waiting...' },
                                     ]).map((step, idx) => (
@@ -319,7 +319,7 @@ const AutoUpgrader: React.FC = () => {
                     {/* Live Terminal */}
                     <Card title="Kernel Shell" className="bg-black border-gray-800 p-0 overflow-hidden flex flex-col h-[400px] rounded-[3rem] shadow-2xl">
                         <div className="bg-gray-900 px-6 py-3 border-b border-gray-800 flex items-center justify-between">
-                            <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest flex items-center gap-2"><Terminal className="w-3 h-3"/> root@singularity_v30</span>
+                            <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest flex items-center gap-2"><Terminal className="w-3 h-3"/> root@omni_matrix_v30</span>
                             <div className="flex gap-1.5">
                                 <div className="w-2.5 h-2.5 rounded-full bg-red-500/50"></div>
                                 <div className="w-2.5 h-2.5 rounded-full bg-amber-500/50"></div>

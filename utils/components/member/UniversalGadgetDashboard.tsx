@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, Cpu, Droplets, Eye, Zap, Wifi, Bluetooth, Link, ShieldCheck, AlertTriangle, RefreshCw, BrainCircuit } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
+import { useData } from '../../context/DataProvider';
 
 interface Sensor {
     id: string;
@@ -14,8 +15,45 @@ interface Sensor {
 
 export const UniversalGadgetDashboard: React.FC = () => {
     const { addToast } = useToast();
+    const { liveHealthData } = useData();
     
     const [sensors, setSensors] = useState<Sensor[]>([
+        {
+            id: 'smartwatch_01',
+            name: 'Apple Watch Ultra / Whoop 4.0',
+            type: 'Wearable Tech',
+            description: 'Heart rate variability, sleep stages, & VO2 Max.',
+            status: 'Disconnected',
+            icon: <Activity className="w-6 h-6 text-blue-500" />,
+            metrics: [
+                { label: 'Heart Rate', value: '--', unit: 'bpm', color: 'text-blue-400' },
+                { label: 'VO2 Max', value: '--', unit: 'ml/kg/min', color: 'text-zinc-400' }
+            ]
+        },
+        {
+            id: 'smartring_01',
+            name: 'Oura / Ultrahuman Ring',
+            type: 'Smart Ring',
+            description: 'Body temperature, ultra-precise sleep & recovery.',
+            status: 'Disconnected',
+            icon: <Activity className="w-6 h-6 text-indigo-500" />,
+            metrics: [
+                { label: 'Recovery', value: '--', unit: '%', color: 'text-indigo-400' },
+                { label: 'Sleep Score', value: '--', unit: '', color: 'text-zinc-400' }
+            ]
+        },
+        {
+            id: 'smartband_01',
+            name: 'Google Pixel / Elite Band',
+            type: 'Wearable Tech',
+            description: 'Daily steps, calories, and continuous activity tracking.',
+            status: 'Disconnected',
+            icon: <Zap className="w-6 h-6 text-emerald-500" />,
+            metrics: [
+                { label: 'Steps', value: '--', unit: '', color: 'text-emerald-400' },
+                { label: 'Calories', value: '--', unit: 'kcal', color: 'text-zinc-400' }
+            ]
+        },
         {
             id: 'cgm_01',
             name: 'CGM Metabolic Patch',
@@ -42,7 +80,7 @@ export const UniversalGadgetDashboard: React.FC = () => {
         },
         {
             id: 'bci_01',
-            name: 'Neural-Interface (BCI)',
+            name: 'Smart-Interface (BCI)',
             type: 'Brain-Computer Interface',
             description: 'Focus and neuro-muscular firing rate.',
             status: 'Disconnected',
@@ -54,84 +92,74 @@ export const UniversalGadgetDashboard: React.FC = () => {
         },
         {
             id: 'sweat_01',
-            name: 'Sweat Microfluidics',
-            type: 'Dermal Patch',
-            description: 'Hydration and electrolyte loss.',
+            name: 'Smart Sweat Biosensor',
+            type: 'Microfluidics',
+            description: 'Hydration and Electrolytes real-time tracking.',
             status: 'Disconnected',
             icon: <Droplets className="w-6 h-6 text-cyan-500" />,
             metrics: [
                 { label: 'Hydration', value: '--', unit: '%', color: 'text-cyan-400' },
-                { label: 'Sodium Loss', value: '--', unit: 'mg/h', color: 'text-zinc-400' }
-            ]
-        },
-        {
-            id: 'lens_01',
-            name: 'Smart Contact Lenses',
-            type: 'Tear-based Sensing',
-            description: 'Lactate and Cortisol (Stress) levels.',
-            status: 'Disconnected',
-            icon: <Eye className="w-6 h-6 text-emerald-500" />,
-            metrics: [
-                { label: 'Cortisol', value: '--', unit: 'nmol/L', color: 'text-emerald-400' },
-                { label: 'Lactate', value: '--', unit: 'mM', color: 'text-zinc-400' }
+                { label: 'Na+ Depletion', value: '--', unit: 'mg', color: 'text-zinc-400' }
             ]
         }
     ]);
 
     const [aiAlert, setAiAlert] = useState<{ message: string; type: 'info' | 'warning' | 'critical' } | null>(null);
 
-    // Simulate Live Data
+    // Live Data mapped from global liveHealthData context
     useEffect(() => {
-        const interval = setInterval(() => {
-            setSensors(prev => prev.map(sensor => {
-                if (sensor.status === 'Connected') {
-                    let newMetrics = [...sensor.metrics];
+        setSensors(prev => prev.map(sensor => {
+            if (sensor.status === 'Connected') {
+                let newMetrics = [...sensor.metrics];
+                
+                if (sensor.id === 'cgm_01') {
+                    const glucose = liveHealthData.glucose?.current || 95;
+                    newMetrics[0].value = glucose;
+                    newMetrics[1].value = glucose < 90 ? 'Dropping' : 'Stable';
                     
-                    if (sensor.id === 'cgm_01') {
-                        const glucose = Math.floor(Math.random() * (120 - 80) + 80);
-                        newMetrics[0].value = glucose;
-                        newMetrics[1].value = glucose < 90 ? 'Dropping' : 'Stable';
-                        
-                        if (glucose < 85) {
-                            setAiAlert({ message: "Glucose dropping. Stop workout in 5 mins and consume 100ml fast-carbs.", type: 'warning' });
-                        }
-                    } else if (sensor.id === 'emg_01') {
-                        const firing = Math.floor(Math.random() * (98 - 70) + 70);
-                        newMetrics[0].value = firing;
-                        newMetrics[1].value = firing < 75 ? 'High' : 'Optimal';
-                    } else if (sensor.id === 'bci_01') {
-                        newMetrics[0].value = Math.floor(Math.random() * (100 - 85) + 85);
-                        newMetrics[1].value = 'Flow State';
-                    } else if (sensor.id === 'sweat_01') {
-                        newMetrics[0].value = Math.floor(Math.random() * (100 - 92) + 92);
-                        newMetrics[1].value = Math.floor(Math.random() * (500 - 300) + 300);
-                    } else if (sensor.id === 'lens_01') {
-                        newMetrics[0].value = (Math.random() * (15 - 8) + 8).toFixed(1);
-                        newMetrics[1].value = (Math.random() * (2.5 - 1.0) + 1.0).toFixed(2);
+                    if (glucose < 85) {
+                        setAiAlert({ message: "Google Opals Alert: Fast-drop in Glucose detected. Consume 100ml fast-carbs in < 5 mins.", type: 'warning' });
                     }
-                    
-                    return { ...sensor, metrics: newMetrics };
+                } else if (sensor.id === 'smartwatch_01') {
+                    newMetrics[0].value = liveHealthData.heartRate?.avg || 72;
+                    newMetrics[1].value = liveHealthData.heartRate?.hrv || 45.2;
+                } else if (sensor.id === 'smartring_01') {
+                    newMetrics[0].value = liveHealthData.metrics?.recovery || 90;
+                    newMetrics[1].value = liveHealthData.metrics?.skinTemp || 98.6;
+                } else if (sensor.id === 'smartband_01') {
+                    newMetrics[0].value = liveHealthData.steps || 4200;
+                    newMetrics[1].value = liveHealthData.caloriesBurned || 1500;
+                } else if (sensor.id === 'emg_01') {
+                    const firing = 85; // Fallback
+                    newMetrics[0].value = firing;
+                    newMetrics[1].value = firing < 75 ? 'High' : 'Optimal';
+                } else if (sensor.id === 'bci_01') {
+                    newMetrics[0].value = 92; // Fallback focus
+                    newMetrics[1].value = 'Flow State';
+                } else if (sensor.id === 'sweat_01') {
+                    newMetrics[0].value = 98; // Fallback hydration
+                    newMetrics[1].value = 350;
                 }
-                return sensor;
-            }));
-        }, 2000);
-
-        return () => clearInterval(interval);
-    }, []);
+                
+                return { ...sensor, metrics: newMetrics };
+            }
+            return sensor;
+        }));
+    }, [liveHealthData]);
 
     const handleConnect = (id: string) => {
         // Set to scanning
         setSensors(prev => prev.map(s => s.id === id ? { ...s, status: 'Scanning' } : s));
-        addToast(`Initiating Quantum Link for ${id}...`, 'info');
+        addToast(`Initiating FitnessFutureUltra-Fast Link for ${id}...`, 'info');
 
-        // Simulate 1.5s connection time
+        // Process ultra-fast 0.4s connection time (Next Level Connect)
         setTimeout(() => {
             setSensors(prev => prev.map(s => s.id === id ? { ...s, status: 'Connected' } : s));
-            addToast(`Neural Sync Successful. Data stream active.`, 'success');
+            addToast(`Smart Sync Successful. Seamless Data stream active.`, 'success');
             
             // Clear AI alert if it's the first connection to show a welcome message
-            setAiAlert({ message: "Bio-Data Network Established. Monitoring cellular telemetry.", type: 'info' });
-        }, 1500);
+            setAiAlert({ message: "Bio-Data Network Established. Monitoring cellular telemetry instantly via Edge Gateway.", type: 'info' });
+        }, 400);
     };
 
     const handleDisconnect = (id: string) => {
@@ -161,10 +189,10 @@ export const UniversalGadgetDashboard: React.FC = () => {
                     <div>
                         <div className="flex items-center gap-3 mb-4">
                             <div className="px-4 py-1.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-full text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2">
-                                <Cpu className="w-3 h-3" /> Neural Sync Bridge
+                                <Cpu className="w-3 h-3" /> Smart Sync Bridge
                             </div>
                             <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-zinc-500 flex items-center gap-1">
-                                <ShieldCheck className="w-3 h-3 text-emerald-500" /> Quantum Encrypted
+                                <ShieldCheck className="w-3 h-3 text-emerald-500" /> FitnessFutureEncrypted
                             </span>
                         </div>
                         <h1 className="text-5xl md:text-6xl font-black text-white italic uppercase tracking-tighter leading-none">
@@ -200,7 +228,7 @@ export const UniversalGadgetDashboard: React.FC = () => {
                         {aiAlert.type === 'warning' ? <AlertTriangle className="w-6 h-6" /> : <BrainCircuit className="w-6 h-6" />}
                     </div>
                     <div>
-                        <h4 className="text-xs font-black uppercase tracking-widest mb-1">Bio-Aether Oracle Pivot</h4>
+                        <h4 className="text-xs font-black uppercase tracking-widest mb-1">Bio-Cloud Oracle Pivot</h4>
                         <p className="text-sm font-medium">{aiAlert.message}</p>
                     </div>
                 </div>

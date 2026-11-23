@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Task } from '../../types';
 import Card from './common/Card';
 import { 
@@ -13,7 +14,7 @@ import {
 import TaskFormModal from './TaskFormModal';
 import ConfirmationDialog from './common/ConfirmationDialog';
 import { useToast } from '../hooks/useToast';
-import { getComplexResponse } from '../../lib/gemini';
+import { getComplexResponse } from '../../lib/core_ai';
 import { BotIcon } from './icons/BotIcon';
 
 const getPriorityConfig = (priority: Task['priority']) => {
@@ -45,18 +46,121 @@ const Tasks: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filter, setFilter] = useState<'All' | 'Active' | 'Completed'>('All');
     const [priorityFilter, setPriorityFilter] = useState<'All' | 'Low' | 'Medium' | 'High'>('All');
-    const [sortBy, setSortBy] = useState<'dueDate' | 'priority'>('dueDate');
+    const [sortBy, setSortBy] = useState<'dueDate' | 'priority'>('priority');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
     
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
     const [taskToComplete, setTaskToComplete] = useState<Task | null>(null);
+    const [recurringEditPrompt, setRecurringEditPrompt] = useState<{taskData: any, originalTask: Task} | null>(null);
+    const [recurringDeletePrompt, setRecurringDeletePrompt] = useState<Task | null>(null);
     const [showTemplates, setShowTemplates] = useState(false);
 
     // AI State
     const [aiInput, setAiInput] = useState('');
     const [isThinking, setIsThinking] = useState(false);
+    const [isAutoPrioritizing, setIsAutoPrioritizing] = useState(false);
+
+    const handleAutoPrioritize = async () => {
+        if (tasks.length === 0) return;
+        setIsAutoPrioritizing(true);
+        addToast("Smart Core: Analyzing Task Priorities...", "info");
+
+        const prompt = `
+            ACT AS GYM OPS AI.
+            Analyze the following list of tasks and suggest a new priority (Low, Medium, High) for each based on their title, description, and due date.
+            Today's Date: ${new Date().toISOString().split('T')[0]}
+            
+            Tasks:
+            ${JSON.stringify(tasks.map(t => ({ id: t.id, title: t.title, description: t.description, dueDate: t.dueDate, currentPriority: t.priority })))}
+            
+            Return JSON only in this format:
+            [
+                { "id": number, "priority": "Low" | "Medium" | "High" }
+            ]
+        `;
+
+        try {
+            const res = await getComplexResponse(prompt);
+            const cleanJson = res.replace(/```json|```/g, '').trim();
+            const data = JSON.parse(cleanJson);
+            
+            if (Array.isArray(data)) {
+                setTasks(prev => prev.map(t => {
+                    const updated = data.find((d: any) => d.id === t.id);
+                    return updated ? { ...t, priority: updated.priority } : t;
+                }));
+                addToast("Task Priorities Auto-Adjusted.", "success");
+            }
+        } catch (e) {
+            addToast("Auto-Prioritization Failed.", "error");
+        } finally {
+            setIsAutoPrioritizing(false);
+        }
+    };
+
+    // Auto-generate recurring tasks
+    useEffect(() => {
+        setTasks(prev => {
+            const today = new Date().toISOString().split('T')[0];
+            const newTasks: Task[] = [];
+            let hasChanges = false;
+
+            prev.forEach(task => {
+                if (task.isRecurring && task.recurrencePattern) {
+                    // Find all instances of this recurring task
+                    const instances = prev.filter(t => t.title === task.title && t.isRecurring);
+                    const latestInstance = instances.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())[0];
+                    
+                    if (latestInstance && latestInstance.dueDate < today) {
+                        let currentDate = new Date(latestInstance.dueDate);
+                        let nextDueDateString = latestInstance.dueDate;
+
+                        while (nextDueDateString < today) {
+                            if (task.recurrencePattern === 'daily') {
+                                currentDate.setDate(currentDate.getDate() + 1);
+                            } else if (task.recurrencePattern === 'weekly') {
+                                currentDate.setDate(currentDate.getDate() + 7);
+                            } else if (task.recurrencePattern === 'monthly') {
+                                currentDate.setMonth(currentDate.getMonth() + 1);
+                            } else {
+                                break; // Safety break
+                            }
+                            
+                            nextDueDateString = currentDate.toISOString().split('T')[0];
+                            
+                            // Check if the next instance already exists
+                            const exists = prev.some(t => 
+                                t.title === task.title && 
+                                t.dueDate === nextDueDateString && 
+                                t.isRecurring
+                            ) || newTasks.some(t => 
+                                t.title === task.title && 
+                                t.dueDate === nextDueDateString && 
+                                t.isRecurring
+                            );
+                            
+                            if (!exists && nextDueDateString <= today) {
+                                newTasks.push({
+                                    ...task,
+                                    id: Date.now() + Math.random(),
+                                    dueDate: nextDueDateString,
+                                    completed: false
+                                });
+                                hasChanges = true;
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (hasChanges) {
+                return [...prev, ...newTasks];
+            }
+            return prev;
+        });
+    }, []);
 
     const handleApplyTemplate = (template: typeof TASK_TEMPLATES[0]) => {
         const today = new Date().toISOString().split('T')[0];
@@ -150,7 +254,7 @@ const Tasks: React.FC = () => {
             if (sortBy === 'dueDate') {
                 comparison = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
             } else if (sortBy === 'priority') {
-                const priorityWeight = { 'High': 3, 'Medium': 2, 'Low': 1 };
+                const priorityWeight = { 'High': 1, 'Medium': 2, 'Low': 3 };
                 comparison = priorityWeight[a.priority] - priorityWeight[b.priority];
                 // Secondary sort by order
                 if (comparison === 0) {
@@ -197,19 +301,60 @@ const Tasks: React.FC = () => {
     
     const confirmComplete = () => {
         if (taskToComplete) {
-            setTasks(prev => prev.map(t => {
-                if (t.id === taskToComplete.id) {
-                    addToast("Neural Task Node: RESOLVED.", "success");
-                    return { ...t, completed: true };
+            setTasks(prev => {
+                const newTasks = [...prev];
+                const taskIndex = newTasks.findIndex(t => t.id === taskToComplete.id);
+                if (taskIndex !== -1) {
+                    newTasks[taskIndex] = { ...newTasks[taskIndex], completed: true };
+                    
+                    // Handle recurring task
+                    if (taskToComplete.isRecurring && taskToComplete.recurrencePattern) {
+                        const currentDueDate = new Date(taskToComplete.dueDate);
+                        const nextDueDate = new Date(currentDueDate);
+                        
+                        if (taskToComplete.recurrencePattern === 'daily') {
+                            nextDueDate.setDate(nextDueDate.getDate() + 1);
+                        } else if (taskToComplete.recurrencePattern === 'weekly') {
+                            nextDueDate.setDate(nextDueDate.getDate() + 7);
+                        } else if (taskToComplete.recurrencePattern === 'monthly') {
+                            nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+                        } else {
+                            return newTasks; // Safety return
+                        }
+                        
+                        const nextDueDateString = nextDueDate.toISOString().split('T')[0];
+                        
+                        // Check if the next instance already exists to prevent duplicates
+                        const exists = prev.some(t => 
+                            t.title === taskToComplete.title && 
+                            t.dueDate === nextDueDateString && 
+                            t.isRecurring
+                        );
+                        
+                        if (!exists) {
+                            newTasks.push({
+                                ...taskToComplete,
+                                id: Date.now(),
+                                dueDate: nextDueDateString,
+                                completed: false
+                            });
+                            setTimeout(() => addToast(`Recurring instance created for ${nextDueDateString}`, "info"), 500);
+                        }
+                    }
                 }
-                return t;
-            }));
+                return newTasks;
+            });
+            addToast("Smart Task Node: RESOLVED.", "success");
         }
         setTaskToComplete(null);
     };
 
     const handleSave = (taskData: any) => {
         if (selectedTask) {
+            if (selectedTask.isRecurring) {
+                setRecurringEditPrompt({ taskData, originalTask: selectedTask });
+                return;
+            }
             setTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, ...taskData } : t));
             addToast("Task Vector Recalibrated.", "info");
         } else {
@@ -225,18 +370,69 @@ const Tasks: React.FC = () => {
         setSelectedTask(null);
     };
 
+    const confirmRecurringEdit = (updateAllFuture: boolean) => {
+        if (!recurringEditPrompt) return;
+        const { taskData, originalTask } = recurringEditPrompt;
+        
+        setTasks(prev => {
+            if (updateAllFuture) {
+                // Filter out all future uncompleted instances of this recurring task
+                const filtered = prev.filter(t => {
+                    if (t.id === originalTask.id) return true;
+                    const isFutureInstance = t.isRecurring && t.title === originalTask.title && new Date(t.dueDate) > new Date(originalTask.dueDate) && !t.completed;
+                    return !isFutureInstance;
+                });
+                
+                // Update the original task
+                return filtered.map(t => t.id === originalTask.id ? { ...t, ...taskData } : t);
+            } else {
+                // Update only this instance
+                return prev.map(t => t.id === originalTask.id ? { ...t, ...taskData } : t);
+            }
+        });
+        
+        addToast("Task Vector Recalibrated.", "info");
+        setRecurringEditPrompt(null);
+        setIsFormOpen(false);
+        setSelectedTask(null);
+    };
+
     const confirmDelete = () => {
         if (taskToDelete) {
+            if (taskToDelete.isRecurring) {
+                setRecurringDeletePrompt(taskToDelete);
+                setTaskToDelete(null);
+                return;
+            }
             setTasks(prev => prev.filter(t => t.id !== taskToDelete.id));
             addToast("Node Wiped from Kernel.", "error");
         }
         setTaskToDelete(null);
     };
 
+    const confirmRecurringDelete = (deleteAllFuture: boolean) => {
+        if (!recurringDeletePrompt) return;
+        
+        setTasks(prev => {
+            if (deleteAllFuture) {
+                return prev.filter(t => {
+                    if (t.id === recurringDeletePrompt.id) return false;
+                    const isFutureInstance = t.isRecurring && t.title === recurringDeletePrompt.title && new Date(t.dueDate) > new Date(recurringDeletePrompt.dueDate) && !t.completed;
+                    return !isFutureInstance;
+                });
+            } else {
+                return prev.filter(t => t.id !== recurringDeletePrompt.id);
+            }
+        });
+        
+        addToast("Node Wiped from Kernel.", "error");
+        setRecurringDeletePrompt(null);
+    };
+
     const handleAiInject = async () => {
         if (!aiInput.trim()) return;
         setIsThinking(true);
-        addToast("Neural Core: Parsing Directive...", "info");
+        addToast("Smart Core: Parsing Directive...", "info");
 
         const prompt = `
             ACT AS GYM OPS AI.
@@ -248,7 +444,9 @@ const Tasks: React.FC = () => {
                 "title": "Short concise title",
                 "description": "Details extracted",
                 "priority": "Low" | "Medium" | "High" (Infer urgency),
-                "dueDate": "YYYY-MM-DD" (Infer date relative to today)
+                "dueDate": "YYYY-MM-DD" (Infer date relative to today),
+                "isRecurring": boolean (true if the command implies a repeating task like "every day", "weekly"),
+                "recurrencePattern": "daily" | "weekly" | "monthly" (only if isRecurring is true)
             }
         `;
 
@@ -260,7 +458,7 @@ const Tasks: React.FC = () => {
             handleSave(data);
             setAiInput('');
         } catch (e) {
-            addToast("Neural Parse Failed. Use Manual Entry.", "error");
+            addToast("Smart Parse Failed. Use Manual Entry.", "error");
         } finally {
             setIsThinking(false);
         }
@@ -268,30 +466,40 @@ const Tasks: React.FC = () => {
 
     return (
         <div className="space-y-8 animate-fade-in pb-32">
-            {/* OMNI-HUD HEADER */}
-            <div className="bg-[#020308] p-10 rounded-[4rem] border border-amber-500/30 relative overflow-hidden shadow-[0_0_100px_rgba(245,158,11,0.15)] group">
+            {/* Fitness Future-HUD HEADER */}
+            <div className="bg-[#020308] p-10 rounded-[4rem] border border-cyan-500/30 relative overflow-hidden shadow-[0_0_100px_rgba(6,182,212,0.15)] group">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-15"></div>
-                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-amber-600/10 rounded-full blur-[150px] animate-pulse"></div>
+                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[150px] animate-pulse"></div>
                 
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-10">
                     <div className="flex items-center gap-8">
-                        <div className="p-8 bg-amber-600 text-black rounded-[3rem] shadow-[0_0_60px_rgba(245,158,11,0.4)] border border-amber-400 group-hover:rotate-12 transition-transform duration-700">
+                        <div className="p-8 bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-[3rem] shadow-[0_0_60px_rgba(6,182,212,0.4)] border border-cyan-400 group-hover:rotate-12 transition-transform duration-700">
                             <Zap className="w-16 h-16 animate-pulse" />
                         </div>
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="px-4 py-1.5 bg-amber-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
-                                    <Cpu className="w-3 h-3" /> Sovereign Ops v31.0
+                                <div className="px-4 py-1.5 bg-cyan-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
+                                    <Cpu className="w-3 h-3" /> Sovereign Ops Fitness Future
                                 </div>
-                                <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">STATUS: KERNEL_SYNCED</span>
+                                <span className="text-[10px] font-mono text-cyan-500/70 tracking-[0.4em] uppercase">STATUS: KERNEL_SYNCED</span>
                             </div>
                             <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none">
-                                Task <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-600">Nodes</span>
+                                Task <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-fuchsia-400">Nodes</span>
                             </h1>
                         </div>
                     </div>
                     
-                    <div className="flex gap-4">
+                    <div className="flex flex-wrap gap-4">
+                        <button 
+                            onClick={handleAutoPrioritize}
+                            disabled={isAutoPrioritizing || tasks.length === 0}
+                            className="relative overflow-hidden bg-indigo-900/50 border border-indigo-500/30 text-indigo-400 font-bold px-6 py-5 rounded-[2.5rem] text-[12px] uppercase tracking-widest hover:bg-indigo-800 hover:text-white transition-all shadow-xl active:scale-95 flex items-center gap-3 group disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+                            {isAutoPrioritizing ? <BotIcon className="w-5 h-5 animate-spin relative z-10" /> : <BrainCircuit className="w-5 h-5 relative z-10" />}
+                            <span className="relative z-10">{isAutoPrioritizing ? 'Analyzing...' : 'Auto-Prioritize'}</span>
+                        </button>
+                        
                         <div className="relative">
                             <button 
                                 onClick={() => setShowTemplates(!showTemplates)}
@@ -412,133 +620,173 @@ const Tasks: React.FC = () => {
                                 <p className="text-xl font-black uppercase tracking-[0.5em] italic">No Active Vectors</p>
                             </div>
                         ) : (
-                            filteredTasks.map(task => {
-                                const config = getPriorityConfig(task.priority);
-                                const isOverdue = !task.completed && new Date(task.dueDate) < new Date(new Date().setHours(0,0,0,0));
-                                
-                                const unmetDependencies = (task.dependencies || []).filter(depId => {
-                                    const depTask = tasks.find(t => t.id === depId);
-                                    return depTask && !depTask.completed;
-                                });
-                                const hasUnmetDeps = unmetDependencies.length > 0;
-                                
-                                return (
-                                    <div 
-                                        key={task.id}
-                                        className={`group p-6 rounded-[2.5rem] border-2 transition-all duration-500 relative overflow-hidden flex flex-col md:flex-row items-center justify-between ${
-                                            task.completed 
-                                            ? 'bg-gray-900/20 border-white/5 opacity-50 scale-95 blur-[1px] hover:blur-0 hover:opacity-100 hover:scale-100' 
-                                            : isOverdue 
-                                            ? 'bg-red-950/10 border-red-500/50 shadow-[0_0_30px_rgba(220,38,38,0.2)]' 
-                                            : hasUnmetDeps
-                                            ? 'bg-gray-900/40 border-amber-500/20'
-                                            : 'bg-[#0a0a0a] border-white/5 hover:border-amber-500/30'
-                                        }`}
-                                    >
-                                        {/* Priority Glow Line */}
-                                        <div className={`absolute top-0 left-0 h-full w-1.5 ${config.color.replace('text-', 'bg-')} ${task.completed ? 'opacity-20' : 'opacity-100 shadow-[0_0_15px_current]'}`}></div>
+                            <AnimatePresence mode="popLayout">
+                                {filteredTasks.map(task => {
+                                    const config = getPriorityConfig(task.priority);
+                                    const isOverdue = !task.completed && new Date(task.dueDate) < new Date(new Date().setHours(0,0,0,0));
+                                    
+                                    const unmetDependencies = (task.dependencies || []).filter(depId => {
+                                        const depTask = tasks.find(t => t.id === depId);
+                                        return depTask && !depTask.completed;
+                                    });
+                                    const hasUnmetDeps = unmetDependencies.length > 0;
+                                    
+                                    return (
+                                        <motion.div 
+                                            key={task.id}
+                                            layout
+                                            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                                            animate={{ 
+                                                opacity: task.completed ? 0.5 : 1, 
+                                                y: 0, 
+                                                scale: task.completed ? 0.95 : 1,
+                                                filter: task.completed ? 'blur(1px)' : 'blur(0px)'
+                                            }}
+                                            exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+                                            whileHover={task.completed ? { opacity: 1, scale: 1, filter: 'blur(0px)' } : {}}
+                                            transition={{ duration: 0.4, type: "spring", bounce: 0.3 }}
+                                            className={`group p-6 rounded-[2.5rem] border-2 relative overflow-hidden flex flex-col md:flex-row items-center justify-between ${
+                                                task.completed 
+                                                ? 'bg-gray-900/20 border-white/5' 
+                                                : isOverdue 
+                                                ? 'bg-red-950/10 border-red-500/50 shadow-[0_0_30px_rgba(220,38,38,0.2)]' 
+                                                : hasUnmetDeps
+                                                ? 'bg-gray-900/40 border-amber-500/20'
+                                                : 'bg-[#0a0a0a] border-white/5 hover:border-amber-500/30'
+                                            }`}
+                                        >
+                                            {/* Priority Glow Line */}
+                                            <div className={`absolute top-0 left-0 h-full w-1.5 ${config.color.replace('text-', 'bg-')} ${task.completed ? 'opacity-20' : 'opacity-100 shadow-[0_0_15px_current]'}`}></div>
 
-                                        <div className="flex items-center gap-6 relative z-10 w-full md:w-auto">
-                                            {/* Neural Checkbox */}
-                                            <button 
-                                                onClick={() => handleToggle(task.id)}
-                                                className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center transition-all duration-300 group/btn relative overflow-hidden ${
-                                                    task.completed 
-                                                    ? 'bg-green-500 border-green-400 shadow-[0_0_30px_#22c55e]' 
-                                                    : hasUnmetDeps
-                                                    ? 'bg-gray-800 border-white/5 cursor-not-allowed'
-                                                    : 'bg-gray-900 border-white/10 hover:border-amber-500/50'
-                                                }`}
-                                            >
-                                                {task.completed ? (
-                                                    <Check className="w-6 h-6 text-black animate-stroke" strokeWidth={4} />
-                                                ) : hasUnmetDeps ? (
-                                                    <Lock className="w-5 h-5 text-gray-600" />
-                                                ) : (
-                                                    <div className="w-3 h-3 rounded-full bg-white/10 group-hover/btn:bg-amber-500 group-hover/btn:scale-150 transition-all"></div>
-                                                )}
-                                            </button>
-
-                                            <div>
-                                                <div className="flex items-center gap-4 mb-1">
-                                                    <h3 className={`text-xl font-black italic uppercase tracking-tight transition-all ${task.completed ? 'text-gray-500 line-through decoration-2 decoration-amber-500' : 'text-white'}`}>
-                                                        {task.title}
-                                                    </h3>
-                                                    <button 
-                                                        onClick={() => cyclePriority(task.id, task.priority)}
-                                                        className={`flex items-center gap-1.5 text-[9px] font-black uppercase px-2 py-0.5 rounded border ${config.bg} ${config.color} ${config.border} hover:opacity-80 transition-opacity`}
-                                                        title="Click to cycle priority"
-                                                    >
-                                                        {config.icon}
-                                                        {task.priority}
-                                                    </button>
-                                                    
-                                                    {/* Reorder Controls (Only visible when sorting by priority) */}
-                                                    {sortBy === 'priority' && (
-                                                        <div className="flex items-center gap-1 ml-2">
-                                                            <button 
-                                                                onClick={() => moveTask(task.id, 'up')}
-                                                                className="p-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
-                                                                title="Move Up (Increases Priority)"
-                                                            >
-                                                                <ArrowUp className="w-3 h-3" />
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => moveTask(task.id, 'down')}
-                                                                className="p-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
-                                                                title="Move Down (Decreases Priority)"
-                                                            >
-                                                                <ArrowDown className="w-3 h-3" />
-                                                            </button>
-                                                        </div>
+                                            <div className="flex items-center gap-6 relative z-10 w-full md:w-auto">
+                                                {/* Smart Checkbox */}
+                                                <button 
+                                                    onClick={() => handleToggle(task.id)}
+                                                    className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center transition-all duration-300 group/btn relative overflow-hidden ${
+                                                        task.completed 
+                                                        ? 'bg-green-500 border-green-400 shadow-[0_0_30px_#22c55e]' 
+                                                        : hasUnmetDeps
+                                                        ? 'bg-gray-800 border-white/5 cursor-not-allowed'
+                                                        : 'bg-gray-900 border-white/10 hover:border-amber-500/50'
+                                                    }`}
+                                                >
+                                                    {task.completed ? (
+                                                        <motion.div
+                                                            initial={{ scale: 0 }}
+                                                            animate={{ scale: 1 }}
+                                                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                                        >
+                                                            <Check className="w-6 h-6 text-black animate-stroke" strokeWidth={4} />
+                                                        </motion.div>
+                                                    ) : hasUnmetDeps ? (
+                                                        <Lock className="w-5 h-5 text-gray-600" />
+                                                    ) : (
+                                                        <div className="w-3 h-3 rounded-full bg-white/10 group-hover/btn:bg-amber-500 group-hover/btn:scale-150 transition-all"></div>
                                                     )}
+                                                </button>
+
+                                                <div>
+                                                    <div className="flex items-center gap-4 mb-1">
+                                                        <h3 className={`text-xl font-black italic uppercase tracking-tight transition-all ${task.completed ? 'text-gray-500 line-through decoration-2 decoration-amber-500' : 'text-white'}`}>
+                                                            {task.title}
+                                                        </h3>
+                                                        <button 
+                                                            onClick={() => cyclePriority(task.id, task.priority)}
+                                                            className={`flex items-center gap-1.5 text-[9px] font-black uppercase px-2 py-0.5 rounded border ${config.bg} ${config.color} ${config.border} hover:opacity-80 transition-opacity`}
+                                                            title="Click to cycle priority"
+                                                        >
+                                                            {config.icon}
+                                                            {task.priority}
+                                                        </button>
+                                                        
+                                                        {/* Reorder Controls (Only visible when sorting by priority) */}
+                                                        {sortBy === 'priority' && (
+                                                            <div className="flex items-center gap-1 ml-2">
+                                                                <button 
+                                                                    onClick={() => moveTask(task.id, 'up')}
+                                                                    className="p-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
+                                                                    title="Move Up (Increases Priority)"
+                                                                >
+                                                                    <ArrowUp className="w-3 h-3" />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => moveTask(task.id, 'down')}
+                                                                    className="p-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
+                                                                    title="Move Down (Decreases Priority)"
+                                                                >
+                                                                    <ArrowDown className="w-3 h-3" />
+                                                                </button>
+                                                            </div>
+                                                        )}
+
+                                                        {hasUnmetDeps && (
+                                                            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 rounded text-amber-500 text-[8px] font-black uppercase tracking-widest">
+                                                                <LinkIcon className="w-2.5 h-2.5" />
+                                                                Locked
+                                                            </div>
+                                                        )}
+                                                        {task.isRecurring && (
+                                                            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 rounded text-blue-500 text-[8px] font-black uppercase tracking-widest" title={`Recurring: ${task.recurrencePattern}`}>
+                                                                <RefreshCw className="w-2.5 h-2.5" />
+                                                                {task.recurrencePattern}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-6 text-gray-500">
+                                                         <div className={`flex items-center gap-2 text-[10px] font-mono ${isOverdue ? 'text-red-500 font-bold animate-pulse' : ''}`}>
+                                                             <Clock className="w-3.5 h-3.5" />
+                                                             {isOverdue ? 'CRITICAL_EXPIRE: ' : 'DUE_DATE: '} {new Date(task.dueDate).toLocaleDateString()}
+                                                         </div>
+                                                         {task.description && <p className="text-[10px] uppercase tracking-widest italic opacity-70 truncate max-w-xs">{task.description}</p>}
+                                                    </div>
+                                                    
+                                                    {/* Progress Bar */}
+                                                    <div className="mt-3 w-full max-w-md">
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <span className="text-[8px] font-black uppercase tracking-widest text-gray-500">Progress</span>
+                                                            <span className="text-[8px] font-black font-mono text-amber-500">{task.progress || 0}%</span>
+                                                        </div>
+                                                        <div className="h-1.5 w-full bg-gray-900 rounded-full overflow-hidden border border-white/5">
+                                                            <div 
+                                                                className="h-full bg-gradient-to-r from-amber-600 to-amber-400 transition-all duration-500 ease-out"
+                                                                style={{ width: `${task.progress || 0}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
 
                                                     {hasUnmetDeps && (
-                                                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 rounded text-amber-500 text-[8px] font-black uppercase tracking-widest">
-                                                            <LinkIcon className="w-2.5 h-2.5" />
-                                                            Locked
+                                                        <div className="mt-2 flex flex-wrap gap-2">
+                                                            {unmetDependencies.map(depId => {
+                                                                const depTask = tasks.find(t => t.id === depId);
+                                                                return (
+                                                                    <span key={depId} className="text-[8px] font-bold text-gray-600 uppercase tracking-tighter bg-black/40 px-2 py-0.5 rounded border border-white/5">
+                                                                        Prereq: {depTask?.title || 'Unknown'}
+                                                                    </span>
+                                                                );
+                                                            })}
                                                         </div>
                                                     )}
                                                 </div>
-                                                <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-6 text-gray-500">
-                                                     <div className={`flex items-center gap-2 text-[10px] font-mono ${isOverdue ? 'text-red-500 font-bold animate-pulse' : ''}`}>
-                                                         <Clock className="w-3.5 h-3.5" />
-                                                         {isOverdue ? 'CRITICAL_EXPIRE: ' : 'DUE_DATE: '} {new Date(task.dueDate).toLocaleDateString()}
-                                                     </div>
-                                                     {task.description && <p className="text-[10px] uppercase tracking-widest italic opacity-70 truncate max-w-xs">{task.description}</p>}
-                                                </div>
-                                                {hasUnmetDeps && (
-                                                    <div className="mt-2 flex flex-wrap gap-2">
-                                                        {unmetDependencies.map(depId => {
-                                                            const depTask = tasks.find(t => t.id === depId);
-                                                            return (
-                                                                <span key={depId} className="text-[8px] font-bold text-gray-600 uppercase tracking-tighter bg-black/40 px-2 py-0.5 rounded border border-white/5">
-                                                                    Prereq: {depTask?.title || 'Unknown'}
-                                                                </span>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
                                             </div>
-                                        </div>
 
-                                        <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0 relative z-10 mt-4 md:mt-0">
-                                            <button 
-                                                onClick={() => { setSelectedTask(task); setIsFormOpen(true); }}
-                                                className="p-4 bg-gray-900 border border-white/10 text-cyan-400 rounded-2xl hover:bg-cyan-500 hover:text-black transition-all shadow-xl"
-                                            >
-                                                <Edit3 className="w-5 h-5" />
-                                            </button>
-                                            <button 
-                                                onClick={() => setTaskToDelete(task)}
-                                                className="p-4 bg-gray-900 border border-white/10 text-red-500 rounded-2xl hover:bg-red-600 hover:text-white transition-all shadow-xl"
-                                            >
-                                                <Trash2 className="w-5 h-5" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                );
-                            })
+                                            <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0 relative z-10 mt-4 md:mt-0">
+                                                <button 
+                                                    onClick={() => { setSelectedTask(task); setIsFormOpen(true); }}
+                                                    className="p-4 bg-gray-900 border border-white/10 text-cyan-400 rounded-2xl hover:bg-cyan-500 hover:text-black transition-all shadow-xl"
+                                                >
+                                                    <Edit3 className="w-5 h-5" />
+                                                </button>
+                                                <button 
+                                                    onClick={() => setTaskToDelete(task)}
+                                                    className="p-4 bg-gray-900 border border-white/10 text-red-500 rounded-2xl hover:bg-red-600 hover:text-white transition-all shadow-xl"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })}
+                            </AnimatePresence>
                         )}
                     </div>
                 </div>
@@ -579,18 +827,18 @@ const Tasks: React.FC = () => {
                                  <span className="text-2xl font-black text-white italic">{tasks.filter(t => !t.completed).length}</span>
                              </div>
                              <div className="flex justify-between items-center p-5 bg-black/40 rounded-3xl border border-white/5">
-                                 <span className="text-[10px] font-black text-gray-500 uppercase">Neural Cleared</span>
+                                 <span className="text-[10px] font-black text-gray-500 uppercase">Smart Cleared</span>
                                  <span className="text-2xl font-black text-green-400 italic">{tasks.filter(t => t.completed).length}</span>
                              </div>
                         </div>
                     </Card>
 
-                    {/* Neural Injector */}
+                    {/* Smart Injector */}
                     <div className="p-8 bg-gradient-to-br from-indigo-900/20 to-black border border-indigo-500/30 rounded-[3rem] shadow-xl relative overflow-hidden group">
                          <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:rotate-12 transition-transform"><BrainCircuit className="w-24 h-24 text-indigo-400" /></div>
                          <div className="relative z-10">
                              <h4 className="text-sm font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2">
-                                 <BotIcon className="w-5 h-5 text-indigo-400"/> Neural Task Injector
+                                 <BotIcon className="w-5 h-5 text-indigo-400"/> Smart Task Injector
                              </h4>
                              <div className="space-y-3">
                                  <textarea 
@@ -616,7 +864,7 @@ const Tasks: React.FC = () => {
                         <div>
                              <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-1">Operational Guard</p>
                              <p className="text-gray-400 text-xs italic leading-relaxed">
-                                 "System v31.0 automatically flags overdue nodes with High Priority Alerts. Keep the kernel clean."
+                                 "System Fitness Future automatically flags overdue nodes with High Priority Alerts. Keep the kernel clean."
                              </p>
                         </div>
                     </div>
@@ -657,6 +905,74 @@ const Tasks: React.FC = () => {
                     title="Terminate Task Node?"
                     message={`This will permanently wipe [${taskToDelete.title.toUpperCase()}] from the sovereign kernel. Continue?`}
                 />
+            )}
+
+            {recurringEditPrompt && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-[#0a0a0a] border-2 border-amber-500/30 rounded-3xl p-6 w-full max-w-md shadow-[0_0_50px_rgba(245,158,11,0.1)]">
+                        <div className="flex items-center gap-4 mb-6 text-amber-500">
+                            <RefreshCw className="w-8 h-8" />
+                            <h2 className="text-xl font-black uppercase tracking-widest">Recurring Task Edit</h2>
+                        </div>
+                        <p className="text-gray-400 mb-8 text-sm uppercase tracking-widest leading-relaxed">
+                            You are editing a recurring task. Do you want to apply these changes to all future uncompleted instances, or just this one?
+                        </p>
+                        <div className="flex flex-col gap-3">
+                            <button 
+                                onClick={() => confirmRecurringEdit(true)}
+                                className="w-full py-4 bg-amber-500 text-black font-black uppercase tracking-widest rounded-xl hover:bg-amber-400 transition-colors"
+                            >
+                                Update All Future Instances
+                            </button>
+                            <button 
+                                onClick={() => confirmRecurringEdit(false)}
+                                className="w-full py-4 bg-gray-900 text-white font-black uppercase tracking-widest rounded-xl border border-white/10 hover:bg-gray-800 transition-colors"
+                            >
+                                Update Only This Instance
+                            </button>
+                            <button 
+                                onClick={() => setRecurringEditPrompt(null)}
+                                className="w-full py-4 bg-transparent text-gray-500 font-black uppercase tracking-widest rounded-xl hover:text-white transition-colors mt-2"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {recurringDeletePrompt && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-[#0a0a0a] border-2 border-red-500/30 rounded-3xl p-6 w-full max-w-md shadow-[0_0_50px_rgba(239,68,68,0.1)]">
+                        <div className="flex items-center gap-4 mb-6 text-red-500">
+                            <Trash2 className="w-8 h-8" />
+                            <h2 className="text-xl font-black uppercase tracking-widest">Delete Recurring Task</h2>
+                        </div>
+                        <p className="text-gray-400 mb-8 text-sm uppercase tracking-widest leading-relaxed">
+                            You are deleting a recurring task. Do you want to delete all future uncompleted instances as well?
+                        </p>
+                        <div className="flex flex-col gap-3">
+                            <button 
+                                onClick={() => confirmRecurringDelete(true)}
+                                className="w-full py-4 bg-red-500 text-white font-black uppercase tracking-widest rounded-xl hover:bg-red-600 transition-colors"
+                            >
+                                Delete All Future Instances
+                            </button>
+                            <button 
+                                onClick={() => confirmRecurringDelete(false)}
+                                className="w-full py-4 bg-gray-900 text-white font-black uppercase tracking-widest rounded-xl border border-white/10 hover:bg-gray-800 transition-colors"
+                            >
+                                Delete Only This Instance
+                            </button>
+                            <button 
+                                onClick={() => setRecurringDeletePrompt(null)}
+                                className="w-full py-4 bg-transparent text-gray-500 font-black uppercase tracking-widest rounded-xl hover:text-white transition-colors mt-2"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

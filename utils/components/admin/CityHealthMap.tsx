@@ -4,7 +4,7 @@ import Card from '../common/Card';
 import { Map, MapPin } from 'lucide-react';
 import { GYM_INFO } from '../../constants';
 
-// Simulated City Zones
+// City Zones
 const ZONES = [
     { name: 'Downtown', density: 'High', color: 'bg-red-500' },
     { name: 'North Sector', density: 'Medium', color: 'bg-amber-500' },

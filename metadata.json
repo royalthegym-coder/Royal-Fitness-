@@ -1,11 +1,15 @@
 {
-  "name": "Royal The Gym Management",
-  "description": "Gym management system with biometric authentication",
+  "name": "Fitness Future",
+  "description": "Professional Gym Management Software Suite B2B SaaS platform",
   "requestFramePermissions": [
     "camera",
     "microphone",
     "geolocation",
     "publickey-credentials-create",
-    "publickey-credentials-get"
+    "publickey-credentials-get",
+    "bluetooth"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
 }

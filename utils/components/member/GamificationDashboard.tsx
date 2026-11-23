@@ -72,7 +72,7 @@ const GamificationDashboard: React.FC<{ memberId: number }> = () => {
             <RpgAdventure steps={steps} />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card title="Neural Challenges">
+                <Card title="Smart Challenges">
                     <div className="space-y-3">
                         {[
                             { name: 'Fasted Finisher', desc: 'Workout while glucose < 90 mg/dL', xp: 200, status: 'Active' },

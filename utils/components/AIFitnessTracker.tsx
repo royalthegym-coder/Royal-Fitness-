@@ -1,13 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Card from './common/Card';
 import { INITIAL_MEMBERS } from '../../constants';
-import { getComplexResponse } from '../../lib/gemini';
+import { getComplexResponse } from '../../lib/core_ai';
 import { useData } from '../context/DataProvider';
 import { useToast } from '../hooks/useToast';
 import { 
     TrendingUp, Activity, Dumbbell, Zap, Target, BrainCircuit, 
     RefreshCw, Share2, BarChart3, Database, Calendar, Settings, 
-    ChevronRight, CheckCircle 
+    ChevronRight, CheckCircle, Cpu
 } from 'lucide-react';
 import { ResponsiveContainer, ComposedChart, Line, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import CustomTooltip from './common/CustomTooltip';
@@ -79,14 +79,15 @@ const AIFitnessTracker: React.FC = () => {
         setShowConfig(false);
 
         const prompt = `
-            ACT AS CHIEF SPORT SCIENTIST FOR ROYAL GYM.
+            ACT AS CHIEF SPORT SCIENTIST FOR FITNESS FUTURE.
             
             MEMBER PROFILE:
             - Name: ${member.name}
             - Experience: Level ${member.level}
             - Stats: ${member.physical_metrics.weight}kg, ${member.physical_metrics.body_fat}% BF
             - Health Score: ${member.health_score}
-            - HRV: ${member.hrv}
+            - HRV: ${member.hrv}ms
+            - Sleep: ${(member.physical_metrics as any).sleep_hours}h (Quality: ${(member.physical_metrics as any).sleep_quality})
             - Recent Logs: ${memberDetailedLogs.slice(-3).map(l => l.exerciseName).join(', ') || 'None'}
             
             CONFIGURATION:
@@ -95,7 +96,9 @@ const AIFitnessTracker: React.FC = () => {
             - Frequency: ${config.daysPerWeek} days/week
             - Constraints: ${config.injuries}
             
-            TASK: Analyze the member's workout logs and live health data to generate personalized performance insights and suggest workout adjustments. Generate a v31.0 Evolution Protocol.
+            TASK: Analyze the member's workout logs and live health data (HRV, Sleep) to generate personalized performance insights and suggest specific workout adjustments. 
+            If HRV is low or Sleep is poor, prioritize recovery and lower volume. If biometrics are optimal, suggest pushing for progress.
+            Generate a Fitness Future Evolution Protocol.
             
             OUTPUT FORMAT (Use these exact delimiters):
             ### PERIODIZATION ###
@@ -129,27 +132,30 @@ const AIFitnessTracker: React.FC = () => {
         if (!member || !aiPlan) return;
         updateMember({ ...member, approvedAiPlan: aiPlan.workoutPlan });
         setIsSaved(true);
-        addToast(`Protocol Deployed to ${member.name}'s Neural Hub.`, "success");
+        addToast(`Protocol Deployed to ${member.name}'s Smart Hub.`, "success");
     };
 
     return (
         <div className="space-y-8 animate-fade-in pb-20">
             {/* Header */}
-            <div className="bg-[#050505] p-10 rounded-[4rem] border border-cyan-500/20 shadow-2xl relative overflow-hidden group">
+            <div className="bg-[#020202] p-10 rounded-[4rem] border border-cyan-500/20 shadow-[0_0_120px_rgba(6,182,212,0.15)] relative overflow-hidden group">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-                <div className="absolute -right-20 -top-20 w-96 h-96 bg-cyan-600/10 rounded-full blur-[120px] animate-pulse"></div>
+                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[150px] animate-pulse"></div>
                 <div className="relative z-10 flex items-center gap-8">
-                    <div className="p-8 bg-cyan-500 text-black rounded-[2.5rem] shadow-[0_0_50px_rgba(6,182,212,0.4)] group-hover:rotate-12 transition-transform">
+                    <div className="p-8 bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-[3rem] shadow-[0_0_60px_rgba(6,182,212,0.5)] border border-cyan-400 group-hover:rotate-12 transition-transform duration-700">
                         <BrainCircuit className="w-16 h-16" />
                     </div>
                     <div>
                         <div className="flex items-center gap-3 mb-2">
+                            <div className="px-4 py-1.5 bg-cyan-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
+                                <Cpu className="w-3 h-3" /> Fitness Future
+                            </div>
                             <div className="px-4 py-1.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
-                                <Activity className="w-3 h-3" /> Neural Analytics v27.0
+                                <Activity className="w-3 h-3" /> Smart Analytics v27.0
                             </div>
                         </div>
                         <h1 className="text-5xl md:text-7xl font-black text-white italic uppercase tracking-tighter leading-none">
-                            Progress <span className="text-cyan-400">Lab</span>
+                            Progress <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-fuchsia-400">Lab</span>
                         </h1>
                     </div>
                 </div>
@@ -201,7 +207,7 @@ const AIFitnessTracker: React.FC = () => {
                                     </div>
                                 </div>
                                 <button onClick={handleGeneratePlan} className="w-full bg-cyan-600 hover:bg-cyan-500 text-black font-black py-4 rounded-2xl uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg">
-                                    <BrainCircuit className="w-5 h-5" /> Execute Neural Synthesis
+                                    <BrainCircuit className="w-5 h-5" /> Execute Smart Synthesis
                                 </button>
                             </Card>
                         )}

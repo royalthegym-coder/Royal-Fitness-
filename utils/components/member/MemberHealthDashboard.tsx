@@ -6,12 +6,12 @@ import {
     Activity, Heart, BrainCircuit, Droplets, AlertTriangle, 
     RefreshCw, Scale, Flame, Fingerprint, Save, CheckCircle, Target, ArrowUpRight,
     Bot, Zap, Link, FileText, Pill, TrendingDown, Stethoscope, Microscope,
-    ScanFace, Watch, Dna, Layers
+    ScanFace, Watch, Dna, Layers, TrendingUp
 } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import Modal from '../common/Modal';
 import { useToast } from '../../hooks/useToast';
-import { getComplexResponse } from '../../../lib/gemini';
+import { getComplexResponse } from '../../../lib/core_ai';
 import { SmartWatchIcon } from '../icons/SmartWatchIcon';
 
 // --- INTEGRATED MODULES ---
@@ -19,13 +19,14 @@ import BodySimulator from '../BodySimulator';
 import WearableConnectHub from './SmartWatch';
 import BiomarkerVault from './BiomarkerVault'; // Assuming this exists or using placeholder
 import MedicalHub from './MedicalHub';
+import WorkoutProgressTracker from './WorkoutProgressTracker';
 
-const MemberHealthDashboard: React.FC = () => {
-    const { liveHealthData, updateLiveHealthData, members, updateMember, connectedDevice } = useData();
+const MemberHealthDashboard: React.FC<{ memberId?: string | number }> = ({ memberId }) => {
+    const { liveHealthData, updateLiveHealthData, members, updateMember, connectedDevice, detailedWorkoutLogs, sleepLogs } = useData();
     const { addToast } = useToast();
     
     // --- UI STATE ---
-    const [activeTab, setActiveTab] = useState<'telemetry' | 'digital_twin' | 'wearable' | 'medical'>('telemetry');
+    const [activeTab, setActiveTab] = useState<'telemetry' | 'digital_twin' | 'wearable' | 'medical' | 'progress'>('telemetry');
     const [isInputModalOpen, setIsInputModalOpen] = useState(false);
     const [bioForm, setBioForm] = useState({ weight: 0, hrv: 0, height: 0 });
     const [liveGraphData, setLiveGraphData] = useState<{time: number, hr: number, stress: number}[]>([]);
@@ -36,15 +37,15 @@ const MemberHealthDashboard: React.FC = () => {
     const [readinessScore, setReadinessScore] = useState(85);
 
     // Current Member Context
-    const currentUser = members[0]; 
+    const currentUser = memberId ? members.find(m => String(m.id) === String(memberId)) : members[0]; 
 
     // --- 1. LIVE BIOLOGICAL SIMULATION ENGINE ---
     useEffect(() => {
         if (!currentUser) return;
 
         setBioForm({
-            weight: currentUser.physical_metrics.weight || 70,
-            height: currentUser.physical_metrics.height || 170,
+            weight: currentUser.physical_metrics?.weight || 70,
+            height: currentUser.physical_metrics?.height || 170,
             hrv: liveHealthData.heartRate.hrv || 65
         });
         
@@ -73,8 +74,8 @@ const MemberHealthDashboard: React.FC = () => {
     // --- 2. METRICS CALCULATION ---
     const metrics = useMemo(() => {
         if (!currentUser) return null;
-        const h = (currentUser.physical_metrics.height || 170) / 100;
-        const w = currentUser.physical_metrics.weight || 70;
+        const h = (currentUser.physical_metrics?.height || 170) / 100;
+        const w = currentUser.physical_metrics?.weight || 70;
         const bmi = (w / (h * h)).toFixed(1);
         const age = currentUser.bio_age || 25;
         const bmr = (10 * w) + (6.25 * (h * 100)) - (5 * age) + 5;
@@ -86,20 +87,37 @@ const MemberHealthDashboard: React.FC = () => {
         setIsAnalyzing(true);
         setCoachVerdict(null);
 
+        // Construct granular workout context
+        const recentWorkouts = detailedWorkoutLogs
+            .filter(w => w.memberId === currentUser?.id)
+            .slice(0, 3)
+            .map(w => {
+                const sets = w.sets.map(s => `${s.reps} reps @ ${s.weight}kg (RPE ${s.rpe})`).join(', ');
+                return `${w.date}: ${w.exerciseName} - [${sets}]`;
+            }).join(' | ');
+
+        const recentSleep = sleepLogs
+            .filter(s => s.memberId === currentUser?.id)
+            .slice(0, 3)
+            .map(s => `${s.date}: ${s.totalHours}h (Quality: ${s.quality}, Efficiency: ${s.efficiency}%)`).join(' | ');
+
         const prompt = `
-            ACT AS 'ROYAL BIO-ARCHITECT'. 
+            ACT AS 'FUTURE BIO-ARCHITECT'. 
             User: ${currentUser?.name}.
-            Data: Readiness ${readinessScore}%, HRV ${liveHealthData.heartRate.hrv}ms, Sleep ${liveHealthData.sleep.totalHours}h.
+            Current Biometrics: Readiness ${readinessScore}%, HRV ${liveHealthData.heartRate.hrv}ms, Sleep ${liveHealthData.sleep.totalHours}h, Steps ${liveHealthData.steps}.
+            Recent Workout History: ${recentWorkouts || 'No recent workout data available.'}
+            Recent Sleep History: ${recentSleep || 'No recent sleep data available.'}
             
-            Based on the member's data, generate personalized workout suggestions and motivational prompts.
+            Based on the member's data, generate personalized performance insights and suggest specific workout adjustments (e.g., "reduce weight by 5kg on squats" or "add 2 sets of pull-ups").
+            Analyze for plateaus, overtraining, or recovery gaps.
             Output a "Tactical Brief" (HTML format, use Tailwind classes for styling, keep it clean and futuristic):
             <div class="space-y-4">
                 <div class="p-4 bg-indigo-900/20 border border-indigo-500/30 rounded-2xl">
-                    <h4 class="text-xs font-black text-indigo-400 uppercase tracking-widest mb-2">System Status</h4>
+                    <h4 class="text-xs font-black text-indigo-400 uppercase tracking-widest mb-2">Smart Analysis</h4>
                     <p class="text-white text-sm">...</p>
                 </div>
                 <div class="p-4 bg-cyan-900/20 border border-cyan-500/30 rounded-2xl">
-                    <h4 class="text-xs font-black text-cyan-400 uppercase tracking-widest mb-2">Personalized Workout</h4>
+                    <h4 class="text-xs font-black text-cyan-400 uppercase tracking-widest mb-2">Tactical Adjustments</h4>
                     <p class="text-white text-sm">...</p>
                 </div>
                 <div class="p-4 bg-amber-900/20 border border-amber-500/30 rounded-2xl">
@@ -107,7 +125,7 @@ const MemberHealthDashboard: React.FC = () => {
                     <p class="text-white text-sm italic">...</p>
                 </div>
                 <div class="p-4 bg-green-900/20 border border-green-500/30 rounded-2xl">
-                    <h4 class="text-xs font-black text-green-400 uppercase tracking-widest mb-2">Bio-Hack</h4>
+                    <h4 class="text-xs font-black text-green-400 uppercase tracking-widest mb-2">Bio-Hack Protocol</h4>
                     <p class="text-white text-sm">...</p>
                 </div>
             </div>
@@ -117,7 +135,7 @@ const MemberHealthDashboard: React.FC = () => {
             const result = await getComplexResponse(prompt);
             setCoachVerdict(result);
         } catch (e) {
-            setCoachVerdict("Neural Link Unstable. Rest recommended.");
+            setCoachVerdict("Smart Link Unstable. Rest recommended.");
         } finally {
             setIsAnalyzing(false);
         }
@@ -127,7 +145,7 @@ const MemberHealthDashboard: React.FC = () => {
         if (!currentUser) return;
         updateMember({
             ...currentUser,
-            physical_metrics: { ...currentUser.physical_metrics, weight: bioForm.weight, height: bioForm.height }
+            physical_metrics: { ...(currentUser.physical_metrics || {}), weight: bioForm.weight, height: bioForm.height } as any
         });
         updateLiveHealthData({ heartRate: { ...liveHealthData.heartRate, hrv: bioForm.hrv } });
         addToast("Bio-Matrix Updated.", "success");
@@ -152,7 +170,7 @@ const MemberHealthDashboard: React.FC = () => {
                         <div>
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="px-4 py-1.5 bg-cyan-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg">
-                                    Bio-Metric v31.0
+                                    Bio-Metric Fitness Future
                                 </div>
                                 <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">LINK: SECURE</span>
                             </div>
@@ -189,17 +207,19 @@ const MemberHealthDashboard: React.FC = () => {
                     { id: 'digital_twin', label: 'Digital Twin', icon: <ScanFace className="w-4 h-4"/> },
                     { id: 'wearable', label: 'Wearable Uplink', icon: <Watch className="w-4 h-4"/> },
                     { id: 'medical', label: 'Med-Vault', icon: <Dna className="w-4 h-4"/> },
+                    { id: 'progress', label: 'Progress Tracking', icon: <TrendingUp className="w-4 h-4"/> },
                 ].map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
-                        className={`px-8 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 whitespace-nowrap ${
+                        className={`px-8 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 whitespace-nowrap relative overflow-hidden group ${
                             activeTab === tab.id 
-                            ? 'bg-cyan-600 text-black shadow-[0_0_20px_rgba(6,182,212,0.4)]' 
-                            : 'text-gray-500 hover:text-white hover:bg-white/5'
+                            ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-[0_0_20px_rgba(6,182,212,0.4)] border border-cyan-400/50 border-dashed' 
+                            : 'text-gray-500 hover:text-white hover:bg-white/5 border border-transparent'
                         }`}
                     >
-                        {tab.icon} {tab.label}
+                        {activeTab === tab.id && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>}
+                        <span className="relative z-10 flex items-center gap-3">{tab.icon} {tab.label}</span>
                     </button>
                 ))}
             </div>
@@ -246,7 +266,7 @@ const MemberHealthDashboard: React.FC = () => {
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div className="bg-gray-900 p-6 rounded-[2rem] border border-white/5 text-center group hover:border-cyan-500/30 transition-all">
                                     <Scale className="w-6 h-6 text-gray-600 mx-auto mb-3 group-hover:text-cyan-400" />
-                                    <p className="text-2xl font-black text-white italic">{currentUser.physical_metrics.weight} <span className="text-xs text-gray-500">KG</span></p>
+                                    <p className="text-2xl font-black text-white italic">{currentUser.physical_metrics?.weight || 70} <span className="text-xs text-gray-500">KG</span></p>
                                     <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mt-1">Mass</p>
                                 </div>
                                 <div className="bg-gray-900 p-6 rounded-[2rem] border border-white/5 text-center group hover:border-cyan-500/30 transition-all">
@@ -269,7 +289,7 @@ const MemberHealthDashboard: React.FC = () => {
 
                         {/* RIGHT: AI Coach */}
                         <div className="lg:col-span-4 space-y-6">
-                            <Card title="Neural Architect" className="bg-gradient-to-br from-indigo-900/40 to-black border-indigo-500/30 p-8 rounded-[3rem] h-full flex flex-col relative overflow-hidden shadow-2xl">
+                            <Card title="Smart Architect" className="bg-gradient-to-br from-indigo-900/40 to-black border-indigo-500/30 p-8 rounded-[3rem] h-full flex flex-col relative overflow-hidden shadow-2xl">
                                 <div className="absolute top-0 right-0 p-8 opacity-10"><BrainCircuit className="w-48 h-48 text-indigo-400" /></div>
                                 <div className="relative z-10 flex-1 flex flex-col">
                                     <div className="flex justify-center mb-8">
@@ -292,9 +312,12 @@ const MemberHealthDashboard: React.FC = () => {
                                     <button 
                                         onClick={handleConsultCoach}
                                         disabled={isAnalyzing}
-                                        className="w-full bg-white text-black font-black py-5 rounded-[2rem] uppercase tracking-widest text-[10px] shadow-xl hover:bg-cyan-400 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
+                                        className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black py-5 rounded-[2rem] uppercase tracking-widest text-[10px] shadow-[0_0_20px_rgba(6,182,212,0.3)] border border-cyan-400/50 border-dashed transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 relative overflow-hidden group"
                                     >
-                                        <Stethoscope className="w-4 h-4" /> Consult AI Architect
+                                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                        <span className="relative z-10 flex items-center gap-3">
+                                            <Stethoscope className="w-4 h-4" /> Consult AI Architect
+                                        </span>
                                     </button>
                                 </div>
                             </Card>
@@ -326,12 +349,20 @@ const MemberHealthDashboard: React.FC = () => {
                          </div>
                     </div>
                 )}
+
+                {/* TAB: PROGRESS TRACKING */}
+                {activeTab === 'progress' && (
+                    <div className="animate-scale-in">
+                        <WorkoutProgressTracker />
+                    </div>
+                )}
             </div>
 
             {/* QUICK UPDATE BUTTON */}
             <div className="fixed bottom-24 left-8 z-40">
-                <button onClick={() => setIsInputModalOpen(true)} className="bg-black/80 backdrop-blur-xl p-4 rounded-full border border-white/10 text-white hover:bg-cyan-900/50 hover:text-cyan-400 transition-all shadow-2xl hover:scale-110 active:scale-95">
-                    <RefreshCw className="w-6 h-6" />
+                <button onClick={() => setIsInputModalOpen(true)} className="bg-gradient-to-r from-gray-900 to-black backdrop-blur-xl p-4 rounded-full border border-dashed border-cyan-500/50 text-cyan-400 hover:text-white hover:from-cyan-900 hover:to-blue-900 transition-all shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:scale-110 active:scale-95 relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                    <RefreshCw className="w-6 h-6 relative z-10" />
                 </button>
             </div>
 
@@ -354,8 +385,11 @@ const MemberHealthDashboard: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                    <button onClick={handleSaveBio} className="w-full bg-cyan-600 hover:bg-cyan-500 text-black font-black py-5 rounded-2xl uppercase tracking-[0.3em] text-xs flex items-center justify-center gap-3">
-                        <Save className="w-4 h-4" /> Commit Data
+                    <button onClick={handleSaveBio} className="w-full bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-500 hover:to-blue-600 text-white font-black py-5 rounded-2xl uppercase tracking-[0.3em] text-xs shadow-[0_0_20px_rgba(6,182,212,0.3)] border border-cyan-400/50 border-dashed flex items-center justify-center gap-3 transition-all relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                        <span className="relative z-10 flex items-center gap-3">
+                            <Save className="w-4 h-4" /> Commit Data
+                        </span>
                     </button>
                 </div>
             </Modal>

@@ -9,7 +9,7 @@ import {
     Infinity
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
-import { getComplexResponse, generateTextToSpeech, generateNeuroProtocol } from '../../lib/gemini';
+import { getComplexResponse, generateTextToSpeech, generateNeuroProtocol } from '../../lib/core_ai';
 import { decode, decodeAudioData } from '../audio';
 import { BotIcon } from './icons/BotIcon';
 import { useData } from '../context/DataProvider';
@@ -444,7 +444,7 @@ const NeuroSyncHub: React.FC = () => {
             };
             setActiveMode(customMode);
             setActiveColor(data.colorTo || '#fff');
-            addToast("Neural Architect: Protocol Generated.", "success");
+            addToast("Smart Architect: Protocol Generated.", "success");
         } catch (e) {
             addToast("Logic Drift Detected. Using defaults.", "error");
         } finally {
@@ -521,7 +521,7 @@ const NeuroSyncHub: React.FC = () => {
                             <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-3">
                                     <BotIcon className="w-6 h-6 text-amber-500" />
-                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Neural Architect v31.0</p>
+                                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Smart Architect Fitness Future</p>
                                 </div>
                                 <label className="flex items-center gap-2 cursor-pointer">
                                      <span className={`text-[10px] font-black uppercase tracking-widest ${bioSync ? 'text-green-400' : 'text-gray-600'}`}>Bio-Sync (HRV)</span>
@@ -633,7 +633,7 @@ const NeuroSyncHub: React.FC = () => {
                     <div>
                         <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">CNS Insight</p>
                         <p className="text-gray-400 text-xs italic leading-relaxed">
-                            "v31.0 Protocol utilizes Isochronic pulsing for faster entrainment. Combined with Bio-Sync, expect 20% faster sympathetic withdrawal."
+                            "Fitness Future Protocol utilizes Isochronic pulsing for faster entrainment. Combined with Bio-Sync, expect 20% faster sympathetic withdrawal."
                         </p>
                     </div>
                 </div>

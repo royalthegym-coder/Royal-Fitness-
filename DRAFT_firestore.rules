@@ -1,0 +1,605 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net (Default-Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Hardened Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedEmail() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    // Zero-Trust Super Admin: strictly bound to cryptographically verified owner emails or /admins doc
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        (isVerifiedEmail() && (
+          request.auth.token.email == "royalthegym@gmail.com"
+        )) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Zero-Trust Admin: verified active admin/owner record
+    function isAdmin() {
+      return isSuperAdmin() ||
+        (
+          isSignedIn() &&
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'] &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'Active' &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountLocked != true
+        ) ||
+        (
+          isSignedIn() &&
+          exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role in ['owner', 'receptionist']
+        );
+    }
+
+    function isGymStaff() {
+      return isAdmin() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role in ['owner', 'receptionist', 'trainer']
+      );
+    }
+
+    function isTrainer() {
+      return isAdmin() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'trainer'
+      );
+    }
+
+    // 3. Standalone Validation Blueprints (with Anti-Denial-of-Wallet size caps)
+    function isValidUser(data) {
+      return data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.role is string && data.role in ['super_admin', 'admin', 'trainer', 'member'] &&
+        data.status is string && data.status in ['Active', 'Expired', 'Locked', 'Suspended', 'Pending', 'Inactive'] &&
+        data.createdAt is string && data.createdAt.size() >= 4 && data.createdAt.size() <= 64;
+    }
+
+    function isValidProfile(data) {
+      return data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.full_name is string && data.full_name.size() >= 1 && data.full_name.size() <= 100 &&
+        data.phone is string && data.phone.size() >= 6 && data.phone.size() <= 20 &&
+        data.role is string && data.role in ['member', 'trainer', 'owner', 'receptionist'] &&
+        (!('biometric_access_enabled' in data) || data.biometric_access_enabled is bool) &&
+        (!('email' in data) || data.email == null || (data.email is string && data.email.size() <= 120)) &&
+        (!('fitness_goal' in data) || data.fitness_goal == null || (data.fitness_goal is string && data.fitness_goal.size() <= 50)) &&
+        (!('diet_preference' in data) || data.diet_preference == null || (data.diet_preference is string && data.diet_preference.size() <= 30)) &&
+        (!('allergies' in data) || data.allergies == null || (data.allergies is list && data.allergies.size() <= 30)) &&
+        (!('injury_flags' in data) || data.injury_flags == null || (data.injury_flags is list && data.injury_flags.size() <= 30));
+    }
+
+    function isValidExerciseMaster(data) {
+      return data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+        data.target_muscle is string && data.target_muscle.size() >= 1 && data.target_muscle.size() <= 50 &&
+        data.video_3d_url is string && data.video_3d_url.size() >= 1 && data.video_3d_url.size() <= 500 &&
+        (!('contraindicated_injuries' in data) || data.contraindicated_injuries == null || (data.contraindicated_injuries is list && data.contraindicated_injuries.size() <= 25));
+    }
+
+    function isValidMembershipPlan(data) {
+      return data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+        data.duration_days is int && data.duration_days >= 1 && data.duration_days <= 3650 &&
+        data.base_price_inr is number && data.base_price_inr >= 0 && data.base_price_inr <= 1000000;
+    }
+
+    function isValidSubscription(data) {
+      return data.member_id is string && data.member_id.size() >= 1 && data.member_id.size() <= 128 &&
+        data.start_date is string && data.start_date.size() >= 8 && data.start_date.size() <= 32 &&
+        data.end_date is string && data.end_date.size() >= 8 && data.end_date.size() <= 32 &&
+        data.status is string && data.status in ['active', 'expired', 'frozen', 'cancelled'];
+    }
+
+    function isValidPaymentTransaction(data) {
+      return (!('invoice_number' in data) || (data.invoice_number is string && data.invoice_number.size() >= 1 && data.invoice_number.size() <= 40)) &&
+        (!('total_paid_inr' in data) || (data.total_paid_inr is number && data.total_paid_inr >= 0)) &&
+        (!('amount' in data) || (data.amount is number && data.amount >= 0)) &&
+        (!('payment_status' in data) || (data.payment_status is string && data.payment_status.size() <= 30)) &&
+        (!('status' in data) || (data.status is string && data.status.size() <= 30));
+    }
+
+    function isValidWorkoutSessionLog(data) {
+      return data.member_id is string && data.member_id.size() >= 1 && data.member_id.size() <= 128 &&
+        data.set_number is int && data.set_number >= 1 && data.set_number <= 100 &&
+        data.weight_kg is number && data.weight_kg >= 0 && data.weight_kg <= 2000 &&
+        data.reps_completed is int && data.reps_completed >= 0 && data.reps_completed <= 1000 &&
+        (!('rpe_score' in data) || data.rpe_score == null || (data.rpe_score is int && data.rpe_score >= 1 && data.rpe_score <= 10));
+    }
+
+    function isValidDailyMealLog(data) {
+      return data.member_id is string && data.member_id.size() >= 1 && data.member_id.size() <= 128 &&
+        data.meal_type is string && data.meal_type.size() >= 1 && data.meal_type.size() <= 25 &&
+        data.total_calories is number && data.total_calories >= 0 && data.total_calories <= 20000;
+    }
+
+    function isValidBodyMetricsLog(data) {
+      return data.member_id is string && data.member_id.size() >= 1 && data.member_id.size() <= 128 &&
+        data.weight_kg is number && data.weight_kg >= 15 && data.weight_kg <= 400;
+    }
+
+    function isValidGymLead(data) {
+      return data.full_name is string && data.full_name.size() >= 1 && data.full_name.size() <= 100 &&
+        data.phone is string && data.phone.size() >= 6 && data.phone.size() <= 20 &&
+        data.status is string && data.status in ['new', 'trial_scheduled', 'trial_done', 'converted', 'lost'];
+    }
+
+    function isValidAutomationLog(data) {
+      return data.target_phone is string && data.target_phone.size() >= 6 && data.target_phone.size() <= 25 &&
+        data.workflow_type is string && data.workflow_type.size() >= 1 && data.workflow_type.size() <= 50;
+    }
+
+    function isValidInvoice(data) {
+      return data.memberId != null &&
+        data.amount is number && data.amount >= 0 &&
+        data.status is string && data.status in ['Paid', 'Pending', 'Overdue', 'Verification Pending', 'Rejected'];
+    }
+
+    function isValidMember(data) {
+      return data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        data.status is string && data.status in ['Active', 'Expired', 'Pending', 'Inactive'];
+    }
+
+    function isValidSystemPolicy(data) {
+      return data.id is string && data.id.size() >= 1 && data.id.size() <= 64 &&
+        data.expirationMode is string && data.expirationMode in ['standard', 'grace_period', 'bypass_all'] &&
+        data.gracePeriodDays is int && data.gracePeriodDays >= 0 && data.gracePeriodDays <= 365 &&
+        data.forceUnlockAllAccounts is bool;
+    }
+
+    function isValidCommunityPost(data) {
+      return data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.author is string && data.author.size() >= 1 && data.author.size() <= 100 &&
+        data.category is string && data.category in ['पोषण', 'कसरत युक्तियाँ', 'प्रेरणा'] &&
+        data.title is string && data.title.size() >= 3 && data.title.size() <= 180 &&
+        data.content is string && data.content.size() >= 5 && data.content.size() <= 4000 &&
+        (!('likes' in data) || (data.likes is int && data.likes >= 0 && data.likes <= 1000000)) &&
+        (!('replies' in data) || (data.replies is list && data.replies.size() <= 200)) &&
+        (!('photoDataUrl' in data) || data.photoDataUrl == null || (data.photoDataUrl is string && data.photoDataUrl.size() <= 350000));
+    }
+
+    function isValidTenant(data) {
+      return !('admin_password' in data) &&
+        (!('gym_name' in data) || (data.gym_name is string && data.gym_name.size() >= 1 && data.gym_name.size() <= 120)) &&
+        (!('owner_name' in data) || data.owner_name == null || (data.owner_name is string && data.owner_name.size() <= 120)) &&
+        (!('email_id' in data) || data.email_id == null || (data.email_id is string && data.email_id.size() <= 160)) &&
+        (!('phone_number' in data) || data.phone_number == null || (data.phone_number is string && data.phone_number.size() <= 32)) &&
+        (!('location' in data) || data.location == null || (data.location is string && data.location.size() <= 500)) &&
+        (!('google_location_url' in data) || data.google_location_url == null || (data.google_location_url is string && data.google_location_url.size() <= 500)) &&
+        (!('upi_id' in data) || data.upi_id == null || (data.upi_id is string && data.upi_id.size() <= 120)) &&
+        (!('logo_url' in data) || data.logo_url == null || (data.logo_url is string && data.logo_url.size() <= 250000)) &&
+        (!('signature_url' in data) || data.signature_url == null || (data.signature_url is string && data.signature_url.size() <= 250000)) &&
+        (!('account_locked' in data) || data.account_locked is bool);
+    }
+
+    // 4. Health-check ping
+    match /test/{docId} {
+      allow get: if isValidId(docId);
+    }
+
+    // 5. Trusted Admin Directory - Only Super Admin can write
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && isValidId(adminId) && (isAdmin() || request.auth.uid == adminId);
+      allow list: if isSignedIn() && isSuperAdmin();
+      allow create, update, delete: if isSuperAdmin() && isValidId(adminId);
+    }
+
+    // 6. Global Users collection - Zero privilege escalation
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isSignedIn() && isAdmin();
+
+      allow create: if isSignedIn() && isValidId(userId) && (
+        isSuperAdmin() ||
+        (isAdmin() && isValidUser(incoming()) && incoming().role in ['admin', 'trainer', 'member']) ||
+        (
+          request.auth.uid == userId &&
+          isValidUser(incoming()) &&
+          incoming().role == 'member' &&
+          incoming().uid == request.auth.uid &&
+          (!('accountLocked' in incoming()) || incoming().accountLocked == false) &&
+          (!('forceUnlocked' in incoming()) || incoming().forceUnlocked == false)
+        )
+      );
+
+      allow update: if isSignedIn() && isValidId(userId) && (
+        isSuperAdmin() ||
+        (isAdmin() && isValidUser(incoming()) && existing().role != 'super_admin' && incoming().role != 'super_admin') ||
+        (
+          request.auth.uid == userId &&
+          isValidUser(incoming()) &&
+          incoming().role == existing().role &&
+          incoming().uid == existing().uid &&
+          incoming().status == existing().status &&
+          incoming().accountLocked == existing().accountLocked &&
+          incoming().forceUnlocked == existing().forceUnlocked &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'avatar', 'whatsappConsent', 'xp', 'level', 'updatedAt', 'membershipExpiry'])
+        )
+      );
+
+      allow delete: if isSuperAdmin() && isValidId(userId);
+    }
+
+    // =========================================================================
+    // CANONICAL 12-MODULE GYM OS COLLECTIONS
+    // =========================================================================
+
+    // Module 1: Profiles (Mirrors RLS "Members view own profile" + staff access)
+    match /profiles/{profileId} {
+      allow get: if isSignedIn() && isValidId(profileId) && (request.auth.uid == profileId || isGymStaff());
+      allow list: if isSignedIn() && isGymStaff();
+
+      allow create: if isSignedIn() && isValidId(profileId) && isValidProfile(incoming()) && (
+        isSuperAdmin() ||
+        (isAdmin() && incoming().role != 'owner') ||
+        (
+          request.auth.uid == profileId &&
+          incoming().id == request.auth.uid &&
+          incoming().role == 'member' &&
+          (!('biometric_access_enabled' in incoming()) || incoming().biometric_access_enabled == false)
+        )
+      );
+
+      allow update: if isSignedIn() && isValidId(profileId) && isValidProfile(incoming()) && (
+        isSuperAdmin() ||
+        (isAdmin() && existing().role != 'owner' && incoming().role != 'owner') ||
+        (
+          request.auth.uid == profileId &&
+          incoming().role == existing().role &&
+          incoming().id == existing().id &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'full_name', 'avatar_url', 'height_cm', 'current_weight_kg', 'target_weight_kg',
+            'activity_level', 'fitness_goal', 'diet_preference', 'allergies', 'injury_flags',
+            'whatsapp_opt_in', 'fcm_push_token', 'updated_at'
+          ])
+        )
+      );
+
+      allow delete: if isSuperAdmin() && isValidId(profileId);
+    }
+
+    // Module 2: Master Exercise & AI Vision Biomechanics Library
+    match /exercises_master/{exerciseId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(exerciseId) && isTrainer() && isValidExerciseMaster(incoming());
+      allow delete: if isAdmin() && isValidId(exerciseId);
+    }
+
+    // Module 3: Membership Plans Catalog
+    match /membership_plans/{planId} {
+      allow get, list: if isValidId(planId);
+      allow create, update: if isAdmin() && isValidId(planId) && isValidMembershipPlan(incoming());
+      allow delete: if isSuperAdmin() && isValidId(planId);
+    }
+
+    // Module 4: Subscriptions (Only Staff/Admin may write active subscriptions)
+    match /subscriptions/{subId} {
+      allow get: if isSignedIn() && isValidId(subId) && (isGymStaff() || resource.data.member_id == request.auth.uid);
+      allow list: if isSignedIn() && (isGymStaff() || resource.data.member_id == request.auth.uid);
+      allow create, update: if isAdmin() && isValidId(subId) && isValidSubscription(incoming());
+      allow delete: if isSuperAdmin() && isValidId(subId);
+    }
+
+    // Module 5: Payment Transactions & GST Ledger
+    match /payment_transactions/{txId} {
+      allow get: if isSignedIn() && isValidId(txId) && (isAdmin() || resource.data.member_id == request.auth.uid);
+      allow list: if isSignedIn() && (isAdmin() || resource.data.member_id == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(txId) && isValidPaymentTransaction(incoming()) && (
+        isAdmin() ||
+        (
+          incoming().member_id == request.auth.uid &&
+          (!('payment_status' in incoming()) || incoming().payment_status in ['pending', 'submitted']) &&
+          (!('status' in incoming()) || incoming().status in ['PENDING', 'Pending', 'Verification Pending'])
+        )
+      );
+      allow update, delete: if isAdmin() && isValidId(txId);
+    }
+
+    // Module 6: Personal Training Contracts & OTP Session Logs
+    match /pt_contracts/{contractId} {
+      allow get, list: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.member_id == request.auth.uid ||
+        resource.data.trainer_id == request.auth.uid
+      );
+      allow create, update, delete: if isAdmin() && isValidId(contractId);
+    }
+
+    match /pt_session_logs/{sessionId} {
+      allow get, list: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.member_id == request.auth.uid ||
+        resource.data.trainer_id == request.auth.uid
+      );
+      allow create: if isSignedIn() && isValidId(sessionId) && (isAdmin() || isTrainer());
+      allow update: if isSignedIn() && isValidId(sessionId) && (
+        isAdmin() ||
+        (
+          resource.data.member_id == request.auth.uid &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['is_verified_by_member'])
+        )
+      );
+      allow delete: if isAdmin() && isValidId(sessionId);
+    }
+
+    // Module 7: Biometric & QR Turnstile Attendance Logs
+    match /attendance_logs/{attId} {
+      allow get: if isSignedIn() && isValidId(attId) && (isGymStaff() || resource.data.member_id == request.auth.uid);
+      allow list: if isSignedIn() && (isGymStaff() || resource.data.member_id == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(attId) && (isGymStaff() || incoming().member_id == request.auth.uid);
+      allow update, delete: if isAdmin() && isValidId(attId);
+    }
+
+    // Module 8: AI Workout Plans & Workout Session Logs
+    match /ai_workout_plans/{planId} {
+      allow get, list: if isSignedIn() && (isGymStaff() || resource.data.member_id == request.auth.uid);
+      allow create, update: if isSignedIn() && isValidId(planId) && (isGymStaff() || incoming().member_id == request.auth.uid);
+      allow delete: if isAdmin() && isValidId(planId);
+    }
+
+    match /workout_session_logs/{logId} {
+      allow get, list: if isSignedIn() && (isGymStaff() || resource.data.member_id == request.auth.uid);
+      allow create, update: if isSignedIn() && isValidId(logId) && isValidWorkoutSessionLog(incoming()) && (
+        isGymStaff() ||
+        incoming().member_id == request.auth.uid
+      );
+      allow delete: if isSignedIn() && isValidId(logId) && (isAdmin() || resource.data.member_id == request.auth.uid);
+    }
+
+    // Module 9: AI Nutrition Plans & Daily Meal Logs
+    match /ai_nutrition_plans/{planId} {
+      allow get, list: if isSignedIn() && (isGymStaff() || resource.data.member_id == request.auth.uid);
+      allow create, update: if isSignedIn() && isValidId(planId) && (isGymStaff() || incoming().member_id == request.auth.uid);
+      allow delete: if isAdmin() && isValidId(planId);
+    }
+
+    match /daily_meal_logs/{mealId} {
+      allow get, list: if isSignedIn() && (isGymStaff() || resource.data.member_id == request.auth.uid);
+      allow create, update: if isSignedIn() && isValidId(mealId) && isValidDailyMealLog(incoming()) && (
+        isGymStaff() ||
+        incoming().member_id == request.auth.uid
+      );
+      allow delete: if isSignedIn() && isValidId(mealId) && (isAdmin() || resource.data.member_id == request.auth.uid);
+    }
+
+    // Module 10: Smart BCA Scale & Body Metrics
+    match /body_metrics_logs/{metricId} {
+      allow get, list: if isSignedIn() && (isGymStaff() || resource.data.member_id == request.auth.uid);
+      allow create, update: if isSignedIn() && isValidId(metricId) && isValidBodyMetricsLog(incoming()) && (
+        isGymStaff() ||
+        incoming().member_id == request.auth.uid
+      );
+      allow delete: if isSignedIn() && isValidId(metricId) && (isAdmin() || resource.data.member_id == request.auth.uid);
+    }
+
+    // Module 11: Walk-In Leads & CRM Pipeline (Staff Only)
+    match /gym_leads/{leadId} {
+      allow get, list: if isSignedIn() && isGymStaff();
+      allow create, update: if isSignedIn() && isValidId(leadId) && isGymStaff() && isValidGymLead(incoming());
+      allow delete: if isAdmin() && isValidId(leadId);
+    }
+
+    // Module 12: WhatsApp / n8n Automation Audit Logs (Append-mostly Staff Audit Trail)
+    match /automation_logs/{logId} {
+      allow get, list: if isSignedIn() && (isGymStaff() || resource.data.member_id == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(logId) && isGymStaff() && isValidAutomationLog(incoming());
+      allow update: if isAdmin() && isValidId(logId);
+      allow delete: if isSuperAdmin() && isValidId(logId);
+    }
+
+    // Live Floor Occupancy & Turnstile Event Stream
+    match /gym_occupancy/{gymId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(gymId) && isGymStaff();
+      allow delete: if isSuperAdmin() && isValidId(gymId);
+    }
+
+    match /real_time_attendance_logs/{logId} {
+      allow get, list: if isSignedIn() && isGymStaff();
+      allow create: if isSignedIn() && isValidId(logId) && isGymStaff();
+      allow update, delete: if isAdmin() && isValidId(logId);
+    }
+
+    // =========================================================================
+    // EXISTING PLATFORM GOVERNANCE & LEGACY COLLECTIONS
+    // =========================================================================
+
+    match /members/{memberId} {
+      allow get: if isSignedIn() && isValidId(memberId) && (isAdmin() || resource.data.uid == request.auth.uid || memberId == request.auth.uid);
+      allow list: if isSignedIn() && (isAdmin() || resource.data.uid == request.auth.uid);
+
+      allow create: if isSignedIn() && isValidId(memberId) && (
+        isAdmin() ||
+        (
+          incoming().uid == request.auth.uid &&
+          isValidMember(incoming()) &&
+          (!('accountLocked' in incoming()) || incoming().accountLocked == false) &&
+          (!('forceUnlocked' in incoming()) || incoming().forceUnlocked == false)
+        )
+      );
+
+      allow update: if isSignedIn() && isValidId(memberId) && (
+        isAdmin() ||
+        (
+          (resource.data.uid == request.auth.uid || memberId == request.auth.uid) &&
+          isValidMember(incoming()) &&
+          incoming().accountLocked == existing().accountLocked &&
+          incoming().forceUnlocked == existing().forceUnlocked &&
+          incoming().status == existing().status &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'avatar', 'whatsappConsent', 'xp', 'level', 'achievements', 'hrv', 'lbm', 'health_score', 'bio_age'])
+        )
+      );
+
+      allow delete: if isAdmin() && isValidId(memberId);
+    }
+
+    match /invoices/{invoiceId} {
+      allow get: if isSignedIn() && isValidId(invoiceId) && (
+        isAdmin() ||
+        resource.data.memberId == request.auth.uid ||
+        resource.data.userId == request.auth.uid
+      );
+      allow list: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.memberId == request.auth.uid ||
+        resource.data.userId == request.auth.uid
+      );
+
+      allow create: if isSignedIn() && isValidId(invoiceId) && isValidInvoice(incoming()) && (
+        isAdmin() ||
+        (
+          (incoming().memberId == request.auth.uid || incoming().userId == request.auth.uid) &&
+          incoming().status in ['Pending', 'Verification Pending']
+        )
+      );
+
+      allow update: if isSignedIn() && isValidId(invoiceId) && isValidInvoice(incoming()) && (
+        isAdmin() ||
+        (
+          (existing().memberId == request.auth.uid || existing().userId == request.auth.uid) &&
+          existing().status == 'Pending' &&
+          incoming().status == 'Verification Pending' &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'paymentMethod', 'transactionId', 'utr', 'updatedAt', 'lastPaymentReference'])
+        )
+      );
+
+      allow delete: if isAdmin() && isValidId(invoiceId);
+    }
+
+    match /payments/{paymentId} {
+      allow get: if isSignedIn() && isValidId(paymentId) && (isAdmin() || resource.data.memberId == request.auth.uid || resource.data.member_id == request.auth.uid);
+      allow list: if isSignedIn() && (isAdmin() || resource.data.memberId == request.auth.uid || resource.data.member_id == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(paymentId) && isValidPaymentTransaction(incoming()) && (
+        isAdmin() ||
+        ((incoming().memberId == request.auth.uid || incoming().member_id == request.auth.uid) &&
+          (!('status' in incoming()) || incoming().status in ['Pending', 'Submitted', 'Verification Pending', 'PENDING']))
+      );
+      allow update, delete: if isAdmin() && isValidId(paymentId);
+    }
+
+    match /tenants/{tenantId} {
+      allow get: if isSignedIn() && isValidId(tenantId);
+      allow list: if isSignedIn() && (isAdmin() || resource.data.account_locked != true);
+      allow create: if isSignedIn() && isValidId(tenantId) && isValidTenant(incoming()) && (isSuperAdmin() || isAdmin());
+      allow update: if isSignedIn() && isValidId(tenantId) && isValidTenant(incoming()) && (
+        isSuperAdmin() ||
+        (isAdmin() && (existing().email_id == request.auth.token.email || existing().gym_id == tenantId))
+      );
+      allow delete: if isSuperAdmin() && isValidId(tenantId);
+    }
+
+    match /system_policies/{policyId} {
+      allow get, list: if isSignedIn() && isValidId(policyId);
+      allow create, update, delete: if isSuperAdmin() && isValidId(policyId) && isValidSystemPolicy(incoming());
+    }
+
+    match /packages/{packageId} {
+      allow get, list: if isValidId(packageId);
+      allow create, update, delete: if isAdmin() && isValidId(packageId);
+    }
+
+    match /attendance/{attId} {
+      allow get: if isSignedIn() && isValidId(attId) && (isAdmin() || resource.data.memberId == request.auth.uid);
+      allow list: if isSignedIn() && (isAdmin() || resource.data.memberId == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(attId) && (isAdmin() || incoming().memberId == request.auth.uid);
+      allow update, delete: if isAdmin() && isValidId(attId);
+    }
+
+    match /admin_activity_logs/{logId} {
+      allow get, list: if isSignedIn() && isAdmin();
+      allow create: if isSignedIn() && isAdmin() && isValidId(logId);
+      allow update: if false;
+      allow delete: if isSuperAdmin() && isValidId(logId);
+    }
+
+    match /force_unlock_audit_logs/{auditId} {
+      allow get, list: if isSignedIn() && isAdmin();
+      allow create: if isSignedIn() && isAdmin() && isValidId(auditId);
+      allow update: if false;
+      allow delete: if isSuperAdmin() && isValidId(auditId);
+    }
+
+    match /force_unlock_logs/{logId} {
+      allow get, list: if isSignedIn() && isAdmin();
+      allow create: if isSignedIn() && isAdmin() && isValidId(logId);
+      allow update: if false;
+      allow delete: if isSuperAdmin() && isValidId(logId);
+    }
+
+    match /security_audit/{auditId} {
+      allow get, list: if isSignedIn() && isAdmin();
+      allow create: if isValidId(auditId);
+      allow update: if false;
+      allow delete: if isSuperAdmin() && isValidId(auditId);
+    }
+
+    match /workout_logs/{logId} {
+      allow get, list: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.userId == request.auth.uid ||
+        resource.data.memberId == request.auth.uid
+      );
+      allow create: if isSignedIn() && isValidId(logId) && (
+        isAdmin() ||
+        incoming().userId == request.auth.uid ||
+        incoming().memberId == request.auth.uid
+      );
+      allow update, delete: if isSignedIn() && isValidId(logId) && (
+        isAdmin() ||
+        resource.data.userId == request.auth.uid ||
+        resource.data.memberId == request.auth.uid
+      );
+    }
+
+    match /health_data/{healthId} {
+      allow get, list: if isSignedIn() && (isAdmin() || resource.data.uid == request.auth.uid);
+      allow create, update: if isSignedIn() && isValidId(healthId) && (isAdmin() || incoming().uid == request.auth.uid);
+      allow delete: if isAdmin() && isValidId(healthId);
+    }
+
+    match /classes/{classId} {
+      allow get, list: if isSignedIn() && isValidId(classId);
+      allow create, update, delete: if isSignedIn() && isAdmin() && isValidId(classId);
+    }
+
+    match /community_posts/{postId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(postId) && isValidCommunityPost(incoming()) && (
+        isAdmin() || incoming().authorId == request.auth.uid
+      );
+      allow update: if isSignedIn() && isValidId(postId) && isValidCommunityPost(incoming()) && (
+        isAdmin() ||
+        resource.data.authorId == request.auth.uid ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'likedByMe', 'replies'])
+      );
+      allow delete: if isSignedIn() && isValidId(postId) && (isAdmin() || resource.data.authorId == request.auth.uid);
+    }
+
+    match /system_governance/{docId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(docId) && isAdmin();
+      allow delete: if isSuperAdmin() && isValidId(docId);
+    }
+  }
+}

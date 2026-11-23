@@ -16,7 +16,7 @@ export const EmergencyOverride: React.FC = () => {
     const subsystems = [
         { name: 'Titan Vision AI', status: systemState === 'SHUTDOWN' ? 'OFFLINE' : 'ONLINE' },
         { name: 'Nexus Auto-Pilot', status: systemState === 'AUTONOMOUS' ? 'ONLINE' : 'OFFLINE' },
-        { name: 'Bio-Aether Oracle', status: systemState === 'SHUTDOWN' ? 'OFFLINE' : 'ONLINE' },
+        { name: 'Bio-Cloud Oracle', status: systemState === 'SHUTDOWN' ? 'OFFLINE' : 'ONLINE' },
         { name: 'Financial Vault', status: 'SECURE' }, // Always secure
     ];
 
@@ -24,11 +24,11 @@ export const EmergencyOverride: React.FC = () => {
         setIsListening(true);
         addToast("Awaiting Voice Print...", "info");
         
-        // Simulate voice verification process
+        // Process voice verification process
         setTimeout(() => {
             setIsListening(false);
             setVoiceVerified(true);
-            addToast("Voice Print Verified: Mahesh Sani. Master Access Granted.", "success");
+            addToast("Voice Print Verified: Fitness Future Super Admin. Master Access Granted.", "success");
         }, 3000);
     };
 
@@ -55,7 +55,7 @@ export const EmergencyOverride: React.FC = () => {
         
         if (systemState === 'AUTONOMOUS') {
             setSystemState('MANUAL');
-            addToast("Manual Override Active. AI Auto-Pilot Suspended.", "warning");
+            addToast("Manual Override Active. AI Auto-Pilot Suspended.", "info");
         } else {
             setSystemState('AUTONOMOUS');
             addToast("Auto-Pilot Restored. AI resuming control.", "success");
@@ -90,7 +90,7 @@ export const EmergencyOverride: React.FC = () => {
                         </div>
                         <h1 className="text-4xl font-black text-white italic uppercase tracking-tighter">Emergency Override</h1>
                         <p className="text-zinc-400 mt-2 text-sm max-w-xl">
-                            Master control terminal for 'The Royal Nexus'. Use voice print to authorize manual override or initiate total AI shutdown.
+                            Master control terminal for 'The Future Nexus'. Use voice print to authorize manual override or initiate total AI shutdown.
                         </p>
                     </div>
                     
@@ -247,7 +247,7 @@ export const EmergencyOverride: React.FC = () => {
                                 <p className="text-[10px] font-mono text-zinc-600 leading-relaxed">
                                     Last master login: Today, 16:45:07<br/>
                                     IP: 192.168.1.1 (Encrypted)<br/>
-                                    All manual overrides are logged to the immutable Quantum Ledger.
+                                    All manual overrides are logged to the immutable FitnessFutureLedger.
                                 </p>
                             </div>
                         </div>

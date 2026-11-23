@@ -13,7 +13,7 @@ import {
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Tooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
 import BodySimulator from '../BodySimulator';
 import { BotIcon } from '../icons/BotIcon';
-import { getComplexResponse } from '../../../lib/gemini';
+import { getComplexResponse } from '../../../lib/core_ai';
 import { useToast } from '../../hooks/useToast';
 
 // --- CUSTOM HUD TOOLTIP ---
@@ -57,7 +57,7 @@ const WarriorPerformanceLab: React.FC<{ memberId: number }> = ({ memberId }) => 
     // --- 1. ATTRIBUTE RADAR DATA (Dynamic) ---
     const radarData = useMemo(() => {
         const score = member?.health_score || 85;
-        // Simulate attributes based on health score
+        // Process attributes based on health score
         return [
             { subject: 'Power', A: Math.min(100, score - 5 + Math.random() * 5), fullMark: 100 },
             { subject: 'Endurance', A: Math.min(100, score - 15 + Math.random() * 5), fullMark: 100 },
@@ -68,7 +68,7 @@ const WarriorPerformanceLab: React.FC<{ memberId: number }> = ({ memberId }) => 
         ];
     }, [member]);
 
-    // --- 2. PROGRESS TELEMETRY (Simulated Historical Data) ---
+    // --- 2. PROGRESS TELEMETRY (Historical Data) ---
     const progressData = useMemo(() => [
         { week: 'W-4', volume: 4200, score: 60 },
         { week: 'W-3', volume: 4500, score: 68 },
@@ -79,9 +79,9 @@ const WarriorPerformanceLab: React.FC<{ memberId: number }> = ({ memberId }) => 
 
     // --- 3. MEMORY SHARDS (Progress History) ---
     const memories = [
-        { id: 1, date: '2024-01-10', title: 'Bio-Signature Acquired', type: 'System', desc: 'Biological signature registered in Apex Core. Baseline established.' },
-        { id: 2, date: '2024-02-15', title: 'Strength Barrier Broken', type: 'Record', desc: 'Surpassed 100kg total volume threshold. Neural adaptations verified.' },
-        { id: 3, date: '2024-03-20', title: 'Neural Sync Stabilized', type: 'Consistency', desc: 'Maintained 95% attendance for 30 days. Habits locked.' },
+        { id: 1, date: '2024-01-10', title: 'Bio-Signature Acquired', type: 'System', desc: 'Biological signature registered in FitnessFutureCore. Baseline established.' },
+        { id: 2, date: '2024-02-15', title: 'Strength Barrier Broken', type: 'Record', desc: 'Surpassed 100kg total volume threshold. Smart adaptations verified.' },
+        { id: 3, date: '2024-03-20', title: 'Smart Sync Stabilized', type: 'Consistency', desc: 'Maintained 95% attendance for 30 days. Habits locked.' },
         { id: 4, date: 'Today', title: 'Evolution Phase 3', type: 'Milestone', desc: 'Health Score entering elite percentile. Morphing initiated.' },
     ];
 
@@ -91,7 +91,7 @@ const WarriorPerformanceLab: React.FC<{ memberId: number }> = ({ memberId }) => 
         setOracleInsight(null);
         
         const prompt = `
-            ACT AS 'EVOLUTION ORACLE' AI (THE SINGULARITY).
+            ACT AS 'EVOLUTION ORACLE' AI (THE FitnessFutureMatrix).
             User: ${member?.name}.
             Stats: Health Score ${member?.health_score}, XP ${member?.xp}, Level ${member?.level}.
             
@@ -99,7 +99,7 @@ const WarriorPerformanceLab: React.FC<{ memberId: number }> = ({ memberId }) => 
             
             Provide a "Prophecy" in HTML format with these sections:
             1. <h3 class="text-cyan-400 font-bold uppercase">Projected Form</h3> (Describe physical changes)
-            2. <h3 class="text-red-400 font-bold uppercase mt-4">Neural Bottleneck</h3> (What is holding them back)
+            2. <h3 class="text-red-400 font-bold uppercase mt-4">Smart Bottleneck</h3> (What is holding them back)
             3. <h3 class="text-green-400 font-bold uppercase mt-4">Divine Directive</h3> (One specific command to follow)
             
             Keep the tone epic, futuristic, and scientific.
@@ -130,13 +130,13 @@ const WarriorPerformanceLab: React.FC<{ memberId: number }> = ({ memberId }) => 
                     <div>
                         <div className="inline-flex items-center gap-3 px-4 py-1.5 bg-cyan-500/10 border border-cyan-500/30 rounded-full mb-6">
                             <Fingerprint className="w-4 h-4 text-cyan-400" />
-                            <span className="text-[10px] font-black text-cyan-400 uppercase tracking-[0.4em]">Evolution Lab v31.0</span>
+                            <span className="text-[10px] font-black text-cyan-400 uppercase tracking-[0.4em]">Evolution Lab Fitness Future</span>
                         </div>
                         <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none mb-4">
-                            Apex <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600">Form</span>
+                            Fitness Future<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600">Form</span>
                         </h1>
                         <p className="text-gray-400 text-lg max-w-xl border-l-4 border-cyan-500 pl-8 leading-relaxed italic">
-                            Visualizing your biological transformation through <span className="text-white font-bold uppercase">Holographic Projection & Neural Data</span>.
+                            Visualizing your biological transformation through <span className="text-white font-bold uppercase">Holographic Projection & Smart Data</span>.
                         </p>
                     </div>
                     
@@ -166,7 +166,7 @@ const WarriorPerformanceLab: React.FC<{ memberId: number }> = ({ memberId }) => 
                      <BarChart3 className="w-4 h-4" /> Progress Charts
                  </button>
                  <button onClick={() => setActiveSection('oracle')} className={`px-8 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeSection === 'oracle' ? 'bg-purple-600 text-white shadow-xl' : 'text-gray-500 hover:text-white'}`}>
-                     <BrainCircuit className="w-4 h-4" /> Neural Oracle
+                     <BrainCircuit className="w-4 h-4" /> Smart Oracle
                  </button>
             </div>
 

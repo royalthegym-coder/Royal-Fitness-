@@ -1,3 +1,4 @@
+import { getCurrencySymbol } from '../store/useCurrencyStore';
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Invoice, InvoiceItem, Transaction, InventoryItem, View } from '../../types';
@@ -9,8 +10,7 @@ import { sendPaymentRequest, sendPaymentReceipt } from '../../lib/whatsapp';
 import ReceiptTemplate from './common/ReceiptTemplate';
 import { GYM_INFO } from '../../constants';
 import { toDataURL } from 'qrcode';
-import { 
-    Printer, Send, CreditCard, Smartphone, Banknote, 
+import { Printer, Send, CreditCard, Smartphone, Banknote, 
     CheckCircle, ArrowRight, Zap, Eye, Calculator,
     ShieldCheck, TrendingUp, DollarSign, Search, RefreshCw,
     Infinity, Activity, FileText, Lock, Copy, ShoppingBag, Plus, Trash2, Package,
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { BotIcon } from './icons/BotIcon';
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { NotificationService } from '../../lib/notifications';
 
 interface BillingProps {
     setCurrentView: (view: View) => void;
@@ -46,7 +47,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
     const [activePaymentInvoice, setActivePaymentInvoice] = useState<Invoice | null>(null);
     const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'Card' | 'Cash'>('UPI');
     const [paymentQr, setPaymentQr] = useState('');
-    const [isFraudScanning, setIsFraudScanning] = useState(false); // v31.0 AI Fraud Sentinel
+    const [isFraudScanning, setIsFraudScanning] = useState(false); // Fitness Future AI Fraud Sentinel
     
     // AI Debt Collector
     const [isCollecting, setIsCollecting] = useState(false);
@@ -91,7 +92,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
 
     // --- ACTIONS ---
 
-    const handleNeuralCollect = async () => {
+    const handleSmartCollect = async () => {
         setIsCollecting(true);
         setCollectorLog([]);
         addToast("Chronos Mirror Bot: Scanning Ledger for Due Dates...", "info");
@@ -108,14 +109,14 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
 
         let sentCount = 0;
         for (const inv of overdueInvoices) {
-            await new Promise(r => setTimeout(r, 600)); // Simulate AI Processing
+            await new Promise(r => setTimeout(r, 600)); // Process AI Processing
             const member = members.find(m => m.id === inv.memberId);
             setCollectorLog(prev => [`Analyzing ${member?.name || 'Unknown'}... Risk: ${inv.status === 'Overdue' ? 'High' : 'Medium'}`, ...prev]);
             
-            if (member?.phone && member.whatsappConsent) {
+            if (member) {
                  setCollectorLog(prev => [`>> Sent Chronos Reminder to ${member.name}`, ...prev]);
-                 // Send actual message logic here (Already handled by DataProvider logic if implemented there, or call directly)
-                sentCount++;
+                 await NotificationService.sendPaymentReminder(member.id.toString(), inv.amount.toString(), inv.date);
+                 sentCount++;
             }
         }
 
@@ -158,7 +159,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
     const handleOpenPayment = (invoice: Invoice) => {
         setActivePaymentInvoice(invoice);
         setPaymentMethod('UPI');
-        const upiUri = `upi://pay?pa=${GYM_INFO.upiIds.gpay1}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${invoice.amount.toFixed(2)}&cu=INR&tn=Royal_ID_${invoice.memberId}`;
+        const upiUri = `upi://pay?pa=${GYM_INFO.upiIds.gpay1}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${invoice.amount.toFixed(2)}&cu=INR&tn=Future_ID_${invoice.memberId}`;
         toDataURL(upiUri, { width: 400, margin: 1, color: { dark: '#000000', light: '#ffffff' } }).then(url => setPaymentQr(url));
         setIsPaymentModalOpen(true);
     };
@@ -167,6 +168,11 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
     const handleConfirmPayment = async () => {
         if(!activePaymentInvoice) return;
         
+        finalizePayment();
+    };
+
+    const finalizePayment = async () => {
+        if(!activePaymentInvoice) return;
         // AI FRAUD SENTINEL CHECK
         setIsFraudScanning(true);
         await new Promise(r => setTimeout(r, 1500));
@@ -219,36 +225,45 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
     return (
         <div className="space-y-8 animate-fade-in pb-24">
             {/* Header ... (existing) */}
-            <div className="bg-[#020202] p-10 rounded-[3.5rem] border border-amber-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(245,158,11,0.15)] group">
-                {/* ... existing header code ... */}
+            <div className="bg-[#020202] p-10 rounded-[3.5rem] border border-cyan-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(6,182,212,0.15)] group">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
-                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-amber-600/5 rounded-full blur-[150px] animate-pulse"></div>
+                <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-cyan-600/5 rounded-full blur-[150px] animate-pulse"></div>
                 
                 <div className="relative z-10 flex flex-col lg:flex-row justify-between items-center gap-10">
                     <div className="flex items-center gap-8">
-                        <div className="p-8 bg-amber-600 text-black rounded-[3rem] shadow-[0_0_60px_rgba(245,158,11,0.5)] border border-amber-400 group-hover:rotate-12 transition-transform duration-700">
+                        <div className="p-8 bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-[3rem] shadow-[0_0_60px_rgba(6,182,212,0.5)] border border-cyan-400 group-hover:rotate-12 transition-transform duration-700">
                              <Wallet className="w-16 h-16" />
                         </div>
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="px-4 py-1.5 bg-amber-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
-                                    <Infinity className="w-3 h-3" /> Apex Treasury v31.0
+                                <div className="px-4 py-1.5 bg-cyan-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
+                                    <Infinity className="w-3 h-3" /> Treasury Management
                                 </div>
-                                <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">LINK: SECURE_LEDGER</span>
+                                <span className="text-[10px] font-mono text-cyan-500/70 tracking-[0.4em] uppercase">LINK: SECURE_LEDGER</span>
                             </div>
-                            <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none">
-                                Fiscal <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-yellow-600">Core</span>
+                            <h1 className="text-4xl md:text-6xl font-black text-white italic uppercase tracking-tighter leading-none">
+                                Expense & <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-fuchsia-400">Ledger</span>
                             </h1>
                         </div>
                     </div>
 
                     <div className="flex bg-gray-900/80 p-2 rounded-3xl border border-white/10 backdrop-blur-3xl shadow-2xl gap-2 overflow-x-auto">
-                        <button onClick={() => setActiveTab('Overview')} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'Overview' ? 'bg-amber-500 text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}>Overview</button>
-                        <button onClick={() => setActiveTab('Invoices')} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'Invoices' ? 'bg-amber-500 text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}>Invoices</button>
-                        <button onClick={() => setActiveTab('POS')} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'POS' ? 'bg-amber-500 text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}>Holo-POS</button>
-                        <button onClick={() => setActiveTab('Approvals')} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === 'Approvals' ? 'bg-amber-500 text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}>
-                            Approvals
-                            {pendingApprovals.length > 0 && <span className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[9px] border-2 border-black animate-bounce">{pendingApprovals.length}</span>}
+                        <button onClick={() => setActiveTab('Overview')} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'Overview' ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-black shadow-[0_0_20px_rgba(245,158,11,0.3)] border border-amber-400/50 border-dashed relative overflow-hidden group' : 'text-gray-500 hover:text-white'}`}>
+                            {activeTab === 'Overview' && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>}
+                            <span className="relative z-10">Overview</span>
+                        </button>
+                        <button onClick={() => setActiveTab('Invoices')} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'Invoices' ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-black shadow-[0_0_20px_rgba(245,158,11,0.3)] border border-amber-400/50 border-dashed relative overflow-hidden group' : 'text-gray-500 hover:text-white'}`}>
+                            {activeTab === 'Invoices' && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>}
+                            <span className="relative z-10">Invoices</span>
+                        </button>
+                        <button onClick={() => setActiveTab('POS')} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'POS' ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-black shadow-[0_0_20px_rgba(245,158,11,0.3)] border border-amber-400/50 border-dashed relative overflow-hidden group' : 'text-gray-500 hover:text-white'}`}>
+                            {activeTab === 'POS' && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>}
+                            <span className="relative z-10">POS</span>
+                        </button>
+                        <button onClick={() => setActiveTab('Approvals')} className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap relative ${activeTab === 'Approvals' ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-black shadow-[0_0_20px_rgba(245,158,11,0.3)] border border-amber-400/50 border-dashed overflow-hidden group' : 'text-gray-500 hover:text-white'}`}>
+                            {activeTab === 'Approvals' && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>}
+                            <span className="relative z-10">Approvals</span>
+                            {pendingApprovals.length > 0 && <span className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[9px] border-2 border-black animate-bounce z-20">{pendingApprovals.length}</span>}
                         </button>
                     </div>
                 </div>
@@ -259,7 +274,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
             {activeTab === 'Overview' && (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-slide-up">
                     <div className="lg:col-span-8">
-                        <Card title="Quantum Cashflow Velocity" className="bg-black border-white/5 h-[450px] p-8 rounded-[3rem] shadow-2xl">
+                        <Card title="FitnessFutureCashflow Velocity" className="bg-black border-white/5 h-[450px] p-8 rounded-[3rem] shadow-2xl">
                              <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={cashflowData}>
                                     <defs>
@@ -284,11 +299,11 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                     <div className="lg:col-span-4 space-y-6">
                         <div className="p-8 bg-gradient-to-br from-green-900/20 to-black rounded-[2.5rem] border border-green-500/30 shadow-xl">
                              <p className="text-[10px] font-black text-green-500 uppercase tracking-widest mb-2">Total Secured</p>
-                             <p className="text-5xl font-black text-white italic tracking-tighter">₹{(activeRevenue/1000).toFixed(1)}k</p>
+                             <p className="text-5xl font-black text-white italic tracking-tighter">{getCurrencySymbol()}{(activeRevenue/1000).toFixed(1)}k</p>
                         </div>
                         <div className="p-8 bg-gradient-to-br from-red-900/20 to-black rounded-[2.5rem] border border-red-500/30 shadow-xl">
                              <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-2">Pending Injection</p>
-                             <p className="text-5xl font-black text-white italic tracking-tighter">₹{(pendingRevenue/1000).toFixed(1)}k</p>
+                             <p className="text-5xl font-black text-white italic tracking-tighter">{getCurrencySymbol()}{(pendingRevenue/1000).toFixed(1)}k</p>
                              <p className="text-xs text-red-400 mt-2 font-bold">{overdueCount} Overdue Nodes</p>
                         </div>
                         
@@ -296,11 +311,12 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                         <div className="bg-gray-900 border border-white/5 rounded-[2.5rem] p-6 relative overflow-hidden">
                             {isCollecting && <div className="absolute inset-0 bg-black/60 z-10 flex items-center justify-center backdrop-blur-sm"><RefreshCw className="w-8 h-8 text-amber-500 animate-spin"/></div>}
                             <button 
-                                onClick={handleNeuralCollect}
+                                onClick={handleSmartCollect}
                                 disabled={isCollecting}
-                                className="w-full py-5 bg-white text-black font-black uppercase tracking-widest text-[10px] rounded-2xl shadow-xl hover:bg-amber-400 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
+                                className="w-full py-5 bg-gradient-to-r from-gray-100 to-white text-black font-black uppercase tracking-widest text-[10px] rounded-2xl shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:from-amber-400 hover:to-orange-500 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 border border-white/50 border-dashed relative overflow-hidden group"
                             >
-                                <BotIcon className="w-4 h-4"/> CHRONOS MIRROR BOT
+                                <div className="absolute inset-0 bg-black/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                <BotIcon className="w-4 h-4 relative z-10"/> <span className="relative z-10">CHRONOS MIRROR BOT</span>
                             </button>
                             <div className="mt-4 h-24 overflow-y-auto custom-scrollbar bg-black/40 rounded-xl p-3 border border-white/5">
                                 {collectorLog.map((log, i) => (
@@ -338,16 +354,17 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                                             
                                             <div className="bg-black/40 p-4 rounded-xl border border-white/5 mb-6">
                                                 <p className="text-xs text-gray-400 mb-1">Declared Method: <span className="text-white font-bold">{inv.paymentMethod || 'Unknown'}</span></p>
-                                                <p className="text-3xl font-black text-white italic">₹{inv.amount.toLocaleString()}</p>
+                                                <p className="text-3xl font-black text-white italic">{getCurrencySymbol()}{inv.amount.toLocaleString()}</p>
                                                 <p className="text-[10px] text-gray-500 mt-1">{inv.packageName}</p>
                                             </div>
 
                                             <div className="flex gap-3">
-                                                <button onClick={() => handleRejectPayment(inv)} className="flex-1 py-3 bg-red-900/20 text-red-500 border border-red-500/30 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-red-900/40 transition-all flex items-center justify-center gap-2">
+                                                <button onClick={() => handleRejectPayment(inv)} className="flex-1 py-3 bg-gradient-to-r from-red-900/40 to-rose-900/40 text-red-500 border border-dashed border-red-500/30 rounded-xl font-black uppercase text-[10px] tracking-widest hover:from-red-800/60 hover:to-rose-800/60 hover:border-red-400/60 transition-all shadow-[0_0_15px_rgba(239,68,68,0.1)] backdrop-blur-sm flex items-center justify-center gap-2">
                                                     <XCircle className="w-4 h-4"/> Reject
                                                 </button>
-                                                <button onClick={() => handleApprovePayment(inv)} className="flex-[2] py-3 bg-green-600 text-black font-black rounded-xl uppercase text-[10px] tracking-widest hover:bg-green-500 transition-all shadow-lg flex items-center justify-center gap-2">
-                                                    <CheckCircle className="w-4 h-4"/> Approve & Receipt
+                                                <button onClick={() => handleApprovePayment(inv)} className="flex-[2] py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-black rounded-xl uppercase text-[10px] tracking-widest hover:from-green-500 hover:to-emerald-500 transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] border border-green-400/50 border-dashed relative overflow-hidden group flex items-center justify-center gap-2">
+                                                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                                    <CheckCircle className="w-4 h-4 relative z-10"/> <span className="relative z-10">Approve & Receipt</span>
                                                 </button>
                                             </div>
                                         </div>
@@ -375,8 +392,9 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                                  </button>
                              ))}
                         </div>
-                        <button onClick={() => setIsWizardOpen(true)} className="bg-white text-black px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-amber-400 transition-all shadow-lg">
-                            <Plus className="w-4 h-4" /> Create Invoice
+                        <button onClick={() => setIsWizardOpen(true)} className="bg-gradient-to-r from-amber-500 to-orange-600 text-black px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:from-amber-400 hover:to-orange-500 transition-all shadow-[0_0_20px_rgba(245,158,11,0.3)] border border-amber-400/50 border-dashed relative overflow-hidden group active:scale-95">
+                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                            <Plus className="w-4 h-4 relative z-10" /> <span className="relative z-10">Create Invoice</span>
                         </button>
                     </div>
 
@@ -396,7 +414,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-3xl font-black text-white italic tracking-tighter">₹{inv.amount}</p>
+                                        <p className="text-3xl font-black text-white italic tracking-tighter">{getCurrencySymbol()}{inv.amount}</p>
                                         <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-full border mt-2 inline-block ${
                                             inv.status === 'Paid' ? 'text-green-500 border-green-500/30 bg-green-500/10' : 
                                             inv.status === 'Overdue' ? 'text-red-500 border-red-500/30 bg-red-500/10' : 
@@ -411,28 +429,31 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                                 <div className="flex gap-3 relative z-10">
                                     {inv.status !== 'Paid' && inv.status !== 'Verification Pending' && (
                                         <>
-                                            <button onClick={() => handleOpenPayment(inv)} className="flex-1 py-4 bg-white text-black font-black uppercase text-[10px] tracking-widest rounded-2xl hover:bg-green-400 transition-all shadow-lg">
-                                                Accept Payment
+                                            <button onClick={() => handleOpenPayment(inv)} className="flex-1 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-black uppercase text-[10px] tracking-widest rounded-2xl hover:from-green-500 hover:to-emerald-500 transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] border border-green-400/50 border-dashed relative overflow-hidden group">
+                                                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                                <span className="relative z-10">Accept Payment</span>
                                             </button>
                                             <button onClick={() => {
                                                 const member = members.find(m => m.id === inv.memberId);
                                                 if (member && member.phone) {
-                                                    const msg = `URGENT: Dear ${member.name}, your payment of Rs.${inv.amount} for invoice #${inv.id} is ${inv.status}. Please pay immediately to avoid service interruption. - Royal The Gym`;
+                                                    const msg = `URGENT: Dear ${member.name}, your payment of Rs.${inv.amount} for invoice #${inv.id} is ${inv.status}. Please pay immediately to avoid service interruption. - Fitness Future`;
                                                     window.open(`https://wa.me/${member.phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
                                                 } else {
                                                     addToast("Member phone number not found.", "error");
                                                 }
-                                            }} className="flex-1 py-4 bg-amber-500 text-black font-black uppercase text-[10px] tracking-widest rounded-2xl hover:bg-amber-400 transition-all shadow-lg flex items-center justify-center gap-2">
-                                                <Send className="w-4 h-4" /> Reminder
+                                            }} className="flex-1 py-4 bg-gradient-to-r from-amber-500 to-orange-600 text-black font-black uppercase text-[10px] tracking-widest rounded-2xl hover:from-amber-400 hover:to-orange-500 transition-all shadow-[0_0_20px_rgba(245,158,11,0.3)] flex items-center justify-center gap-2 border border-amber-400/50 border-dashed relative overflow-hidden group">
+                                                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                                <Send className="w-4 h-4 relative z-10" /> <span className="relative z-10">Reminder</span>
                                             </button>
                                         </>
                                     )}
                                     {inv.status === 'Verification Pending' && (
-                                        <button onClick={() => setActiveTab('Approvals')} className="flex-1 py-4 bg-blue-600 text-white font-black uppercase text-[10px] tracking-widest rounded-2xl hover:bg-blue-500 transition-all shadow-lg">
-                                            Go to Approvals
+                                        <button onClick={() => setActiveTab('Approvals')} className="flex-1 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black uppercase text-[10px] tracking-widest rounded-2xl hover:from-blue-500 hover:to-indigo-500 transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)] border border-blue-400/50 border-dashed relative overflow-hidden group">
+                                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                            <span className="relative z-10">Go to Approvals</span>
                                         </button>
                                     )}
-                                    <button onClick={() => { setReceiptData({ invoice: inv }); setShowReceipt(true); }} className="px-6 py-4 bg-gray-900 text-gray-400 font-black uppercase text-[10px] tracking-widest rounded-2xl hover:text-white border border-white/10 hover:border-white/30">
+                                    <button onClick={() => { setReceiptData({ invoice: inv }); setShowReceipt(true); }} className="px-6 py-4 bg-gradient-to-r from-gray-800/40 to-gray-900/40 text-gray-400 font-black uppercase text-[10px] tracking-widest rounded-2xl hover:text-white border border-dashed border-gray-500/30 hover:border-gray-400/60 transition-all shadow-[0_0_15px_rgba(0,0,0,0.2)] backdrop-blur-sm">
                                         <Printer className="w-5 h-5" />
                                     </button>
                                 </div>
@@ -463,7 +484,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                                         <h4 className="text-white font-bold mt-4 leading-tight text-lg">{item.name}</h4>
                                     </div>
                                     <div className="relative z-10 flex justify-between items-end">
-                                        <p className="text-2xl font-black text-amber-500 italic">₹{item.price}</p>
+                                        <p className="text-2xl font-black text-amber-500 italic">{getCurrencySymbol()}{item.price}</p>
                                         <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
                                             <Plus className="w-5 h-5" />
                                         </div>
@@ -476,7 +497,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                     {/* Cart / Checkout */}
                     <div className="lg:col-span-4 bg-black border border-white/10 rounded-[3.5rem] p-8 flex flex-col shadow-2xl relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500"></div>
-                        <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter mb-8">Holo-Cart</h3>
+                        <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter mb-8">Cart</h3>
                         
                         <div className="mb-6">
                             <select 
@@ -494,7 +515,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                                 <div key={i} className="flex justify-between items-center text-xs text-gray-300 p-3 bg-black/40 rounded-xl border border-white/5">
                                     <span className="font-bold">{item.description}</span>
                                     <div className="flex items-center gap-3">
-                                        <span className="font-mono text-amber-500">₹{item.amount}</span>
+                                        <span className="font-mono text-amber-500">{getCurrencySymbol()}{item.amount}</span>
                                         <button onClick={() => setCartItems(prev => prev.filter((_, idx) => idx !== i))} className="text-red-500 hover:text-white"><Trash2 className="w-4 h-4"/></button>
                                     </div>
                                 </div>
@@ -504,14 +525,15 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                         <div className="border-t border-white/10 pt-6">
                             <div className="flex justify-between items-center mb-6">
                                 <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Total</span>
-                                <span className="text-4xl font-black text-white italic">₹{cartTotal}</span>
+                                <span className="text-4xl font-black text-white italic">{getCurrencySymbol()}{cartTotal}</span>
                             </div>
                             <button 
                                 onClick={handleCreateInvoice}
                                 disabled={cartItems.length === 0}
-                                className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-5 rounded-[2.5rem] uppercase tracking-widest text-xs shadow-xl active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-3"
+                                className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-black py-5 rounded-[2.5rem] uppercase tracking-widest text-xs shadow-[0_0_20px_rgba(16,185,129,0.3)] active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-3 border border-green-400/50 border-dashed relative overflow-hidden group"
                             >
-                                <CreditCard className="w-5 h-5" /> Checkout
+                                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                <CreditCard className="w-5 h-5 relative z-10" /> <span className="relative z-10">Checkout</span>
                             </button>
                         </div>
                     </div>
@@ -537,10 +559,10 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
 
                          <div>
                              <p className="text-gray-500 font-bold uppercase text-xs tracking-[0.3em] mb-2">Total Payable</p>
-                             <h2 className="text-7xl font-black text-white italic tracking-tighter">₹{activePaymentInvoice.amount}</h2>
+                             <h2 className="text-7xl font-black text-white italic tracking-tighter">{getCurrencySymbol()}{activePaymentInvoice.amount}</h2>
                          </div>
                          
-                         <div className="flex justify-center gap-4">
+                         <div className="flex justify-center gap-4 flex-wrap">
                              {['UPI', 'Card', 'Cash'].map(m => (
                                  <button 
                                     key={m}
@@ -554,7 +576,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                          
                          {paymentMethod === 'UPI' && (
                              <div className="bg-white p-6 rounded-[3rem] inline-block shadow-2xl relative overflow-hidden group border-8 border-white ring-4 ring-green-500/20">
-                                 <img src={paymentQr} className="w-56 h-56 mix-blend-multiply relative z-10" alt="QR" />
+                                 <img src={paymentQr} alt="Dynamic UPI QR Code" className="w-56 h-56 object-contain rounded-xl" />
                                  <div className="absolute inset-0 bg-white/90 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20">
                                      <Scan className="w-12 h-12 text-black" />
                                  </div>
@@ -572,9 +594,10 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
 
                          <button 
                             onClick={handleConfirmPayment}
-                            className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-6 rounded-[2.5rem] uppercase tracking-[0.3em] text-xs shadow-2xl flex items-center justify-center gap-3 active:scale-95 transition-all"
+                            className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-black py-6 rounded-[2.5rem] uppercase tracking-[0.3em] text-xs shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center justify-center gap-3 active:scale-95 transition-all border border-green-400/50 border-dashed relative overflow-hidden group"
                         >
-                            <CheckCircle className="w-5 h-5" /> Confirm Receipt
+                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                            <CheckCircle className="w-5 h-5 relative z-10" /> <span className="relative z-10">Confirm Receipt</span>
                         </button>
                      </div>
                  )}
@@ -599,7 +622,7 @@ const Billing: React.FC<BillingProps> = ({ setCurrentView }) => {
                  <div className="p-10 text-center">
                      <ShoppingBag className="w-20 h-20 text-gray-600 mx-auto mb-6" />
                      <p className="text-gray-400 text-sm mb-6 font-medium">Quick Invoice Generator Mode</p>
-                     <p className="text-xs text-amber-500 font-bold uppercase tracking-widest bg-amber-900/20 px-4 py-2 rounded-xl inline-block border border-amber-500/20">Please use the Holo-POS tab for itemized billing.</p>
+                     <p className="text-xs text-amber-500 font-bold uppercase tracking-widest bg-amber-900/20 px-4 py-2 rounded-xl inline-block border border-amber-500/20">Please use the POS tab for itemized billing.</p>
                  </div>
             </Modal>
 

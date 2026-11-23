@@ -30,8 +30,10 @@ type ScanStatus = 'idle' | 'scanning' | 'found' | 'error' | 'unsupported';
 type View = 'calendar' | 'scanner';
 
 const AutoAttendance: React.FC<{ memberId: number }> = ({ memberId }) => {
-    const { addAuditLog, attendanceRecords, markAttendance } = useData();
+    const { addAuditLog, attendanceRecords, markAttendance, members } = useData();
     const { addToast } = useToast();
+    
+    const member = members.find(m => m.id === memberId);
     
     // Core State
     const [isCheckedIn, setIsCheckedIn] = useState(false);
@@ -97,6 +99,42 @@ const AutoAttendance: React.FC<{ memberId: number }> = ({ memberId }) => {
         // Better: Show success screen.
     }, [memberId, markAttendance, addAuditLog, addToast]);
 
+    const handleBiometricCheckIn = async () => {
+        if (!member?.biometricCredentials || member.biometricCredentials.length === 0) {
+            addToast("No biometric credentials registered. Please register in your profile.", "error");
+            return;
+        }
+
+        try {
+            setScanStatus('scanning');
+            addLog("BIOMETRIC: Initiating sensor...");
+            
+            const allowCredentials = member.biometricCredentials.map(cred => ({
+                id: Uint8Array.from(atob(cred.rawId), c => c.charCodeAt(0)),
+                type: 'public-key' as const,
+            }));
+
+            const assertion = await navigator.credentials.get({
+                publicKey: {
+                    challenge: new Uint8Array(32), // In a real app, this should come from the server
+                    allowCredentials,
+                    userVerification: 'required',
+                }
+            });
+
+            if (assertion) {
+                addLog("BIOMETRIC: Identity verified.");
+                setScanStatus('found');
+                setTimeout(() => handleCheckInSuccess('neural'), 1000);
+            }
+        } catch (error) {
+            console.error("Biometric check-in failed:", error);
+            addLog("BIOMETRIC: Verification failed.");
+            setScanStatus('error');
+            addToast("Biometric verification failed.", "error");
+        }
+    };
+
     const startSmartScan = useCallback(async () => {
         setLogs(['Initializing Secure Handshake...']);
         setScanStatus('scanning');
@@ -112,10 +150,10 @@ const AutoAttendance: React.FC<{ memberId: number }> = ({ memberId }) => {
 
         // 1. Wi-Fi Check (Simulation/Heuristic)
         setTimeout(() => {
-            addLog("WIFI: Scanning for Gym Network (Royal_Core)...");
+            addLog("WIFI: Scanning for Gym Network (Future_Core)...");
             // In a real app, we might check navigator.connection or a specific API
-            // Here we simulate a successful Wi-Fi connection
-            addLog("WIFI: Connected to Royal_Core.");
+            // Here we Process a successful Wi-Fi connection
+            addLog("WIFI: Connected to Future_Core.");
         }, 800);
 
         // 2. GPS Check (Real Geolocation)
@@ -140,7 +178,7 @@ const AutoAttendance: React.FC<{ memberId: number }> = ({ memberId }) => {
                         }
                     },
                     (err) => {
-                        addLog("GPS: Signal Weak. Attempting Neural Fallback...");
+                        addLog("GPS: Signal Weak. Attempting Smart Fallback...");
                         // Fallback success
                         setTimeout(() => handleCheckInSuccess('neural'), 2000);
                     },
@@ -228,7 +266,7 @@ const AutoAttendance: React.FC<{ memberId: number }> = ({ memberId }) => {
     return (
         <div className="space-y-8 animate-fade-in pb-24">
             
-            {/* APEX HEADER */}
+            {/* FitnessFutureHEADER */}
             <div className="bg-[#020308] p-10 rounded-[3.5rem] border border-amber-500/20 relative overflow-hidden shadow-[0_0_120px_rgba(245,158,11,0.15)] group">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
                 <div className="absolute -right-40 -top-40 w-[600px] h-[600px] bg-amber-600/10 rounded-full blur-[150px] animate-pulse"></div>
@@ -241,7 +279,7 @@ const AutoAttendance: React.FC<{ memberId: number }> = ({ memberId }) => {
                         <div>
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="px-4 py-1.5 bg-amber-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
-                                    <Infinity className="w-3 h-3" /> Singularity v31.0
+                                    <Infinity className="w-3 h-3" /> FitnessFutureMatrix Fitness Future
                                 </div>
                                 <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">SYNC: CHRONOS_LOCK</span>
                             </div>
@@ -331,7 +369,7 @@ const AutoAttendance: React.FC<{ memberId: number }> = ({ memberId }) => {
                              <Fingerprint className="w-20 h-20 text-cyan-400 group-hover:animate-pulse" />
                          </div>
                          
-                         <h3 className="text-3xl font-black text-white italic uppercase tracking-tighter leading-none mb-2">Neural Handshake</h3>
+                         <h3 className="text-3xl font-black text-white italic uppercase tracking-tighter leading-none mb-2">Smart Handshake</h3>
                          <p className="text-gray-500 text-[10px] font-mono uppercase tracking-[0.4em] font-bold">Tap to Initiate Uplink</p>
                      </Card>
 
@@ -376,16 +414,30 @@ const AutoAttendance: React.FC<{ memberId: number }> = ({ memberId }) => {
                                 ></div>
 
                                 {/* Central Interaction Button */}
-                                <button 
-                                    onClick={startSmartScan} 
-                                    disabled={scanStatus === 'scanning' || scanStatus === 'found'} 
-                                    className="relative w-48 h-48 rounded-full bg-cyan-900/10 border-2 border-cyan-500/50 flex items-center justify-center transition-all hover:scale-105 hover:shadow-[0_0_60px_rgba(6,182,212,0.4)] group active:scale-95 z-20"
-                                >
-                                    {(scanStatus === 'scanning' || scanStatus === 'found') && (
-                                         <div className="absolute inset-0 rounded-full border-4 border-t-cyan-400 border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
-                                    )}
-                                    <Fingerprint className={`w-24 h-24 transition-colors ${scanStatus === 'scanning' ? 'text-cyan-200' : 'text-cyan-500 group-hover:text-white'}`} />
-                                </button>
+                                <div className="flex gap-4 relative z-20">
+                                    <button 
+                                        onClick={startSmartScan} 
+                                        disabled={scanStatus === 'scanning' || scanStatus === 'found'} 
+                                        className="relative w-32 h-32 rounded-full bg-cyan-900/10 border-2 border-cyan-500/50 flex items-center justify-center transition-all hover:scale-105 hover:shadow-[0_0_60px_rgba(6,182,212,0.4)] group active:scale-95"
+                                    >
+                                        {(scanStatus === 'scanning' || scanStatus === 'found') && (
+                                            <div className="absolute inset-0 rounded-full border-4 border-t-cyan-400 border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
+                                        )}
+                                        <Radar className={`w-16 h-16 transition-colors ${scanStatus === 'scanning' ? 'text-cyan-200' : 'text-cyan-500 group-hover:text-white'}`} />
+                                    </button>
+
+                                    <button 
+                                        onClick={handleBiometricCheckIn} 
+                                        disabled={scanStatus === 'scanning' || scanStatus === 'found'} 
+                                        className="relative w-32 h-32 rounded-full bg-green-900/10 border-2 border-green-500/50 flex items-center justify-center transition-all hover:scale-105 hover:shadow-[0_0_60px_rgba(34,197,94,0.4)] group active:scale-95"
+                                        title="Biometric Check-in"
+                                    >
+                                        {(scanStatus === 'scanning' || scanStatus === 'found') && (
+                                            <div className="absolute inset-0 rounded-full border-4 border-t-green-400 border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
+                                        )}
+                                        <Fingerprint className={`w-16 h-16 transition-colors ${scanStatus === 'scanning' ? 'text-green-200' : 'text-green-500 group-hover:text-white'}`} />
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Live Logs Terminal */}

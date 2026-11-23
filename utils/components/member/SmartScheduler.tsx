@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Card from '../common/Card';
-import { getComplexResponse } from '../../../lib/gemini';
+import { getComplexResponse } from '../../../lib/core_ai';
 import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip, ReferenceLine } from 'recharts';
 import { useToast } from '../../hooks/useToast';
 import { 
@@ -10,8 +10,9 @@ import {
     Bell, RefreshCw, Bot, ArrowRight, Sun, Wind
 } from 'lucide-react';
 import { BotIcon } from '../icons/BotIcon';
+import { NotificationService } from '../../../lib/notifications';
 
-const SmartScheduler: React.FC<{ memberName: string; phone: string }> = ({ memberName, phone }) => {
+const SmartScheduler: React.FC<{ memberName: string; phone: string; memberId?: string }> = ({ memberName, phone, memberId }) => {
     const { addToast } = useToast();
 
     // --- STATE ---
@@ -37,7 +38,7 @@ const SmartScheduler: React.FC<{ memberName: string; phone: string }> = ({ membe
     const bioData = useMemo(() => {
         const data = [];
         for (let i = 6; i <= 22; i++) { // 6 AM to 10 PM
-            // Simulate a dual-peak circadian rhythm (Morning & Evening peaks)
+            // Process a dual-peak circadian rhythm (Morning & Evening peaks)
             let energy = 50 + (Math.sin((i - 6) / 3) * 30) + (Math.sin((i - 16) / 2) * 20);
             if (i === 12 || i === 13) energy -= 10; // Post-lunch dip
             
@@ -127,7 +128,12 @@ const SmartScheduler: React.FC<{ memberName: string; phone: string }> = ({ membe
         try {
             const res = await getComplexResponse(prompt);
             setAiMessage(res);
-            if(reminderEnabled) addToast("Neural Nudge Scheduled.", "success");
+            if(reminderEnabled) {
+                addToast("Smart Nudge Scheduled.", "success");
+                if (memberId) {
+                    NotificationService.notifyUpcomingClass(memberId, "Workout Session", targetTime);
+                }
+            }
         } catch(e) {
             setAiMessage("Protocol Override: Get to the gym now.");
         } finally {
@@ -151,12 +157,12 @@ const SmartScheduler: React.FC<{ memberName: string; phone: string }> = ({ membe
                         <div>
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="px-4 py-1.5 bg-cyan-500 text-black rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
-                                    <Activity className="w-3 h-3" /> Chronos-Sync v31.0
+                                    <Activity className="w-3 h-3" /> Chronos-Sync Fitness Future
                                 </div>
                                 <span className="text-[10px] font-mono text-gray-500 tracking-[0.4em] uppercase">LINK: STABLE</span>
                             </div>
                             <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none">
-                                Neural <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-600">Timer</span>
+                                Smart <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-600">Timer</span>
                             </h1>
                         </div>
                     </div>
@@ -281,7 +287,7 @@ const SmartScheduler: React.FC<{ memberName: string; phone: string }> = ({ membe
                             <div>
                                 <div className="flex items-center gap-2 mb-4">
                                     <BotIcon className="w-5 h-5 text-indigo-400"/>
-                                    <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Neural Nudge</p>
+                                    <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Smart Nudge</p>
                                 </div>
                                 {aiMessage ? (
                                     <p className="text-xs text-indigo-200 italic leading-relaxed animate-fade-in">"{aiMessage}"</p>

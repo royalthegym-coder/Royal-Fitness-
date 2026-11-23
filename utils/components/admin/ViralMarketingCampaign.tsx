@@ -30,22 +30,22 @@ export const ViralMarketingCampaign: React.FC = () => {
             id: 1,
             name: "Layer 1: The Teaser",
             timing: "7 Days Before Launch",
-            content: "Mysterious video: 'AI Eye' (Titan Vision) glowing over Jhunjhunu landmarks.",
-            hook: "झुंझुनूं, क्या आप भविष्य के लिए तैयार हैं? 7 दिन शेष।"
+            content: "Mysterious video: 'AI Eye' (Titan Vision) glowing over local city landmarks.",
+            hook: "Are you ready for the future? 7 days remaining."
         },
         {
             id: 2,
             name: "Layer 2: The AI Reveal",
             timing: "3 Days Before Launch",
-            content: "Demo video of 'Titan Vision' & 'Bio-Aether Oracle'.",
-            hook: "अब जिम में केवल पसीना नहीं बहेगा, डेटा बोलेगा। मिलिए दुनिया के सबसे एडवांस एआई कोच से।"
+            content: "video of 'Titan Vision' & 'Bio-Cloud Oracle'.",
+            hook: "Now we don't just sweat in the gym, our data speaks. Meet the world's most advanced AI Coach."
         },
         {
             id: 3,
             name: "Layer 3: Grand Opening",
             timing: "Launch Day",
             content: "Direct Call-to-Action with Scarcity Marketing.",
-            hook: "पहले 50 मेंबर्स के लिए 'The Aether-Pass' और एआई डॉक्टर कंसल्टेशन लाइफटाइम फ्री।"
+            hook: "The Cloud-Pass and AI Bio-Analyst Consultation are free for life for the first 50 members."
         }
     ];
 
@@ -77,7 +77,7 @@ export const ViralMarketingCampaign: React.FC = () => {
 
     const handleGenerateAI = () => {
         setCampaignState('generating');
-        addToast("AI Overmind is analyzing Jhunjhunu demographics...", "info");
+        addToast("AI is analyzing demographics...", "info");
         
         setTimeout(() => {
             setCampaignState('ready');
@@ -91,7 +91,7 @@ export const ViralMarketingCampaign: React.FC = () => {
             return;
         }
         setCampaignState('active');
-        addToast(`VIRAL PROTOCOL SCHEDULED FOR: ${scheduleDate} ${scheduleTime}. Broadcasting to Jhunjhunu network...`, "success");
+        addToast(`VIRAL PROTOCOL SCHEDULED FOR: ${scheduleDate} ${scheduleTime}. Broadcasting to Fitness Future network...`, "success");
         setReachData([]);
         setTotalReach(0);
     };
@@ -104,32 +104,35 @@ export const ViralMarketingCampaign: React.FC = () => {
     return (
         <div className="max-w-7xl mx-auto p-6 space-y-6 animate-fade-in h-full flex flex-col">
             {/* Header */}
-            <div className="bg-black border border-pink-500/30 rounded-[2rem] p-8 relative overflow-hidden shadow-[0_0_50px_rgba(236,72,153,0.15)] shrink-0">
-                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-pink-600/10 rounded-full blur-[120px] animate-pulse"></div>
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+            <div className="bg-[#020202] border border-cyan-500/20 rounded-[2rem] p-8 relative overflow-hidden shadow-[0_0_120px_rgba(6,182,212,0.15)] shrink-0 group">
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-cyan-600/10 rounded-full blur-[120px] animate-pulse"></div>
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
                 
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>
                         <div className="flex items-center gap-3 mb-2">
-                            <div className="px-3 py-1 bg-pink-500/20 border border-pink-500/50 rounded-full flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${campaignState === 'active' ? 'bg-green-400 animate-pulse' : 'bg-pink-400'}`}></span>
-                                <span className="text-[10px] font-black text-pink-400 uppercase tracking-widest">
+                            <div className="px-3 py-1 bg-cyan-500/20 border border-cyan-500/50 rounded-full flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${campaignState === 'active' ? 'bg-green-400 animate-pulse' : 'bg-cyan-400'}`}></span>
+                                <span className="text-[10px] font-black text-cyan-400 uppercase tracking-widest">
                                     {campaignState === 'active' ? 'Campaign Live' : 'Marketing Nexus'}
                                 </span>
                             </div>
+                            <div className="px-3 py-1 bg-cyan-500/20 border border-cyan-500/50 text-cyan-400 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2">
+                                <Activity className="w-3 h-3" /> Fitness Future
+                            </div>
                         </div>
                         <h1 className="text-4xl md:text-5xl font-black text-white italic uppercase tracking-tighter flex items-center gap-4">
-                            Viral <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-orange-400">Launchpad</span>
+                            Viral <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-fuchsia-400">Launchpad</span>
                         </h1>
                         <p className="text-sm text-zinc-400 font-mono mt-2 max-w-xl">
-                            Phase 5: The Singularity. A 3-Layer Digital Blast targeting every smartphone within a 20km radius of Jhunjhunu.
+                            Phase 5: The FitnessFutureMatrix. A 3-Layer Digital Blast targeting every smartphone within a 20km radius of your Fitness Future club.
                         </p>
                     </div>
 
                     <div className="flex gap-4">
                         <div className="bg-zinc-900/80 backdrop-blur-md border border-white/10 p-4 rounded-2xl text-center min-w-[120px]">
                             <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-1">Target Area</p>
-                            <p className="text-xl font-black text-white">Jhunjhunu</p>
+                            <p className="text-xl font-black text-white">Fitness Future</p>
                             <p className="text-[9px] text-pink-400 uppercase tracking-widest mt-1">+20km Radius</p>
                         </div>
                         <div className="bg-zinc-900/80 backdrop-blur-md border border-white/10 p-4 rounded-2xl text-center min-w-[120px]">
@@ -212,7 +215,7 @@ export const ViralMarketingCampaign: React.FC = () => {
                             <div className="p-3 bg-blue-500/10 rounded-xl text-blue-400"><Share2 className="w-6 h-6" /></div>
                             <div>
                                 <h3 className="text-lg font-black text-white uppercase tracking-widest">The Nexus Blast</h3>
-                                <p className="text-[10px] font-mono text-blue-400/70 uppercase">Automated Omni-Channel Distribution</p>
+                                <p className="text-[10px] font-mono text-blue-400/70 uppercase">Automated Fitness Future-Channel Distribution</p>
                             </div>
                         </div>
 

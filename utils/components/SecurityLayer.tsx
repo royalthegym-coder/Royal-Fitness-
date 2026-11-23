@@ -7,14 +7,16 @@ import {
 } from 'lucide-react';
 import { useData } from '../context/DataProvider';
 import { useToast } from '../hooks/useToast';
+import BiometricAuth from './admin/BiometricAuth';
 
 const SecurityLayer: React.FC = () => {
     const { auditLogs } = useData();
     const { addToast } = useToast();
     const [doorStatus, setDoorStatus] = useState<'LOCKED' | 'UNLOCKED'>('LOCKED');
     const [alarmActive, setAlarmActive] = useState(false);
+    const [pendingAction, setPendingAction] = useState<'GATE' | 'ALARM' | 'VERIFY' | null>(null);
     
-    // Mock Cams
+    // Cams
     const cams = [
         { id: 1, name: 'Main Entrance', status: 'Online' },
         { id: 2, name: 'Weight Floor', status: 'Online' },
@@ -22,40 +24,70 @@ const SecurityLayer: React.FC = () => {
         { id: 4, name: 'Back Exit', status: 'Online' },
     ];
 
-    const toggleLock = () => {
+    const executeToggleLock = () => {
         const newStatus = doorStatus === 'LOCKED' ? 'UNLOCKED' : 'LOCKED';
         setDoorStatus(newStatus);
-        addToast(`Main Gate: ${newStatus}`, newStatus === 'LOCKED' ? 'error' : 'success');
+        addToast(`Main Gate: ${newStatus} (WebAuthn Verified)`, newStatus === 'LOCKED' ? 'error' : 'success');
     };
 
-    const toggleAlarm = () => {
+    const executeToggleAlarm = () => {
         setAlarmActive(!alarmActive);
-        if(!alarmActive) addToast("EMERGENCY PROTOCOL INITIATED.", "error");
+        if(!alarmActive) addToast("EMERGENCY PROTOCOL INITIATED (WebAuthn Verified).", "error");
         else addToast("Alarm Silenced.", "info");
     };
 
     return (
         <div className="space-y-8 animate-fade-in pb-24">
+            {pendingAction && (
+                <BiometricAuth
+                    title={
+                        pendingAction === 'GATE'
+                            ? `${doorStatus === 'LOCKED' ? 'Unlock' : 'Lock'} Main Perimeter Gate`
+                            : pendingAction === 'ALARM'
+                            ? 'Authorize Emergency Panic Protocol'
+                            : 'Perimeter Security WebAuthn Audit'
+                    }
+                    targetView="security"
+                    clearanceLevel="LEVEL-5 PERIMETER CLEARANCE"
+                    onAuthenticated={() => {
+                        const action = pendingAction;
+                        setPendingAction(null);
+                        if (action === 'GATE') executeToggleLock();
+                        else if (action === 'ALARM') executeToggleAlarm();
+                        else addToast('WebAuthn Biometric Clearance Confirmed.', 'success');
+                    }}
+                    onCancel={() => setPendingAction(null)}
+                    mode="modal"
+                />
+            )}
+
             <div className={`p-10 rounded-[3.5rem] border transition-all duration-500 shadow-2xl relative overflow-hidden ${alarmActive ? 'bg-red-950 border-red-500 animate-pulse' : 'bg-[#050505] border-red-500/20'}`}>
-                <div className="relative z-10 flex justify-between items-center">
+                <div className="relative z-10 flex flex-wrap justify-between items-center gap-4">
                     <div>
                         <h1 className="text-4xl font-black text-white italic uppercase tracking-tighter flex items-center gap-4">
                             <ShieldAlert className={`w-12 h-12 ${alarmActive ? 'text-white' : 'text-red-500'}`} />
                             Security <span className={alarmActive ? 'text-white' : 'text-red-500'}>Grid</span>
                         </h1>
-                        <p className="text-gray-400 text-sm font-mono mt-2 tracking-widest">PERIMETER CONTROL v31.0</p>
+                        <p className="text-gray-400 text-sm font-mono mt-2 tracking-widest">PERIMETER CONTROL Fitness Future • WEBAUTHN PROTECTED</p>
                     </div>
-                    <div className="flex gap-4">
+                    <div className="flex flex-wrap gap-3">
                         <button 
-                            onClick={toggleLock}
-                            className={`px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 transition-all ${doorStatus === 'LOCKED' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}
+                            onClick={() => setPendingAction('VERIFY')}
+                            className="px-6 py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-2.5 transition-all bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 cursor-pointer"
+                        >
+                            <Fingerprint className="w-4 h-4" />
+                            WebAuthn Prompt
+                        </button>
+                        <button 
+                            onClick={() => setPendingAction('GATE')}
+                            className={`px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 transition-all cursor-pointer ${doorStatus === 'LOCKED' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}
                         >
                             {doorStatus === 'LOCKED' ? <Lock className="w-4 h-4"/> : <Unlock className="w-4 h-4"/>}
                             {doorStatus === 'LOCKED' ? 'UNLOCK GATE' : 'LOCK GATE'}
                         </button>
                         <button 
-                            onClick={toggleAlarm}
-                            className={`px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 transition-all ${alarmActive ? 'bg-white text-red-600' : 'bg-red-900/20 border border-red-500 text-red-500 hover:bg-red-600 hover:text-white'}`}
+                            onClick={() => setPendingAction('ALARM')}
+                            className={`px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 transition-all cursor-pointer ${alarmActive ? 'bg-white text-red-600' : 'bg-red-900/20 border border-red-500 text-red-500 hover:bg-red-600 hover:text-white'}`}
                         >
                             <Siren className="w-4 h-4"/>
                             {alarmActive ? 'DISARM SYSTEM' : 'PANIC ALERT'}

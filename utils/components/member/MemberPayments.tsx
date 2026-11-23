@@ -1,3 +1,4 @@
+import { getCurrencySymbol } from '../../store/useCurrencyStore';
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useData } from '../../context/DataProvider';
@@ -8,6 +9,7 @@ import { GYM_INFO } from '../../../constants';
 import { Invoice, Transaction, InvoiceItem } from '../../../types';
 import { sendPaymentReceipt } from '../../../lib/whatsapp';
 import ReceiptTemplate from '../common/ReceiptTemplate';
+import { authenticateBiometric } from '../../biometrics';
 import { 
     Smartphone, CreditCard, Banknote, ArrowRight, ShieldCheck, 
     Zap, Lock, Wallet, History, Cpu, RefreshCw, CheckCircle, 
@@ -57,7 +59,7 @@ const MemberPayments: React.FC<{ memberId: number }> = ({ memberId }) => {
     // QR Generation
     useEffect(() => {
         if (selectedInvoice && paymentMethod === 'UPI') {
-            const upiUri = `upi://pay?pa=${GYM_INFO.upiIds.gpay1}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${selectedInvoice.amount.toFixed(2)}&cu=INR&tn=RoyalID_${memberId}_Inv_${selectedInvoice.id}`;
+            const upiUri = `upi://pay?pa=${GYM_INFO.upiIds.gpay1}&pn=${encodeURIComponent(GYM_INFO.name)}&am=${selectedInvoice.amount.toFixed(2)}&cu=INR&tn=FutureID_${memberId}_Inv_${selectedInvoice.id}`;
             toDataURL(upiUri, { width: 400, margin: 1, color: { dark: '#000000', light: '#ffffff' } })
                 .then(url => setQrCodeUrl(url));
         }
@@ -73,19 +75,46 @@ const MemberPayments: React.FC<{ memberId: number }> = ({ memberId }) => {
     const handleVerifyPayment = async () => {
         if (!selectedInvoice) return;
         
+        const isAuthenticated = await authenticateBiometric();
+        if (!isAuthenticated) {
+            addToast("Biometric verification failed. Payment cancelled.", "error");
+            return;
+        }
+        
+        finalizePaymentVerification();
+    };
+
+    const finalizePaymentVerification = async (isVerified: boolean = false) => {
+        if (!selectedInvoice) return;
+        
         setIsProcessing(true);
         setProcessStep('encrypting');
         await new Promise(r => setTimeout(r, 1000));
         setProcessStep('handshake');
         
         // INSTEAD OF MARKING PAID, MARK AS VERIFICATION PENDING
-        updateInvoiceStatus(selectedInvoice.id, 'Verification Pending');
+        updateInvoiceStatus(selectedInvoice.id, isVerified ? 'Paid' : 'Verification Pending');
 
         addAuditLog({
             member_id: memberId,
             action: 'PAYMENT_SUBMITTED',
-            details: `Member submitted payment for Invoice #${selectedInvoice.id} via ${paymentMethod}. Waiting Admin Approval.`
+            details: `Member submitted payment for Invoice #${selectedInvoice.id} via ${paymentMethod}. ${isVerified ? 'Payment successful.' : 'Waiting Admin Approval.'}`
         });
+
+        if (isVerified) {
+            addTransaction({
+                id: `TXN-${Date.now()}`,
+                memberName: selectedInvoice.memberName,
+                amount: selectedInvoice.amount,
+                date: new Date().toISOString().split('T')[0],
+                method: paymentMethod as any
+            });
+            
+            const member = members.find(m => m.id === selectedInvoice.memberId);
+            if (member?.whatsappConsent && member.phone) {
+                sendPaymentReceipt(member.name, member.phone, selectedInvoice.amount, `TXN-${Date.now()}`, selectedInvoice.packageName);
+            }
+        }
 
         setIsProcessing(false);
         setProcessStep('idle');
@@ -95,7 +124,7 @@ const MemberPayments: React.FC<{ memberId: number }> = ({ memberId }) => {
         setTimeout(() => {
              setSelectedInvoice(null);
              setVerificationSent(false);
-             addToast("Payment submitted for verification.", "info");
+             addToast(isVerified ? "Payment successful." : "Payment submitted for verification.", "info");
         }, 3000);
     };
 
@@ -144,9 +173,10 @@ const MemberPayments: React.FC<{ memberId: number }> = ({ memberId }) => {
                                         <button 
                                             key={m} 
                                             onClick={() => setPaymentMethod(m as any)}
-                                            className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${paymentMethod === m ? 'bg-amber-500 text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                                            className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative overflow-hidden group ${paymentMethod === m ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-black shadow-[0_0_20px_rgba(245,158,11,0.4)] border border-amber-400/50 border-dashed' : 'text-gray-500 hover:text-white border border-transparent'}`}
                                         >
-                                            {m}
+                                            {paymentMethod === m && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>}
+                                            <span className="relative z-10">{m}</span>
                                         </button>
                                     ))}
                                 </div>
@@ -154,7 +184,7 @@ const MemberPayments: React.FC<{ memberId: number }> = ({ memberId }) => {
                                 {paymentMethod === 'UPI' && (
                                     <div className="flex-1 flex flex-col items-center justify-center mb-8 bg-white rounded-[2.5rem] p-6 relative overflow-hidden group">
                                         <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-white"></div>
-                                        <img src={qrCodeUrl} className="w-48 h-48 object-contain mix-blend-multiply relative z-10" alt="QR" />
+                                        {qrCodeUrl && <img src={qrCodeUrl} className="w-56 h-56 mx-auto relative z-10 animate-fade-in" alt="UPI QR Code" />}
                                         <div className="absolute inset-0 flex items-center justify-center bg-white/90 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                                             <div className="text-center">
                                                 <Smartphone className="w-8 h-8 text-black mb-2 mx-auto" />
@@ -174,13 +204,16 @@ const MemberPayments: React.FC<{ memberId: number }> = ({ memberId }) => {
                                 <div className="space-y-4">
                                      <div className="flex justify-between items-center text-sm px-4">
                                          <span className="text-gray-400 font-bold uppercase tracking-wide">Total Payable</span>
-                                         <span className="text-2xl font-black text-white italic">₹{selectedInvoice.amount}</span>
+                                         <span className="text-2xl font-black text-white italic">{getCurrencySymbol()}{selectedInvoice.amount}</span>
                                      </div>
                                      <button 
                                         onClick={handleVerifyPayment}
-                                        className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-6 rounded-[2.5rem] uppercase tracking-[0.2em] text-xs shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3"
+                                        className="w-full bg-gradient-to-r from-green-900/80 to-emerald-900/80 hover:from-green-800 hover:to-emerald-800 border-2 border-dashed border-green-400/50 text-green-300 font-black py-6 rounded-[2.5rem] uppercase tracking-[0.2em] text-xs shadow-[0_0_30px_rgba(34,197,94,0.3)] backdrop-blur-md transition-all active:scale-95 flex items-center justify-center gap-3 relative overflow-hidden group"
                                      >
-                                        <ShieldCheck className="w-4 h-4"/> SUBMIT FOR VERIFICATION
+                                        <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                        <span className="relative z-10 flex items-center gap-3">
+                                            <ShieldCheck className="w-4 h-4"/> SUBMIT FOR VERIFICATION
+                                        </span>
                                      </button>
                                 </div>
                             </>
@@ -203,7 +236,7 @@ const MemberPayments: React.FC<{ memberId: number }> = ({ memberId }) => {
                         </div>
                         <div>
                              <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none">
-                                Apex <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-yellow-500">Treasury</span>
+                                Fitness Future<span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-yellow-500">Treasury</span>
                             </h1>
                         </div>
                     </div>
@@ -214,14 +247,14 @@ const MemberPayments: React.FC<{ memberId: number }> = ({ memberId }) => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                  <div className={`p-8 rounded-[2.5rem] border transition-all ${pendingTotal > 0 ? 'bg-red-950/20 border-red-500/30' : 'bg-green-950/20 border-green-500/30'}`}>
                      <div className="flex items-start justify-between">
-                        <p className="text-5xl font-black text-white italic">₹{pendingTotal.toLocaleString()}</p>
+                        <p className="text-5xl font-black text-white italic">{getCurrencySymbol()}{pendingTotal.toLocaleString()}</p>
                         <ShieldAlert className={`w-8 h-8 ${pendingTotal > 0 ? 'text-red-500 animate-pulse' : 'text-green-500'}`} />
                      </div>
                      <p className="text-xs font-black uppercase tracking-widest mt-3 text-gray-500">Pending Dues</p>
                  </div>
                  <div className="p-8 rounded-[2.5rem] border bg-gray-950 border-white/5">
                      <div className="flex items-start justify-between">
-                        <p className="text-5xl font-black text-white italic">₹{(lifetimeInvested / 1000).toFixed(1)}k</p>
+                        <p className="text-5xl font-black text-white italic">{getCurrencySymbol()}{(lifetimeInvested / 1000).toFixed(1)}k</p>
                         <TrendingUp className="w-8 h-8 text-cyan-400" />
                      </div>
                      <p className="text-xs font-black uppercase tracking-widest mt-3 text-gray-500">Lifetime Invested</p>
@@ -244,7 +277,7 @@ const MemberPayments: React.FC<{ memberId: number }> = ({ memberId }) => {
                         {verifyingInvoices.map(inv => (
                             <div key={inv.id} className="bg-black/40 p-4 rounded-xl border border-white/5">
                                 <p className="text-white font-bold">{inv.packageName}</p>
-                                <p className="text-xs text-gray-400">₹{inv.amount} • {inv.date}</p>
+                                <p className="text-xs text-gray-400">{getCurrencySymbol()}{inv.amount} • {inv.date}</p>
                                 <p className="text-[10px] text-amber-400 font-mono mt-1 uppercase">Awaiting Admin Verification</p>
                             </div>
                         ))}
@@ -274,7 +307,7 @@ const MemberPayments: React.FC<{ memberId: number }> = ({ memberId }) => {
                                             <h4 className="text-lg font-black text-white uppercase italic">{inv.packageName}</h4>
                                             <p className={`text-[10px] font-black uppercase mt-1 ${inv.status === 'Overdue' ? 'text-red-500' : 'text-amber-400'}`}>{inv.status}</p>
                                          </div>
-                                         <p className="text-3xl font-black text-white italic">₹{inv.amount}</p>
+                                         <p className="text-3xl font-black text-white italic">{getCurrencySymbol()}{inv.amount}</p>
                                      </div>
                                  </div>
                              </Card>
@@ -297,9 +330,10 @@ const MemberPayments: React.FC<{ memberId: number }> = ({ memberId }) => {
                                          </div>
                                      </div>
                                      <div className="flex items-center gap-4">
-                                         <p className="text-sm font-black text-gray-300">₹{inv.amount}</p>
-                                         <button onClick={() => { setHistoryInvoice(inv); setShowReceipt(true); }} className="p-2 bg-gray-800 rounded-xl text-gray-500 hover:text-white transition-colors">
-                                             <Receipt className="w-4 h-4" />
+                                         <p className="text-sm font-black text-gray-300">{getCurrencySymbol()}{inv.amount}</p>
+                                         <button onClick={() => { setHistoryInvoice(inv); setShowReceipt(true); }} className="p-2 bg-gradient-to-r from-gray-800 to-gray-900 hover:from-gray-700 hover:to-gray-800 rounded-xl text-gray-400 hover:text-white transition-all border border-gray-700/50 border-dashed shadow-[0_0_10px_rgba(0,0,0,0.5)] relative overflow-hidden group">
+                                             <div className="absolute inset-0 bg-white/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
+                                             <Receipt className="w-4 h-4 relative z-10" />
                                          </button>
                                      </div>
                                  </div>
