@@ -1,27 +1,13 @@
 
 import { Member } from '../types';
 import { GYM_INFO, INITIAL_MEMBERS, INITIAL_PACKAGES } from '../constants';
+import { getRuntimeSecret } from './runtimeSecrets';
 
-// Credentials from environment variables or fallbacks
-const ENV_PHONE_NUMBER_ID = import.meta.env.VITE_WHATSAPP_PHONE_ID;
-const ENV_ACCESS_TOKEN = import.meta.env.VITE_WHATSAPP_TOKEN;
-
-// Helper to get credentials dynamically (from LocalStorage or Env)
+// API credentials are supplied from session memory. Never bundle durable tokens into the client.
 const getWhatsAppCredentials = () => {
-    // Check localStorage first (User configured in Settings)
-    const storedToken = typeof localStorage !== 'undefined' ? localStorage.getItem('whatsapp_access_token') : null;
-    const storedPhoneId = typeof localStorage !== 'undefined' ? localStorage.getItem('whatsapp_phone_id') : null;
-
-    if (storedToken && storedPhoneId) {
-        return { token: storedToken, phoneId: storedPhoneId, isMock: false };
-    }
-
-    // Fallback to Env
-    if (ENV_ACCESS_TOKEN && ENV_PHONE_NUMBER_ID) {
-        return { token: ENV_ACCESS_TOKEN, phoneId: ENV_PHONE_NUMBER_ID, isMock: false };
-    }
-
-    // Fallback to Mock
+    const token = getRuntimeSecret('whatsapp_access_token');
+    const phoneId = getRuntimeSecret('whatsapp_phone_id');
+    if (token && phoneId) return { token, phoneId, isMock: false };
     return { token: 'mock_token', phoneId: '939889575884602', isMock: true };
 };
 
@@ -30,6 +16,7 @@ interface WhatsAppMessageParams {
     templateName: string;
     languageCode?: string;
     parameters: { type: string; text: string }[];
+    credentials?: { token: string; phoneId: string };
 }
 
 /**
@@ -39,9 +26,13 @@ export async function sendWhatsAppMessage({
     mobileNumber, 
     templateName, 
     languageCode = "en", 
-    parameters 
+    parameters,
+    credentials
 }: WhatsAppMessageParams): Promise<boolean> {
-    const { token, phoneId, isMock } = getWhatsAppCredentials();
+    const storedCredentials = getWhatsAppCredentials();
+    const token = credentials?.token || storedCredentials.token;
+    const phoneId = credentials?.phoneId || storedCredentials.phoneId;
+    const isMock = !credentials && storedCredentials.isMock;
     
     // Sanitize number
     const sanitizedNumber = mobileNumber.replace(/\D/g, '');
@@ -307,13 +298,14 @@ export async function sendWhatsAppOTP(phone: string, otp: string): Promise<boole
  * 6. TEST BOT (NEW)
  * Sends a hello_world template to verify API connectivity.
  */
-export async function testWhatsAppConnection(phone: string): Promise<boolean> {
+export async function testWhatsAppConnection(phone: string, credentials?: { token: string; phoneId: string }): Promise<boolean> {
     const mobileNumber = `91${phone.replace(/\D/g, '')}`;
     return sendWhatsAppMessage({
         mobileNumber,
         templateName: "hello_world",
         languageCode: "en_US",
-        parameters: []
+        parameters: [],
+        credentials
     });
 }
 

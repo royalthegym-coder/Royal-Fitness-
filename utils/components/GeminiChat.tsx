@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { SparkleIcon } from './icons/SparkleIcon';
+import SafeText from './common/SafeText';
 import { BotIcon } from './icons/BotIcon';
 import { X, ChevronRight, BrainCircuit, Zap, Terminal, RefreshCw, Shield, Cpu, Network, Activity } from 'lucide-react';
 import { getComplexResponse } from '../../lib/gemini';
@@ -165,14 +166,9 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ isOpen, onClose, context }) => 
                                     ? 'bg-red-900/20 border border-red-500/50 text-red-200 rounded-bl-none'
                                     : 'bg-gray-900/80 border border-white/5 text-gray-200 rounded-bl-none backdrop-blur-md'
                             }`}>
-                                <div 
-                                    className="markdown-content"
-                                    dangerouslySetInnerHTML={{ 
-                                        __html: msg.text
-                                            .replace(/\n/g, '<br />')
-                                            .replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-400">$1</strong>') 
-                                    }} 
-                                />
+                                <div className="markdown-content whitespace-pre-wrap">
+                                    <SafeText text={msg.text} boldClassName="text-indigo-400" />
+                                </div>
                             </div>
                         </motion.div>
                     ))}

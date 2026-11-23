@@ -482,17 +482,27 @@ const FutureSelfSim = () => {
     const [goal, setGoal] = useState('');
     const [image, setImage] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [generationError, setGenerationError] = useState('');
 
     const handleSimulate = async () => {
         if(!current || !goal) return;
         setLoading(true);
+        setGenerationError('');
         try {
             const img = await generateFutureSelfImage(current, goal);
-            setImage(img);
+            if (/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(img)) {
+                setImage(img);
+            } else {
+                setImage(null);
+                setGenerationError('Image generation did not return an image. Please try again.');
+            }
         } catch(e) {
-            console.error(e);
+            console.error('Future self image generation failed.');
+            setImage(null);
+            setGenerationError('Image generation failed. Please try again.');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     return (
@@ -505,8 +515,10 @@ const FutureSelfSim = () => {
             </div>
 
             <button onClick={handleSimulate} disabled={loading} className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold py-2 rounded-lg transition-colors disabled:opacity-50">
-                {loading ? 'RENDERING TIMELINE...' : 'VISUALIZE 3 MONTHS LATER'}
+                {loading ? 'RENDERING TIMELINE...' : generationError ? 'RETRY IMAGE GENERATION' : 'VISUALIZE 3 MONTHS LATER'}
             </button>
+
+            {generationError && <p role="alert" className="mt-3 text-sm text-red-300">{generationError}</p>}
 
             {image && (
                 <div className="mt-4 rounded-lg overflow-hidden border border-amber-500/30">

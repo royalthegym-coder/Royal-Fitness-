@@ -14,6 +14,7 @@ import { SparkleIcon } from './icons/SparkleIcon';
 import CustomTooltip from './common/CustomTooltip';
 import { WatchOSIcon } from './icons/WatchOSIcon'; 
 import { LockIcon } from './icons/LockIcon';
+import { secureRandomFloat, secureRandomInt } from '../security/random';
 import { RefreshCw, Heart, Moon, Footprints, Flame, ChevronRight, BrainCircuit } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 
@@ -107,12 +108,12 @@ const HealthConnect: React.FC = () => {
             tick += 0.2;
             setHealthData(prev => {
                 // Heart Rate Simulation (Sin wave for realism)
-                const noise = Math.random() * 4 - 2; 
+                const noise = secureRandomFloat() * 4 - 2;
                 const activityWave = Math.sin(tick) * 15; 
                 const newHeartRate = Math.floor(75 + Math.abs(activityWave) + noise); 
                 
                 // Steps Simulation (Increment occasionally)
-                const stepIncrement = newHeartRate > 90 ? Math.floor(Math.random() * 5) : 0;
+                const stepIncrement = newHeartRate > 90 ? secureRandomInt(0, 4) : 0;
                 
                 // Calories Simulation
                 const calorieIncrement = (newHeartRate / 2000) * 0.5;
@@ -135,7 +136,7 @@ const HealthConnect: React.FC = () => {
             });
             
             // Battery Drain
-            if (Math.random() > 0.98) setBatteryLevel(b => Math.max(0, b - 1));
+            if (secureRandomFloat() > 0.98) setBatteryLevel(b => Math.max(0, b - 1));
 
         }, 1000); 
 

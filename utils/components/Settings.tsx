@@ -14,6 +14,7 @@ import { useToast } from '../hooks/useToast';
 import { useData } from '../context/DataProvider';
 import ConfirmationDialog from './common/ConfirmationDialog';
 import { testWhatsAppConnection } from '../../lib/whatsapp';
+import { clearLegacySensitiveStorage, getRuntimeSecret, setRuntimeSecret } from '../../lib/runtimeSecrets';
 
 interface SettingsProps {
     setCurrentView: (view: View) => void;
@@ -32,17 +33,17 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, currentUser }) => {
     const [simMode, setSimMode] = useState(localStorage.getItem('royal_ai_mode') === 'SIMULATION');
     const [voiceEnabled, setVoiceEnabled] = useState(localStorage.getItem('royal_voice_enabled') !== 'false');
     const [reasoningBudget, setReasoningBudget] = useState(Number(localStorage.getItem('royal_reasoning_budget')) || 50);
-    const [hfToken, setHfToken] = useState(localStorage.getItem('HUGGINGFACE_API_KEY') || '');
+    const [hfToken, setHfToken] = useState('');
 
     // 2. Security Grid (Geo-Fencing)
     const [geoLockEnabled, setGeoLockEnabled] = useState(localStorage.getItem('royal_geo_lock') === 'true');
     const [bioLockEnabled, setBioLockEnabled] = useState(localStorage.getItem('royal_bio_lock') === 'true');
-    const [gymLat, setGymLat] = useState(localStorage.getItem('royal_gym_lat') || '28.1289');
-    const [gymLng, setGymLng] = useState(localStorage.getItem('royal_gym_lng') || '75.3995');
+    const [gymLat, setGymLat] = useState('28.1289');
+    const [gymLng, setGymLng] = useState('75.3995');
 
     // 3. Comms Uplink (WhatsApp)
-    const [waToken, setWaToken] = useState(localStorage.getItem('whatsapp_access_token') || '');
-    const [waPhoneId, setWaPhoneId] = useState(localStorage.getItem('whatsapp_phone_id') || '');
+    const [waToken, setWaToken] = useState(() => getRuntimeSecret('whatsapp_access_token'));
+    const [waPhoneId, setWaPhoneId] = useState(() => getRuntimeSecret('whatsapp_phone_id'));
     const [testPhone, setTestPhone] = useState(localStorage.getItem('royal_test_phone') || '9785300123');
     const [isTestingWa, setIsTestingWa] = useState(false);
 
@@ -54,23 +55,24 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, currentUser }) => {
 
     // --- ACTIONS ---
 
+    useEffect(() => { clearLegacySensitiveStorage(); }, []);
+
     const handleSaveNeural = () => {
         localStorage.setItem('royal_ai_provider', aiProvider);
         localStorage.setItem('royal_ai_mode', simMode ? 'SIMULATION' : 'ONLINE');
         localStorage.setItem('royal_voice_enabled', String(voiceEnabled));
         localStorage.setItem('royal_reasoning_budget', String(reasoningBudget));
-        localStorage.setItem('HUGGINGFACE_API_KEY', hfToken);
+        setRuntimeSecret('huggingface_api_key', hfToken);
         
-        addToast("Neural Core Reconfigured. Rebooting Logic Layers...", "success");
+        addToast("Neural settings saved; API credentials stay in memory for this session only.", "success");
         // Simulate a quick reboot effect if needed, or just toast
     };
 
     const handleSaveSecurity = () => {
         localStorage.setItem('royal_geo_lock', String(geoLockEnabled));
         localStorage.setItem('royal_bio_lock', String(bioLockEnabled));
-        localStorage.setItem('royal_gym_lat', gymLat);
-        localStorage.setItem('royal_gym_lng', gymLng);
-        addToast("Perimeter & Bio-Security Protocols Updated.", "success");
+        // Exact gym coordinates remain in component memory rather than browser storage.
+        addToast("Security settings updated; location stays in memory for this session only.", "success");
     };
 
     const handleCalibrateLocation = () => {
@@ -90,10 +92,10 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, currentUser }) => {
     };
 
     const handleSaveComms = () => {
-        localStorage.setItem('whatsapp_access_token', waToken);
-        localStorage.setItem('whatsapp_phone_id', waPhoneId);
+        setRuntimeSecret('whatsapp_access_token', waToken);
+        setRuntimeSecret('whatsapp_phone_id', waPhoneId);
         localStorage.setItem('royal_test_phone', testPhone);
-        addToast("Sub-Space Communication Channels Synced.", "success");
+        addToast("Communication credentials are available in memory for this session only.", "success");
     };
 
     const handleTestWhatsApp = async () => {
@@ -101,7 +103,7 @@ const Settings: React.FC<SettingsProps> = ({ setCurrentView, currentUser }) => {
         setIsTestingWa(true);
         addToast("Sending 'hello_world' template...", "info");
         
-        const success = await testWhatsAppConnection(testPhone);
+        const success = await testWhatsAppConnection(testPhone, { token: waToken, phoneId: waPhoneId });
         if (success) {
             addToast("Test message dispatched successfully.", "success");
         } else {

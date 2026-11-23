@@ -33,5 +33,11 @@ jobs:
       - name: Type-check
         run: npm run lint
 
+      - name: Test automation policy
+        run: npm run test:policy
+
+      - name: Test future-self image input handling
+        run: npm run test:future-self-image
+
       - name: Build
         run: npm run build

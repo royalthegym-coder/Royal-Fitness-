@@ -1,6 +1,8 @@
 
 import { generateNeuralAutomationLogic } from './gemini';
 import { updateGoogleBusinessProfile } from './googleBusiness';
+import { getRuntimeSecret } from './runtimeSecrets';
+import { applyAutomationPolicy, createAutomationWebhookEnvelope, sanitizeAutomationPayloadForModel, type AutomationEvent } from './automationPolicy';
 
 /**
  * Neural OS Automation Service
@@ -8,16 +10,18 @@ import { updateGoogleBusinessProfile } from './googleBusiness';
  */
 
 export interface AutomationTrigger {
-    event: 'member_created' | 'payment_received' | 'review_posted' | 'attendance_alert' | 'system_sync' | 'medical_consultation';
+    event: AutomationEvent;
     payload: any;
 }
 
 export const triggerAutomation = async (trigger: AutomationTrigger) => {
-    console.log(`[Neural OS] Triggering Automation: ${trigger.event}`, trigger.payload);
+    console.log(`[Neural OS] Triggering Automation: ${trigger.event}`);
 
-    // 1. Get AI Logic for this trigger
-    const aiLogic = await generateNeuralAutomationLogic(trigger.event, trigger.payload);
-    console.log(`[Neural OS] AI Automation Logic:`, aiLogic);
+    // 1. Model output is untrusted data, never an authority for external actions.
+    const modelContext = sanitizeAutomationPayloadForModel(trigger.payload);
+    const generatedLogic = await generateNeuralAutomationLogic(trigger.event, modelContext);
+    const aiLogic = applyAutomationPolicy(trigger.event, generatedLogic);
+    console.log(`[Neural OS] Automation policy selected: ${aiLogic.n8n_action}`);
 
     // 2. N8N Webhook Integration
     let n8nWebhookUrl = '';
@@ -30,12 +34,16 @@ export const triggerAutomation = async (trigger: AutomationTrigger) => {
         n8nWebhookUrl = import.meta.env.VITE_N8N_WORKFLOW_URL || localStorage.getItem('n8n_workflow_url') || 'https://royalthegym.app.n8n.cloud/workflow/aqLESKJDrp6xWaok';
     }
     
-    if (n8nWebhookUrl) {
+    const webhookEnvelope = createAutomationWebhookEnvelope(trigger.event, new Date().toISOString());
+
+    if (n8nWebhookUrl && webhookEnvelope) {
         try {
             await fetch(n8nWebhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...trigger, aiLogic })
+                // The external contract is versioned event metadata only. Never send
+                // caller payload or model output to a third-party webhook.
+                body: JSON.stringify(webhookEnvelope)
             });
             console.log(`[Neural OS] n8n Action Executed successfully: ${aiLogic.n8n_action}`);
         } catch (error) {
@@ -59,7 +67,7 @@ export const triggerAutomation = async (trigger: AutomationTrigger) => {
     }
 
     // 5. GitHub Integration (e.g., backup or sync)
-    const githubToken = import.meta.env.VITE_GITHUB_TOKEN || localStorage.getItem('github_token');
+    const githubToken = getRuntimeSecret('github_token');
     if (githubToken && trigger.event === 'system_sync') {
         try {
             // Example GitHub API call to dispatch a workflow

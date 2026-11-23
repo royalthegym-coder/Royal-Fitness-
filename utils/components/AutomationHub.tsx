@@ -11,6 +11,7 @@ import {
 import { useData } from '../context/DataProvider';
 import { useToast } from '../hooks/useToast';
 import { getComplexResponse } from '../../lib/gemini';
+import { clearLegacySensitiveStorage, getRuntimeSecret, setRuntimeSecret } from '../../lib/runtimeSecrets';
 
 const AutomationHub: React.FC = () => {
     const { addToast } = useToast();
@@ -33,7 +34,7 @@ const AutomationHub: React.FC = () => {
     ]);
 
     // GitHub State
-    const [githubToken, setGithubToken] = useState(localStorage.getItem('github_token') || import.meta.env.VITE_GITHUB_TOKEN || '');
+    const [githubToken, setGithubToken] = useState(getRuntimeSecret('github_token'));
     const [repoStatus, setRepoStatus] = useState({
         name: 'royal-the-gym-neural-os',
         branch: 'main',
@@ -42,13 +43,13 @@ const AutomationHub: React.FC = () => {
     });
 
     // WhatsApp State
-    const [waToken, setWaToken] = useState(localStorage.getItem('whatsapp_access_token') || import.meta.env.VITE_WHATSAPP_TOKEN || '');
-    const [waPhoneId, setWaPhoneId] = useState(localStorage.getItem('whatsapp_phone_id') || import.meta.env.VITE_WHATSAPP_PHONE_ID || '');
+    const [waToken, setWaToken] = useState(getRuntimeSecret('whatsapp_access_token'));
+    const [waPhoneId, setWaPhoneId] = useState(getRuntimeSecret('whatsapp_phone_id'));
     const [waNumber, setWaNumber] = useState('9785300123');
 
     // Google Business State
     const [googleMerchantId, setGoogleMerchantId] = useState(localStorage.getItem('google_merchant_id') || import.meta.env.VITE_GOOGLE_MERCHANT_ID || '');
-    const [googleApiKey, setGoogleApiKey] = useState(localStorage.getItem('google_api_key') || import.meta.env.VITE_GOOGLE_API_KEY || '');
+    const [googleApiKey, setGoogleApiKey] = useState(getRuntimeSecret('google_api_key'));
     const [googlePayUpi, setGooglePayUpi] = useState(localStorage.getItem('google_pay_upi') || '9785300123@okbizaxis');
     const [googleStats, setGoogleStats] = useState({
         profileViews: 1240,
@@ -57,6 +58,8 @@ const AutomationHub: React.FC = () => {
         totalReviews: 128,
         pendingReviews: 3
     });
+
+    useEffect(() => { clearLegacySensitiveStorage(); }, []);
 
     const addLog = (msg: string) => {
         const time = new Date().toLocaleTimeString();
@@ -71,19 +74,19 @@ const AutomationHub: React.FC = () => {
             addToast("n8n Webhook URLs updated successfully.", "success");
             addLog("n8n Webhook configuration saved.");
         } else if (type === 'github') {
-            localStorage.setItem('github_token', githubToken);
-            addToast("GitHub Token updated successfully.", "success");
-            addLog("GitHub integration credentials saved.");
+            setRuntimeSecret('github_token', githubToken);
+            addToast("GitHub credential is kept in memory for this session only.", "success");
+            addLog("GitHub integration credential loaded for this session.");
         } else if (type === 'whatsapp') {
-            localStorage.setItem('whatsapp_access_token', waToken);
-            localStorage.setItem('whatsapp_phone_id', waPhoneId);
-            addToast("WhatsApp Business API credentials updated.", "success");
+            setRuntimeSecret('whatsapp_access_token', waToken);
+            setRuntimeSecret('whatsapp_phone_id', waPhoneId);
+            addToast("WhatsApp credentials are kept in memory for this session only.", "success");
             addLog(`WhatsApp Business API configured for number: ${waNumber}`);
         } else if (type === 'google') {
             localStorage.setItem('google_merchant_id', googleMerchantId);
-            localStorage.setItem('google_api_key', googleApiKey);
+            setRuntimeSecret('google_api_key', googleApiKey);
             localStorage.setItem('google_pay_upi', googlePayUpi);
-            addToast("Google Business Profile & Payment credentials updated.", "success");
+            addToast("Google Business settings saved; API key stays in memory for this session only.", "success");
             addLog("Google Business configuration saved.");
         }
     };

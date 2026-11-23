@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import Card from './common/Card';
+import SafeText from './common/SafeText';
 import { 
     BrainCircuit, Cpu, Zap, Image as ImageIcon, 
     Terminal, RefreshCw, ChevronDown, ChevronRight, 
@@ -141,9 +142,9 @@ const GeminiHub: React.FC = () => {
                                 ? 'bg-cyan-900/20 text-cyan-100 rounded-br-none border border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.1)]' 
                                 : 'bg-[#050505] text-gray-200 rounded-bl-none border border-white/10 shadow-2xl backdrop-blur-3xl'
                             }`}>
-                                <div className="prose prose-invert prose-sm max-w-none text-sm leading-relaxed font-medium" 
-                                     dangerouslySetInnerHTML={{ __html: msg.content.replace(/\n/g, '<br/>') }} 
-                                />
+                                <div className="prose prose-invert prose-sm max-w-none text-sm leading-relaxed font-medium whitespace-pre-wrap">
+                                    <SafeText text={msg.content} />
+                                </div>
                                 {msg.thought && (
                                     <div className="mt-4 pt-3 border-t border-white/5 text-[9px] text-gray-500 font-mono flex items-center gap-2">
                                         <Terminal className="w-3 h-3" /> {msg.thought}

@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Member } from '../types';
+import { prepareFutureSelfImageRequest } from './futureSelfImageInput';
 
 // Initialize Gemini
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
@@ -311,28 +312,29 @@ export async function generateBodyTransformationAnalysis(member: any, ...args: a
     return getComplexResponse(`Analyze transformation for ${member.name}. Additional context: ${JSON.stringify(args)}. Provide JSON: {current_status, goal_status, time_estimate, key_milestones: string[]}`);
 }
 
-export async function generateFutureSelfImage(base64: string, targetGoal: string): Promise<string> {
+export async function generateFutureSelfImage(currentDescription: string, targetGoal: string): Promise<string> {
     try {
+        const request = prepareFutureSelfImageRequest(currentDescription, targetGoal);
         const response = await ai.models.generateContent({
             model: IMAGE_GEN_MODEL,
-            contents: {
-                parts: [
-                    { inlineData: { data: cleanBase64(base64), mimeType: "image/jpeg" } },
-                    { text: `Generate a futuristic image of this person after achieving ${targetGoal}.` }
-                ]
-            }
+            contents: request.contents,
+            config: {
+                systemInstruction: request.systemInstruction,
+                responseModalities: [Modality.TEXT, Modality.IMAGE],
+            },
         });
         
         const parts = response.candidates?.[0]?.content?.parts || [];
         for (const part of parts) {
-            if (part.inlineData) {
-                return `data:image/png;base64,${part.inlineData.data}`;
+            if (part.inlineData?.data) {
+                const mimeType = part.inlineData.mimeType || 'image/png';
+                return `data:${mimeType};base64,${part.inlineData.data}`;
             }
         }
-        return base64; // Fallback
+        return '';
     } catch (e) {
         console.error("Image Generation Error:", e);
-        return base64;
+        return '';
     }
 }
 
