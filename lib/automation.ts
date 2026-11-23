@@ -2,7 +2,7 @@
 import { generateNeuralAutomationLogic } from './gemini';
 import { updateGoogleBusinessProfile } from './googleBusiness';
 import { getRuntimeSecret } from './runtimeSecrets';
-import { applyAutomationPolicy, sanitizeAutomationPayloadForModel, type AutomationEvent } from './automationPolicy';
+import { applyAutomationPolicy, createAutomationWebhookEnvelope, sanitizeAutomationPayloadForModel, type AutomationEvent } from './automationPolicy';
 
 /**
  * Neural OS Automation Service
@@ -34,12 +34,16 @@ export const triggerAutomation = async (trigger: AutomationTrigger) => {
         n8nWebhookUrl = import.meta.env.VITE_N8N_WORKFLOW_URL || localStorage.getItem('n8n_workflow_url') || 'https://royalthegym.app.n8n.cloud/workflow/aqLESKJDrp6xWaok';
     }
     
-    if (n8nWebhookUrl) {
+    const webhookEnvelope = createAutomationWebhookEnvelope(trigger.event, new Date().toISOString());
+
+    if (n8nWebhookUrl && webhookEnvelope) {
         try {
             await fetch(n8nWebhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...trigger, aiLogic })
+                // The external contract is versioned event metadata only. Never send
+                // caller payload or model output to a third-party webhook.
+                body: JSON.stringify(webhookEnvelope)
             });
             console.log(`[Neural OS] n8n Action Executed successfully: ${aiLogic.n8n_action}`);
         } catch (error) {

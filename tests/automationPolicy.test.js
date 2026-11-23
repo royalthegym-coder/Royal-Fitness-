@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyAutomationPolicy, sanitizeAutomationPayloadForModel } from '../lib/automationPolicy.ts';
+import { applyAutomationPolicy, createAutomationWebhookEnvelope, sanitizeAutomationPayloadForModel } from '../lib/automationPolicy.ts';
 import { clearLegacySensitiveStorage } from '../lib/runtimeSecrets.ts';
 
 const events = [
@@ -65,4 +65,32 @@ test('legacy sensitive storage cleanup removes the designated old keys', () => {
     if (previousWindow === undefined) delete globalThis.window;
     else globalThis.window = previousWindow;
   }
+});
+
+
+test('n8n webhook envelope is versioned and cannot include member or payment data', () => {
+  const timestamp = '2026-11-23T03:00:00.000Z';
+  const personalPayload = {
+    member: { name: 'Example Member', phone: '0000000000', medicalHistory: ['private'] },
+    paymentMethod: 'private',
+    totalAmount: 999,
+  };
+
+  for (const event of events) {
+    const envelope = createAutomationWebhookEnvelope(event, timestamp, personalPayload);
+    assert.deepEqual(envelope, {
+      schema_version: 1,
+      event,
+      source: 'royal-fitness',
+      occurred_at: timestamp,
+    });
+
+    const serialized = JSON.stringify(envelope);
+    for (const sensitive of ['Example Member', '0000000000', 'medicalHistory', 'paymentMethod', 'totalAmount']) {
+      assert.equal(serialized.includes(sensitive), false);
+    }
+  }
+
+  assert.equal(createAutomationWebhookEnvelope('unknown_event', timestamp), null);
+  assert.equal(createAutomationWebhookEnvelope('member_created', 'not-a-date'), null);
 });

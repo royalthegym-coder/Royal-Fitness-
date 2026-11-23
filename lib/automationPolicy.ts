@@ -20,6 +20,30 @@ export interface SafeAutomationLogic {
   google_update: '';
 }
 
+export interface AutomationWebhookEnvelope {
+  schema_version: 1;
+  event: AutomationEvent;
+  source: 'royal-fitness';
+  occurred_at: string;
+}
+
+/** Build a privacy-safe webhook message: event metadata only, never caller data. */
+export function createAutomationWebhookEnvelope(
+  event: unknown,
+  occurredAt: string,
+  _payload?: unknown,
+): AutomationWebhookEnvelope | null {
+  if (typeof event !== 'string' || !Object.hasOwn(EVENT_ACTIONS, event)) return null;
+  if (!Number.isFinite(Date.parse(occurredAt))) return null;
+
+  return {
+    schema_version: 1,
+    event: event as AutomationEvent,
+    source: 'royal-fitness',
+    occurred_at: occurredAt,
+  };
+}
+
 /**
  * Automation model output cannot choose actions, so the model needs no caller payload.
  * Return an empty context rather than attempting a fragile denylist over member records.
