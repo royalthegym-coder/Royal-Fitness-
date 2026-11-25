@@ -4,6 +4,8 @@ const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const PUB = path.join(__dirname, '..', 'public');
 const SB = 'https://ayoeevltbubkyhixqqlg.supabase.co';
+const SOC_SQL = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '20261123_social_profiles.sql'), 'utf8'), SOC_CHK = {};
+for (const k of ['whatsapp', 'instagram', 'facebook', 'youtube']) { const m = new RegExp(`social_${k}_chk check \\(${k} is null or ${k} ~ '([^']+)'\\)`).exec(SOC_SQL); if (!m) throw new Error('no CHECK for ' + k); SOC_CHK[k] = new RegExp(m[1]); }
 let fails = 0; const ok = (c, m) => { if (!c) { fails++; console.log('  FAIL', m); } else console.log('  ok  ', m); };
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const jwt = (sub) => `${b64({ alg: 'none' })}.${b64({ sub })}.x`;
@@ -190,6 +192,33 @@ function handler(db, role) {
         if ('email' in q) pr.email = String(q.email).trim().toLowerCase(); if ('logo' in q) pr.logo = q.logo || null; if ('signature' in q) pr.signature = q.signature || null;
         return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
       }
+      /* social links and videos. social_view(p_gym default null) needs no argument; social_set / social_set_platform(p jsonb) take ONE argument named p.
+         Addresses are checked against the CHECK patterns read from the real migration file, so this mock cannot drift from the database. The database would
+         normalise a pasted address itself, but the app always sends the canonical one, so anything else reaching here is a client bug and is refused. */
+      if (fn === 'social_view' || fn === 'social_set' || fn === 'social_set_platform') {
+        const ks = Object.keys(a).sort().join(), shapeOk = fn === 'social_view' ? (ks === '' || ks === 'p_gym') : (ks === 'p' && a.p && typeof a.p === 'object' && !Array.isArray(a.p));
+        if (!shapeOk) { (db.rpcShapeErrors = db.rpcShapeErrors || []).push(fn); return route.fulfill({ status: 404, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ code: 'PGRST202', message: `Could not find the function public.${fn}(${ks}) in the schema cache`, details: null, hint: null }) }); }
+        const SE = (message, code = 'P0001', status = 400) => route.fulfill({ status, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ message, code, details: null, hint: null }) });
+        const S = (db.social = db.social || { gym: null, platform: null });
+        if (fn === 'social_view') { db.socialViews = (db.socialViews || 0) + 1; if (db.socialViewFail) return SE('could not read', 'XX000'); return json({ gym: role === 'super_admin' ? null : S.gym, platform: S.platform }); }
+        if (role !== (fn === 'social_set' ? 'gym_admin' : 'super_admin')) return SE('not allowed', '42501', 403);
+        if (fn === 'social_set' && db.gyms[0].lock_override === 'force_lock') return SE('gym is locked', '42501', 403);
+        if (db.socialFail) return SE(db.socialFail);
+        const q = a.p, nx = { whatsapp: null, instagram: null, facebook: null, youtube: null, videos: [], ...((fn === 'social_set' ? S.gym : S.platform) || {}) };
+        for (const k of ['whatsapp', 'instagram', 'facebook', 'youtube']) if (k in q) { const v = q[k]; if (v === null) nx[k] = null; else if (typeof v === 'string' && SOC_CHK[k].test(v)) nx[k] = v; else return SE(`bad ${k} link`); }
+        if ('videos' in q) {
+          if (q.videos === null) nx.videos = [];
+          else {
+            if (!Array.isArray(q.videos)) return SE('bad video link'); if (q.videos.length > 12) return SE('too many videos');
+            const out = [];
+            for (const e of q.videos) { const id = e && typeof e === 'object' ? e.id : null, t = e && typeof e.title === 'string' ? e.title : ''; if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{11}$/.test(id) || Array.from(t).length > 80 || /[\x01-\x1f\x7f]/.test(t) || t !== t.trim()) return SE('bad video link'); if (!out.some((o) => o.id === id)) out.push({ id, title: t }); }
+            if (out.length > 6) return SE('too many videos'); nx.videos = out;
+          }
+        }
+        nx.updated_at = new Date().toISOString(); (db.socialSets = db.socialSets || []).push({ fn, p: q });
+        if (fn === 'social_set') S.gym = nx; else S.platform = nx;
+        return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
+      }
       if (fn === 'admin_update_gym') { Object.assign(db.gyms[0], { name: a.gym_name, owner_name: a.owner, phone: a.phone_no, city: a.city_name, upi_id: a.upi }); return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } }); }
       return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*' } });
     }
@@ -244,7 +273,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     ok(/ग़लत|Wrong/.test(await page.textContent('.banner.bad')), 'wrong password shows a friendly error');
     await login(page); await page.waitForSelector('.tiles');
     ok(/Royal The Gym/.test(await page.textContent('#gymName')), 'dashboard loads with gym name');
-    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 28, 'gym admin sees 28 menu items');
+    const nav = await page.$$eval('#nav a', (a) => a.length); ok(nav === 29, 'gym admin sees 29 menu items');
     await page.click('a[href="#members"]'); await page.waitForSelector('table.t');
     ok((await page.$$('table.t tbody tr')).length === 4, 'members list shows 4');
     await page.fill('#mq', 'priya'); await page.waitForFunction(() => document.querySelectorAll('table.t tbody tr').length === 1);
@@ -683,7 +712,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await session(browser, 'gym_admin', async (page) => {
     await login(page); await page.waitForSelector('.tiles');
     ok(!!(await page.$('.nav .more')) && (await page.$$eval('#nav a', (a) => a.filter((x) => x.offsetParent !== null).length)) <= 5, 'phone bar shows only the main pages plus More');
-    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 28, 'More sheet lists all 28 pages in groups');
+    await page.click('.nav .more'); await page.waitForSelector('.sheet-links a'); ok((await page.$$('.sheet-links a')).length === 29, 'More sheet lists all 29 pages in groups');
     await page.click('.sheet-links a[href="#expenses"]'); await page.waitForFunction(() => location.hash === '#expenses' && !document.querySelector('.ov')); ok(true, 'More sheet opens a page and closes');
     ok((await page.$$('#nav .grp')).length === 6, 'admin menu is split into 6 groups');
     await page.waitForSelector('[data-act=newExpense]'); await page.waitForTimeout(500);
@@ -750,7 +779,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
 
   console.log('super admin');
   await session(browser, 'super_admin', async (page, db) => {
-    await login(page); await page.waitForSelector('.tiles'); ok((await page.$$eval('#nav a', (a) => a.length)) === 5, 'super admin sees 5 menu items');
+    await login(page); await page.waitForSelector('.tiles'); ok((await page.$$eval('#nav a', (a) => a.length)) === 6, 'super admin sees 6 menu items');
     ok(/Royal The Gym|ओवरव्यू|Overview/.test(await page.textContent('#view')) && !!(await page.$('.tiles')), 'super admin lands on the platform overview');
     ok(/Nothing needs attention|किसी पर ध्यान/.test(await page.textContent('#view')), 'overview: healthy gym is not flagged');
     ok(!/Check-in|चेक-इन/.test(await page.textContent('#nav')), 'super admin has no gym operations menu');
@@ -992,7 +1021,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
 
   console.log('member + waiting');
   await session(browser, 'member', async (page, db) => { const eng = await ENGINE; db.visits.push({ id: uid(), gym_id: db.G, member_id: db.members[0].id, in_at: new Date().toISOString(), out_at: null }); db.payments.push({ id: uid(), gym_id: db.G, member_id: db.members[0].id, amount: 700, method: 'UPI', paid_on: today(), no: 'RCT-0009' }); draftRows(eng, db, db.members[0], FIT, 'published').forEach((r) => db.member_plans.push(r)); draftRows(eng, db, db.members[0], FIT, 'draft').forEach((r) => db.member_plans.push(r)); await login(page); await page.waitForSelector('.tiles'); ok(/Rahul/.test(await page.textContent('#view')), 'member sees own page');
-    ok((await page.$$eval('#nav a', (a) => a.length)) === 10, 'member portal has 10 pages');
+    ok((await page.$$eval('#nav a', (a) => a.length)) === 11, 'member portal has 11 pages');
     ok(/1/.test(await page.textContent('.tiles .card:nth-child(3) .v')), 'home shows the visit streak');
     await page.click('a[href="#plan"]'); await page.waitForSelector('[data-act=openMyPlan]'); ok((await page.$$('[data-act=openMyPlan]')).length === 2, 'member sees the two published plans');
     await page.click('[data-act=openMyPlan] >> nth=1'); await page.waitForSelector('#planBody'); ok(/Barbell|Dumbbell|Machine|Push|Lat/.test(await page.textContent('#planBody')), 'member can open the workout plan'); await page.keyboard.press('Escape');
@@ -1273,6 +1302,182 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
     await page.evaluate(() => (location.hash = 'operator')); await page.waitForSelector('[data-op]', { timeout: 10000 });
     ok(!(await overflow(page)), 'operator: the page has no horizontal overflow on a phone');
   }, { width: 390, height: 800 });
+
+  console.log('social links and videos');
+  const SOC_ROW = (o = {}) => ({ whatsapp: 'https://wa.me/919785300123', instagram: 'https://www.instagram.com/royalthegym/', facebook: 'https://www.facebook.com/royal.the.gym', youtube: 'https://www.youtube.com/@royalthegym', videos: [{ id: 'dQw4w9WgXcQ', title: 'Warm up <b>routine</b>' }, { id: 'abcdefghijk', title: '' }], updated_at: new Date().toISOString(), ...o });
+  const goEn = async (page) => { await page.evaluate(() => localStorage.setItem('gymos-lang', 'en')); await page.reload(); await page.waitForSelector('#loginForm'); };
+  const ytStub = async (page) => {
+    await page.route('https://i.ytimg.com/**', (r) => (/dQw4w9WgXcQ/.test(r.request().url()) ? r.fulfill({ status: 200, contentType: 'image/png', body: PNG }) : r.abort()));
+    await page.route('https://www.youtube-nocookie.com/**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>player</title>' }));
+  };
+  const toSocial = async (page, sel = '[data-act=socialConnect], .shero') => { await page.evaluate(() => (location.hash = 'social')); await page.waitForSelector(sel, { timeout: 10000 }); };
+  const waitSets = async (page, db, n) => { for (let i = 0; i < 40 && (db.socialSets || []).length < n; i++) await page.waitForTimeout(150); };
+  await session(browser, 'gym_admin', async (page, db) => {
+    await goEn(page); await ytStub(page); await login(page); await page.waitForSelector('.tiles');
+    ok((await page.$$('#nav a[href="#social"]')).length === 1, 'social: the owner has a Social & videos menu item');
+    // Settings: a short card that points to the page
+    await page.click('a[href="#settings"]'); await page.waitForSelector('[data-act=gymProfile]');
+    ok(/0\/4 connected/.test(await page.textContent('#view')) && (await page.$$('#view a[href="#social"]')).length === 1, 'social: Settings shows 0 of 4 connected with a link to the page');
+    await page.click('#view a[href="#social"]'); await page.waitForSelector('[data-act=socialConnect]');
+    const kinds = await page.$$eval('[data-act=socialConnect]', (b) => b.map((x) => x.dataset.kind + ':' + x.dataset.scope).join());
+    ok(kinds === 'whatsapp:gym,instagram:gym,facebook:gym,youtube:gym', 'social: one Connect button for each of the four networks');
+    ok(/Royal The Gym/.test(await page.textContent('.shero')) && (await page.$eval('.shero a[href^="tel:"]', (a) => a.getAttribute('href'))) === 'tel:9785300123' && !(await page.$('.shero a[href*="maps"]')), 'social: the gym card shows the name and a Call button, and no Map button without a map link');
+    ok((await page.$$('[data-act=socialVideos]')).length === 1 && /No videos yet/.test(await page.textContent('#view')), 'social: an empty video shelf invites the owner to add videos');
+    // a link from another site is refused, and nothing is sent
+    await page.click('[data-act=socialConnect][data-kind=instagram]'); await page.waitForSelector('#f_link');
+    ok(/Connect Instagram/.test(await page.textContent('.ov h2')) && (await page.$eval('#soc_prev', (e) => e.textContent.trim())) === '', 'social: the connect box opens for Instagram with an empty preview');
+    await page.fill('#f_link', 'https://example.com/royalthegym');
+    ok(/Not recognised/.test(await page.textContent('#soc_prev .n')), 'social: the preview says a link from another site is not recognised');
+    await page.click('[data-ok]'); ok((await page.textContent('#e_link')).length > 0 && !db.socialSets, 'social: a link from another site is refused before anything is sent');
+    // a pasted address becomes the one clean address; the preview shows it first
+    await page.fill('#f_link', 'https://instagram.com/RoyalTheGym?igsh=abc');
+    ok(/Will connect/.test(await page.textContent('#soc_prev .y')) && (await page.$eval('#soc_prev a', (a) => a.getAttribute('href') + '|' + a.textContent)) === 'https://www.instagram.com/royalthegym/|@royalthegym', 'social: the preview shows the clean address and the @handle before saving');
+    await page.click('[data-ok]'); await waitSets(page, db, 1);
+    ok(db.socialSets && db.socialSets.length === 1 && db.socialSets[0].fn === 'social_set' && JSON.stringify(db.socialSets[0].p) === JSON.stringify({ instagram: 'https://www.instagram.com/royalthegym/' }), 'social: Connect sends only the Instagram address, inside { p }');
+    await page.waitForFunction(() => !document.querySelector('.ov') && /@royalthegym/.test(document.querySelector('#view').textContent));
+    const ig = await page.$eval('#view a[data-soc=instagram]', (a) => [a.getAttribute('href'), a.target, a.rel]);
+    ok(ig[0] === 'https://www.instagram.com/royalthegym/' && ig[1] === '_blank' && /noopener/.test(ig[2]) && /noreferrer/.test(ig[2]), 'social: the connected Instagram button opens in a new tab with noopener noreferrer');
+    // WhatsApp: a plain mobile number
+    await page.click('[data-act=socialConnect][data-kind=whatsapp]'); await page.waitForSelector('#f_link');
+    await page.fill('#f_link', '97853 00123'); ok(/\+91 97853 00123/.test(await page.textContent('#soc_prev')), 'social: a plain mobile number previews as +91 97853 00123');
+    await page.click('[data-ok]'); await waitSets(page, db, 2);
+    ok(JSON.stringify(db.socialSets[1].p) === JSON.stringify({ whatsapp: 'https://wa.me/919785300123' }), 'social: the mobile number is saved as a wa.me link');
+    await page.waitForFunction(() => !document.querySelector('.ov'));
+    // Paste button: shown when the browser can read the clipboard, and it fills the box
+    await page.evaluate(() => { Object.defineProperty(navigator.clipboard, 'readText', { value: async () => '  https://m.facebook.com/royal.the.gym/?ref=bookmarks  ', configurable: true }); });
+    await page.click('[data-act=socialConnect][data-kind=facebook]'); await page.waitForSelector('#f_link');
+    ok(await page.$eval('#soc_paste', (b) => !b.hidden), 'social: the Paste button is shown when the clipboard can be read');
+    await page.click('#soc_paste'); await page.waitForFunction(() => document.querySelector('#f_link').value.trim().length > 0);
+    ok((await page.inputValue('#f_link')) === 'https://m.facebook.com/royal.the.gym/?ref=bookmarks' && (await page.$eval('#soc_prev a', (a) => a.getAttribute('href'))) === 'https://www.facebook.com/royal.the.gym', 'social: Paste fills the box and the preview shows the clean Facebook address');
+    await page.click('[data-ok]'); await waitSets(page, db, 3);
+    ok(JSON.stringify(db.socialSets[2].p) === JSON.stringify({ facebook: 'https://www.facebook.com/royal.the.gym' }), 'social: the Facebook address is saved clean');
+    await page.waitForFunction(() => !document.querySelector('.ov'));
+    // no clipboard reading: the Paste button stays hidden
+    await page.evaluate(() => { Object.defineProperty(navigator.clipboard, 'readText', { value: undefined, configurable: true }); });
+    await page.click('[data-act=socialConnect][data-kind=youtube]'); await page.waitForSelector('#f_link');
+    ok(await page.$eval('#soc_paste', (b) => b.hidden), 'social: the Paste button stays hidden when the browser cannot read the clipboard');
+    // the database turns an address down: the owner reads plain words, not the raw error
+    db.socialFail = 'bad youtube link'; await page.fill('#f_link', '@royalthegym'); await page.click('[data-ok]');
+    await page.waitForSelector('.toast.bad'); const tt = await page.textContent('.toast.bad');
+    ok(/YouTube/.test(tt) && !/bad youtube link/.test(tt), 'social: a database refusal reads in plain words: ' + tt.slice(0, 60)); db.socialFail = null;
+    await page.click('[data-ok]'); await waitSets(page, db, 4);
+    ok(JSON.stringify(db.socialSets[3].p) === JSON.stringify({ youtube: 'https://www.youtube.com/@royalthegym' }), 'social: a handle becomes the YouTube channel address');
+    await page.waitForFunction(() => !document.querySelector('.ov'));
+    ok((await page.$$('#view .soc-btns a[data-soc]')).length === 4 && /4\/4|Connected/.test(await page.textContent('#view')), 'social: all four buttons are on the page once connected');
+    // disconnect one
+    await page.click('[data-act=socialConnect][data-kind=instagram]'); await page.waitForSelector('#soc_off'); await page.click('#soc_off'); await waitSets(page, db, 5);
+    ok(JSON.stringify(db.socialSets[4].p) === JSON.stringify({ instagram: null }) && db.social.gym.instagram === null, 'social: Disconnect sends { instagram: null } and the database clears it');
+    await page.waitForFunction(() => !document.querySelector('.ov') && !document.querySelector('#view a[data-soc=instagram]'));
+    // an empty box on a network that is not connected does nothing
+    await page.click('[data-act=socialConnect][data-kind=instagram]'); await page.waitForSelector('#f_link');
+    ok(!(await page.$('#soc_off')), 'social: an unconnected network has no Disconnect button');
+    await page.click('[data-ok]'); await page.waitForFunction(() => !document.querySelector('.ov'));
+    ok(db.socialSets.length === 5, 'social: saving an empty box on an unconnected network sends nothing');
+    // videos: bad line, too many, then valid
+    await page.click('[data-act=socialVideos][data-scope=gym]'); await page.waitForSelector('#f_videos');
+    await page.fill('#f_videos', 'https://youtu.be/dQw4w9WgXcQ Warm up <b>routine</b>\nnot a link'); await page.click('[data-ok]');
+    ok(/2/.test(await page.textContent('#e_videos')) && db.socialSets.length === 5, 'social: a bad line is named by its number and nothing is sent');
+    await page.fill('#f_videos', ['aaaaaaaaaaa', 'bbbbbbbbbbb', 'ccccccccccc', 'ddddddddddd', 'eeeeeeeeeee', 'fffffffffff', 'ggggggggggg'].join('\n')); await page.click('[data-ok]');
+    ok(/6/.test(await page.textContent('#e_videos')) && db.socialSets.length === 5, 'social: seven videos are refused with the limit of 6');
+    await page.fill('#f_videos', 'https://youtu.be/dQw4w9WgXcQ?t=5 Warm up <b>routine</b>\nhttps://www.youtube.com/watch?v=abcdefghijk\nyoutu.be/dQw4w9WgXcQ');
+    ok(/2 of 6/.test(await page.textContent('#soc_vcount')), 'social: the box counts two distinct videos out of 6');
+    await page.click('[data-ok]'); await waitSets(page, db, 6);
+    ok(JSON.stringify(db.socialSets[5].p) === JSON.stringify({ videos: [{ id: 'dQw4w9WgXcQ', title: 'Warm up <b>routine</b>' }, { id: 'abcdefghijk', title: '' }] }), 'social: the video list is saved as ids and titles, the repeated video once');
+    await page.waitForFunction(() => !document.querySelector('.ov') && document.querySelectorAll('#view .vgrid .vid').length === 2);
+    ok((await page.$$('#view .vgrid .vid b b')).length === 0 && /Warm up <b>routine<\/b>/.test(await page.textContent('#view .vgrid')), 'social: a title with markup is shown as text, never as markup');
+    // thumbnails: one loads, one is blocked and falls back to a plain tile
+    await page.waitForFunction(() => document.querySelectorAll('#view .vgrid .vth.noimg').length === 1);
+    ok(await page.$eval('#view .vgrid .vth img.vthimg[src*="dQw4w9WgXcQ"]', (i) => !i.hidden && i.naturalWidth > 0) && await page.$eval('#view .vgrid .vth.noimg img.vthimg', (i) => i.hidden && /abcdefghijk/.test(i.src)), 'social: a thumbnail that fails is hidden and its tile keeps the play button');
+    // play: a nocookie player in a sandbox, with a plain link under it
+    await page.click('[data-act=playVideo][data-id=dQw4w9WgXcQ]'); await page.waitForSelector('.vframe iframe');
+    const fr = await page.$eval('.vframe iframe', (f) => [f.src, f.getAttribute('sandbox'), f.getAttribute('referrerpolicy')]);
+    ok(/^https:\/\/www\.youtube-nocookie\.com\/embed\/dQw4w9WgXcQ\?/.test(fr[0]) && /allow-scripts/.test(fr[1]) && !/allow-top-navigation/.test(fr[1]) && fr[2] === 'strict-origin-when-cross-origin', 'social: the video plays in a youtube-nocookie player in a sandbox without top navigation');
+    const wy = await page.$eval('.ov a[href*="watch"]', (a) => [a.getAttribute('href'), a.target, a.rel]);
+    ok(wy[0] === 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' && wy[1] === '_blank' && /noopener/.test(wy[2]), 'social: "Watch on YouTube" opens the video in a new tab safely');
+    await page.keyboard.press('Escape'); await page.waitForFunction(() => !document.querySelector('.vframe'));
+    ok(true, 'social: closing the window removes the player');
+    // remove every video: an empty box
+    await page.click('[data-act=socialVideos][data-scope=gym]'); await page.waitForSelector('#f_videos');
+    ok((await page.inputValue('#f_videos')).split('\n').length === 2 && /youtu\.be\/dQw4w9WgXcQ/.test(await page.inputValue('#f_videos')), 'social: the edit box starts with the saved videos, one per line');
+    await page.fill('#f_videos', ''); await page.click('[data-ok]'); await waitSets(page, db, 7);
+    ok(JSON.stringify(db.socialSets[6].p) === JSON.stringify({ videos: [] }) && db.social.gym.videos.length === 0, 'social: an empty box removes all videos');
+    await page.waitForFunction(() => !document.querySelector('.ov') && /No videos yet/.test(document.querySelector('#view').textContent));
+    // the Settings card still works after a failed read
+    db.socialViewFail = true; await page.evaluate(() => bust('social')); await page.click('a[href="#settings"]'); await page.waitForSelector('[data-act=gymProfile]');
+    ok(!/Social & videos/.test(await page.textContent('#view')) && (await page.$$('#view [data-act=gymProfile]')).length === 1, 'social: Settings still opens, without the social card, when the social data cannot be read'); db.socialViewFail = false;
+    await toSocial(page); await page.evaluate(() => { socialConnect('instagram', 'platform'); socialVideos('platform'); }); await page.waitForTimeout(400);
+    ok(!(await page.$('.ov')), 'social: a gym owner cannot open the platform editor, even when the action is called directly');
+    ok(!(db.rpcShapeErrors || []).some((x) => /^social_/.test(x)), 'social: every call had the right shape (no wrong-argument errors)');
+  });
+  console.log('social: a locked gym, a trainer, a member and the platform admin');
+  await session(browser, 'gym_admin', async (page, db) => {
+    db.social = { gym: SOC_ROW(), platform: null }; db.gyms[0].lock_override = 'force_lock';
+    await goEn(page); await ytStub(page); await login(page); await page.waitForSelector('.tiles', { timeout: 15000 }); await toSocial(page);
+    ok((await page.$$eval('[data-act=socialConnect]', (b) => b.every((x) => x.disabled))) && (await page.isDisabled('[data-act=socialVideos]')), 'social: a locked gym cannot change links or videos');
+    ok((await page.$$('#view .soc-btns a[data-soc]')).length === 4 && (await page.$$('#view .vgrid .vid')).length === 2, 'social: a locked gym still shows its links and videos');
+    await page.click('[data-act=playVideo][data-id=abcdefghijk]'); await page.waitForSelector('.vframe iframe'); ok(true, 'social: a locked gym can still play its videos'); await page.keyboard.press('Escape');
+    ok(!db.socialSets, 'social: nothing was written while locked');
+  });
+  await session(browser, 'trainer', async (page, db) => {
+    db.social = { gym: SOC_ROW(), platform: SOC_ROW({ whatsapp: null, facebook: null, youtube: null, videos: [{ id: 'zzzzzzzzzzz', title: 'Welcome' }] }) };
+    await goEn(page); await ytStub(page); await login(page); await page.waitForSelector('.tiles'); await toSocial(page, '.shero');
+    ok((await page.$$('#nav a[href="#social"]')).length === 1 && !(await page.$('[data-act=socialConnect]')) && !(await page.$('[data-act=socialVideos]')), 'social: a trainer sees the page but has nothing to edit');
+    await page.evaluate(() => { socialConnect('instagram', 'gym'); socialVideos('gym'); }); await page.waitForTimeout(400);
+    ok(!(await page.$('.ov')) && !db.socialSets, 'social: the edit actions do nothing for a trainer, even when called directly');
+    ok((await page.$$('.shero .soc-btns a[data-soc]')).length === 4 && /From GymOS/.test(await page.textContent('#view')) && (await page.$$('#view .vgrid .vid')).length === 3, 'social: the trainer sees the gym links, the GymOS link and 2 + 1 videos');
+  });
+  await session(browser, 'member', async (page, db) => {
+    db.social = { gym: SOC_ROW(), platform: SOC_ROW({ whatsapp: null, facebook: null, youtube: null, videos: [{ id: 'zzzzzzzzzzz', title: 'Welcome to GymOS' }] }) };
+    await goEn(page); await ytStub(page); await login(page); await page.waitForSelector('.tiles');
+    await page.evaluate(() => (location.hash = 'me')); await page.waitForSelector('[data-act=changePw]');
+    ok((await page.$$('#view .soc-btns a[data-soc]')).length === 4 && (await page.$$('#view .soc-btns a[href="#social"]')).length === 1, 'social: the member profile has the four follow buttons and a Videos link');
+    await page.click('#view .soc-btns a[href="#social"]'); await page.waitForSelector('.shero');
+    ok(!(await page.$('[data-act=socialConnect]')) && !(await page.$('[data-act=socialVideos]')), 'social: a member cannot edit anything');
+    await page.evaluate(() => { socialConnect('instagram', 'gym'); socialVideos('gym'); socialConnect('instagram', 'platform'); socialVideos('platform'); }); await page.waitForTimeout(400);
+    ok(!(await page.$('.ov')) && !db.socialSets, 'social: the edit actions do nothing for a member, even when called directly');
+    const hrefs = await page.$$eval('.shero a[data-soc]', (a) => a.map((x) => x.dataset.soc + '|' + x.getAttribute('href') + '|' + x.target + '|' + /noopener/.test(x.rel)));
+    ok(hrefs.join() === 'whatsapp|https://wa.me/919785300123|_blank|true,instagram|https://www.instagram.com/royalthegym/|_blank|true,facebook|https://www.facebook.com/royal.the.gym|_blank|true,youtube|https://www.youtube.com/@royalthegym|_blank|true', 'social: the four follow buttons open the right pages in new tabs');
+    ok(/From GymOS/.test(await page.textContent('#view')) && (await page.$$('#view .vgrid .vid')).length === 3, 'social: the member also sees the GymOS videos');
+    await page.click('[data-act=playVideo][data-id=zzzzzzzzzzz]'); await page.waitForSelector('.vframe iframe');
+    ok(/Welcome to GymOS/.test(await page.textContent('.ov h2')), 'social: a GymOS video plays with its title'); await page.keyboard.press('Escape');
+    ok(!db.socialSets && !(db.rpcShapeErrors || []).some((x) => /^social_/.test(x)), 'social: the member only read data');
+    // a gym that has added nothing
+    db.social = { gym: null, platform: null }; await page.evaluate(() => { bust('social'); render(); }); await page.waitForSelector('.shero');
+    ok(/Nothing here yet/.test(await page.textContent('#view')) && !(await page.$('#view .vgrid')), 'social: a gym with no links or videos shows a polite empty card');
+    await page.evaluate(() => (location.hash = 'me')); await page.waitForSelector('[data-act=changePw]');
+    ok(!(await page.$('#view .soc-btns')), 'social: the member profile has no social row when there is nothing to show');
+  });
+  await session(browser, 'super_admin', async (page, db) => {
+    db.social = { gym: null, platform: SOC_ROW({ videos: [] }) };
+    await goEn(page); await ytStub(page); await login(page); await page.waitForSelector('.tiles');
+    ok((await page.$$('#nav a[href="#social"]')).length === 1, 'social: the platform admin has a Platform profile menu item');
+    await toSocial(page); ok(!(await page.$('.shero')), 'social: the platform page has no gym card');
+    const kinds = await page.$$eval('[data-act=socialConnect]', (b) => b.map((x) => x.dataset.kind + ':' + x.dataset.scope).join());
+    ok(kinds === 'whatsapp:platform,instagram:platform,facebook:platform,youtube:platform' && /GymOS accounts/.test(await page.textContent('#view')), 'social: Connect buttons are for the platform accounts');
+    await page.click('[data-act=socialConnect][data-kind=instagram]'); await page.waitForSelector('#f_link');
+    ok((await page.inputValue('#f_link')) === 'https://www.instagram.com/royalthegym/' && await page.$eval('#soc_off', (b) => !!b), 'social: a connected account opens with its address and a Disconnect button');
+    await page.fill('#f_link', '@gymos.app'); await page.click('[data-ok]'); await waitSets(page, db, 1);
+    ok(db.socialSets[0].fn === 'social_set_platform' && JSON.stringify(db.socialSets[0].p) === JSON.stringify({ instagram: 'https://www.instagram.com/gymos.app/' }), 'social: the platform admin saves through social_set_platform');
+    await page.waitForFunction(() => !document.querySelector('.ov') && /@gymos\.app/.test(document.querySelector('#view').textContent));
+    await page.click('[data-act=socialVideos][data-scope=platform]'); await page.waitForSelector('#f_videos'); await page.fill('#f_videos', 'https://youtu.be/zzzzzzzzzzz Welcome to GymOS'); await page.click('[data-ok]'); await waitSets(page, db, 2);
+    ok(db.socialSets[1].fn === 'social_set_platform' && db.social.platform.videos.length === 1 && db.social.platform.videos[0].id === 'zzzzzzzzzzz', 'social: platform videos are saved through social_set_platform');
+    ok(!(db.rpcShapeErrors || []).some((x) => /^social_/.test(x)), 'social: the platform calls had the right shape');
+  });
+  await session(browser, 'member', async (page, db) => {
+    db.social = { gym: SOC_ROW(), platform: null };
+    await goEn(page); await ytStub(page); await login(page); await page.waitForSelector('.tiles'); await toSocial(page, '.shero');
+    ok(!(await overflow(page)), 'social: the member page has no horizontal overflow on a phone');
+    await page.click('[data-act=playVideo][data-id=dQw4w9WgXcQ]'); await page.waitForSelector('.vframe iframe');
+    const box = await page.$eval('.ov .md', (m) => { const r = m.getBoundingClientRect(); return [r.left >= 0, r.right <= innerWidth]; });
+    ok(box[0] && box[1], 'social: the video window fits inside a phone screen'); await page.keyboard.press('Escape');
+  }, { width: 375, height: 760 });
+  await session(browser, 'gym_admin', async (page, db) => {
+    db.social = { gym: SOC_ROW(), platform: null };
+    await goEn(page); await ytStub(page); await login(page); await page.waitForSelector('.tiles'); await toSocial(page);
+    ok(!(await overflow(page)), 'social: the owner page has no horizontal overflow on a phone');
+    await page.click('[data-act=socialConnect][data-kind=facebook]'); await page.waitForSelector('#f_link');
+    const m = await page.$eval('.ov .md', (e) => { const r = e.getBoundingClientRect(); return [r.left >= 0, r.right <= innerWidth]; }); ok(m[0] && m[1], 'social: the connect box fits inside a phone screen');
+  }, { width: 375, height: 760 });
   await browser.close(); server.close();
   console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED'); process.exit(fails ? 1 : 0);
 })();
