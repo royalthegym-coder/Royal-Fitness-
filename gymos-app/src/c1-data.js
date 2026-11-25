@@ -16,6 +16,7 @@ const Q = {
   overview: () => cached('overview', () => DB.rpc('admin_gym_overview')),
   gymProfile: () => cached('gymProfile', () => DB.rpc('gym_get_profile')), /* owner only: email, logo, signature */
   branding: () => cached('branding', () => DB.rpc('gym_branding')), /* anyone in the gym: logo and signature for receipts */
+  social: () => cached('social', () => DB.rpc('social_view')), /* gym + platform links and videos; anyone signed in */
 };
 const memberMap = (list) => new Map(list.map((m) => [m.id, m]));
 const planMap = (list) => new Map(list.map((p) => [p.id, p]));

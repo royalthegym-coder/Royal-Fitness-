@@ -404,3 +404,38 @@ body { background: radial-gradient(1100px 520px at 0% -12%, var(--aurora-a), tra
 .imgbtns small { flex-basis: 100%; }
 .pthumb { max-height: 48px; max-width: 160px; object-fit: contain; border-radius: 6px; background: #fff; padding: 2px; border: 1px solid var(--line); display: block; margin-top: 4px; }
 .imgup [hidden] { display: none !important; }
+
+/* social links and videos: the gym front card, connect rows, link buttons and the video shelf */
+.shero { display: flex; gap: 16px; align-items: center; padding: 18px; }
+.shero h2 { margin: 0 0 2px; font-size: 20px; }
+.slogo { width: 72px; height: 72px; flex: none; border-radius: 16px; object-fit: contain; background: #fff; border: 1px solid var(--line); padding: 4px; display: grid; place-items: center; }
+.slogo.ph { background: color-mix(in srgb, var(--gold, #a67c1d) 8%, transparent); color: var(--gold, #a67c1d); }
+.slogo.ph .i { width: 30px; height: 30px; }
+.soc-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.soc-b { text-decoration: none; }
+.soc-pad { padding: 4px 18px 16px; }
+.soc-list .soc-i { width: 34px; height: 34px; flex: none; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--gold, #a67c1d) 10%, transparent); color: var(--gold, #a67c1d); }
+.soc-list .soc-i .i { width: 18px; height: 18px; }
+.soc-list li { gap: 12px; }
+.soc-list small a { word-break: break-all; }
+.soc-tools { display: flex; gap: 8px; margin: 8px 0 4px; }
+.soc-tools [hidden] { display: none !important; }
+.soc-prev { min-height: 22px; margin: 6px 0; font-size: 13px; word-break: break-all; }
+.soc-prev .y { color: var(--ok); font-weight: 600; }
+.soc-prev .n { color: var(--muted); }
+.vgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; padding: 4px 18px 18px; }
+.vid { display: block; text-align: left; padding: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--surface2, transparent); color: inherit; cursor: pointer; overflow: hidden; font: inherit; }
+.vid b { display: block; padding: 8px 10px 10px; font-size: 13px; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.vid:focus-visible { outline: 2px solid var(--gold, #a67c1d); outline-offset: 2px; }
+.vth { position: relative; display: block; aspect-ratio: 16 / 9; background: #111; }
+.vth img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vth.noimg { background: linear-gradient(135deg, #1b1b1f, #2c2c33); }
+.vplay { position: absolute; inset: 0; display: grid; place-items: center; }
+.vplay .i { width: 44px; height: 44px; padding: 10px; border-radius: 50%; background: rgba(0,0,0,.62); color: #fff; box-sizing: content-box; }
+.vframe { position: relative; aspect-ratio: 16 / 9; width: 100%; background: #000; border-radius: 12px; overflow: hidden; }
+.vframe iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+@media (max-width: 520px) {
+  .shero { flex-direction: column; align-items: flex-start; }
+  .vgrid { grid-template-columns: 1fr 1fr; gap: 10px; padding: 4px 12px 14px; }
+  .vplay .i { width: 34px; height: 34px; padding: 8px; }
+}

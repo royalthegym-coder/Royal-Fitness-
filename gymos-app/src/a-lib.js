@@ -75,6 +75,12 @@ const RPC_ERR = [
   [/bad map link/i, () => L('Use a Google Maps share link (maps.app.goo.gl or google.com/maps)', 'गूगल मैप्स का शेयर लिंक डालें (maps.app.goo.gl या google.com/maps)')],
   [/image too large/i, () => L('The photo is too large. Choose a smaller one.', 'फ़ोटो बहुत बड़ी है। छोटी फ़ोटो चुनें।')],
   [/bad image/i, () => L('Use a PNG, JPG or WebP photo', 'PNG, JPG या WebP फ़ोटो इस्तेमाल करें')],
+  [/bad whatsapp link/i, () => L('That does not look like a WhatsApp number or link', 'यह WhatsApp का नंबर या लिंक नहीं लग रहा')],
+  [/bad instagram link/i, () => L('That does not look like an Instagram profile link', 'यह Instagram प्रोफ़ाइल का लिंक नहीं लग रहा')],
+  [/bad facebook link/i, () => L('That does not look like a Facebook page link', 'यह Facebook पेज का लिंक नहीं लग रहा')],
+  [/bad youtube link/i, () => L('That does not look like a YouTube channel link', 'यह YouTube चैनल का लिंक नहीं लग रहा')],
+  [/bad video link/i, () => L('One of the video links is not a YouTube video link', 'कोई वीडियो लिंक YouTube वीडियो का नहीं है')],
+  [/too many videos/i, () => L('You can add at most 6 videos', 'अधिकतम 6 वीडियो जोड़ सकते हैं')],
   [/paid amount is more than the total ([\d.]+)/i, (m) => L(`Paid amount is more than the total ${inr(Number(m[1]))}`, `जमा राशि कुल ${inr(Number(m[1]))} से ज़्यादा है`)],
 ];
 /* PostgREST / Postgres error → a message a gym owner can act on */
