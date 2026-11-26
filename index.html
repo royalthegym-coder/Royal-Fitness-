@@ -2,6 +2,18 @@
 <html lang="en" class="dark">
   <head>
     <script>
+      // Apply the saved theme before first paint (no flash). Values: dark | light | system.
+      (function () {
+        try {
+          var pref = localStorage.getItem('ff_theme') || 'dark';
+          var light = pref === 'light' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: light)').matches);
+          var el = document.documentElement;
+          el.classList.toggle('light', light);
+          el.classList.toggle('dark', !light);
+        } catch (e) {}
+      })();
+    </script>
+    <script>
       // Silence benign Vite HMR WebSocket notices in iframe preview
       window.addEventListener('unhandledrejection', (event) => {
         const reason = event.reason;

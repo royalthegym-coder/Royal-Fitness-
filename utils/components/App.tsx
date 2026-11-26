@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import '../theme';
 import { AppContent } from './AppContent';
 import { ToastProvider } from '@/context/ToastProvider';
 import { DataProvider } from '@/context/DataProvider';
@@ -8,14 +9,6 @@ import ErrorBoundary from './common/ErrorBoundary';
 import { OfflineIndicator } from './common/OfflineIndicator';
 
 const App: React.FC = () => {
-    useEffect(() => {
-        const isLight = localStorage.getItem('fitness_global_theme') === 'light';
-        if (isLight) {
-            document.documentElement.classList.add('high-contrast-light');
-        } else {
-            document.documentElement.classList.remove('high-contrast-light');
-        }
-    }, []);
 
     return (
         <ToastProvider>

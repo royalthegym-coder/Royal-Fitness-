@@ -266,7 +266,11 @@ export function computeExpiryDate(startDate: string, durationMonths: number): st
     return base.toISOString().split('T')[0];
 }
 
-const todayIso = () => new Date().toISOString().split('T')[0];
+/** Device-local calendar date (IST in India), not UTC — so early-morning check-ins/payments land on the right day. */
+const todayIso = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 const normalizePhone = (p: string) => String(p || '').replace(/\D/g, '').slice(-10);
 const safeIdPart = (id: unknown) => String(id ?? '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100);
 export const tenantDocId = (gymId: string, id: unknown) => `${gymId}_${safeIdPart(id)}`;

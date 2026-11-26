@@ -7418,7 +7418,7 @@ export default function BrandedApp() {
                                                             type: "service_account",
                                                             project_id: "gym-mobile-publishing",
                                                             private_key_id: "abcd1234efgh5678",
-                                                            private_key: "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC7V...\n-----END PRIVATE KEY-----\n",
+                                                            private_key: "<paste private_key from your downloaded service-account JSON>",
                                                             client_email: "service-account@google-console.iam.gserviceaccount.com"
                                                         }, null, 2);
                                                         setGoogleServiceAccount(sample);

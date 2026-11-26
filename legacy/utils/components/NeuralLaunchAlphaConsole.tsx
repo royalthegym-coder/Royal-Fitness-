@@ -155,7 +155,7 @@ export const NeuralLaunchAlphaConsole: React.FC = () => {
     // Step 2: Cloudflare & Supabase Secrets State
     const [supabaseProjectRef, setSupabaseProjectRef] = useState('xyzcompany-fitness-ref');
     const [supabaseUrl, setSupabaseUrl] = useState('https://xyzcompany.supabase.co');
-    const [generatedHmacSecret, setGeneratedHmacSecret] = useState('fitness_future_webhook_secure_secret_2026');
+    const [generatedHmacSecret, setGeneratedHmacSecret] = useState('');
 
     // Step 3: ₹1 Live Alpha Test State
     const [alphaMemberId, setAlphaMemberId] = useState('ff_alpha_01');
@@ -275,8 +275,9 @@ wrangler deploy
             };
             const rawBody = JSON.stringify(bodyObj);
 
-            // Use default server secret so local mirror & default edge pass seamlessly
-            const activeSecret = 'fitness_future_webhook_secure_secret_2026';
+            // No hard-coded secret: only the value the operator typed in this session is used.
+            const activeSecret = generatedHmacSecret;
+            if (!activeSecret) throw new Error('Enter the webhook secret first.');
             const encoder = new TextEncoder();
             const key = await window.crypto.subtle.importKey(
                 'raw',

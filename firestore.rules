@@ -1,7 +1,7 @@
 rules_version = '2';
 
 // =============================================================================
-// Fitness Future — Firestore Security Rules (Phase 1, Spark plan)
+// Fitness Future — Firestore Security Rules (Phase 2, Spark plan)
 //
 // Roles
 //   super_admin : ONLY royalthegym@gmail.com, email_verified, signed in with TOTP 2FA.
@@ -15,6 +15,8 @@ rules_version = '2';
 // starts with `${gymId}_`. Non-super-admins can only read/write their own gymId.
 // Trainers only see members assigned to them; members only see their own records.
 // Users can never change their own role, gymId, status or memberId.
+// A gym with status "suspended" (set only by the super admin) locks out its admin,
+// trainers and members until it is re-activated.
 // Default: deny.
 // =============================================================================
 
@@ -44,11 +46,25 @@ service cloud.firestore {
     function myGym() { return me().gymId; }
     function myRole() { return me().role; }
 
-    function isAdminOf(g)   { return active() && myRole() == 'admin'   && myGym() == g; }
-    function isTrainerOf(g) { return active() && myRole() == 'trainer' && myGym() == g; }
-    function isMemberOf(g)  { return active() && myRole() == 'member'  && myGym() == g; }
-    function isStaffOf(g)   { return active() && myRole() in ['admin', 'trainer'] && myGym() == g; }
-    function isActiveIn(g)  { return active() && myGym() == g; }
+    // Gym not suspended by the super admin (missing status = active).
+    function gymOpen(g) {
+      return get(/databases/$(database)/documents/gyms/$(g)).data.get('status', 'active') != 'suspended';
+    }
+    function isAdminOf(g)   { return active() && myRole() == 'admin'   && myGym() == g && gymOpen(g); }
+    function isTrainerOf(g) { return active() && myRole() == 'trainer' && myGym() == g && gymOpen(g); }
+    function isMemberOf(g)  { return active() && myRole() == 'member'  && myGym() == g && gymOpen(g); }
+    function isStaffOf(g)   { return active() && myRole() in ['admin', 'trainer'] && myGym() == g && gymOpen(g); }
+    function isActiveIn(g)  { return active() && myGym() == g && gymOpen(g); }
+    // Trainer is the currently assigned trainer of member `mid` in gym `g`.
+    function trainerHas(g, mid) {
+      return isTrainerOf(g)
+        && get(/databases/$(database)/documents/members/$(g + '_' + string(mid))).data.assignedTrainerUid == uid();
+    }
+    // Anyone allowed to coach / view member `mid` of gym `g`.
+    function canSeeMember(g, mid) {
+      return manages(g) || trainerHas(g, mid) || (isMemberOf(g) && mid == myMemberId());
+    }
+    function isNumOrNull(v, lo, hi) { return v == null || ((v is int || v is float) && v >= lo && v <= hi); }
     function manages(g)     { return isSuperAdmin() || isAdminOf(g); }
 
     // A new tenant document: gymId set, id prefixed with the gymId, no plaintext secrets.
@@ -102,7 +118,9 @@ service cloud.firestore {
 
       allow update: if
           // self: profile cosmetics only — never role / gymId / status / memberId
-          (signedIn() && uid() == userId && onlyChanges(['displayName', 'photoURL', 'phone']))
+          (signedIn() && uid() == userId && onlyChanges(['displayName', 'photoURL', 'phone', 'personalStorage', 'shareProgress'])
+              && request.resource.data.get('personalStorage', 'firestore') in ['drive', 'firestore']
+              && request.resource.data.get('shareProgress', false) is bool)
           // gym admin: manage trainers & members of own gym (approve, disable, link member record)
           || (isAdminOf(resource.data.gymId)
               && resource.data.role in ['trainer', 'member']
@@ -307,6 +325,101 @@ service cloud.firestore {
         && newDocIn(request.resource.data.gymId, docId)
         && request.resource.data.actorUid == uid();
       allow update, delete: if isSuperAdmin();
+    }
+
+    // ------------------------------------------------------------ progress logs (Phase 2)
+    // Weight / measurements. Written by the member, their trainer, or the gym admin.
+    match /progressLogs/{docId} {
+      allow read: if isSuperAdmin() || canSeeMember(resource.data.gymId, resource.data.memberId);
+      allow create: if newDocIn(request.resource.data.gymId, docId)
+        && request.resource.data.memberId is int
+        && canSeeMember(request.resource.data.gymId, request.resource.data.memberId)
+        && request.resource.data.createdBy == uid()
+        && isStr(request.resource.data.date, 10)
+        && isNumOrNull(request.resource.data.get('weightKg', null), 20, 350)
+        && isNumOrNull(request.resource.data.get('bodyFatPct', null), 2, 70)
+        && isNumOrNull(request.resource.data.get('chestCm', null), 30, 250)
+        && isNumOrNull(request.resource.data.get('waistCm', null), 30, 250)
+        && isNumOrNull(request.resource.data.get('hipsCm', null), 30, 250)
+        && isNumOrNull(request.resource.data.get('armsCm', null), 10, 100)
+        && isNumOrNull(request.resource.data.get('thighsCm', null), 20, 150)
+        && isStr(request.resource.data.get('notes', ''), 500)
+        && request.resource.data.keys().hasOnly(['id', 'gymId', 'memberId', 'date', 'weightKg', 'bodyFatPct', 'chestCm', 'waistCm', 'hipsCm', 'armsCm', 'thighsCm', 'notes', 'createdBy', 'createdByRole', 'createdAtMs', 'updatedAtMs']);
+      allow update: if false;   // delete + re-add keeps the history honest
+      allow delete: if manages(resource.data.gymId)
+        || (signedIn() && resource.data.createdBy == uid() && canSeeMember(resource.data.gymId, resource.data.memberId));
+    }
+
+    // ------------------------------------------------------- member plans (Phase 2)
+    // Workout + diet plan for one member (AI draft reviewed by the trainer, or written by hand).
+    match /plans/{docId} {
+      allow read: if isSuperAdmin() || canSeeMember(resource.data.gymId, resource.data.memberId);
+      allow create: if newDocIn(request.resource.data.gymId, docId)
+        && request.resource.data.memberId is int
+        && (manages(request.resource.data.gymId) || trainerHas(request.resource.data.gymId, request.resource.data.memberId))
+        && request.resource.data.trainerUid == uid()
+        && request.resource.data.status in ['active', 'archived']
+        && isStr(request.resource.data.title, 120)
+        && request.resource.data.source in ['ai', 'manual'];
+      allow update: if gymUnchanged()
+        && request.resource.data.memberId == resource.data.memberId
+        && request.resource.data.status in ['active', 'archived']
+        && (manages(resource.data.gymId) || trainerHas(resource.data.gymId, resource.data.memberId));
+      allow delete: if manages(resource.data.gymId)
+        || (trainerHas(resource.data.gymId, resource.data.memberId) && resource.data.trainerUid == uid());
+    }
+
+    // ---------------------------------------------------- AI trainer chats (Phase 2)
+    // One document per (member, user): id = `${gymId}_${memberId}_${ownerUid}`.
+    // Only the owner writes it; the gym admin may read it (member safety / support).
+    match /aiChats/{docId} {
+      allow read: if isSuperAdmin()
+        || manages(resource.data.gymId)
+        || (signedIn() && resource.data.ownerUid == uid() && canSeeMember(resource.data.gymId, resource.data.memberId));
+      allow create, update: if signedIn()
+        && request.resource.data.ownerUid == uid()
+        && docId == request.resource.data.gymId + '_' + string(request.resource.data.memberId) + '_' + uid()
+        && request.resource.data.memberId is int
+        && canSeeMember(request.resource.data.gymId, request.resource.data.memberId)
+        && request.resource.data.messages is list
+        && request.resource.data.messages.size() <= 60
+        && request.resource.data.keys().hasOnly(['gymId', 'memberId', 'ownerUid', 'ownerRole', 'messages', 'updatedAtMs'])
+        && (resource == null || (resource.data.gymId == request.resource.data.gymId && resource.data.memberId == request.resource.data.memberId));
+      allow delete: if manages(resource.data.gymId) || (signedIn() && resource.data.ownerUid == uid());
+    }
+
+    // ------------------------------------------------- food logs (Phase 2, Firestore fallback)
+    // Used only when the member does NOT keep personal data in Google Drive.
+    match /foodLogs/{docId} {
+      allow read: if isSuperAdmin() || canSeeMember(resource.data.gymId, resource.data.memberId);
+      allow create: if newDocIn(request.resource.data.gymId, docId)
+        && isMemberOf(request.resource.data.gymId)
+        && request.resource.data.memberId == myMemberId()
+        && request.resource.data.createdBy == uid()
+        && isStr(request.resource.data.date, 10)
+        && isStr(request.resource.data.meal, 40)
+        && isStr(request.resource.data.text, 500)
+        && isNumOrNull(request.resource.data.get('calories', null), 0, 5000)
+        && isNumOrNull(request.resource.data.get('proteinG', null), 0, 500)
+        && request.resource.data.keys().hasOnly(['id', 'gymId', 'memberId', 'date', 'meal', 'text', 'calories', 'proteinG', 'createdBy', 'createdAtMs']);
+      allow update: if false;
+      allow delete: if manages(resource.data.gymId) || (signedIn() && resource.data.createdBy == uid());
+    }
+
+    // ------------------------------------- progress summary shared with the trainer (Phase 2)
+    // id = `${gymId}_${memberId}`. Written only by the member (opt-in); full data stays in their Drive.
+    match /progressSummaries/{docId} {
+      allow read: if isSuperAdmin() || canSeeMember(resource.data.gymId, resource.data.memberId);
+      allow create, update: if isMemberOf(request.resource.data.gymId)
+        && request.resource.data.memberId == myMemberId()
+        && docId == request.resource.data.gymId + '_' + string(request.resource.data.memberId)
+        && request.resource.data.ownerUid == uid()
+        && isNumOrNull(request.resource.data.latestWeightKg, 20, 350)
+        && isNumOrNull(request.resource.data.startWeightKg, 20, 350)
+        && isNumOrNull(request.resource.data.targetWeightKg, 20, 350)
+        && isNumOrNull(request.resource.data.goalProgressPct, 0, 100)
+        && request.resource.data.keys().hasOnly(['gymId', 'memberId', 'ownerUid', 'latestWeightKg', 'latestDate', 'startWeightKg', 'targetWeightKg', 'goalProgressPct', 'entries', 'updatedAtMs']);
+      allow delete: if manages(resource.data.gymId) || (signedIn() && resource.data.ownerUid == uid());
     }
 
     // Everything else (legacy experimental collections, test docs, ...): denied.

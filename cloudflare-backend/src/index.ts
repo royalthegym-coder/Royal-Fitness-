@@ -6,11 +6,13 @@
  *   1. token signature/issuer/audience/expiry verified against Google's JWKS (jose)
  *   2. role + gymId read from Firestore users/{uid} via REST *with the caller's own token*
  *      (so Firestore rules apply; no service account needed)
- *   3. per-user rate limit (in-memory per isolate) + optional daily quota in KV
+ *   3. per-user rate limit (in-memory per isolate) + daily AI quotas (KV when bound, else in-memory)
  * Routes:
  *   GET  /health
  *   GET  /integrations/status          admin | super_admin
  *   POST /ai/gym-assist                admin | trainer | super_admin
+ *   POST /ai/trainer/chat              member | trainer | admin | super_admin  (streams SSE when stream=true)
+ *   POST /ai/trainer/plan              trainer | admin | super_admin  (structured JSON plan, not saved)
  *   GET  /whatsapp/status              admin | super_admin
  *   POST /whatsapp/bulk                admin | super_admin  (gym must be in WHATSAPP_ALLOWED_GYMS)
  *   POST /payments/razorpay/order      admin | member | super_admin
@@ -18,36 +20,10 @@
  */
 import { createRemoteJWKSet, jwtVerify, JWTPayload } from 'jose';
 
-export interface Env {
-  FIREBASE_PROJECT_ID: string;
-  FIRESTORE_DATABASE_ID?: string; // default "(default)"
-  SUPER_ADMIN_EMAIL: string; // royalthegym@gmail.com
-  SUPER_ADMIN_REQUIRES_MFA?: string; // "true" (default) | "false"
-  ALLOWED_ORIGINS: string; // comma separated, e.g. https://your-app.web.app,http://localhost:3000
-  GEMINI_API_KEY?: string;
-  GEMINI_MODEL?: string; // default gemini-2.5-flash
-  WHATSAPP_PHONE_NUMBER_ID?: string;
-  WHATSAPP_ACCESS_TOKEN?: string;
-  WHATSAPP_ALLOWED_GYMS?: string; // comma separated gymIds allowed to use the platform WhatsApp number
-  RAZORPAY_KEY_ID?: string;
-  RAZORPAY_KEY_SECRET?: string;
-  AI_DAILY_LIMIT_PER_USER?: string; // default 50
-  RATE_KV?: KVNamespace; // optional: durable daily quotas (free tier = 1k writes/day)
-}
+import { Caller, Env, HttpError, Role, fsGet, n, requireRole, s, useDailyQuota } from './shared';
+import { handleTrainerChat, handleTrainerPlan } from './trainerAi';
 
-type Role = 'super_admin' | 'admin' | 'trainer' | 'member';
-interface Caller {
-  uid: string;
-  email: string | null;
-  role: Role;
-  gymId: string | null;
-}
-
-class HttpError extends Error {
-  constructor(public status: number, message: string) {
-    super(message);
-  }
-}
+export type { Env };
 
 const JWKS = createRemoteJWKSet(
   new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com')
@@ -100,7 +76,7 @@ async function authenticate(req: Request, env: Env): Promise<{ caller: Caller; t
     const needsMfa = (env.SUPER_ADMIN_REQUIRES_MFA || 'true') !== 'false';
     const factor = payload.firebase?.sign_in_second_factor;
     if (!needsMfa || factor === 'totp') {
-      return { caller: { uid, email, role: 'super_admin', gymId: null }, token };
+      return { caller: { uid, email, role: 'super_admin', gymId: null, memberId: null }, token };
     }
     throw new HttpError(403, 'Super admin must sign in with 2-step verification.');
   }
@@ -118,12 +94,16 @@ async function authenticate(req: Request, env: Env): Promise<{ caller: Caller; t
   const gymId = f.gymId?.stringValue || null;
   if (!role || !['admin', 'trainer', 'member'].includes(role)) throw new HttpError(403, 'Unknown role.');
   if (status !== 'active') throw new HttpError(403, 'Account is not active.');
-  return { caller: { uid, email, role, gymId }, token };
+  const rawMemberId = f.memberId?.integerValue ?? f.memberId?.doubleValue;
+  if (gymId) {
+    // Suspended gyms are locked out of server features too (same as firestore.rules gymOpen()).
+    const gym = await fsGet(env, token, `gyms/${encodeURIComponent(gymId)}`);
+    if (gym && gym.status === 'suspended') throw new HttpError(403, 'This gym is suspended. Contact the platform owner.');
+  }
+  const memberId = rawMemberId != null && Number.isFinite(Number(rawMemberId)) ? Math.trunc(Number(rawMemberId)) : null;
+  return { caller: { uid, email, role, gymId, memberId }, token };
 }
 
-function requireRole(caller: Caller, roles: Role[]) {
-  if (!roles.includes(caller.role)) throw new HttpError(403, 'Not allowed for your role.');
-}
 
 // ------------------------------------------------------------------ RATE LIMITS
 const buckets = new Map<string, number[]>();
@@ -139,19 +119,7 @@ function rateLimit(key: string, max: number, windowMs: number) {
   }
 }
 
-/** Daily quota persisted in KV when bound (1 write per call — keep for paid actions only). */
-async function dailyQuota(env: Env, key: string, max: number) {
-  if (!env.RATE_KV) return;
-  const day = new Date().toISOString().slice(0, 10);
-  const k = `q:${day}:${key}`;
-  const used = Number((await env.RATE_KV.get(k)) || '0');
-  if (used >= max) throw new HttpError(429, 'Daily limit reached. Try again tomorrow.');
-  await env.RATE_KV.put(k, String(used + 1), { expirationTtl: 60 * 60 * 26 });
-}
-
 // ------------------------------------------------------------------ AI
-const s = (v: unknown, max = 300) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').slice(0, max);
-const n = (v: unknown, d = 0) => (Number.isFinite(Number(v)) ? Number(v) : d);
 
 function aiPrompt(task: string, p: Record<string, any>): { system: string; user: string; json: boolean } | null {
   switch (task) {
@@ -225,7 +193,7 @@ async function handleAi(req: Request, env: Env, caller: Caller): Promise<Respons
   const body = (await req.json().catch(() => ({}))) as { task?: string; payload?: Record<string, any> };
   const spec = aiPrompt(String(body.task || ''), body.payload || {});
   if (!spec) throw new HttpError(400, 'Unsupported AI task.');
-  await dailyQuota(env, `ai:${caller.uid}`, Number(env.AI_DAILY_LIMIT_PER_USER || 50));
+  await useDailyQuota(env, `ai:${caller.uid}`, Number(env.AI_DAILY_LIMIT_PER_USER || 50));
 
   const model = env.GEMINI_MODEL || 'gemini-2.5-flash';
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -285,7 +253,7 @@ async function handleWhatsAppBulk(req: Request, env: Env, caller: Caller): Promi
   }
 
   rateLimit(`wa:${caller.uid}`, 3, 60_000);
-  await dailyQuota(env, `wa:${gymId}`, 20); // 20 bulk sends (≤50 each) per gym per day
+  await useDailyQuota(env, `wa:${gymId}`, 20); // 20 bulk sends (≤50 each) per gym per day
 
   let sentCount = 0;
   let failedCount = 0;
@@ -369,8 +337,17 @@ export default {
     try {
       if (path === '/health') return json(req, env, { ok: true });
 
-      const { caller } = await authenticate(req, env);
+      const { caller, token } = await authenticate(req, env);
       rateLimit(`all:${caller.uid}`, 60, 60_000);
+
+      if (path === '/ai/trainer/chat' && req.method === 'POST') {
+        rateLimit(`chat:${caller.uid}`, 10, 60_000);
+        return await handleTrainerChat(req, env, caller, token, corsHeaders(req, env));
+      }
+      if (path === '/ai/trainer/plan' && req.method === 'POST') {
+        rateLimit(`plan:${caller.uid}`, 3, 60_000);
+        return await handleTrainerPlan(req, env, caller, token, corsHeaders(req, env));
+      }
 
       if (path === '/ai/gym-assist' && req.method === 'POST') return await handleAi(req, env, caller);
       if (path === '/whatsapp/bulk' && req.method === 'POST') return await handleWhatsAppBulk(req, env, caller);

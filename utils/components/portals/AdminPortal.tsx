@@ -28,12 +28,13 @@ const OffersManager = lazyWithRetry(() => import('../suite/OffersManager'));
 const ReviewsManager = lazyWithRetry(() => import('../suite/ReviewsManager'));
 const DatabaseExplorer = lazyWithRetry(() => import('../suite/DatabaseExplorer'));
 const SocialConnectHub = lazyWithRetry(() => import('../suite/SocialConnectHub'));
-const CleanMemberPortal = lazyWithRetry(() => import('../suite/CleanMemberPortal'));
+const MemberApp = lazyWithRetry(() => import('./MemberPortal').then((m) => ({ default: m.MemberApp })));
+const AdminDashboard = lazyWithRetry(() => import('./AdminDashboard'));
 const GymSettingsPanel = lazyWithRetry(() => import('../suite/GymSettingsPanel'));
 const PublicGymProfile = lazyWithRetry(() => import('../suite/PublicGymProfile'));
 const AccessManager = lazyWithRetry(() => import('./AccessManager'));
 
-const ScreenLoader = () => <div className="py-20 text-center text-xs text-zinc-500">Loading…</div>;
+const ScreenLoader = () => <div className="py-20 text-center text-xs text-subtle">Loading…</div>;
 
 /** Gym owner (admin) portal. Also used by the super admin after choosing a gym. */
 export const AdminPortal: React.FC<{ topBar?: React.ReactNode }> = ({ topBar }) => {
@@ -46,7 +47,6 @@ export const AdminPortal: React.FC<{ topBar?: React.ReactNode }> = ({ topBar }) 
   const [previewMemberId, setPreviewMemberId] = useState<number | null>(null);
 
   useEffect(() => {
-    document.documentElement.classList.add('dark');
     const on = () => setIsOffline(false);
     const off = () => setIsOffline(true);
     window.addEventListener('online', on);
@@ -82,22 +82,26 @@ export const AdminPortal: React.FC<{ topBar?: React.ReactNode }> = ({ topBar }) 
         const target = members.find((m) => m.id === previewMemberId) || members[0];
         return (
           <div className="space-y-4">
-            <div className="bg-[#111318] border border-white/10 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold text-white">Member Portal Preview</h2>
-              <select aria-label="Select member to preview" value={target?.id || ''} onChange={(e) => setPreviewMemberId(Number(e.target.value))} className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-xs text-white">
+            <div className="bg-surface border border-line rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-fg">Member app preview</h2>
+                <p className="text-[11px] text-subtle">What the member sees. Their private data (Drive, food diary, photos, chats) is not shown.</p>
+              </div>
+              <select aria-label="Select member to preview" value={target?.id || ''} onChange={(e) => setPreviewMemberId(Number(e.target.value))} className="h-10 bg-surface2 border border-line rounded-xl px-3 text-sm text-fg">
                 {members.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.phone})</option>)}
               </select>
             </div>
-            {target ? <CleanMemberPortal member={target} onExit={() => setCurrentView('dashboard')} isPreview /> : <p className="text-xs text-zinc-500">No members yet.</p>}
+            {target ? <MemberApp member={target} preview /> : <p className="text-xs text-subtle">No members yet.</p>}
           </div>
         );
       }
-      default: return <AIAutoOperatorDashboard setCurrentView={setCurrentView} />;
+      case 'insights': return <AIAutoOperatorDashboard setCurrentView={setCurrentView} />;
+      default: return <AdminDashboard setCurrentView={setCurrentView} />;
     }
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#09090B] text-zinc-100">
+    <div className="flex flex-col h-[100dvh] w-full overflow-hidden bg-canvas text-fg">
       {topBar}
       <div className="flex flex-1 min-h-0">
         <Sidebar currentView={currentView} setCurrentView={setCurrentView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
@@ -116,7 +120,7 @@ export const AdminPortal: React.FC<{ topBar?: React.ReactNode }> = ({ topBar }) 
           )}
           <main className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8">
             <div className="max-w-7xl mx-auto">
-              {isHydrating && <div className="text-[11px] text-zinc-500 mb-2">Syncing gym data…</div>}
+              {isHydrating && <div className="text-[11px] text-subtle mb-2" role="status">Syncing gym data…</div>}
               <ErrorBoundary>
                 <Suspense fallback={<ScreenLoader />}>{renderView()}</Suspense>
               </ErrorBoundary>

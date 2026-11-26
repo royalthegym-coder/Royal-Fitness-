@@ -2,11 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --fitness-gold: #f59e0b;
-  --surface-canvas: #09090b;
-  --surface-card: #111318;
-  --border-subtle: rgba(255, 255, 255, 0.1);
+/*
+ * Design tokens (RGB triplets so Tailwind opacity modifiers work: bg-surface/80).
+ * Dark is the default; <html class="light"> switches to the light palette.
+ * Used through tailwind.config.js colors: canvas, surface, surface2, line, fg, muted, subtle, brand.
+ */
+:root,
+html.dark {
+  --c-canvas: 9 9 11;
+  --c-surface: 17 19 24;
+  --c-surface2: 24 27 34;
+  --c-line: 255 255 255;
+  --line-alpha: 0.1;
+  --c-fg: 244 244 245;
+  --c-muted: 161 161 170;
+  --c-subtle: 113 113 122;
+  --c-brand: 245 158 11;
+  --c-brand-fg: 9 9 11;
+  color-scheme: dark;
+}
+html.light {
+  --c-canvas: 246 247 249;
+  --c-surface: 255 255 255;
+  --c-surface2: 241 243 246;
+  --c-line: 15 23 42;
+  --line-alpha: 0.1;
+  --c-fg: 15 23 42;
+  --c-muted: 71 85 105;
+  --c-subtle: 100 116 139;
+  --c-brand: 217 119 6;
+  --c-brand-fg: 255 255 255;
+  color-scheme: light;
 }
 
 @layer base {
@@ -17,14 +43,29 @@
     width: 100%;
     max-width: 100vw;
     overflow-x: hidden;
-    background-color: #09090b;
+    background-color: rgb(var(--c-canvas));
   }
 
   body {
-    @apply bg-[#09090B] text-zinc-100 antialiased overflow-hidden selection:bg-amber-500/30 selection:text-amber-100;
-    font-family: 'Plus Jakarta Sans', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    @apply antialiased overflow-hidden selection:bg-amber-500/30;
+    color: rgb(var(--c-fg));
+    font-family: 'Plus Jakarta Sans', 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-variant-numeric: tabular-nums;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--c-brand));
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
@@ -50,12 +91,59 @@
   height: 6px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #09090b;
+  background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #27272a;
+  background: rgb(var(--c-line) / 0.18);
   border-radius: 99px;
 }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
-}
+
+/*
+ * Light mode for the older admin screens (utils/components/suite/*), which were written
+ * with fixed dark classes. Remaps the most common ones onto the light tokens so the whole
+ * admin portal follows the theme switch. New screens use the token classes directly.
+ */
+html.light .bg-\[\#09090B\],
+html.light .bg-\[\#09090b\] { background-color: rgb(var(--c-canvas)) !important; }
+html.light .bg-\[\#111318\],
+html.light .bg-\[\#0D0F14\],
+html.light .bg-\[\#14171F\] { background-color: rgb(var(--c-surface)) !important; }
+html.light .bg-zinc-950,
+html.light .bg-zinc-900,
+html.light .bg-zinc-900\/90,
+html.light .bg-zinc-900\/80,
+html.light .bg-zinc-900\/70,
+html.light .bg-zinc-900\/60,
+html.light .bg-zinc-900\/50,
+html.light .bg-zinc-950\/70,
+html.light .bg-zinc-950\/60 { background-color: rgb(var(--c-surface2)) !important; }
+html.light .bg-zinc-800,
+html.light .bg-zinc-700 { background-color: rgb(226 232 240) !important; }
+html.light .hover\:bg-zinc-800:hover,
+html.light .hover\:bg-white\/5:hover,
+html.light .hover\:bg-white\/\[0\.04\]:hover { background-color: rgb(var(--c-line) / 0.06) !important; }
+html.light .border-white\/5,
+html.light .border-white\/10,
+html.light .border-white\/15,
+html.light .border-white\/20,
+html.light .divide-white\/5 > * + *,
+html.light .divide-white\/10 > * + * { border-color: rgb(var(--c-line) / 0.12) !important; }
+html.light .text-white:not([class*='bg-']),
+html.light .text-zinc-100:not([class*='bg-']),
+html.light .text-zinc-200:not([class*='bg-']) { color: rgb(var(--c-fg)) !important; }
+html.light .text-zinc-300:not([class*='bg-']) { color: rgb(51 65 85) !important; }
+html.light .text-zinc-400:not([class*='bg-']) { color: rgb(var(--c-muted)) !important; }
+html.light .text-zinc-500:not([class*='bg-']) { color: rgb(var(--c-subtle)) !important; }
+html.light .hover\:text-white:hover { color: rgb(var(--c-fg)) !important; }
+html.light .text-amber-300,
+html.light .text-amber-400 { color: rgb(180 83 9) !important; }
+html.light .text-emerald-300,
+html.light .text-emerald-400 { color: rgb(4 120 87) !important; }
+html.light .text-rose-300,
+html.light .text-rose-400,
+html.light .text-red-400 { color: rgb(190 18 60) !important; }
+html.light .text-sky-300,
+html.light .text-sky-400 { color: rgb(3 105 161) !important; }
+html.light input,
+html.light select,
+html.light textarea { color: rgb(var(--c-fg)); }

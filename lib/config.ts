@@ -56,4 +56,9 @@ export const GYM_COLLECTIONS = {
   trainerSessions: 'trainerSessions',
   joinRequests: 'joinRequests',
   injuries: 'injuries',
+  progressLogs: 'progressLogs',
+  plans: 'plans',
+  aiChats: 'aiChats',
+  foodLogs: 'foodLogs',
+  progressSummaries: 'progressSummaries',
 } as const;

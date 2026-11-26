@@ -9,11 +9,16 @@ FIRESTORE_DATABASE_ID = "(default)"
 SUPER_ADMIN_EMAIL = "royalthegym@gmail.com"
 SUPER_ADMIN_REQUIRES_MFA = "true"
 ALLOWED_ORIGINS = "https://project-74356317-8adc-420c-9be.web.app,https://project-74356317-8adc-420c-9be.firebaseapp.com,http://localhost:3000"
+# Gemini model for all AI routes. Free-tier friendly: gemini-2.5-flash (default) or gemini-2.5-flash-lite (more requests/day).
 GEMINI_MODEL = "gemini-2.5-flash"
-AI_DAILY_LIMIT_PER_USER = "50"
+AI_DAILY_LIMIT_PER_USER = "50"      # /ai/gym-assist per user per day
+AI_CHAT_DAILY_LIMIT_MEMBER = "30"   # /ai/trainer/chat messages per member per day
+AI_CHAT_DAILY_LIMIT_STAFF = "60"    # /ai/trainer/chat messages per trainer/admin per day
+AI_PLAN_DAILY_LIMIT = "10"          # /ai/trainer/plan plans per trainer/admin per day
 WHATSAPP_ALLOWED_GYMS = ""
 
 # Optional durable daily quotas (Workers KV free tier: 100k reads / 1k writes per day).
+# Without KV the quotas are counted in memory per Worker instance (best effort, resets on redeploy).
 # 1) npx wrangler kv namespace create RATE_KV   2) paste the id below and uncomment.
 # [[kv_namespaces]]
 # binding = "RATE_KV"

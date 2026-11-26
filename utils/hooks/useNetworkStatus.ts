@@ -13,7 +13,6 @@ export interface NetworkStatusDetails {
     isSyncing: boolean;
     status: NetworkConnectivityStatus;
     lastSyncedAt: string;
-    latencyMs: number;
     simulatedStatus: NetworkConnectivityStatus | 'auto';
     setSimulatedStatus: (mode: NetworkConnectivityStatus | 'auto') => void;
     triggerSync: () => void;
@@ -30,7 +29,6 @@ export function useNetworkStatus(options?: UseNetworkStatusOptions): boolean | N
     const [lastSyncedAt, setLastSyncedAt] = useState<string>(() =>
         new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     );
-    const [latencyMs, setLatencyMs] = useState<number>(18);
     const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const syncDuration = options?.syncDurationMs ?? 1800;
@@ -45,7 +43,6 @@ export function useNetworkStatus(options?: UseNetworkStatusOptions): boolean | N
             setLastSyncedAt(
                 new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
             );
-            setLatencyMs(Math.floor(12 + Math.random() * 14));
         }, syncDuration);
     }, [syncDuration]);
 
@@ -100,7 +97,6 @@ export function useNetworkStatus(options?: UseNetworkStatusOptions): boolean | N
             isSyncing: effectiveSyncing,
             status,
             lastSyncedAt,
-            latencyMs: effectiveOnline ? latencyMs : 0,
             simulatedStatus,
             setSimulatedStatus,
             triggerSync,

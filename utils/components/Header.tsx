@@ -2,6 +2,7 @@ import React from 'react';
 import { Menu, Building2, UserCircle2, LogOut } from 'lucide-react';
 import { useGym } from '../context/GymProvider';
 import { View } from '../../types';
+import { ThemeToggle } from './ui';
 
 interface HeaderProps {
   currentView: View;
@@ -12,28 +13,29 @@ interface HeaderProps {
 }
 
 const VIEW_TITLES: Record<string, string> = {
-  dashboard: 'AI Auto Operator Dashboard',
-  members: 'Members Management',
-  admission: 'Scientific AI Admission Form',
-  packages: 'Packages & Annual Discounts',
-  billing: 'AI Smart Billing',
-  attendance: 'Geometric Attendance',
-  staff: 'AI Staff Management',
-  workouts: 'Smart Workouts',
-  diets: 'Smart Diet Plans',
-  expenses: 'Expenses Management',
-  reports: 'AI Reports & Analytics',
-  whatsapp: 'WhatsApp Business AI',
-  socialConnect: 'Social Connect & Official Videos',
-  leads: 'AI Leads Management',
-  offers: 'Offers Manager',
-  reviews: 'Reviews System',
-  settings: 'Gym Management Settings',
-  publicProfile: 'Official Public Gym Profile',
+  dashboard: 'Dashboard',
+  insights: 'AI insights',
+  members: 'Members',
+  admission: 'New admission',
+  packages: 'Plans & packages',
+  billing: 'Billing & renewals',
+  attendance: 'Attendance',
+  staff: 'Staff',
+  workouts: 'Workout templates',
+  diets: 'Diet templates',
+  expenses: 'Expenses',
+  reports: 'Reports',
+  whatsapp: 'WhatsApp',
+  socialConnect: 'Social & videos',
+  leads: 'Leads',
+  offers: 'Offers',
+  reviews: 'Reviews',
+  settings: 'Gym settings',
+  publicProfile: 'Public profile',
   gymRegistration: 'Gym Registration & Branding',
-  database: 'Database Records',
-  access: 'Team, Trainers & Member Access',
-  memberPortal: 'Member Portal Preview',
+  database: 'Data export',
+  access: 'Team & access',
+  memberPortal: 'Member app preview',
 };
 
 const Header: React.FC<HeaderProps> = ({
@@ -75,7 +77,7 @@ const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         <button
           type="button"
-          onClick={() => setCurrentView('gymRegistration')}
+          onClick={() => setCurrentView('settings')}
           className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-xs font-medium text-zinc-200 cursor-pointer"
         >
           <Building2 className="w-3.5 h-3.5 text-amber-400" />
@@ -93,6 +95,7 @@ const Header: React.FC<HeaderProps> = ({
           </span>
         </button>
 
+        <ThemeToggle />
         <div className="flex items-center gap-2 pl-2 border-l border-white/10">
           <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold text-xs flex items-center justify-center">
             {initials}
@@ -101,7 +104,8 @@ const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onSwitchAccount}
-              title="Switch Account / Login"
+              title="Sign out"
+              aria-label="Sign out"
               className="p-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-zinc-400 hover:text-white cursor-pointer"
             >
               <LogOut className="w-4 h-4" />

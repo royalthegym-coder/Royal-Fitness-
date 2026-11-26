@@ -2,6 +2,8 @@ import React, { Suspense } from 'react';
 import { useSessionStore } from '../../lib/session';
 import { lazyWithRetry } from '../lazyWithRetry';
 import ErrorBoundary from './common/ErrorBoundary';
+import { useGym } from '../context/GymProvider';
+import { signOutFirebaseUser } from '../../lib/firebase';
 
 /**
  * Role-guarded router. There is NO default user:
@@ -23,12 +25,25 @@ const PendingScreen = lazyWithRetry(() => import('./access/AccountGates').then((
 const DisabledScreen = lazyWithRetry(() => import('./access/AccountGates').then((m) => ({ default: m.DisabledScreen })));
 
 const Splash: React.FC<{ text?: string }> = ({ text = 'Loading…' }) => (
-  <div className="h-screen w-screen bg-[#09090B] flex items-center justify-center text-sm text-zinc-400">{text}</div>
+  <div className="h-[100dvh] w-full bg-canvas flex items-center justify-center text-sm text-muted" role="status">{text}</div>
+);
+
+const SuspendedScreen: React.FC<{ gymName?: string }> = ({ gymName }) => (
+  <div className="h-[100dvh] w-full bg-canvas flex items-center justify-center p-4 text-fg">
+    <div className="max-w-sm text-center space-y-3 bg-surface border border-line rounded-2xl p-6">
+      <p className="text-base font-semibold">{gymName || 'This gym'} is paused</p>
+      <p className="text-sm text-muted">The gym’s account is suspended by the platform. Please contact the gym owner.</p>
+      <button type="button" onClick={() => void signOutFirebaseUser()} className="h-11 px-4 rounded-xl bg-brand text-brand-fg text-sm font-semibold">
+        Sign out
+      </button>
+    </div>
+  </div>
 );
 
 export const AppContent: React.FC = () => {
   const status = useSessionStore((s) => s.status);
   const role = useSessionStore((s) => s.role);
+  const { currentGym } = useGym();
 
   const screen = (() => {
     switch (status) {
@@ -47,6 +62,7 @@ export const AppContent: React.FC = () => {
       case 'disabled':
         return <DisabledScreen />;
       case 'ready':
+        if (role !== 'super_admin' && currentGym?.status === 'suspended') return <SuspendedScreen gymName={currentGym.gymName} />;
         if (role === 'super_admin') return <SuperAdminPortal />;
         if (role === 'admin') return <AdminPortal />;
         if (role === 'trainer') return <TrainerPortal />;

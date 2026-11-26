@@ -3,10 +3,13 @@ import { collection, doc, onSnapshot, query, setDoc, deleteDoc, where } from 'fi
 import { GYM_INFO } from '../../constants';
 import { db } from '../../lib/firebase';
 import { useSessionStore } from '../../lib/session';
-import { GymTenant } from '../store/useTenantStore';
-import { GymSocialLinks } from '../localGymDatabase';
 
-export type { GymSocialLinks };
+export interface GymSocialLinks {
+    whatsapp?: string;
+    instagram?: string;
+    facebook?: string;
+    youtube?: string;
+}
 
 export interface GymConfig {
     gymId: string;
@@ -17,7 +20,8 @@ export interface GymConfig {
     upiId: string;
     address: string;
     googleLocationUrl?: string;
-    secretKey: string; // Tenant-Specific Encryption Key
+    /** @deprecated never stored; kept for type compatibility with old screens. */
+    secretKey?: string;
     phone?: string;
     email?: string;
     whatsappNumber?: string;
@@ -27,6 +31,10 @@ export interface GymConfig {
     paymentGatewayId?: string; // Merchant Payment Gateway ID
     paymentUpiId?: string; // Merchant Custom Payment UPI ID
     socialLinks?: GymSocialLinks; // Official WhatsApp, Instagram, Facebook & YouTube URLs
+    /** Set only by the super admin. 'suspended' locks the gym out (firestore.rules gymOpen()). */
+    status?: 'active' | 'suspended';
+    ownerEmail?: string;
+    createdAtMs?: number;
 }
 
 export interface ReportedInjury {
@@ -42,23 +50,6 @@ export interface ReportedInjury {
     reportedAt: string;
 }
 
-export const tenantToGymConfig = (t: GymTenant): GymConfig => ({
-    gymId: t.gym_id,
-    gymName: t.gym_name,
-    ownerName: t.owner_name || t.admin_name || '',
-    logoUrl: t.logo_url || '',
-    signatureUrl: t.signature_url || '',
-    themeColor: 'amber',
-    upiId: t.upi_id || '',
-    address: t.location || '',
-    googleLocationUrl: t.google_location_url || '',
-    phone: t.phone_number || '',
-    email: t.email_id || '',
-    whatsappNumber: t.whatsapp_phone_number_id || t.phone_number || '',
-    socialLinks: t.social_links || {},
-    secretKey: '',
-    isSetupComplete: true,
-});
 
 export const updateGymInfoGlobal = (gym: GymConfig) => {
     if (!gym) return;
@@ -95,7 +86,6 @@ export const DEFAULT_GYM: GymConfig = {
     address: '',
     googleLocationUrl: '',
     email: '',
-    secretKey: ''
 };
 
 interface GymContextType {
@@ -120,7 +110,6 @@ export function gymDocToConfig(d: any): GymConfig {
         ...d,
         gymId: d.gymId,
         gymName: d.gymName || 'My Gym',
-        secretKey: '',
     };
 }
 

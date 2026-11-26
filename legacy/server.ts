@@ -16,6 +16,9 @@ import { AdaptiveCoachSync } from './lib/AdaptiveCoachSync.ts';
 import { gymDb } from './src/backend/gymDatabase.ts';
 import { createGymApiRouter } from './src/backend/gymApiRouter.ts';
 import { createAuthRouter } from './src/backend/authMiddleware.ts';
+import { randomBytes as __rb } from 'crypto';
+// No hard-coded fallback: if WEBHOOK_HMAC_SECRET / N8N_WEBHOOK_SECRET is unset, use an unguessable per-process value so webhooks fail closed.
+const UNSET_WEBHOOK_SECRET = __rb(32).toString('hex');
 
 dotenv.config();
 
@@ -1080,7 +1083,7 @@ Response schema rules:
         });
       }
 
-      const hmacSecret = process.env.WEBHOOK_HMAC_SECRET || 'fitness_future_webhook_secure_secret_2026';
+      const hmacSecret = process.env.WEBHOOK_HMAC_SECRET || UNSET_WEBHOOK_SECRET;
       const signature = crypto
         .createHmac('sha256', hmacSecret)
         .update(`${timestamp}.${rawBody}`)
@@ -1111,7 +1114,7 @@ Response schema rules:
       }
 
       // HMAC-SHA256 Signature Verification (Constant-Time TimingSafeEqual)
-      const hmacSecret = process.env.WEBHOOK_HMAC_SECRET || 'fitness_future_webhook_secure_secret_2026';
+      const hmacSecret = process.env.WEBHOOK_HMAC_SECRET || UNSET_WEBHOOK_SECRET;
       const expectedHmac = crypto
         .createHmac('sha256', hmacSecret)
         .update(`${timestampHeader}.${rawBody}`)
@@ -3415,7 +3418,7 @@ Return JSON:
           merchant_upi: configuredUpi,
           txn_reference: txnRef
         });
-        const hmacSecret = process.env.WEBHOOK_HMAC_SECRET || 'fitness_future_webhook_secure_secret_2026';
+        const hmacSecret = process.env.WEBHOOK_HMAC_SECRET || UNSET_WEBHOOK_SECRET;
         const signature = crypto
           .createHmac('sha256', hmacSecret)
           .update(`${timestamp}.${rawPayload}`)
@@ -3614,7 +3617,7 @@ Return ONLY valid JSON with these exact keys:
 
       const commitHash = crypto.randomBytes(4).toString("hex");
       const hmacSignature = crypto
-        .createHmac("sha256", process.env.WEBHOOK_HMAC_SECRET || "fitness_future_webhook_secure_secret_2026")
+        .createHmac("sha256", process.env.WEBHOOK_HMAC_SECRET || UNSET_WEBHOOK_SECRET)
         .update(`${runId}.${memberPhone}.${amount}`)
         .digest("hex");
 
@@ -3860,7 +3863,7 @@ Craft a concise, high-impact, ready-to-send WhatsApp message (under 95 words) wi
       const expectedKey =
         process.env.N8N_WEBHOOK_SECRET ||
         process.env.WEBHOOK_HMAC_SECRET ||
-        'fitness_future_webhook_secure_secret_2026';
+        UNSET_WEBHOOK_SECRET;
 
       if (!providedKey || !verifyApiKeyTimingSafe(expectedKey, providedKey)) {
         return res.status(401).json({
@@ -4111,7 +4114,7 @@ Craft a concise, high-impact, ready-to-send WhatsApp message (under 95 words) wi
     const expectedKey =
       process.env.N8N_WEBHOOK_SECRET ||
       process.env.WEBHOOK_HMAC_SECRET ||
-      'fitness_future_webhook_secure_secret_2026';
+      UNSET_WEBHOOK_SECRET;
 
     if (!providedKey || !verifyApiKeyTimingSafe(expectedKey, providedKey)) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });

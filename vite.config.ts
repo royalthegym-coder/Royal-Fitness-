@@ -143,7 +143,6 @@ export default defineConfig(() => {
         'crypto-js',
         'd3',
         '@google-pay/button-react',
-        '@supabase/supabase-js',
         'firebase/app',
         'firebase/auth',
         'firebase/firestore',

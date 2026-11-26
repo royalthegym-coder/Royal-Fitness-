@@ -11,9 +11,9 @@ interface GymUser { uid: string; email?: string; displayName?: string; role: str
 interface Invite { email: string; role: string; gymId: string; memberId?: number | null; createdAt?: any }
 interface JoinRequest { uid: string; gymId: string; email?: string; phone?: string; displayName?: string }
 
-const box = 'bg-[#111318] border border-white/10 rounded-xl p-4 space-y-3';
-const field = 'bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-xs text-white';
-const btn = 'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-50';
+const box = 'bg-surface border border-line rounded-2xl p-4 sm:p-5 space-y-3';
+const field = 'h-11 bg-surface2 border border-line rounded-xl px-3 text-sm text-fg placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-brand/60';
+const btn = 'inline-flex items-center justify-center gap-1.5 h-11 px-4 rounded-xl text-sm font-semibold cursor-pointer disabled:opacity-50';
 
 /**
  * Admin-only: invite trainers/members (by verified email), approve self-signup join requests,
@@ -117,8 +117,8 @@ export const AccessManager: React.FC = () => {
   return (
     <div className="space-y-4">
       <div className={box}>
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2"><UserPlus className="w-4 h-4 text-amber-400" /> Invite trainer or member</h2>
-        <p className="text-[11px] text-zinc-400">The person signs in with Google or a verified email matching the invite; their role and gym are applied automatically.</p>
+        <h2 className="text-[15px] font-semibold text-fg flex items-center gap-2"><UserPlus className="w-4 h-4 text-brand" /> Invite trainer or member</h2>
+        <p className="text-xs text-muted">The person signs in with Google or a verified email matching the invite; their role and gym are applied automatically.</p>
         <div className="flex flex-wrap gap-2">
           <input className={`${field} flex-1 min-w-[200px]`} placeholder="email@example.com" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
           <select className={field} value={inviteRole} onChange={(e) => setInviteRole(e.target.value as any)} aria-label="Role">
@@ -133,14 +133,14 @@ export const AccessManager: React.FC = () => {
               ))}
             </select>
           )}
-          <button type="button" className={`${btn} bg-amber-500 text-zinc-950`} onClick={sendInvite}>Send invite</button>
+          <button type="button" className={`${btn} bg-brand text-brand-fg`} onClick={sendInvite}>Send invite</button>
         </div>
         {invites.length > 0 && (
-          <ul className="text-xs text-zinc-300 divide-y divide-white/5">
+          <ul className="text-sm text-fg divide-y divide-line">
             {invites.map((i) => (
               <li key={i.email} className="py-1.5 flex items-center justify-between">
-                <span>{i.email} · {i.role}{i.memberId ? ` · member #${i.memberId}` : ''} <span className="text-zinc-500">(not claimed yet)</span></span>
-                <button type="button" className="text-zinc-400 hover:text-red-400" onClick={() => void deleteDoc(doc(db, 'invites', i.email))} aria-label="Revoke invite"><Trash2 className="w-3.5 h-3.5" /></button>
+                <span>{i.email} · {i.role}{i.memberId ? ` · member #${i.memberId}` : ''} <span className="text-subtle">(not claimed yet)</span></span>
+                <button type="button" className="text-muted hover:text-red-400" onClick={() => void deleteDoc(doc(db, 'invites', i.email))} aria-label="Revoke invite"><Trash2 className="w-3.5 h-3.5" /></button>
               </li>
             ))}
           </ul>
@@ -148,15 +148,15 @@ export const AccessManager: React.FC = () => {
       </div>
 
       <div className={box}>
-        <h2 className="text-sm font-semibold text-white">Join requests ({requests.length})</h2>
-        {requests.length === 0 && <p className="text-xs text-zinc-500">No pending requests.</p>}
+        <h2 className="text-[15px] font-semibold text-fg">Join requests ({requests.length})</h2>
+        {requests.length === 0 && <p className="text-xs text-subtle">No pending requests.</p>}
         {requests.map((r) => (
           <JoinRow key={r.uid} r={r} members={members} linked={linkedMemberIds} onApprove={approve} onReject={reject} />
         ))}
       </div>
 
       <div className={box}>
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Link2 className="w-4 h-4 text-amber-400" /> Assign members to trainers</h2>
+        <h2 className="text-[15px] font-semibold text-fg flex items-center gap-2"><Link2 className="w-4 h-4 text-brand" /> Assign members to trainers</h2>
         <div className="flex flex-wrap gap-2">
           <select className={field} value={assignMemberId} onChange={(e) => setAssignMemberId(e.target.value)} aria-label="Member">
             <option value="">Member…</option>
@@ -170,30 +170,29 @@ export const AccessManager: React.FC = () => {
               <option key={t.uid} value={t.uid}>{t.displayName || t.email}</option>
             ))}
           </select>
-          <button type="button" className={`${btn} bg-zinc-800 text-white border border-white/10`} disabled={!assignMemberId} onClick={assign}>Save</button>
+          <button type="button" className={`${btn} bg-surface2 text-fg border border-line`} disabled={!assignMemberId} onClick={assign}>Save</button>
         </div>
       </div>
 
       <div className={box}>
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Users className="w-4 h-4 text-amber-400" /> People with app access</h2>
-        <table className="w-full text-xs text-zinc-300">
-          <thead className="text-zinc-500 text-left"><tr><th className="py-1">Name</th><th>Role</th><th>Status</th><th>Member #</th><th /></tr></thead>
-          <tbody>
+        <h2 className="text-[15px] font-semibold text-fg flex items-center gap-2"><Users className="w-4 h-4 text-brand" /> People with app access</h2>
+        {users.length === 0 ? <p className="text-xs text-subtle">Nobody has joined yet.</p> : (
+          <ul className="divide-y divide-line">
             {users.map((u) => (
-              <tr key={u.uid} className="border-t border-white/5">
-                <td className="py-1.5">{u.displayName || u.email}</td>
-                <td>{u.role}</td>
-                <td>{u.status}</td>
-                <td>{u.memberId ?? '—'}</td>
-                <td className="text-right">
-                  {u.role !== 'admin' && (u.status === 'active'
-                    ? <button type="button" className="text-zinc-400 hover:text-red-400" onClick={() => void setUserStatus(u, 'disabled')}>Disable</button>
-                    : <button type="button" className="text-zinc-400 hover:text-emerald-400" onClick={() => void setUserStatus(u, 'active')}>Enable</button>)}
-                </td>
-              </tr>
+              <li key={u.uid} className="py-2.5 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-fg truncate">{u.displayName || u.email}</div>
+                  <div className="text-[11px] text-subtle truncate">{u.email}{u.memberId != null ? ` · member #${u.memberId}` : ''}</div>
+                </div>
+                <span className="text-[11px] px-2 py-0.5 rounded-full border border-line text-muted capitalize">{u.role}</span>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full border capitalize ${u.status === 'active' ? 'border-emerald-500/30 text-emerald-500' : 'border-rose-500/30 text-rose-500'}`}>{u.status}</span>
+                {u.role !== 'admin' && (u.status === 'active'
+                  ? <button type="button" className="text-xs font-semibold text-muted hover:text-rose-500 cursor-pointer px-2 h-9" onClick={() => void setUserStatus(u, 'disabled')}>Disable</button>
+                  : <button type="button" className="text-xs font-semibold text-muted hover:text-emerald-500 cursor-pointer px-2 h-9" onClick={() => void setUserStatus(u, 'active')}>Enable</button>)}
+              </li>
             ))}
-          </tbody>
-        </table>
+          </ul>
+        )}
       </div>
     </div>
   );
@@ -209,7 +208,7 @@ const JoinRow: React.FC<{
   const suggestion = members.find((m) => (r.email && m.email?.toLowerCase() === r.email) || (r.phone && m.phone && m.phone.replace(/\D/g, '').slice(-10) === r.phone.replace(/\D/g, '').slice(-10)));
   const [memberId, setMemberId] = useState<string>(suggestion ? String(suggestion.id) : '');
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-300 border-t border-white/5 pt-2">
+    <div className="flex flex-wrap items-center gap-2 text-sm text-fg border-t border-line pt-2">
       <span className="flex-1 min-w-[160px]">{r.displayName} · {r.email || r.phone}</span>
       <select className={field} value={memberId} onChange={(e) => setMemberId(e.target.value)} aria-label="Link member">
         <option value="">Create new member record</option>
@@ -218,7 +217,7 @@ const JoinRow: React.FC<{
         ))}
       </select>
       <button type="button" className={`${btn} bg-emerald-500 text-zinc-950`} onClick={() => onApprove(r, memberId ? Number(memberId) : null)}><Check className="w-3.5 h-3.5" /> Approve</button>
-      <button type="button" className={`${btn} bg-zinc-800 text-white`} onClick={() => onReject(r)}><X className="w-3.5 h-3.5" /> Reject</button>
+      <button type="button" className={`${btn} bg-surface2 text-fg border border-line`} onClick={() => onReject(r)}><X className="w-3.5 h-3.5" /> Reject</button>
     </div>
   );
 };

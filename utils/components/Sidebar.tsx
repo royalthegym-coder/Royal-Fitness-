@@ -22,6 +22,7 @@ import {
   Settings,
   Globe,
   X,
+  Sparkles,
 } from 'lucide-react';
 import { View } from '../../types';
 import { useGym } from '../context/GymProvider';
@@ -46,44 +47,45 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    title: 'Core Operations',
+    title: 'Daily operations',
     items: [
-      { id: 'dashboard', label: 'AI Dashboard', icon: LayoutDashboard },
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { id: 'members', label: 'Members', icon: Users },
-      { id: 'admission', label: 'Scientific Admission', icon: ClipboardPlus },
-      { id: 'packages', label: 'Packages & Discounts', icon: Layers },
-      { id: 'billing', label: 'AI Smart Billing', icon: Receipt },
-      { id: 'attendance', label: 'Geometric Attendance', icon: CheckSquare },
-      { id: 'staff', label: 'AI Staff', icon: UserCog },
+      { id: 'admission', label: 'New admission', icon: ClipboardPlus },
+      { id: 'packages', label: 'Plans & packages', icon: Layers },
+      { id: 'billing', label: 'Billing & renewals', icon: Receipt },
+      { id: 'attendance', label: 'Attendance', icon: CheckSquare },
+      { id: 'staff', label: 'Staff', icon: UserCog },
     ],
   },
   {
-    title: 'Fitness & Nutrition',
+    title: 'Training',
     items: [
-      { id: 'workouts', label: 'Smart Workouts', icon: Dumbbell },
-      { id: 'diets', label: 'Smart Diet Plans', icon: Utensils },
+      { id: 'workouts', label: 'Workout templates', icon: Dumbbell },
+      { id: 'diets', label: 'Diet templates', icon: Utensils },
     ],
   },
   {
-    title: 'Finance & Growth',
+    title: 'Money & growth',
     items: [
       { id: 'expenses', label: 'Expenses', icon: Wallet },
-      { id: 'reports', label: 'AI Reports', icon: BarChart3 },
-      { id: 'whatsapp', label: 'WhatsApp Business AI', icon: MessageSquare },
+      { id: 'reports', label: 'Reports', icon: BarChart3 },
+      { id: 'insights', label: 'AI insights', icon: Sparkles },
+      { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
       { id: 'socialConnect', label: 'Social & Videos', icon: Share2 },
-      { id: 'leads', label: 'AI Leads', icon: Target },
-      { id: 'offers', label: 'Offers Manager', icon: Tag },
-      { id: 'reviews', label: 'Reviews System', icon: Star },
+      { id: 'leads', label: 'Leads', icon: Target },
+      { id: 'offers', label: 'Offers', icon: Tag },
+      { id: 'reviews', label: 'Reviews', icon: Star },
     ],
   },
   {
-    title: 'Gym Setup & Records',
+    title: 'Setup',
     items: [
       { id: 'settings', label: 'Gym Settings', icon: Settings },
       { id: 'publicProfile', label: 'Public Profile', icon: Globe },
       { id: 'access', label: 'Team & Access', icon: Building2 },
-      { id: 'database', label: 'Database Records', icon: Database },
-      { id: 'memberPortal', label: 'Member Portal', icon: UserCircle2 },
+      { id: 'database', label: 'Data export', icon: Database },
+      { id: 'memberPortal', label: 'Member app preview', icon: UserCircle2 },
     ],
   },
 ];
@@ -134,7 +136,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isOpen, 
               <div className="text-sm font-bold text-white truncate">
                 {currentGym?.gymName || 'Fitness Future'}
               </div>
-              <div className="text-[11px] text-zinc-400 truncate">Gym Management Suite</div>
+              <div className="text-[11px] text-zinc-400 truncate">Gym admin</div>
             </div>
           </button>
 

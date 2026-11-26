@@ -30,6 +30,10 @@ export interface UserProfile {
   memberId?: number | null;
   staffId?: number | null;
   createdBy?: string;
+  /** Member choice: where personal data (chat, progress, photos, food log) is stored. Default firestore. */
+  personalStorage?: 'drive' | 'firestore';
+  /** Member choice: share a small progress summary with their trainer. */
+  shareProgress?: boolean;
 }
 
 export interface SessionState {

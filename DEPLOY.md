@@ -74,11 +74,28 @@ npx wrangler secret put RAZORPAY_KEY_SECRET       # optional
 
 Then open `cloudflare-backend/wrangler.toml` and check the `[vars]` (these are **not** secrets):
 
+- `GEMINI_MODEL` = Gemini model for all AI features. Default `gemini-2.5-flash`. Use `gemini-2.5-flash-lite`
+  if you hit the free-tier daily limit (it allows more requests per day). Change it, then `npx wrangler deploy`.
+- AI daily limits per user (keep the app inside the Gemini free tier):
+  `AI_CHAT_DAILY_LIMIT_MEMBER` (default 30 AI-coach messages per member per day),
+  `AI_CHAT_DAILY_LIMIT_STAFF` (default 60 per trainer/admin), `AI_PLAN_DAILY_LIMIT` (default 10 AI plan drafts per trainer/admin),
+  `AI_DAILY_LIMIT_PER_USER` (default 50 for the admin AI helpers).
+
 - `ALLOWED_ORIGINS` = the sites allowed to call the Worker, comma separated, e.g.
   `https://project-74356317-8adc-420c-9be.web.app,https://project-74356317-8adc-420c-9be.firebaseapp.com,http://localhost:3000`
 - `WHATSAPP_ALLOWED_GYMS` = gym IDs allowed to send WhatsApp from your number, comma separated
   (fill this after you create gyms in step 7; empty = nobody can send).
 - `SUPER_ADMIN_EMAIL` = `royalthegym@gmail.com` (leave as is).
+
+**Optional — exact daily limits (KV, free):** without KV the limits are counted in memory per Worker instance
+(good enough, but they reset when Cloudflare restarts the Worker). For exact limits:
+
+```bash
+npx wrangler kv namespace create RATE_KV     # prints an id
+```
+
+Paste the id into the commented `[[kv_namespaces]]` block at the bottom of `wrangler.toml` and uncomment it.
+KV free tier = 1,000 writes/day (each AI call uses 1) — fine for one gym; for many gyms leave KV off.
 
 Deploy:
 
@@ -113,9 +130,37 @@ npm i
 npm run build                 # creates dist/
 firebase use project-74356317-8adc-420c-9be
 firebase deploy --only firestore:rules,firestore:indexes,hosting
+# Phase 2 adds new rules + indexes (progressLogs, plans, aiChats, foodLogs, progressSummaries, payments by date). Deploy both.
 ```
 
 Indexes take a few minutes to build. The site will be at `https://project-74356317-8adc-420c-9be.web.app`.
+
+## 6b. Google Drive for member personal data (free)
+
+Members who sign in with Google can keep their **personal** data in their own Google Drive (hidden app folder):
+AI-coach chat history, progress logs, progress photos and food diary. This uses **their own free 15 GB**, costs you nothing,
+and cuts Firestore reads/writes. Gym data (membership, assigned plans, payments, attendance, dues, invites) always stays in Firestore.
+Email/password members (or anyone who says no) automatically use Firestore instead — every feature still works.
+
+1. Open Google Cloud console for the same project: https://console.cloud.google.com/apis/library/drive.googleapis.com?project=project-74356317-8adc-420c-9be
+   → **Enable** "Google Drive API". (Free.)
+2. **OAuth consent screen** (https://console.cloud.google.com/auth/overview?project=project-74356317-8adc-420c-9be — older UI:
+   APIs & Services → OAuth consent screen): app name "Fitness Future", support email royalthegym@gmail.com, your logo,
+   privacy-policy URL and home-page URL (your Firebase site), authorized domain `project-74356317-8adc-420c-9be.web.app`
+   (and your own domain if you add one). Under **Data access / Scopes** add
+   `https://www.googleapis.com/auth/drive.appdata` ("See, create, and delete its own configuration data in your Google Drive").
+3. **Verification before public launch:** Google lists `drive.appdata` as a **non-sensitive** scope
+   (https://developers.google.com/workspace/drive/api/guides/api-specific-auth), so no scope review and no paid security
+   assessment are needed. But while the consent screen is in *Testing* mode only the test users you add (max 100) can sign in,
+   and to show your app name/logo instead of the project id you must **Publish app** and pass the lighter **brand verification**
+   (privacy-policy URL, home page and authorized domain must match). This can take a few days, so do it before launching to all members.
+   Help: https://support.google.com/cloud/answer/13463073
+4. Nothing to configure in the app: the permission is asked only when a member turns on
+   **Home → My data & privacy → "Store my personal data in my Google Drive"**. Existing entries are moved to their Drive and
+   deleted from Firestore. Google's access token is kept only in memory (about 1 hour); after that the app shows
+   **Reconnect** and asks again with one tap. A copy is cached on the phone (IndexedDB) and wiped on sign-out.
+5. Optional for the member: **"Share progress with my trainer"** writes only a small summary
+   (latest weight + date, starting weight, goal %) to Firestore `progressSummaries` so the trainer can see it.
 
 ## 7. First sign-in (Pehli baar login)
 
@@ -129,6 +174,8 @@ Indexes take a few minutes to build. The site will be at `https://project-743563
 ## 8. Check everything (Jaanch)
 
 - Admin → **WhatsApp** page says WhatsApp is connected (if you set the WhatsApp secrets and the gym is in `WHATSAPP_ALLOWED_GYMS`).
+- Member → **AI Coach** answers (needs `GEMINI_API_KEY` + `VITE_WORKER_URL`). Trainer → member → **Plan → Generate with AI** returns a draft.
+- Super Admin → **Suspend** a test gym: its owner/trainers/members see "gym is paused"; **Activate** restores it.
 - Admin → **Reviews** page reads integration status from the Worker (`/integrations/status`) — it shows what is configured on the server.
 - A member account cannot open the Admin portal.
 - Any account other than royalthegym@gmail.com cannot open the Super Admin portal.
@@ -141,7 +188,9 @@ Indexes take a few minutes to build. The site will be at `https://project-743563
 | Firebase Hosting | 10 GB storage, 360 MB/day transfer |
 | Identity Platform | 3,000 daily active users |
 | Cloudflare Workers | 100,000 requests per day |
-| Gemini API free tier | limited requests per minute/day (the Worker caps AI at 50 per user per day) |
+| Gemini API free tier | limited requests per minute/day (Worker caps: 30 chat msgs/member, 60/staff, 10 plans/trainer, 50 helper calls per user per day) |
+| Google Drive (members' own) | 15 GB per member's Google account — not your quota |
+| Workers KV (optional) | 100k reads, 1k writes per day |
 
 ## Local development
 
